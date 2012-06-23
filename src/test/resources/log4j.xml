@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/" debug="false">
+
+    <appender name="UNIT" class="org.apache.log4j.DailyRollingFileAppender">
+        <param name="File" value="target/test-data/unit.log" />
+        <param name="Append" value="true" />
+        <param name="DatePattern" value="'.'yyyy-MM-dd" />
+        <param name="Threshold" value="TRACE" />
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%d %-5p [%c] (%t) %m%n" />
+        </layout>
+    </appender>
+
+    <appender name="DASEIN" class="org.apache.log4j.DailyRollingFileAppender">
+        <param name="File" value="target/test-data/dasein.log" />
+        <param name="Append" value="true" />
+        <param name="DatePattern" value="'.'yyyy-MM-dd" />
+        <param name="Threshold" value="TRACE" />
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%d %-5p [%c] (%t) %m%n" />
+        </layout>
+    </appender>
+
+    <appender name="WIRE" class="org.apache.log4j.DailyRollingFileAppender">
+        <param name="File" value="target/test-data/wire.log" />
+        <param name="Append" value="true" />
+        <param name="DatePattern" value="'.'yyyy-MM-dd" />
+        <param name="Threshold" value="TRACE" />
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%m%n" />
+        </layout>
+    </appender>
+
+    <appender name="ASYNCUNIT" class="org.apache.log4j.AsyncAppender">
+        <appender-ref ref="UNIT" />
+    </appender>
+
+    <appender name="ASYNCDASEIN" class="org.apache.log4j.AsyncAppender">
+        <appender-ref ref="DASEIN" />
+    </appender>
+
+    <appender name="ASYNCWIRE" class="org.apache.log4j.AsyncAppender">
+        <appender-ref ref="WIRE" />
+    </appender>
+
+    <category name="org.dasein">
+        <priority value="DEBUG" />
+        <appender-ref ref="ASYNCDASEIN" />
+    </category>
+
+    <category name="org.dasein.cloud.test">
+        <priority value="DEBUG" />
+        <appender-ref ref="ASYNCUNIT" />
+    </category>
+
+    <category name="dasein.cloud.aws.std">
+        <priority value="TRACE" />
+        <appender-ref ref="ASYNCUNIT" />
+    </category>
+
+    <category name="dasein.cloud.aws.wire">
+        <priority value="DEBUG" />
+        <appender-ref ref="ASYNCWIRE" />
+    </category>
+
+    <root>
+        <priority value="WARN" />
+    </root>
+
+</log4j:configuration>

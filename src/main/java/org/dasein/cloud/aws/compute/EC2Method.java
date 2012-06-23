@@ -1,0 +1,666 @@
+/**
+ * Copyright (C) 2009-2012 enStratus Networks Inc
+ *
+ * ====================================================================
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * ====================================================================
+ */
+
+package org.dasein.cloud.aws.compute;
+
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.Map;
+
+import javax.annotation.Nonnull;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+
+import org.apache.commons.httpclient.Header;
+import org.apache.commons.httpclient.HttpClient;
+import org.apache.commons.httpclient.HttpException;
+import org.apache.commons.httpclient.HttpStatus;
+import org.apache.commons.httpclient.methods.PostMethod;
+import org.apache.commons.httpclient.params.HttpClientParams;
+import org.apache.commons.httpclient.params.HttpMethodParams;
+import org.apache.log4j.Logger;
+import org.dasein.cloud.CloudErrorType;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.admin.PrepaymentSupport;
+import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.compute.AutoScalingSupport;
+import org.dasein.cloud.compute.MachineImageSupport;
+import org.dasein.cloud.compute.SnapshotSupport;
+import org.dasein.cloud.compute.VirtualMachineSupport;
+import org.dasein.cloud.compute.VolumeSupport;
+import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.identity.ShellKeySupport;
+import org.dasein.cloud.network.FirewallSupport;
+import org.dasein.cloud.network.IpAddressSupport;
+import org.dasein.cloud.network.VLANSupport;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
+
+public class EC2Method {
+    static private final Logger logger = AWSCloud.getLogger(EC2Method.class);
+    static private final Logger wire = AWSCloud.getWireLogger(EC2Method.class);
+
+    static public final String AUTOSCALING_PREFIX = "autoscaling:";
+
+    // Auto-scaling operations
+    static public final String CREATE_AUTO_SCALING_GROUP        = "CreateAutoScalingGroup";
+    static public final String CREATE_LAUNCH_CONFIGURATION      = "CreateLaunchConfiguration";
+    static public final String CREATE_OR_UPDATE_SCALING_TRIGGER = "CreateOrUpdateScalingTrigger";
+    static public final String DELETE_AUTO_SCALING_GROUP        = "DeleteAutoScalingGroup";
+    static public final String DELETE_LAUNCH_CONFIGURATION      = "DeleteLaunchConfiguration";
+    static public final String DESCRIBE_AUTO_SCALING_GROUPS     = "DescribeAutoScalingGroups";
+    static public final String DESCRIBE_LAUNCH_CONFIGURATIONS   = "DescribeLaunchConfigurations";
+    static public final String SET_DESIRED_CAPACITY             = "SetDesiredCapacity";
+    static public final String UPDATE_AUTO_SCALING_GROUP        = "UpdateAutoScalingGroup";
+
+
+    static public @Nonnull ServiceAction[] asAutoScalingServiceAction(@Nonnull String action) {
+        if( action.equals(CREATE_AUTO_SCALING_GROUP) ) {
+            return new ServiceAction[] { AutoScalingSupport.CREATE_SCALING_GROUP };
+        }
+        else if( action.equals(CREATE_LAUNCH_CONFIGURATION) ) {
+            return new ServiceAction[] { AutoScalingSupport.CREATE_LAUNCH_CONFIGURATION };
+        }
+        else if( action.equals(CREATE_OR_UPDATE_SCALING_TRIGGER) ) {
+            return new ServiceAction[] { AutoScalingSupport.SET_SCALING_TRIGGER };
+        }
+        else if( action.equals(DELETE_AUTO_SCALING_GROUP) ) {
+            return new ServiceAction[] { AutoScalingSupport.REMOVE_SCALING_GROUP };
+        }
+        else if( action.equals(DELETE_LAUNCH_CONFIGURATION) ) {
+            return new ServiceAction[] { AutoScalingSupport.REMOVE_LAUNCH_CONFIGURATION };
+        }
+        else if( action.equals(DESCRIBE_AUTO_SCALING_GROUPS) ) {
+            return new ServiceAction[] { AutoScalingSupport.GET_SCALING_GROUP, AutoScalingSupport.LIST_SCALING_GROUP };
+        }
+        else if( action.equals(DESCRIBE_LAUNCH_CONFIGURATIONS) ) {
+            return new ServiceAction[] { AutoScalingSupport.GET_LAUNCH_CONFIGURATION, AutoScalingSupport.LIST_LAUNCH_CONFIGURATION };
+        }
+        else if( action.equals(SET_DESIRED_CAPACITY) ) {
+            return new ServiceAction[] { AutoScalingSupport.SET_CAPACITY };
+        }
+        else if( action.equals(UPDATE_AUTO_SCALING_GROUP) ) {
+            return new ServiceAction[] { AutoScalingSupport.UPDATE_SCALING_GROUP };
+        }
+        return new ServiceAction[0];
+    }
+
+    static public final String EC2_PREFIX = "ec2:";
+    static public final String RDS_PREFIX = "rds:";
+    static public final String SDB_PREFIX = "sdb:";
+    static public final String SNS_PREFIX = "sns:";
+    static public final String SQS_PREFIX = "sqs:";
+
+    // AMI operations
+    static public final String BUNDLE_INSTANCE          = "BundleInstance";
+    static public final String CREATE_IMAGE             = "CreateImage";
+    static public final String DESCRIBE_BUNDLE_TASKS    = "DescribeBundleTasks";
+    static public final String DEREGISTER_IMAGE         = "DeregisterImage";
+    static public final String DESCRIBE_IMAGE_ATTRIBUTE = "DescribeImageAttribute";
+    static public final String DESCRIBE_IMAGES          = "DescribeImages";
+    static public final String MODIFY_IMAGE_ATTRIBUTE   = "ModifyImageAttribute";
+    static public final String REGISTER_IMAGE           = "RegisterImage";
+    
+    // EBS operations
+    static public final String ATTACH_VOLUME    = "AttachVolume";
+    static public final String CREATE_VOLUME    = "CreateVolume";
+    static public final String DELETE_VOLUME    = "DeleteVolume";
+    static public final String DETACH_VOLUME    = "DetachVolume";
+    static public final String DESCRIBE_VOLUMES = "DescribeVolumes";
+
+    // Elastic IP operations
+    static public final String ALLOCATE_ADDRESS     = "AllocateAddress";
+    static public final String ASSOCIATE_ADDRESS    = "AssociateAddress";
+    static public final String DESCRIBE_ADDRESSES   = "DescribeAddresses";
+    static public final String DISASSOCIATE_ADDRESS = "DisassociateAddress";
+    static public final String RELEASE_ADDRESS      = "ReleaseAddress";
+
+    // Instance operations
+    static public final String DESCRIBE_INSTANCES    = "DescribeInstances";
+    static public final String GET_CONSOLE_OUTPUT    = "GetConsoleOutput";
+    static public final String GET_METRIC_STATISTICS = "GetMetricStatistics";
+    static public final String GET_PASSWORD_DATA     = "GetPasswordData";
+    static public final String MONITOR_INSTANCES     = "MonitorInstances";
+    static public final String REBOOT_INSTANCES      = "RebootInstances";
+    static public final String RUN_INSTANCES         = "RunInstances";
+    static public final String START_INSTANCES       = "StartInstances";
+    static public final String STOP_INSTANCES        = "StopInstances";
+    static public final String TERMINATE_INSTANCES   = "TerminateInstances";
+    static public final String UNMONITOR_INSTANCES   = "UnmonitorInstances";
+
+    // Keypair operations
+    static public final String CREATE_KEY_PAIR    = "CreateKeyPair";
+    static public final String DELETE_KEY_PAIR    = "DeleteKeyPair";
+    static public final String DESCRIBE_KEY_PAIRS = "DescribeKeyPairs";
+    
+    // Reserved instances operations
+    static public final String DESCRIBE_RESERVED_INSTANCES           = "DescribeReservedInstances";
+    static public final String DESCRIBE_RESERVED_INSTANCES_OFFERINGS = "DescribeReservedInstancesOfferings";
+    static public final String PURCHASE_RESERVED_INSTANCES_OFFERING  = "PurchaseReservedInstancesOffering";
+
+    // Security group operations
+    static public final String AUTHORIZE_SECURITY_GROUP_INGRESS = "AuthorizeSecurityGroupIngress";
+    static public final String CREATE_SECURITY_GROUP            = "CreateSecurityGroup";
+    static public final String DELETE_SECURITY_GROUP            = "DeleteSecurityGroup";
+    static public final String DESCRIBE_SECURITY_GROUPS         = "DescribeSecurityGroups";
+    static public final String REVOKE_SECURITY_GROUP_INGRESS    = "RevokeSecurityGroupIngress";
+
+    // Snapshot operations
+    static public final String CREATE_SNAPSHOT             = "CreateSnapshot";
+    static public final String DELETE_SNAPSHOT             = "DeleteSnapshot";
+    static public final String DESCRIBE_SNAPSHOTS          = "DescribeSnapshots";
+    static public final String DESCRIBE_SNAPSHOT_ATTRIBUTE = "DescribeSnapshotAttribute";
+    static public final String MODIFY_SNAPSHOT_ATTRIBUTE   = "ModifySnapshotAttribute";
+
+    // VPC operations
+    static public final String ASSOCIATE_DHCP_OPTIONS = "AssociateDhcpOptions";
+    static public final String CREATE_DHCP_OPTIONS    = "CreateDhcpOptions";
+    static public final String CREATE_SUBNET          = "CreateSubnet";
+    static public final String CREATE_VPC             = "CreateVpc";
+    static public final String DELETE_SUBNET          = "DeleteSubnet";
+    static public final String DELETE_VPC             = "DeleteVpc";
+    static public final String DESCRIBE_DHCP_OPTIONS  = "DescribeDhcpOptions";
+    static public final String DESCRIBE_SUBNETS       = "DescribeSubnets";
+    static public final String DESCRIBE_VPCS          = "DescribeVpcs";
+    
+    static public @Nonnull ServiceAction[] asEC2ServiceAction(@Nonnull String action) {
+        // TODO: implement me
+        // AMI operations
+        if( action.equals(BUNDLE_INSTANCE) ) {
+            return new ServiceAction[] { MachineImageSupport.IMAGE_VM };
+        }
+        else if( action.equals(CREATE_IMAGE) || action.equals(REGISTER_IMAGE) ) {
+            return new ServiceAction[] { MachineImageSupport.REGISTER_IMAGE };
+        }
+        else if( action.equals(DESCRIBE_BUNDLE_TASKS) ) {
+            return new ServiceAction[0];
+        }
+        else if( action.equals(DEREGISTER_IMAGE) ) {
+            return new ServiceAction[] { MachineImageSupport.REMOVE_IMAGE };
+        }
+        else if( action.equals(DESCRIBE_IMAGE_ATTRIBUTE) || action.equals(DESCRIBE_IMAGES) ) {
+            return new ServiceAction[] { MachineImageSupport.GET_IMAGE, MachineImageSupport.LIST_IMAGE };
+        }
+        else if( action.equals(MODIFY_IMAGE_ATTRIBUTE) ) {
+            return new ServiceAction[] { MachineImageSupport.MAKE_PUBLIC, MachineImageSupport.SHARE_IMAGE };
+        }
+        // EBS operations
+        if( action.equals(ATTACH_VOLUME) ) {
+            return new ServiceAction[] { VolumeSupport.ATTACH };
+        }
+        else if( action.equals(CREATE_VOLUME) ) {
+            return new ServiceAction[] { VolumeSupport.CREATE_VOLUME };
+        }
+        else if( action.equals(DELETE_VOLUME) ) {
+            return new ServiceAction[] { VolumeSupport.REMOVE_VOLUME };
+        }
+        else if( action.equals(DETACH_VOLUME) ) {
+            return new ServiceAction[] { VolumeSupport.DETACH };
+        }
+        else if( action.equals(DESCRIBE_VOLUMES) ) {
+            return new ServiceAction[] { VolumeSupport.GET_VOLUME, VolumeSupport.LIST_VOLUME };
+        }
+        // elastic IP operations
+        if( action.equals(ALLOCATE_ADDRESS) ) {
+            return new ServiceAction[] { IpAddressSupport.CREATE_IP_ADDRESS };
+        }
+        else if( action.equals(ASSOCIATE_ADDRESS) ) {
+            return new ServiceAction[] { IpAddressSupport.ASSIGN };
+        }
+        else if( action.equals(DESCRIBE_ADDRESSES) ) {
+            return new ServiceAction[] { IpAddressSupport.GET_IP_ADDRESS, IpAddressSupport.LIST_IP_ADDRESS };
+        }
+        else if( action.equals(DISASSOCIATE_ADDRESS) ) {
+            return new ServiceAction[] { IpAddressSupport.RELEASE };
+        }
+        else if( action.equals(RELEASE_ADDRESS) ) {
+            return new ServiceAction[] { IpAddressSupport.REMOVE_IP_ADDRESS };
+        }
+        // instance operations
+        if( action.equals(DESCRIBE_INSTANCES) ) {
+            return new ServiceAction[] { VirtualMachineSupport.GET_VM, VirtualMachineSupport.LIST_VM };
+        }
+        else if( action.equals(GET_CONSOLE_OUTPUT) ) {
+            return new ServiceAction[] { VirtualMachineSupport.VIEW_CONSOLE };
+        }
+        else if( action.equals(GET_METRIC_STATISTICS) ) {
+            return new ServiceAction[] { VirtualMachineSupport.VIEW_ANALYTICS };
+        }
+        else if( action.equals(GET_PASSWORD_DATA) ) {
+            return new ServiceAction[] { VirtualMachineSupport.GET_VM };
+        }
+        else if( action.equals(MONITOR_INSTANCES) || action.equals(UNMONITOR_INSTANCES) ) {
+            return new ServiceAction[] { VirtualMachineSupport.TOGGLE_ANALYTICS };
+        }
+        else if( action.equals(REBOOT_INSTANCES) ) {
+            return new ServiceAction[] { VirtualMachineSupport.REBOOT };
+        }
+        else if( action.equals(RUN_INSTANCES) ) {
+            return new ServiceAction[] { VirtualMachineSupport.CREATE_VM };
+        }
+        else if( action.equals(START_INSTANCES) ) {
+            return new ServiceAction[] { VirtualMachineSupport.BOOT };
+        }
+        else if( action.equals(STOP_INSTANCES) ) {
+            return new ServiceAction[] { VirtualMachineSupport.PAUSE };
+        }
+        else if( action.equals(TERMINATE_INSTANCES) ) {
+            return new ServiceAction[] { VirtualMachineSupport.REMOVE_VM };
+        }
+        // keypair operations
+        if( action.equals(CREATE_KEY_PAIR) ) {
+            return new ServiceAction[] { ShellKeySupport.CREATE_KEYPAIR };
+        }
+        else if( action.equals(DELETE_KEY_PAIR) ) {
+            return new ServiceAction[] { ShellKeySupport.REMOVE_KEYPAIR };
+        }
+        else if( action.equals(DESCRIBE_KEY_PAIRS) ) {
+            return new ServiceAction[] { ShellKeySupport.GET_KEYPAIR, ShellKeySupport.LIST_KEYPAIR };
+        }
+        // reserved instance operations
+        if( action.equals(DESCRIBE_RESERVED_INSTANCES) ) {
+            return new ServiceAction[] { PrepaymentSupport.GET_PREPAYMENT, PrepaymentSupport.LIST_PREPAYMENT };
+        }
+        else if( action.equals(DESCRIBE_RESERVED_INSTANCES_OFFERINGS) ) {
+            return new ServiceAction[] { PrepaymentSupport.GET_OFFERING, PrepaymentSupport.LIST_OFFERING };
+        }
+        else if( action.equals(PURCHASE_RESERVED_INSTANCES_OFFERING) ) {
+            return new ServiceAction[] { PrepaymentSupport.PREPAY };
+        }
+        // security group operations
+        if( action.equals(AUTHORIZE_SECURITY_GROUP_INGRESS) ) {
+            return new ServiceAction[] { FirewallSupport.AUTHORIZE };
+        }
+        else if( action.equals(CREATE_SECURITY_GROUP) ) {
+            return new ServiceAction[] { FirewallSupport.CREATE_FIREWALL };
+        }
+        else if( action.equals(DELETE_SECURITY_GROUP) ) {
+            return new ServiceAction[] { FirewallSupport.REMOVE_FIREWALL };
+        }
+        else if( action.equals(DESCRIBE_SECURITY_GROUPS) ) {
+            return new ServiceAction[] { FirewallSupport.GET_FIREWALL, FirewallSupport.LIST_FIREWALL };
+        }
+        else if( action.equals(REVOKE_SECURITY_GROUP_INGRESS) ) {
+            return new ServiceAction[] { FirewallSupport.REVOKE };
+        }
+        // snapshot operations
+        if( action.equals(CREATE_SNAPSHOT) ) {
+            return new ServiceAction[] { SnapshotSupport.CREATE_SNAPSHOT };
+        }
+        else if( action.equals(DELETE_SNAPSHOT) ) {
+            return new ServiceAction[] { SnapshotSupport.REMOVE_SNAPSHOT };
+        }
+        else if( action.equals(DESCRIBE_SNAPSHOTS) ) {
+            return new ServiceAction[] { SnapshotSupport.GET_SNAPSHOT, SnapshotSupport.LIST_SNAPSHOT };
+        }
+        else if( action.equals(DESCRIBE_SNAPSHOT_ATTRIBUTE) ) {
+            return new ServiceAction[] { SnapshotSupport.GET_SNAPSHOT };
+        }
+        else if( action.equals(MODIFY_SNAPSHOT_ATTRIBUTE) ) {
+            return new ServiceAction[] { SnapshotSupport.MAKE_PUBLIC, SnapshotSupport.SHARE_SNAPSHOT };
+        }
+        // VPC operations
+        if( action.equals(ASSOCIATE_DHCP_OPTIONS) ) {
+            return new ServiceAction[0];
+        }
+        else if( action.equals(CREATE_DHCP_OPTIONS) ) {
+            return new ServiceAction[0];
+        }
+        else if( action.equals(CREATE_SUBNET) ) {
+            return new ServiceAction[] { VLANSupport.CREATE_SUBNET };
+        }
+        else if( action.equals(CREATE_VPC) ) {
+            return new ServiceAction[] { VLANSupport.CREATE_VLAN};
+        }
+        else if( action.equals(DELETE_SUBNET) ) {
+            return new ServiceAction[] { VLANSupport.REMOVE_SUBNET };
+        }
+        else if( action.equals(DELETE_VPC) ) {
+            return new ServiceAction[] { VLANSupport.REMOVE_VLAN };
+        }
+        else if( action.equals(DESCRIBE_DHCP_OPTIONS) ) {
+            return new ServiceAction[0];            
+        }
+        else if( action.equals(DESCRIBE_SUBNETS) ) {
+            return new ServiceAction[] { VLANSupport.GET_SUBNET, VLANSupport.LIST_SUBNET };
+        }
+        else if( action.equals(DESCRIBE_VPCS) ) {
+            return new ServiceAction[] { VLANSupport.GET_VLAN, VLANSupport.LIST_VLAN };
+        }
+        return new ServiceAction[0];
+    }
+
+	private int                attempts    = 0;
+	private Map<String,String> parameters  = null;
+	private AWSCloud           provider    = null;
+	private String             url         = null;
+	
+	public EC2Method(AWSCloud provider, String url, Map<String,String> parameters) throws InternalException, CloudException {
+		this.url = url;
+		this.parameters = parameters;
+		this.provider = provider;
+        ProviderContext ctx = provider.getContext();
+        
+        if( ctx == null ) {
+            throw new CloudException("Provider context is necessary for this request");
+        }
+		parameters.put(AWSCloud.P_SIGNATURE, provider.signEc2(ctx.getAccessPrivate(), url, parameters));
+	}
+	
+	public Document invoke() throws EC2Exception, CloudException, InternalException {
+	    return invoke(false);
+	}
+	
+	public Document invoke(boolean debug) throws EC2Exception, CloudException, InternalException {
+	    if( logger.isTraceEnabled() ) {
+	        logger.trace("ENTER - " + EC2Method.class.getName() + ".invoke(" + debug + ")");
+	    }
+	    try {
+    		if( logger.isDebugEnabled() ) {
+    			logger.debug("Talking to server at " + url);
+    		}
+            HttpClientParams httpClientParams = new HttpClientParams();
+    		PostMethod post = new PostMethod(url);
+    		
+    		try {
+        		HttpClient client;
+        		int status;
+        
+        		attempts++;
+                httpClientParams.setParameter(HttpMethodParams.USER_AGENT, "Dasein Cloud");
+                client = new HttpClient(httpClientParams);
+                if( provider.getProxyHost() != null ) {
+                    client.getHostConfiguration().setProxy(provider.getProxyHost(), provider.getProxyPort());
+                }
+        		post.addRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
+        		for( Map.Entry<String, String> entry : parameters.entrySet() ) {
+        			post.addParameter(entry.getKey(), entry.getValue());
+        		}
+                if( wire.isDebugEnabled() ) {
+                    wire.debug("POST " + post.getPath() + "/?");
+                    for( Header header : post.getRequestHeaders() ) {
+                        wire.debug(header.getName() + ": " + header.getValue());
+                    }
+                }
+        		try {
+        			status =  client.executeMethod(post);
+                    if( wire.isDebugEnabled() ) {
+                        wire.debug("HTTP STATUS: " + status);
+                    }
+        		} 
+        		catch( HttpException e ) {
+        			logger.error("HTTP error from server: " + e.getMessage());
+        			e.printStackTrace();
+        			throw new CloudException(CloudErrorType.COMMUNICATION, 0, null, e.getMessage());
+        		} 
+        		catch( IOException e ) {
+        			logger.error("I/O error from server communications: " + e.getMessage());
+        			e.printStackTrace();
+        			throw new InternalException(e);
+        		}
+        		if( status == HttpStatus.SC_OK ) {
+        			try {
+        				InputStream input = post.getResponseBodyAsStream();
+        
+        				try {
+        					return parseResponse(input);
+        				}
+        				finally {
+        					input.close();
+        				}
+        			} 
+        			catch( IOException e ) {
+        				logger.error("Error parsing response from AWS: " + e.getMessage());
+        				e.printStackTrace();
+        				throw new CloudException(CloudErrorType.COMMUNICATION, status, null, e.getMessage());
+        			}
+        		}
+        		else if( status == HttpStatus.SC_FORBIDDEN ) {
+        		    String msg = "API Access Denied (403)";
+        		    
+                    try {
+                        InputStream input = post.getResponseBodyAsStream();
+        
+                        try {
+                            BufferedReader in = new BufferedReader(new InputStreamReader(input));
+                            StringBuilder sb = new StringBuilder();
+                            String line;
+                                
+                            while( (line = in.readLine()) != null ) {
+                                sb.append(line);
+                                sb.append("\n");
+                            }
+                            //System.out.println(sb);
+                            try {
+                                Document doc = parseResponse(sb.toString());
+                                
+                                if( doc != null ) {
+                                    NodeList blocks = doc.getElementsByTagName("Error");
+                                    String code = null, message = null, requestId = null;
+                
+                                    if( blocks.getLength() > 0 ) {
+                                        Node error = blocks.item(0);
+                                        NodeList attrs;
+                                        
+                                        attrs = error.getChildNodes();
+                                        for( int i=0; i<attrs.getLength(); i++ ) {
+                                            Node attr = attrs.item(i);
+                                            
+                                            if( attr.getNodeName().equals("Code") ) {
+                                                code = attr.getFirstChild().getNodeValue().trim();
+                                            }
+                                            else if( attr.getNodeName().equals("Message") ) {
+                                                message = attr.getFirstChild().getNodeValue().trim();
+                                            }
+                                        }
+                                        
+                                    }
+                                    blocks = doc.getElementsByTagName("RequestID");
+                                    if( blocks.getLength() > 0 ) {
+                                        Node id = blocks.item(0);
+                                        
+                                        requestId = id.getFirstChild().getNodeValue().trim();
+                                    }
+                                    if( message == null && code == null ) {
+                                        throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
+                                    }
+                                    else if( message == null ) {
+                                        message = code;
+                                    }
+                                    throw new EC2Exception(status, requestId, code, message);
+                                }
+                            }
+                            catch( RuntimeException ignore  ) {
+                                // ignore me
+                            }
+                            catch( Error ignore  ) {
+                                // ignore me
+                            }
+                            msg = msg + ": " + sb.toString().trim().replaceAll("\n", " / ");
+                        }
+                        finally {
+                            input.close();
+                        }
+                    } 
+                    catch( IOException ignore ) {
+                        // ignore me
+                    }
+                    catch( RuntimeException ignore ) {
+                        // ignore me
+                    }
+                    catch( Error ignore ) {
+                        // ignore me
+                    }
+        		    throw new CloudException(msg);
+        		}
+        		else {
+        			if( logger.isDebugEnabled() ) {
+        				logger.debug("Received " + status + " from " + parameters.get(AWSCloud.P_ACTION));
+        			}
+        			if( status == HttpStatus.SC_SERVICE_UNAVAILABLE || status == HttpStatus.SC_INTERNAL_SERVER_ERROR ) {
+        				if( attempts >= 5 ) {
+        					String msg;
+        					
+        					if( status == HttpStatus.SC_SERVICE_UNAVAILABLE ) {
+        						msg = "Cloud service is currently unavailable.";
+        					}
+        					else {
+        						msg = "The cloud service encountered a server error while processing your request.";
+        						try {
+                                    msg = msg + "Response from server was:\n" + post.getResponseBodyAsString();
+    			                }
+    			                catch( IOException ignore ) {
+    			                    // ignore me
+    			                }
+    			                catch( RuntimeException ignore ) {
+    			                    // ignore me
+    			                }
+    			                catch( Error ignore ) {
+    			                    // ignore me
+    			                }
+        					}
+        					logger.error(msg);
+        					throw new CloudException(msg);
+        				}
+        				else {
+        					try { Thread.sleep(5000L); }
+        					catch( InterruptedException e ) { /* ignore */ }
+        					return invoke();
+        				}
+        			}
+        			try {
+        				InputStream input = post.getResponseBodyAsStream();
+        				Document doc;
+        
+        				try {
+        					doc = parseResponse(input);
+        				}
+        				finally {
+        					input.close();
+        				}
+        				if( doc != null ) {
+        					NodeList blocks = doc.getElementsByTagName("Error");
+        					String code = null, message = null, requestId = null;
+        
+        					if( blocks.getLength() > 0 ) {
+        						Node error = blocks.item(0);
+        						NodeList attrs;
+        						
+        						attrs = error.getChildNodes();
+        						for( int i=0; i<attrs.getLength(); i++ ) {
+        							Node attr = attrs.item(i);
+        							
+        							if( attr.getNodeName().equals("Code") ) {
+        								code = attr.getFirstChild().getNodeValue().trim();
+        							}
+        							else if( attr.getNodeName().equals("Message") ) {
+        								message = attr.getFirstChild().getNodeValue().trim();
+        							}
+        						}
+        						
+        					}
+        					blocks = doc.getElementsByTagName("RequestID");
+        					if( blocks.getLength() > 0 ) {
+        						Node id = blocks.item(0);
+        						
+        						requestId = id.getFirstChild().getNodeValue().trim();
+        					}
+        					if( message == null ) {
+        						throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
+        					}
+        					throw new EC2Exception(status, requestId, code, message);
+        				}
+        				throw new CloudException("Unable to parse error.");
+        			} 
+        			catch( IOException e ) {
+        				logger.error(e);
+        				e.printStackTrace();
+        				throw new CloudException(e);
+        			}			
+        		}
+    		}
+    		finally {
+    		    post.releaseConnection();
+    		}
+	    }
+	    finally {
+	        if( logger.isTraceEnabled() ) {
+	            logger.trace("EXIT - " + EC2Method.class.getName() + ".invoke()");
+	        }
+	    }
+	}
+	
+	private Document parseResponse(String responseBody) throws CloudException, InternalException {
+	    try {
+            if( wire.isDebugEnabled() ) {
+                String[] lines = responseBody.split("\n");
+                
+                if( lines.length < 1 ) {
+                    lines = new String[] { responseBody };
+                }
+                for( String l : lines ) {
+                    wire.debug(l);
+                }
+            }
+            ByteArrayInputStream bas = new ByteArrayInputStream(responseBody.getBytes());
+            
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder parser = factory.newDocumentBuilder();
+            Document doc = parser.parse(bas);
+
+            bas.close();
+            return doc;
+	    }
+	    catch( IOException e ) {
+	        throw new CloudException(e);
+	    }
+	    catch( ParserConfigurationException e ) {
+            throw new CloudException(e);
+        }
+        catch( SAXException e ) {
+            throw new CloudException(e);
+        }   
+	}
+	
+	private Document parseResponse(InputStream responseBodyAsStream) throws CloudException, InternalException {
+		try {
+			BufferedReader in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
+			StringBuilder sb = new StringBuilder();
+			String line;
+	            
+			while( (line = in.readLine()) != null ) {
+				sb.append(line);
+				sb.append("\n");
+			}
+			in.close();
+	          
+			return parseResponse(sb.toString());
+		}
+		catch( IOException e ) {
+			throw new CloudException(e);
+		}			
+    }
+}
