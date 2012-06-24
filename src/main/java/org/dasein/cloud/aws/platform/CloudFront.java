@@ -66,7 +66,7 @@ public class CloudFront implements CDNSupport {
         		provider.getStorageServices().getBlobStoreSupport().makePublic(file.getDirectory(), file.getName());
         	}
         }
-        method = new CloudFrontMethod(provider, CloudFrontAction.CREATE_DISTRIBUTION, null, "text/xml", toConfigXml(bucket, name, null, null, null, active, cnames));
+        method = new CloudFrontMethod(provider, CloudFrontAction.CREATE_DISTRIBUTION, null, toConfigXml(bucket, name, null, null, null, active, cnames));
         try {
         	response = method.invoke();
         }
@@ -119,7 +119,7 @@ public class CloudFront implements CDNSupport {
 	        
 	        etag = (String)getDistributionWithEtag(distributionId)[1];
 	        headers.put("If-Match", etag);
-    		method = new CloudFrontMethod(provider, CloudFrontAction.DELETE_DISTRIBUTION, headers, null, null);
+    		method = new CloudFrontMethod(provider, CloudFrontAction.DELETE_DISTRIBUTION, headers, null);
             try {
             	method.invoke(distributionId);
             	return;
@@ -155,7 +155,7 @@ public class CloudFront implements CDNSupport {
         if( ctx == null ) {
             throw new CloudException("No context was established for this request");
         }
-		CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.GET_DISTRIBUTION, null, null, null);
+		CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.GET_DISTRIBUTION, null, null);
 		CloudFrontResponse response;
         NodeList blocks;
         
@@ -195,7 +195,7 @@ public class CloudFront implements CDNSupport {
 
 	@Override
 	public boolean isSubscribed() throws InternalException, CloudException {
-        CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null, null);
+        CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null);
         
         try {
             method.invoke();
@@ -220,7 +220,7 @@ public class CloudFront implements CDNSupport {
 	
 	@Override
 	public @Nonnull Collection<Distribution> list() throws InternalException, CloudException {
-		CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null, null);
+		CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null);
 		ArrayList<Distribution> list = new ArrayList<Distribution>();
 		CloudFrontResponse response;
         NodeList blocks;
@@ -288,7 +288,7 @@ public class CloudFront implements CDNSupport {
         String logDirectory = (distribution == null ? null : distribution.getLogDirectory());
         String logName = (distribution == null ? null : distribution.getLogName());
         
-		method = new CloudFrontMethod(provider, CloudFrontAction.UPDATE_DISTRIBUTION, headers, "text/xml", toConfigXml(bucket, name, (String)distData[2], logDirectory, logName, active, cnames));
+		method = new CloudFrontMethod(provider, CloudFrontAction.UPDATE_DISTRIBUTION, headers, toConfigXml(bucket, name, (String)distData[2], logDirectory, logName, active, cnames));
         try {
         	response = method.invoke(distributionId, "config");
         }

@@ -26,26 +26,35 @@ import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Properties;
 import java.util.TimeZone;
 
 import javax.annotation.Nonnull;
+import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.HttpException;
-import org.apache.commons.httpclient.HttpMethod;
-import org.apache.commons.httpclient.HttpStatus;
-import org.apache.commons.httpclient.methods.DeleteMethod;
-import org.apache.commons.httpclient.methods.GetMethod;
-import org.apache.commons.httpclient.methods.PostMethod;
-import org.apache.commons.httpclient.methods.StringRequestEntity;
-import org.apache.commons.httpclient.params.HttpClientParams;
-import org.apache.commons.httpclient.params.HttpMethodParams;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpVersion;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.conn.params.ConnRoutePNames;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.params.BasicHttpParams;
+import org.apache.http.params.HttpParams;
+import org.apache.http.params.HttpProtocolParams;
+import org.apache.http.protocol.HTTP;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.identity.ServiceAction;
@@ -106,15 +115,20 @@ public class Route53Method {
 		this.provider = provider;
 		this.method = translateMethod(operation);
 		dateString = getTimestamp(System.currentTimeMillis());
+
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new InternalException("No context was specified for this request");
+        }
 		try {
-		    signature = provider.signAWS3(new String(provider.getContext().getAccessPublic(), "utf-8"), provider.getContext().getAccessPrivate(), dateString);
+		    signature = provider.signAWS3(new String(ctx.getAccessPublic(), "utf-8"), ctx.getAccessPrivate(), dateString);
 		}
 		catch( UnsupportedEncodingException e ) {
 		    throw new InternalException(e);
 		}
 	}
-	
-	   
+
     public String getTimestamp(long timestamp) {
         SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
 
@@ -123,24 +137,24 @@ public class Route53Method {
     }
 
     private Document delete(boolean debug) throws EC2Exception, CloudException, InternalException {
-        return invoke(new DeleteMethod(url), debug);
+        return invoke(new HttpDelete(url), debug);
     }
 	   
    private Document get(boolean debug) throws EC2Exception, CloudException, InternalException {
-        return invoke(new GetMethod(url), debug);
+        return invoke(new HttpGet(url), debug);
     }
 	   
 	private Document post(String body, boolean debug) throws EC2Exception, CloudException, InternalException {
-	    PostMethod post = new PostMethod(url);
-	    
-	    if( body != null ) {
-	        try {
-                post.setRequestEntity(new StringRequestEntity(body, "text/xml", "UTF-8"));
+	    HttpPost post = new HttpPost(url);
+
+        if( body != null ) {
+            try {
+                post.setEntity(new StringEntity(body, "text/xml", "utf-8"));
             }
             catch( UnsupportedEncodingException e ) {
                 throw new InternalException(e);
             }
-	    }
+        }
 	    return invoke(post, debug);
 	}
 	
@@ -169,43 +183,79 @@ public class Route53Method {
 	    }
 	    throw new InternalException("No such method: " + method);
 	}
-	   
-	private Document invoke(HttpMethod method, boolean debug) throws EC2Exception, CloudException, InternalException {
+
+    protected @Nonnull HttpClient getClient() throws InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new InternalException("No context was specified for this request");
+        }
+        boolean ssl = url.startsWith("https");
+        HttpParams params = new BasicHttpParams();
+
+        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
+        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
+        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
+        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
+        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
+        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
+
+        Properties p = ctx.getCustomProperties();
+
+        if( p != null ) {
+            String proxyHost = p.getProperty("proxyHost");
+            String proxyPort = p.getProperty("proxyPort");
+
+            if( proxyHost != null ) {
+                int port = 0;
+
+                if( proxyPort != null && proxyPort.length() > 0 ) {
+                    port = Integer.parseInt(proxyPort);
+                }
+                params.setParameter(ConnRoutePNames.DEFAULT_PROXY, new HttpHost(proxyHost, port, ssl ? "https" : "http"));
+            }
+        }
+        return new DefaultHttpClient(params);
+    }
+    
+	private Document invoke(HttpRequestBase method, boolean debug) throws EC2Exception, CloudException, InternalException {
 		if( logger.isDebugEnabled() ) {
 			logger.debug("Talking to server at " + url);
 		}
-        HttpClientParams httpClientParams = new HttpClientParams();
-		
 		try {
-    		HttpClient client;
+    		HttpClient client = getClient();
+            HttpResponse response;
     		int status;
     
     		attempts++;
-            httpClientParams.setParameter(HttpMethodParams.USER_AGENT, "Dasein Cloud");
-            client = new HttpClient(httpClientParams);
-            if( provider.getProxyHost() != null ) {
-                client.getHostConfiguration().setProxy(provider.getProxyHost(), provider.getProxyPort());
-            }
-    		method.addRequestHeader("Content-Type", "text/xml");
-    		method.addRequestHeader("x-amz-date", dateString);
-    		method.addRequestHeader("Date", dateString);
-    		method.addRequestHeader("X-Amzn-Authorization", signature);
+    		method.addHeader("Content-Type", "text/xml");
+    		method.addHeader("x-amz-date", dateString);
+    		method.addHeader("Date", dateString);
+    		method.addHeader("X-Amzn-Authorization", signature);
     		try {
-    			status = client.executeMethod(method);
-    		} 
-    		catch( HttpException e ) {
-    			logger.error(e);
-    			e.printStackTrace();
-    			throw new CloudException(e);
+    			response = client.execute(method);
+                status = response.getStatusLine().getStatusCode();
     		} 
     		catch( IOException e ) {
     			logger.error(e);
     			e.printStackTrace();
     			throw new InternalException(e);
     		}
-    		if( status == HttpStatus.SC_OK || status == HttpStatus.SC_ACCEPTED || status == HttpStatus.SC_CREATED ) {
+    		if( status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_ACCEPTED || status == HttpServletResponse.SC_CREATED ) {
     			try {
-    				InputStream input = method.getResponseBodyAsStream();
+                    HttpEntity entity = response.getEntity();
+
+                    if( entity == null ) {
+                        throw new CloudException("No response body was specified");
+                    }
+                    InputStream input;
+
+                    try {
+                        input = entity.getContent();
+                    }
+                    catch( IOException e ) {
+                        throw new CloudException(e);
+                    }
     
     				try {
     					return parseResponse(input, debug);
@@ -220,15 +270,26 @@ public class Route53Method {
     				throw new CloudException(e);
     			}
     		}
-    		else if( status == HttpStatus.SC_FORBIDDEN ) {
+    		else if( status == HttpServletResponse.SC_FORBIDDEN ) {
     		    String msg = "API Access Denied (403)";
     		    
                 try {
-                    InputStream input = method.getResponseBodyAsStream();
-    
+                    HttpEntity entity = response.getEntity();
+
+                    if( entity == null ) {
+                        throw new CloudException("No response body was specified");
+                    }
+                    InputStream input;
+
+                    try {
+                        input = entity.getContent();
+                    }
+                    catch( IOException e ) {
+                        throw new CloudException(e);
+                    }
                     try {
                         BufferedReader in = new BufferedReader(new InputStreamReader(input));
-                        StringBuffer sb = new StringBuffer();
+                        StringBuilder sb = new StringBuilder();
                         String line;
                             
                         while( (line = in.readLine()) != null ) {
@@ -296,21 +357,32 @@ public class Route53Method {
     		    throw new CloudException(msg);
     		}
     		else {
-    			if( status == HttpStatus.SC_SERVICE_UNAVAILABLE || status == HttpStatus.SC_INTERNAL_SERVER_ERROR ) {
+    			if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE || status == HttpServletResponse.SC_INTERNAL_SERVER_ERROR ) {
     				if( attempts >= 5 ) {
     					String msg;
     					
-    					if( status == HttpStatus.SC_SERVICE_UNAVAILABLE ) {
+    					if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE ) {
     						msg = "Cloud service is currently unavailable.";
     					}
     					else {
     						msg = "The cloud service encountered a server error while processing your request.";
     						try {
-			                    InputStream input = method.getResponseBodyAsStream();
-			    
+                                HttpEntity entity = response.getEntity();
+
+                                if( entity == null ) {
+                                    throw new CloudException("No response body was specified");
+                                }
+                                InputStream input;
+
+                                try {
+                                    input = entity.getContent();
+                                }
+                                catch( IOException e ) {
+                                    throw new CloudException(e);
+                                }
 			                    try {
 			                        BufferedReader in = new BufferedReader(new InputStreamReader(input));
-			                        StringBuffer sb = new StringBuffer();
+			                        StringBuilder sb = new StringBuilder();
 			                        String line;
 			                            
 			                        while( (line = in.readLine()) != null ) {
@@ -338,9 +410,9 @@ public class Route53Method {
     				}
     				else {
     					try { Thread.sleep(5000L); }
-    					catch( InterruptedException e ) { }
+    					catch( InterruptedException ignore ) { }
     					try {
-    					    return invoke((HttpMethod)method.getClass().newInstance(), false);
+    					    return invoke(method.getClass().newInstance(), false);
     					}
     					catch( Throwable t ) {
     					    throw new InternalException(t);
@@ -348,7 +420,19 @@ public class Route53Method {
     				}
     			}
     			try {
-    				InputStream input = method.getResponseBodyAsStream();
+                    HttpEntity entity = response.getEntity();
+
+                    if( entity == null ) {
+                        throw new CloudException("No response body was specified");
+                    }
+                    InputStream input;
+
+                    try {
+                        input = entity.getContent();
+                    }
+                    catch( IOException e ) {
+                        throw new CloudException(e);
+                    }
     				Document doc;
     
     				try {
@@ -397,10 +481,10 @@ public class Route53Method {
     				throw new CloudException(e);
     			}			
     		}
-		}
-		finally {
-		    method.releaseConnection();
-		}
+        }
+        finally {
+            logger.debug("Done");
+        }
 	}
 	
 	private Document parseResponse(String responseBody, boolean debug) throws CloudException, InternalException {
@@ -429,7 +513,7 @@ public class Route53Method {
 	private Document parseResponse(InputStream responseBodyAsStream, boolean debug) throws CloudException, InternalException {
 		try {
 			BufferedReader in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
-			StringBuffer sb = new StringBuffer();
+			StringBuilder sb = new StringBuilder();
 			String line;
 	            
 			while( (line = in.readLine()) != null ) {

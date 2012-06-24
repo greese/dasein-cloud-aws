@@ -39,8 +39,7 @@ import java.util.Locale;
 import java.util.Properties;
 import java.util.concurrent.Callable;
 
-import org.apache.commons.httpclient.Header;
-import org.apache.commons.httpclient.HttpStatus;
+import org.apache.http.Header;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
@@ -61,6 +60,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import javax.annotation.Nonnull;
+import javax.servlet.http.HttpServletResponse;
 
 public class S3 implements BlobStoreSupport {
     static private final Logger logger = Logger.getLogger(S3.class);
@@ -481,7 +481,7 @@ public class S3 implements BlobStoreSupport {
 			return true;
 		}
 		catch( S3Exception e ) {
-			if( e.getStatus() != HttpStatus.SC_NOT_FOUND ) {
+			if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
 				String code = e.getCode();
 
 				if( code != null && code.equals("AccessDenied") ) {
@@ -504,7 +504,7 @@ public class S3 implements BlobStoreSupport {
 			return false;
 		}
 		catch( S3Exception e ) {
-			if( e.getStatus() != HttpStatus.SC_NOT_FOUND ) {
+			if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
 				String code = e.getCode();
 			
 				if( code != null && code.equals("AccessDenied") ) {
@@ -546,7 +546,7 @@ public class S3 implements BlobStoreSupport {
     			return 0L;
     		}
     		catch( S3Exception e ) {
-    			if( e.getStatus() != HttpStatus.SC_NOT_FOUND ) {
+    			if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
     				String code = e.getCode();
     			
     				if( code == null || (!code.equals("NoSuchBucket") && !code.equals("NoSuchKey")) ) {
@@ -903,7 +903,7 @@ public class S3 implements BlobStoreSupport {
     				response = method.invoke(name, "?location");
     			}
     			catch( S3Exception e ) {
-    				if( e.getStatus() != HttpStatus.SC_NOT_FOUND ) {
+    				if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
     					String code = e.getCode();
     				
     					if( code == null || !code.equals("NoSuchBucket") ) {

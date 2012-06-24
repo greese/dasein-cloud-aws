@@ -34,27 +34,37 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
+import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.httpclient.DefaultHttpMethodRetryHandler;
-import org.apache.commons.httpclient.Header;
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.HttpException;
-import org.apache.commons.httpclient.HttpMethod;
-import org.apache.commons.httpclient.HttpStatus;
-import org.apache.commons.httpclient.methods.EntityEnclosingMethod;
-import org.apache.commons.httpclient.methods.FileRequestEntity;
-import org.apache.commons.httpclient.methods.StringRequestEntity;
-import org.apache.commons.httpclient.params.HttpMethodParams;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpVersion;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.conn.params.ConnRoutePNames;
+import org.apache.http.entity.FileEntity;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.params.BasicHttpParams;
+import org.apache.http.params.HttpParams;
+import org.apache.http.params.HttpProtocolParams;
+import org.apache.http.protocol.HTTP;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.storage.BlobStoreSupport;
@@ -103,11 +113,10 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
 		public Document    document;
 		public Header[]    headers;
 		public InputStream input;
-		public HttpMethod  method;
+		public HttpRequestBase method;
 		
 		public void close() {
 			try { input.close(); } catch( Throwable ignore ) { }
-			try { method.releaseConnection(); } catch( Throwable ignore ) { }
 		}
 	}
 	
@@ -199,11 +208,45 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
 	S3Response invoke(String bucket, String object) throws S3Exception, CloudException, InternalException {
 	    return invoke(bucket, object, null);
 	}
-	
+
+    protected @Nonnull HttpClient getClient(String url) throws InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new InternalException("No context was specified for this request");
+        }
+        boolean ssl = url.startsWith("https");
+        HttpParams params = new BasicHttpParams();
+
+        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
+        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
+        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
+        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
+        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
+        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
+
+        Properties p = ctx.getCustomProperties();
+
+        if( p != null ) {
+            String proxyHost = p.getProperty("proxyHost");
+            String proxyPort = p.getProperty("proxyPort");
+
+            if( proxyHost != null ) {
+                int port = 0;
+
+                if( proxyPort != null && proxyPort.length() > 0 ) {
+                    port = Integer.parseInt(proxyPort);
+                }
+                params.setParameter(ConnRoutePNames.DEFAULT_PROXY, new HttpHost(proxyHost, port, ssl ? "https" : "http"));
+            }
+        }
+        return new DefaultHttpClient(params);
+    }
+
 	S3Response invoke(String bucket, String object, String temporaryEndpoint) throws S3Exception, CloudException, InternalException {
 		StringBuilder url = new StringBuilder();
 		boolean leaveOpen = false;
-        HttpMethod method;
+        HttpRequestBase method;
 		HttpClient client;
 		int status;
 
@@ -217,7 +260,8 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
 	            }
 	            url.append("s3.amazonaws.com/");
 	            if ( bucket != null && !validDomainName) {
-	            	url.append(bucket+"/");
+	            	url.append(bucket);
+                    url.append("/");
 	            }
 	        }
 	        else {
@@ -292,250 +336,227 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
 		}
 		headers.put(AWSCloud.P_DATE, getDate());
 		method = action.getMethod(url.toString());
-		method.getParams().setParameter(HttpMethodParams.RETRY_HANDLER, new DefaultHttpMethodRetryHandler(3, false));
 		if( headers != null ) {
 			for( Map.Entry<String, String> entry : headers.entrySet() ) {
-				method.addRequestHeader(entry.getKey(), entry.getValue());
+				method.addHeader(entry.getKey(), entry.getValue());
 			}
 		}
 		try {
 			String hash = null;
 			String signature;
 			
-			signature = provider.signS3(new String(provider.getContext().getAccessPublic(), "utf-8"), provider.getContext().getAccessPrivate(), method.getName().toUpperCase(), hash, contentType, headers, bucket, object);
-			method.addRequestHeader(AWSCloud.P_CFAUTH, signature);
+			signature = provider.signS3(new String(provider.getContext().getAccessPublic(), "utf-8"), provider.getContext().getAccessPrivate(), method.getMethod(), hash, contentType, headers, bucket, object);
+			method.addHeader(AWSCloud.P_CFAUTH, signature);
 		} 
 		catch (UnsupportedEncodingException e) {
 			logger.error(e);
 			e.printStackTrace();
 			throw new InternalException(e);
 		}
-		if( body != null) {
-			if( method instanceof EntityEnclosingMethod ) {
-				try {
-					((EntityEnclosingMethod)method).setRequestEntity(new StringRequestEntity(body, contentType, "utf-8"));
-				} 
-				catch( UnsupportedEncodingException e ) {
-					logger.error(e);
-					e.printStackTrace();
-					throw new InternalException(e);
-				}
-			}
-		}
+        if( body != null ) {
+            try {
+                ((HttpEntityEnclosingRequestBase)method).setEntity(new StringEntity(body, "application/xml", "utf-8"));
+            }
+            catch( UnsupportedEncodingException e ) {
+                throw new InternalException(e);
+            }
+        }
 		else if( uploadFile != null ) {
-			if( method instanceof EntityEnclosingMethod ){
-				((EntityEnclosingMethod)method).setRequestEntity(new FileRequestEntity(uploadFile, contentType));
-			}
+            ((HttpEntityEnclosingRequestBase)method).setEntity(new FileEntity(uploadFile, contentType));
 		}
 		attempts++;
-        client = new HttpClient();
-        if( provider.getProxyHost() != null ) {
-            client.getHostConfiguration().setProxy(provider.getProxyHost(), provider.getProxyPort());
-        }
+        client = getClient(url.toString());
         S3Response response = new S3Response();
-        try {
-			try {
-				status =  client.executeMethod(method);
-			} 
-			catch( HttpException e ) {
-				logger.error(url + ": " + e.getMessage());
-				e.printStackTrace();
-				throw new CloudException(e);
-			} 
-			catch( IOException e ) {
-				logger.error(url + ": " + e.getMessage());
-				e.printStackTrace();
-				throw new InternalException(e);
-			}
-			response.headers = method.getResponseHeaders();
-			InputStream input;
-			try {
-				input = method.getResponseBodyAsStream();
-			}
-			catch( IOException e ) {
-				if( attempts >= 5 ) {
-					logger.error(e);
-					e.printStackTrace();
-					throw new InternalException(e);
-				}
-				try { Thread.sleep(5000L); }
-				catch( InterruptedException ignore ) { }
-				return invoke(bucket, object);
-			}
-			try {
-				if( status == HttpStatus.SC_OK || status == HttpStatus.SC_CREATED || status == HttpStatus.SC_ACCEPTED ) {
-					Header clen = method.getResponseHeader("Content-Length");
-					long len = -1L;
-					
-					if( clen != null ) {
-						len = Long.parseLong(clen.getValue());
-					}
-					if( len != 0L ) {
-						try {
-							Header ct = method.getResponseHeader("Content-Type");
-	
-							if( ct != null && (ct.getValue().startsWith("application/xml") || ct.getValue().startsWith("text/xml")) ) {
-								try {
-									response.document = parseResponse(input);
-									return response;
-								}
-								finally {
-									input.close();
-								}
-							}
-							else if( ct != null && ct.getValue().startsWith("application/octet-stream") && len < 1 ) {
-								return null;
-							}
-							else {
-								response.contentLength = len;
-								if( ct != null ) {
-									response.contentType = ct.getValue();
-								}
-								response.input = input;
-								response.method = method;
-								leaveOpen = true;
-								return response;
-							}
-						}
-						catch( IOException e ) {
-							logger.error(e);
-							e.printStackTrace();
-							throw new CloudException(e);
-						}
-					}
-					else {
-						return response;
-					}
-				}
-				else if( status == HttpStatus.SC_NO_CONTENT ) {
-					return response;
-				}
-				else if( status == HttpStatus.SC_NOT_FOUND ) {
-					throw new S3Exception(status, null, null, "Object not found.");
-				}
-				else {
-					if( status == HttpStatus.SC_SERVICE_UNAVAILABLE || status == HttpStatus.SC_INTERNAL_SERVER_ERROR ) {
-						if( attempts >= 5 ) {
-							String msg;
-							
-							if( status == HttpStatus.SC_SERVICE_UNAVAILABLE ) {
-								msg = "Cloud service is currently unavailable.";
-							}
-							else {
-								msg = "The cloud service encountered a server error while processing your request.";
-							}
-							logger.error(msg);
-							throw new CloudException(msg);
-						}
-						else {
-							leaveOpen = true;
-							if( input != null ) {
-								try { input.close(); }
-								catch( IOException ignore ) { }
-							}
-							method.releaseConnection();
-							try { Thread.sleep(5000L); }
-							catch( InterruptedException e ) { }
-							return invoke(bucket, object);
-						}
-					}
-                    try {
-                        Document doc;
-                        
-                        try {
-                            logger.warn("Received error code: " + status);
-                            doc = parseResponse(input);
-                        }
-                        finally {
-                            input.close();
-                        }
-                        if( doc != null ) {
-                            String endpoint = null, code = null, message = null, requestId = null;
-                            NodeList blocks = doc.getElementsByTagName("Error");
+        HttpResponse httpResponse;
         
-                            if( blocks.getLength() > 0 ) {
-                                Node error = blocks.item(0);
-                                NodeList attrs;
-                                
-                                attrs = error.getChildNodes();
-                                for( int i=0; i<attrs.getLength(); i++ ) {
-                                    Node attr = attrs.item(i);
-                                    
-                                    if( attr.getNodeName().equals("Code") ) {
-                                        code = attr.getFirstChild().getNodeValue().trim();
-                                    }
-                                    else if( attr.getNodeName().equals("Message") ) {
-                                        message = attr.getFirstChild().getNodeValue().trim();
-                                    }
-                                    else if( attr.getNodeName().equals("RequestId") ) {
-                                        requestId = attr.getFirstChild().getNodeValue().trim();
-                                    }
-                                    else if( attr.getNodeName().equals("Endpoint") ) {
-                                        endpoint = attr.getFirstChild().getNodeValue().trim();
-                                    }
-                                }
-                                
+        try {
+            httpResponse = client.execute(method);
+            status = httpResponse.getStatusLine().getStatusCode();
+        } 
+        catch( IOException e ) {
+            logger.error(url + ": " + e.getMessage());
+            e.printStackTrace();
+            throw new InternalException(e);
+        }
+        response.headers = method.getAllHeaders();
+
+        HttpEntity entity = httpResponse.getEntity();
+
+        if( entity == null ) {
+            throw new S3Exception(status, null, "NoResponse", "No response body was specified");
+        }
+        InputStream input;
+        
+        try {
+            input = entity.getContent();
+        } 
+        catch( IOException e ) {
+            throw new CloudException(e);
+        }
+        try {
+            if( status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_CREATED || status == HttpServletResponse.SC_ACCEPTED ) {
+                Header[] clen = httpResponse.getHeaders("Content-Length");
+                long len = -1L;
+                
+                if( clen != null && clen.length > 0 ) {
+                    len = Long.parseLong(clen[0].getValue());
+                }
+                if( len != 0L ) {
+                    try {
+                        Header[] ct = httpResponse.getHeaders("Content-Type");
+
+                        if( ct != null && ct.length > 0 && (ct[0].getValue().startsWith("application/xml") || ct[0].getValue().startsWith("text/xml")) ) {
+                            try {
+                                response.document = parseResponse(input);
+                                return response;
                             }
-                            if( endpoint != null && code.equals("TemporaryRedirect") ) {
-                                if( temporaryEndpoint != null ) {
-                                    throw new CloudException("Too deep redirect to " + endpoint);
-                                }
-                                else {
-                                    return invoke(bucket, object, endpoint);
-                                }
+                            finally {
+                                input.close();
                             }
-                            else {
-                                if( message == null ) {
-                                    throw new CloudException("Unable to identify error condition: " + status + "/" + requestId + "/" + code);
-                                }
-                                throw new S3Exception(status, requestId, code, message);
-                            }
+                        }
+                        else if( ct != null && ct.length > 0 && ct[0].getValue().startsWith("application/octet-stream") && len < 1 ) {
+                            return null;
                         }
                         else {
-                            throw new CloudException("Unable to parse error.");
+                            response.contentLength = len;
+                            if( ct != null && ct.length > 0 ) {
+                                response.contentType = ct[0].getValue();
+                            }
+                            response.input = input;
+                            response.method = method;
+                            leaveOpen = true;
+                            return response;
                         }
                     }
                     catch( IOException e ) {
-                        if( status == HttpStatus.SC_FORBIDDEN ) {
-                            throw new S3Exception(status, "", "AccessForbidden", "Access was denied without explanation.");
-                        }                              
+                        logger.error(e);
+                        e.printStackTrace();
                         throw new CloudException(e);
                     }
-                    catch( RuntimeException e ) {
-                        throw new CloudException(e);
+                }
+                else {
+                    return response;
+                }
+            }
+            else if( status == HttpServletResponse.SC_NO_CONTENT ) {
+                return response;
+            }
+            else if( status == HttpServletResponse.SC_NOT_FOUND ) {
+                throw new S3Exception(status, null, null, "Object not found.");
+            }
+            else {
+                if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE || status == HttpServletResponse.SC_INTERNAL_SERVER_ERROR ) {
+                    if( attempts >= 5 ) {
+                        String msg;
+                        
+                        if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE ) {
+                            msg = "Cloud service is currently unavailable.";
+                        }
+                        else {
+                            msg = "The cloud service encountered a server error while processing your request.";
+                        }
+                        logger.error(msg);
+                        throw new CloudException(msg);
                     }
-                    catch( Error e ) {
-                        throw new CloudException(e);
-                    }					
-				}
-			}
-			finally {
-				if( !leaveOpen ) {
-					if( input != null ) {
-						try { input.close(); }
-						catch( IOException ignore ) { }
-					}
-				}
-			}
+                    else {
+                        leaveOpen = true;
+                        if( input != null ) {
+                            try { input.close(); }
+                            catch( IOException ignore ) { }
+                        }
+                        try { Thread.sleep(5000L); }
+                        catch( InterruptedException ignore ) { }
+                        return invoke(bucket, object);
+                    }
+                }
+                try {
+                    Document doc;
+                    
+                    try {
+                        logger.warn("Received error code: " + status);
+                        doc = parseResponse(input);
+                    }
+                    finally {
+                        input.close();
+                    }
+                    if( doc != null ) {
+                        String endpoint = null, code = null, message = null, requestId = null;
+                        NodeList blocks = doc.getElementsByTagName("Error");
+    
+                        if( blocks.getLength() > 0 ) {
+                            Node error = blocks.item(0);
+                            NodeList attrs;
+                            
+                            attrs = error.getChildNodes();
+                            for( int i=0; i<attrs.getLength(); i++ ) {
+                                Node attr = attrs.item(i);
+                                
+                                if( attr.getNodeName().equals("Code") ) {
+                                    code = attr.getFirstChild().getNodeValue().trim();
+                                }
+                                else if( attr.getNodeName().equals("Message") ) {
+                                    message = attr.getFirstChild().getNodeValue().trim();
+                                }
+                                else if( attr.getNodeName().equals("RequestId") ) {
+                                    requestId = attr.getFirstChild().getNodeValue().trim();
+                                }
+                                else if( attr.getNodeName().equals("Endpoint") ) {
+                                    endpoint = attr.getFirstChild().getNodeValue().trim();
+                                }
+                            }
+                            
+                        }
+                        if( endpoint != null && code.equals("TemporaryRedirect") ) {
+                            if( temporaryEndpoint != null ) {
+                                throw new CloudException("Too deep redirect to " + endpoint);
+                            }
+                            else {
+                                return invoke(bucket, object, endpoint);
+                            }
+                        }
+                        else {
+                            if( message == null ) {
+                                throw new CloudException("Unable to identify error condition: " + status + "/" + requestId + "/" + code);
+                            }
+                            throw new S3Exception(status, requestId, code, message);
+                        }
+                    }
+                    else {
+                        throw new CloudException("Unable to parse error.");
+                    }
+                }
+                catch( IOException e ) {
+                    if( status == HttpServletResponse.SC_FORBIDDEN ) {
+                        throw new S3Exception(status, "", "AccessForbidden", "Access was denied without explanation.");
+                    }                              
+                    throw new CloudException(e);
+                }
+                catch( RuntimeException e ) {
+                    throw new CloudException(e);
+                }
+                catch( Error e ) {
+                    throw new CloudException(e);
+                }					
+            }
         }
-		finally {
-			if( !leaveOpen ) {
-				method.releaseConnection();
-			}
-		}
+        finally {
+            if( !leaveOpen ) {
+                if( input != null ) {
+                    try { input.close(); }
+                    catch( IOException ignore ) { }
+                }
+            }
+        }
 	}
 	
 	private boolean isValidDomainName(String bucket) {
-		if (bucket != null && Pattern.matches("^[a-z0-9](-*[a-z0-9]){2,62}$", bucket)) {
-			return true;
-		}
-		return false;
-	}
+        return (bucket != null && Pattern.matches("^[a-z0-9](-*[a-z0-9]){2,62}$", bucket));
+    }
 
 	private Document parseResponse(InputStream responseBodyAsStream) throws CloudException, InternalException {
 		try {
 			BufferedReader in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
-			StringBuffer sb = new StringBuffer();
+			StringBuilder sb = new StringBuilder();
 			String line;
 	            
 			while( (line = in.readLine()) != null ) {

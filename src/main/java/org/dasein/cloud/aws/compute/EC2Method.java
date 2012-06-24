@@ -24,19 +24,28 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Map;
+import java.util.Properties;
 
 import javax.annotation.Nonnull;
+import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.commons.httpclient.Header;
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.HttpException;
-import org.apache.commons.httpclient.HttpStatus;
-import org.apache.commons.httpclient.methods.PostMethod;
-import org.apache.commons.httpclient.params.HttpClientParams;
-import org.apache.commons.httpclient.params.HttpMethodParams;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpVersion;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.conn.params.ConnRoutePNames;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.params.BasicHttpParams;
+import org.apache.http.params.HttpParams;
+import org.apache.http.params.HttpProtocolParams;
+import org.apache.http.protocol.HTTP;
+import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
@@ -373,8 +382,42 @@ public class EC2Method {
 	public Document invoke() throws EC2Exception, CloudException, InternalException {
 	    return invoke(false);
 	}
-	
-	public Document invoke(boolean debug) throws EC2Exception, CloudException, InternalException {
+
+    protected @Nonnull HttpClient getClient() throws InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new InternalException("No context was specified for this request");
+        }
+        boolean ssl = url.startsWith("https");
+        HttpParams params = new BasicHttpParams();
+
+        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
+        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
+        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
+        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
+        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
+        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
+
+        Properties p = ctx.getCustomProperties();
+
+        if( p != null ) {
+            String proxyHost = p.getProperty("proxyHost");
+            String proxyPort = p.getProperty("proxyPort");
+
+            if( proxyHost != null ) {
+                int port = 0;
+
+                if( proxyPort != null && proxyPort.length() > 0 ) {
+                    port = Integer.parseInt(proxyPort);
+                }
+                params.setParameter(ConnRoutePNames.DEFAULT_PROXY, new HttpHost(proxyHost, port, ssl ? "https" : "http"));
+            }
+        }
+        return new DefaultHttpClient(params);
+    }
+
+    public Document invoke(boolean debug) throws EC2Exception, CloudException, InternalException {
 	    if( logger.isTraceEnabled() ) {
 	        logger.trace("ENTER - " + EC2Method.class.getName() + ".invoke(" + debug + ")");
 	    }
@@ -382,229 +425,235 @@ public class EC2Method {
     		if( logger.isDebugEnabled() ) {
     			logger.debug("Talking to server at " + url);
     		}
-            HttpClientParams httpClientParams = new HttpClientParams();
-    		PostMethod post = new PostMethod(url);
-    		
-    		try {
-        		HttpClient client;
-        		int status;
-        
-        		attempts++;
-                httpClientParams.setParameter(HttpMethodParams.USER_AGENT, "Dasein Cloud");
-                client = new HttpClient(httpClientParams);
-                if( provider.getProxyHost() != null ) {
-                    client.getHostConfiguration().setProxy(provider.getProxyHost(), provider.getProxyPort());
+    		HttpPost post = new HttpPost(url);
+            HttpClient client = getClient();
+
+            HttpResponse response;
+
+            attempts++;
+            post.addHeader("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
+            for( Map.Entry<String, String> entry : parameters.entrySet() ) {
+                post.getParams().setParameter(entry.getKey(), entry.getValue());
+                //post.addParameter(entry.getKey(), entry.getValue());
+            }
+            if( wire.isDebugEnabled() ) {
+                wire.debug(post.getRequestLine().toString());
+                for( Header header : post.getAllHeaders() ) {
+                    wire.debug(header.getName() + ": " + header.getValue());
                 }
-        		post.addRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
-        		for( Map.Entry<String, String> entry : parameters.entrySet() ) {
-        			post.addParameter(entry.getKey(), entry.getValue());
-        		}
+            }
+            try {
+                response = client.execute(post);
                 if( wire.isDebugEnabled() ) {
-                    wire.debug("POST " + post.getPath() + "/?");
-                    for( Header header : post.getRequestHeaders() ) {
-                        wire.debug(header.getName() + ": " + header.getValue());
+                    wire.debug("HTTP STATUS: " + response.getStatusLine().getStatusCode());
+                }
+            }
+            catch( IOException e ) {
+                logger.error("I/O error from server communications: " + e.getMessage());
+                e.printStackTrace();
+                throw new InternalException(e);
+            }
+            int status = response.getStatusLine().getStatusCode();
+            if( status == HttpServletResponse.SC_OK ) {
+                try {
+                    HttpEntity entity = response.getEntity();
+
+                    if( entity == null ) {
+                        throw new EC2Exception(status, null, "NoResponse", "No response body was specified");
+                    }
+                    InputStream input = entity.getContent();
+
+                    try {
+                        return parseResponse(input);
+                    }
+                    finally {
+                        input.close();
                     }
                 }
-        		try {
-        			status =  client.executeMethod(post);
-                    if( wire.isDebugEnabled() ) {
-                        wire.debug("HTTP STATUS: " + status);
+                catch( IOException e ) {
+                    logger.error("Error parsing response from AWS: " + e.getMessage());
+                    e.printStackTrace();
+                    throw new CloudException(CloudErrorType.COMMUNICATION, status, null, e.getMessage());
+                }
+            }
+            else if( status == HttpServletResponse.SC_FORBIDDEN ) {
+                String msg = "API Access Denied (403)";
+
+                try {
+                    HttpEntity entity = response.getEntity();
+
+                    if( entity == null ) {
+                        throw new EC2Exception(status, null, "NoResponse", "No response body was specified");
                     }
-        		} 
-        		catch( HttpException e ) {
-        			logger.error("HTTP error from server: " + e.getMessage());
-        			e.printStackTrace();
-        			throw new CloudException(CloudErrorType.COMMUNICATION, 0, null, e.getMessage());
-        		} 
-        		catch( IOException e ) {
-        			logger.error("I/O error from server communications: " + e.getMessage());
-        			e.printStackTrace();
-        			throw new InternalException(e);
-        		}
-        		if( status == HttpStatus.SC_OK ) {
-        			try {
-        				InputStream input = post.getResponseBodyAsStream();
-        
-        				try {
-        					return parseResponse(input);
-        				}
-        				finally {
-        					input.close();
-        				}
-        			} 
-        			catch( IOException e ) {
-        				logger.error("Error parsing response from AWS: " + e.getMessage());
-        				e.printStackTrace();
-        				throw new CloudException(CloudErrorType.COMMUNICATION, status, null, e.getMessage());
-        			}
-        		}
-        		else if( status == HttpStatus.SC_FORBIDDEN ) {
-        		    String msg = "API Access Denied (403)";
-        		    
+                    InputStream input = entity.getContent();
+
                     try {
-                        InputStream input = post.getResponseBodyAsStream();
-        
+                        BufferedReader in = new BufferedReader(new InputStreamReader(input));
+                        StringBuilder sb = new StringBuilder();
+                        String line;
+
+                        while( (line = in.readLine()) != null ) {
+                            sb.append(line);
+                            sb.append("\n");
+                        }
+                        //System.out.println(sb);
                         try {
-                            BufferedReader in = new BufferedReader(new InputStreamReader(input));
-                            StringBuilder sb = new StringBuilder();
-                            String line;
-                                
-                            while( (line = in.readLine()) != null ) {
-                                sb.append(line);
-                                sb.append("\n");
-                            }
-                            //System.out.println(sb);
-                            try {
-                                Document doc = parseResponse(sb.toString());
-                                
-                                if( doc != null ) {
-                                    NodeList blocks = doc.getElementsByTagName("Error");
-                                    String code = null, message = null, requestId = null;
-                
-                                    if( blocks.getLength() > 0 ) {
-                                        Node error = blocks.item(0);
-                                        NodeList attrs;
-                                        
-                                        attrs = error.getChildNodes();
-                                        for( int i=0; i<attrs.getLength(); i++ ) {
-                                            Node attr = attrs.item(i);
-                                            
-                                            if( attr.getNodeName().equals("Code") ) {
-                                                code = attr.getFirstChild().getNodeValue().trim();
-                                            }
-                                            else if( attr.getNodeName().equals("Message") ) {
-                                                message = attr.getFirstChild().getNodeValue().trim();
-                                            }
+                            Document doc = parseResponse(sb.toString());
+
+                            if( doc != null ) {
+                                NodeList blocks = doc.getElementsByTagName("Error");
+                                String code = null, message = null, requestId = null;
+
+                                if( blocks.getLength() > 0 ) {
+                                    Node error = blocks.item(0);
+                                    NodeList attrs;
+
+                                    attrs = error.getChildNodes();
+                                    for( int i=0; i<attrs.getLength(); i++ ) {
+                                        Node attr = attrs.item(i);
+
+                                        if( attr.getNodeName().equals("Code") ) {
+                                            code = attr.getFirstChild().getNodeValue().trim();
                                         }
-                                        
+                                        else if( attr.getNodeName().equals("Message") ) {
+                                            message = attr.getFirstChild().getNodeValue().trim();
+                                        }
                                     }
-                                    blocks = doc.getElementsByTagName("RequestID");
-                                    if( blocks.getLength() > 0 ) {
-                                        Node id = blocks.item(0);
-                                        
-                                        requestId = id.getFirstChild().getNodeValue().trim();
-                                    }
-                                    if( message == null && code == null ) {
-                                        throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
-                                    }
-                                    else if( message == null ) {
-                                        message = code;
-                                    }
-                                    throw new EC2Exception(status, requestId, code, message);
+
+                                }
+                                blocks = doc.getElementsByTagName("RequestID");
+                                if( blocks.getLength() > 0 ) {
+                                    Node id = blocks.item(0);
+
+                                    requestId = id.getFirstChild().getNodeValue().trim();
+                                }
+                                if( message == null && code == null ) {
+                                    throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
+                                }
+                                else if( message == null ) {
+                                    message = code;
+                                }
+                                throw new EC2Exception(status, requestId, code, message);
+                            }
+                        }
+                        catch( RuntimeException ignore  ) {
+                            // ignore me
+                        }
+                        catch( Error ignore  ) {
+                            // ignore me
+                        }
+                        msg = msg + ": " + sb.toString().trim().replaceAll("\n", " / ");
+                    }
+                    finally {
+                        input.close();
+                    }
+                }
+                catch( IOException ignore ) {
+                    // ignore me
+                }
+                catch( RuntimeException ignore ) {
+                    // ignore me
+                }
+                catch( Error ignore ) {
+                    // ignore me
+                }
+                throw new CloudException(msg);
+            }
+            else {
+                if( logger.isDebugEnabled() ) {
+                    logger.debug("Received " + status + " from " + parameters.get(AWSCloud.P_ACTION));
+                }
+                if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE || status == HttpServletResponse.SC_INTERNAL_SERVER_ERROR ) {
+                    if( attempts >= 5 ) {
+                        String msg;
+
+                        if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE ) {
+                            msg = "Cloud service is currently unavailable.";
+                        }
+                        else {
+                            msg = "The cloud service encountered a server error while processing your request.";
+                            try {
+                                HttpEntity entity = response.getEntity();
+
+                                if( entity == null ) {
+                                    throw new EC2Exception(status, null, "NoResponse", "No response body was specified");
+                                }
+                                msg = msg + "Response from server was:\n" + EntityUtils.toString(entity);
+                            }
+                            catch( IOException ignore ) {
+                                // ignore me
+                            }
+                            catch( RuntimeException ignore ) {
+                                // ignore me
+                            }
+                            catch( Error ignore ) {
+                                // ignore me
+                            }
+                        }
+                        logger.error(msg);
+                        throw new CloudException(msg);
+                    }
+                    else {
+                        try { Thread.sleep(5000L); }
+                        catch( InterruptedException e ) { /* ignore */ }
+                        return invoke();
+                    }
+                }
+                try {
+                    HttpEntity entity = response.getEntity();
+
+                    if( entity == null ) {
+                        throw new EC2Exception(status, null, "NoResponse", "No response body was specified");
+                    }
+                    InputStream input = entity.getContent();
+                    Document doc;
+
+                    try {
+                        doc = parseResponse(input);
+                    }
+                    finally {
+                        input.close();
+                    }
+                    if( doc != null ) {
+                        NodeList blocks = doc.getElementsByTagName("Error");
+                        String code = null, message = null, requestId = null;
+
+                        if( blocks.getLength() > 0 ) {
+                            Node error = blocks.item(0);
+                            NodeList attrs;
+
+                            attrs = error.getChildNodes();
+                            for( int i=0; i<attrs.getLength(); i++ ) {
+                                Node attr = attrs.item(i);
+
+                                if( attr.getNodeName().equals("Code") ) {
+                                    code = attr.getFirstChild().getNodeValue().trim();
+                                }
+                                else if( attr.getNodeName().equals("Message") ) {
+                                    message = attr.getFirstChild().getNodeValue().trim();
                                 }
                             }
-                            catch( RuntimeException ignore  ) {
-                                // ignore me
-                            }
-                            catch( Error ignore  ) {
-                                // ignore me
-                            }
-                            msg = msg + ": " + sb.toString().trim().replaceAll("\n", " / ");
+
                         }
-                        finally {
-                            input.close();
+                        blocks = doc.getElementsByTagName("RequestID");
+                        if( blocks.getLength() > 0 ) {
+                            Node id = blocks.item(0);
+
+                            requestId = id.getFirstChild().getNodeValue().trim();
                         }
-                    } 
-                    catch( IOException ignore ) {
-                        // ignore me
+                        if( message == null ) {
+                            throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
+                        }
+                        throw new EC2Exception(status, requestId, code, message);
                     }
-                    catch( RuntimeException ignore ) {
-                        // ignore me
-                    }
-                    catch( Error ignore ) {
-                        // ignore me
-                    }
-        		    throw new CloudException(msg);
-        		}
-        		else {
-        			if( logger.isDebugEnabled() ) {
-        				logger.debug("Received " + status + " from " + parameters.get(AWSCloud.P_ACTION));
-        			}
-        			if( status == HttpStatus.SC_SERVICE_UNAVAILABLE || status == HttpStatus.SC_INTERNAL_SERVER_ERROR ) {
-        				if( attempts >= 5 ) {
-        					String msg;
-        					
-        					if( status == HttpStatus.SC_SERVICE_UNAVAILABLE ) {
-        						msg = "Cloud service is currently unavailable.";
-        					}
-        					else {
-        						msg = "The cloud service encountered a server error while processing your request.";
-        						try {
-                                    msg = msg + "Response from server was:\n" + post.getResponseBodyAsString();
-    			                }
-    			                catch( IOException ignore ) {
-    			                    // ignore me
-    			                }
-    			                catch( RuntimeException ignore ) {
-    			                    // ignore me
-    			                }
-    			                catch( Error ignore ) {
-    			                    // ignore me
-    			                }
-        					}
-        					logger.error(msg);
-        					throw new CloudException(msg);
-        				}
-        				else {
-        					try { Thread.sleep(5000L); }
-        					catch( InterruptedException e ) { /* ignore */ }
-        					return invoke();
-        				}
-        			}
-        			try {
-        				InputStream input = post.getResponseBodyAsStream();
-        				Document doc;
-        
-        				try {
-        					doc = parseResponse(input);
-        				}
-        				finally {
-        					input.close();
-        				}
-        				if( doc != null ) {
-        					NodeList blocks = doc.getElementsByTagName("Error");
-        					String code = null, message = null, requestId = null;
-        
-        					if( blocks.getLength() > 0 ) {
-        						Node error = blocks.item(0);
-        						NodeList attrs;
-        						
-        						attrs = error.getChildNodes();
-        						for( int i=0; i<attrs.getLength(); i++ ) {
-        							Node attr = attrs.item(i);
-        							
-        							if( attr.getNodeName().equals("Code") ) {
-        								code = attr.getFirstChild().getNodeValue().trim();
-        							}
-        							else if( attr.getNodeName().equals("Message") ) {
-        								message = attr.getFirstChild().getNodeValue().trim();
-        							}
-        						}
-        						
-        					}
-        					blocks = doc.getElementsByTagName("RequestID");
-        					if( blocks.getLength() > 0 ) {
-        						Node id = blocks.item(0);
-        						
-        						requestId = id.getFirstChild().getNodeValue().trim();
-        					}
-        					if( message == null ) {
-        						throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
-        					}
-        					throw new EC2Exception(status, requestId, code, message);
-        				}
-        				throw new CloudException("Unable to parse error.");
-        			} 
-        			catch( IOException e ) {
-        				logger.error(e);
-        				e.printStackTrace();
-        				throw new CloudException(e);
-        			}			
-        		}
-    		}
-    		finally {
-    		    post.releaseConnection();
-    		}
+                    throw new CloudException("Unable to parse error.");
+                }
+                catch( IOException e ) {
+                    logger.error(e);
+                    e.printStackTrace();
+                    throw new CloudException(e);
+                }
+            }
 	    }
 	    finally {
 	        if( logger.isTraceEnabled() ) {

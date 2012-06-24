@@ -92,7 +92,7 @@ public class AutoScaling implements AutoScalingSupport {
         
         parameters.put("LaunchConfigurationName", name);
         parameters.put("ImageId", imageId);
-        parameters.put("InstanceType", size.getProductId());
+        parameters.put("InstanceType", size.getProviderProductId());
         int i = 1;
         for( String fw : firewalls ) {
             parameters.put("SecurityGroup.member." + (i++), fw);

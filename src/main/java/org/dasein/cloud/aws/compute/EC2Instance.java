@@ -18,14 +18,18 @@
 
 package org.dasein.cloud.aws.compute;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,6 +41,9 @@ import java.util.concurrent.Callable;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
@@ -44,20 +51,29 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.Requirement;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.Architecture;
 import org.dasein.cloud.compute.Platform;
+import org.dasein.cloud.compute.VMLaunchOptions;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.compute.VirtualMachineProduct;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.compute.VmStatistics;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.network.NetworkServices;
+import org.dasein.cloud.network.Subnet;
+import org.dasein.cloud.network.VLANSupport;
 import org.dasein.util.CalendarWrapper;
+import org.dasein.util.uom.storage.Gigabyte;
+import org.dasein.util.uom.storage.Megabyte;
+import org.dasein.util.uom.storage.Storage;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 public class EC2Instance implements VirtualMachineSupport {
 	static private final Logger logger = Logger.getLogger(EC2Instance.class);
@@ -66,117 +82,166 @@ public class EC2Instance implements VirtualMachineSupport {
     static private List<VirtualMachineProduct> thirtyTwos;
 
     static {
-        ArrayList<VirtualMachineProduct> thirtyTwoSizes = new ArrayList<VirtualMachineProduct>();
-        VirtualMachineProduct product = new VirtualMachineProduct();
+        InputStream input = EC2Instance.class.getResourceAsStream("/dasein-cloud/products/aws-vm.xml");
+        ArrayList<VirtualMachineProduct> thirtyTwoSizes = null;
+        ArrayList<VirtualMachineProduct> sixtyFourSizes = null;
+        VirtualMachineProduct product;
         
-        product.setProductId("t1.micro");
-        product.setName("Micro Instance/(t1.micro)");
-        product.setDescription("Micro Instance/(t1.micro)");
-        product.setCpuCount(2);
-        product.setDiskSizeInGb(1);
-        product.setRamInMb(613);
-        thirtyTwoSizes.add(product);
-        
-        product = new VirtualMachineProduct();
-        product.setProductId("m1.small");
-        product.setName("Small Instance (m1.small)");
-        product.setDescription("Small Instance (m1.small)");
-        product.setCpuCount(1);
-        product.setDiskSizeInGb(160);
-        product.setRamInMb(1700);
-        thirtyTwoSizes.add(product);
-        
-        //AWS support medium
-        product = new VirtualMachineProduct();
-        product.setProductId("m1.medium");
-        product.setName("Medium Instance (m1.medium)");
-        product.setDescription("Medium Instance (m1.medium)");
-        product.setCpuCount(2);
-        product.setDiskSizeInGb(410);
-        product.setRamInMb(3750);
-        thirtyTwoSizes.add(product);        
-        
-        product = new VirtualMachineProduct();
-        product.setProductId("c1.medium");
-        product.setName("High-CPU Medium Instance (c1.medium)");
-        product.setDescription("High-CPU Medium Instance (c1.medium)");
-        product.setCpuCount(5);
-        product.setDiskSizeInGb(350);
-        product.setRamInMb(1700);
-        thirtyTwoSizes.add(product);   
+        if( input != null ) {
+            try {
+                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                DocumentBuilder parser = factory.newDocumentBuilder();
+                Document doc = parser.parse(input);
 
-        thirtyTwos = Collections.unmodifiableList(thirtyTwoSizes);
-        
+                NodeList products = doc.getElementsByTagName("product");
 
-        ArrayList<VirtualMachineProduct> sixtyFourSizes = new ArrayList<VirtualMachineProduct>();
-       
-        // EC2's m1.small, m1.medium  and c1.medium have 64bit platform
-        sixtyFourSizes.addAll(thirtyTwoSizes);
+                thirtyTwoSizes = new ArrayList<VirtualMachineProduct>();
+                sixtyFourSizes = new ArrayList<VirtualMachineProduct>();
+                for( int i=0; i<products.getLength(); i++ ) {
+                    Node node = products.item(i);
+                    
+                    Architecture a = Architecture.valueOf(node.getAttributes().getNamedItem("architecture").getNodeValue());
+                    
+                    product = new VirtualMachineProduct();
+                    product.setProviderProductId(node.getAttributes().getNamedItem("productId").getNodeValue());
+                    product.setName(node.getAttributes().getNamedItem("name").getNodeValue());
+                    product.setDescription(node.getAttributes().getNamedItem("name").getNodeValue());
+                    product.setCpuCount(Integer.parseInt(node.getAttributes().getNamedItem("cpuCount").getNodeValue()));
+                    product.setRootVolumeSize(Storage.valueOf(node.getAttributes().getNamedItem("rootVolumeSize").getNodeValue()));
+                    product.setRamSize(Storage.valueOf(node.getAttributes().getNamedItem("ramSize").getNodeValue()));
+                    product.setStandardHourlyRate(Float.parseFloat(node.getAttributes().getNamedItem("standardHourlyRate").getNodeValue()));
+                    if( a.equals(Architecture.I64) ) {
+                        sixtyFourSizes.add(product);
+                    }
+                    else if( a.equals(Architecture.I32) ) {
+                        thirtyTwoSizes.add(product);
+                    }
+                }
+            }
+            catch( IOException e ) {
+                logger.error("Unable to read product configuration file: " + e.getMessage());
+            }
+            catch( ParserConfigurationException e ) {
+                logger.error("Unable to read product configuration file: " + e.getMessage());
+            }
+            catch( SAXException e ) {
+                logger.error("Unable to read product configuration file: " + e.getMessage());
+            }
+        }
+        if( thirtyTwoSizes == null ) {
+            thirtyTwoSizes = new ArrayList<VirtualMachineProduct>();
+
+            product = new VirtualMachineProduct();
+            product.setProviderProductId("t1.micro");
+            product.setName("Micro Instance/(t1.micro)");
+            product.setDescription("Micro Instance/(t1.micro)");
+            product.setCpuCount(2);
+            product.setRootVolumeSize(new Storage<Gigabyte>(1, Storage.GIGABYTE));
+            product.setRamSize(new Storage<Megabyte>(613, Storage.MEGABYTE));
+            thirtyTwoSizes.add(product);
             
-        product = new VirtualMachineProduct();
-        product.setProductId("m1.large");
-        product.setName("Large Instance (m1.large)");
-        product.setDescription("Large Instance (m1.large)");
-        product.setCpuCount(4);
-        product.setDiskSizeInGb(850);
-        product.setRamInMb(7500);
-        sixtyFourSizes.add(product); 
-        
-        product = new VirtualMachineProduct();
-        product.setProductId("m1.xlarge");
-        product.setName("Extra Large Instance (m1.xlarge)");
-        product.setDescription("Extra Large Instance (m1.xlarge)");
-        product.setCpuCount(8);
-        product.setDiskSizeInGb(1690);
-        product.setRamInMb(15000);
-        sixtyFourSizes.add(product); 
-        
-        product = new VirtualMachineProduct();
-        product.setProductId("c1.xlarge");
-        product.setName("High-CPU Extra Large Instance (c1.xlarge)");
-        product.setDescription("High-CPU Extra Large Instance (c1.xlarge)");
-        product.setCpuCount(20);
-        product.setDiskSizeInGb(1690);
-        product.setRamInMb(7000);
-        sixtyFourSizes.add(product); 
-        
-        product = new VirtualMachineProduct();
-        product.setProductId("m2.xlarge");
-        product.setName("High-Memory Extra Large Instance (m2.xlarge)");
-        product.setDescription("High-Memory Extra Large Instance (m2.xlarge)");
-        product.setCpuCount(7);
-        product.setDiskSizeInGb(420);
-        product.setRamInMb(17100);
-        sixtyFourSizes.add(product); 
-        
-        product = new VirtualMachineProduct();
-        product.setProductId("m2.2xlarge");
-        product.setName("High-Memory Double Extra Large Instance (m2.2xlarge)");
-        product.setDescription("High-Memory Double Extra Large Instance (m2.2xlarge)");
-        product.setCpuCount(13);
-        product.setDiskSizeInGb(850);
-        product.setRamInMb(34200);
-        sixtyFourSizes.add(product); 
-        
-        product = new VirtualMachineProduct();
-        product.setProductId("m2.4xlarge");
-        product.setName("High-Memory Quadruple Extra Large Instance (m2.4xlarge)");
-        product.setDescription("High-Memory Quadruple Extra Large Instance (m2.4xlarge)");
-        product.setCpuCount(26);
-        product.setDiskSizeInGb(1690);
-        product.setRamInMb(68400);
-        sixtyFourSizes.add(product);
-        
-        product = new VirtualMachineProduct();
-        product.setProductId("cc1.4xlarge");
-        product.setName("Cluster Compute Quadruple Extra Large (cc1.4xlarge)");
-        product.setDescription("33.5 EC2 Compute Units (2 x Intel Xeon X5570, quad-core \"Nehalem\" architecture)");
-        product.setCpuCount(34);
-        product.setDiskSizeInGb(1690);
-        product.setRamInMb(23000);
-        sixtyFourSizes.add(product);        
-        sixtyFours = Collections.unmodifiableList(sixtyFourSizes);        
+            product = new VirtualMachineProduct();
+            product.setProviderProductId("m1.small");
+            product.setName("Small Instance (m1.small)");
+            product.setDescription("Small Instance (m1.small)");
+            product.setCpuCount(1);
+            product.setRootVolumeSize(new Storage<Gigabyte>(160, Storage.GIGABYTE));
+            product.setRamSize(new Storage<Megabyte>(1700, Storage.MEGABYTE));
+            thirtyTwoSizes.add(product);
+            
+            //AWS support medium
+            product = new VirtualMachineProduct();
+            product.setProviderProductId("m1.medium");
+            product.setName("Medium Instance (m1.medium)");
+            product.setDescription("Medium Instance (m1.medium)");
+            product.setCpuCount(2);
+            product.setRootVolumeSize(new Storage<Gigabyte>(410, Storage.GIGABYTE));
+            product.setRamSize(new Storage<Megabyte>(3750, Storage.MEGABYTE));
+            thirtyTwoSizes.add(product);
+            
+            product = new VirtualMachineProduct();
+            product.setProviderProductId("c1.medium");
+            product.setName("High-CPU Medium Instance (c1.medium)");
+            product.setDescription("High-CPU Medium Instance (c1.medium)");
+            product.setCpuCount(5);
+            product.setRootVolumeSize(new Storage<Gigabyte>(350, Storage.GIGABYTE));
+            product.setRamSize(new Storage<Megabyte>(1700, Storage.MEGABYTE));
+            thirtyTwoSizes.add(product);
+    
+        }
+        if( sixtyFourSizes == null ) {
+            sixtyFourSizes = new ArrayList<VirtualMachineProduct>();
+           
+            // EC2's m1.small, m1.medium  and c1.medium have 64bit platform
+            sixtyFourSizes.addAll(thirtyTwoSizes);
+                
+            product = new VirtualMachineProduct();
+            product.setProviderProductId("m1.large");
+            product.setName("Large Instance (m1.large)");
+            product.setDescription("Large Instance (m1.large)");
+            product.setCpuCount(4);
+            product.setRootVolumeSize(new Storage<Gigabyte>(850, Storage.GIGABYTE));
+            product.setRamSize(new Storage<Megabyte>(7500, Storage.MEGABYTE));
+            sixtyFourSizes.add(product);
+            
+            product = new VirtualMachineProduct();
+            product.setProviderProductId("m1.xlarge");
+            product.setName("Extra Large Instance (m1.xlarge)");
+            product.setDescription("Extra Large Instance (m1.xlarge)");
+            product.setCpuCount(8);
+            product.setRootVolumeSize(new Storage<Gigabyte>(1690, Storage.GIGABYTE));
+            product.setRamSize(new Storage<Megabyte>(15000, Storage.MEGABYTE));
+            sixtyFourSizes.add(product);
+            
+            product = new VirtualMachineProduct();
+            product.setProviderProductId("c1.xlarge");
+            product.setName("High-CPU Extra Large Instance (c1.xlarge)");
+            product.setDescription("High-CPU Extra Large Instance (c1.xlarge)");
+            product.setCpuCount(20);
+            product.setRootVolumeSize(new Storage<Gigabyte>(1690, Storage.GIGABYTE));
+            product.setRamSize(new Storage<Megabyte>(7000, Storage.MEGABYTE));
+            sixtyFourSizes.add(product);
+            
+            product = new VirtualMachineProduct();
+            product.setProviderProductId("m2.xlarge");
+            product.setName("High-Memory Extra Large Instance (m2.xlarge)");
+            product.setDescription("High-Memory Extra Large Instance (m2.xlarge)");
+            product.setCpuCount(7);
+            product.setRootVolumeSize(new Storage<Gigabyte>(420, Storage.GIGABYTE));
+            product.setRamSize(new Storage<Megabyte>(17100, Storage.MEGABYTE));
+            sixtyFourSizes.add(product);
+            
+            product = new VirtualMachineProduct();
+            product.setProviderProductId("m2.2xlarge");
+            product.setName("High-Memory Double Extra Large Instance (m2.2xlarge)");
+            product.setDescription("High-Memory Double Extra Large Instance (m2.2xlarge)");
+            product.setCpuCount(13);
+            product.setRootVolumeSize(new Storage<Gigabyte>(850, Storage.GIGABYTE));
+            product.setRamSize(new Storage<Megabyte>(34200, Storage.MEGABYTE));
+            sixtyFourSizes.add(product);
+            
+            product = new VirtualMachineProduct();
+            product.setProviderProductId("m2.4xlarge");
+            product.setName("High-Memory Quadruple Extra Large Instance (m2.4xlarge)");
+            product.setDescription("High-Memory Quadruple Extra Large Instance (m2.4xlarge)");
+            product.setCpuCount(26);
+            product.setRootVolumeSize(new Storage<Gigabyte>(1690, Storage.GIGABYTE));
+            product.setRamSize(new Storage<Megabyte>(68400, Storage.MEGABYTE));
+            sixtyFourSizes.add(product);
+            
+            product = new VirtualMachineProduct();
+            product.setProviderProductId("cc1.4xlarge");
+            product.setName("Cluster Compute Quadruple Extra Large (cc1.4xlarge)");
+            product.setDescription("33.5 EC2 Compute Units (2 x Intel Xeon X5570, quad-core \"Nehalem\" architecture)");
+            product.setCpuCount(34);
+            product.setRootVolumeSize(new Storage<Gigabyte>(1690, Storage.GIGABYTE));
+            product.setRamSize(new Storage<Megabyte>(23000, Storage.MEGABYTE));
+            sixtyFourSizes.add(product);
+        }
+        thirtyTwos = Collections.unmodifiableList(thirtyTwoSizes);
+        sixtyFours = Collections.unmodifiableList(sixtyFourSizes);
     }
+    
 	private AWSCloud provider = null;
 	
 	EC2Instance(AWSCloud provider) {
@@ -534,7 +599,12 @@ public class EC2Instance implements VirtualMachineSupport {
         return "";
 	}
 
-	@Override
+    @Override
+    public int getMaximumVirtualMachineCount() throws CloudException, InternalException {
+        return -2;
+    }
+
+    @Override
 	public @Nonnull Iterable<String> listFirewalls(@Nonnull String instanceId) throws InternalException, CloudException {
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
 		ArrayList<String> firewalls = new ArrayList<String>();
@@ -633,12 +703,12 @@ public class EC2Instance implements VirtualMachineSupport {
 	@Override
 	public @Nullable VirtualMachineProduct getProduct(@Nonnull String sizeId) {
         for( VirtualMachineProduct product : get64s() ) {
-            if( product.getProductId().equals(sizeId) ) {
+            if( product.getProviderProductId().equals(sizeId) ) {
                 return product;
             }
         }
         for( VirtualMachineProduct product : get32s() ) {
-            if( product.getProductId().equals(sizeId) ) {
+            if( product.getProviderProductId().equals(sizeId) ) {
                 return product;
             }
         }
@@ -834,7 +904,42 @@ public class EC2Instance implements VirtualMachineSupport {
         }
         return list;
     }
-    
+
+    @Override
+    public @Nonnull Requirement identifyPasswordRequirement() {
+        return Requirement.NONE;
+    }
+
+    @Override
+    public @Nonnull Requirement identifyRootVolumeRequirement() {
+        return Requirement.NONE;
+    }
+
+    @Override
+    public @Nonnull Requirement identifyShellKeyRequirement() {
+        return Requirement.OPTIONAL;
+    }
+
+    @Override
+    public @Nonnull Requirement identifyVlanRequirement() {
+        return Requirement.OPTIONAL;
+    }
+
+    @Override
+    public boolean isAPITerminationPreventable() {
+        return true;
+    }
+
+    @Override
+    public boolean isBasicAnalyticsSupported() {
+        return true;
+    }
+
+    @Override
+    public boolean isExtendedAnalyticsSupported() {
+        return true;
+    }
+
     @Override
     public boolean isSubscribed() throws InternalException, CloudException {
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
@@ -857,7 +962,12 @@ public class EC2Instance implements VirtualMachineSupport {
             throw new CloudException(e);
         }
     }
-    
+
+    @Override
+    public boolean isUserDataSupported() {
+        return true;
+    }
+
     private List<VirtualMachineProduct> get64s() {
         return sixtyFours;
     }
@@ -866,18 +976,33 @@ public class EC2Instance implements VirtualMachineSupport {
     private List<VirtualMachineProduct> get32s() {
         return thirtyTwos;
     }
+
+
+    @Override
+    public Iterable<VirtualMachineProduct> listProducts(Architecture architecture) throws InternalException, CloudException {
+        if( architecture == null ) {
+            return Collections.emptyList();
+        }
+        switch( architecture ) {
+            case I32: return get32s();
+            case I64: return get64s();
+            default: return Collections.emptyList();
+        }
+    }
     
-	@Override
-	public Iterable<VirtualMachineProduct> listProducts(Architecture architecture) throws InternalException, CloudException {
-		if( architecture == null ) {
-		    return Collections.emptyList();
-		}
-		switch( architecture ) {
-		case I32: return get32s();
-		case I64: return get64s();
-		default: return Collections.emptyList();
-		}
-	}
+    static private volatile Collection<Architecture> architectures;
+    
+    @Override
+    public Iterable<Architecture> listSupportedArchitectures() {
+        if( architectures == null ) {
+            ArrayList<Architecture> list = new ArrayList<Architecture>();
+            
+            list.add(Architecture.I64);
+            list.add(Architecture.I32);
+            architectures = Collections.unmodifiableCollection(list);
+        }
+        return architectures;
+    }
 	
 	private String guess(String privateDnsAddress) {
 	    String dnsAddress = privateDnsAddress;
@@ -893,114 +1018,122 @@ public class EC2Instance implements VirtualMachineSupport {
 	    return null;
 	}
 	
-	@Override
-    public @Nonnull VirtualMachine launch(@Nonnull String imageId, @Nonnull VirtualMachineProduct size, @Nullable String inZoneId, @Nonnull String name, @Nullable String description, @Nullable String keypair, @Nullable String inVlanId, boolean withMonitoring, boolean asImageSandbox, @Nullable String ... protectedByFirewalls) throws CloudException, InternalException {
-	    return launch(imageId, size, inZoneId, name, description, keypair, inVlanId, withMonitoring, asImageSandbox, protectedByFirewalls, new Tag[0]);
-	}
-
-	@Override
-	public @Nonnull VirtualMachine launch(@Nonnull String imageId, @Nonnull VirtualMachineProduct size, @Nullable String inZoneId, @Nonnull String name, @Nullable String description, @Nullable String keypair, @Nullable String inVlanId, boolean withMonitoring, boolean asImageSandbox, @Nullable String[] protectedByFirewalls, @Nullable Tag ... tags) throws CloudException, InternalException {
+    @Override
+    public @Nonnull VirtualMachine launch(@Nonnull VMLaunchOptions cfg) throws CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was established for this request");
         }
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.RUN_INSTANCES);
-		EC2Method method;
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.RUN_INSTANCES);
+        EC2Method method;
         NodeList blocks;
-		Document doc;
-        
-        parameters.put("ImageId", imageId);
+        Document doc;
+
+        parameters.put("ImageId", cfg.getMachineImageId());
         parameters.put("MinCount", "1");
         parameters.put("MaxCount", "1");
-        parameters.put("InstanceType", size.getProductId());
-        if( protectedByFirewalls != null && protectedByFirewalls.length > 0 ) {
-        	int i = 1;
-        	
-        	for( String id : protectedByFirewalls ) {
-        		parameters.put("SecurityGroupId." + (i++), id);
-        	}
+        parameters.put("InstanceType", cfg.getStandardProductId());
+        if( cfg.getUserData() != null ) {
+            try {
+                parameters.put("UserData", Base64.encodeBase64String(cfg.getUserData().getBytes("utf-8")));
+            }
+            catch( UnsupportedEncodingException e ) {
+                throw new InternalException(e);
+            }
         }
-        if( inZoneId != null ) {
-        	parameters.put("Placement.AvailabilityZone", inZoneId);
+        if( cfg.isPreventApiTermination() ) {
+            parameters.put("DisableApiTermination", "true");
         }
-        if( keypair != null ) {
-        	parameters.put("KeyName", keypair);
+        String[] ids = cfg.getFirewallIds();
+        
+        if( ids.length > 0 ) {
+            int i = 1;
+
+            for( String id : ids ) {
+                parameters.put("SecurityGroupId." + (i++), id);
+            }
         }
-        if( inVlanId != null ) {
-        	parameters.put("SubnetId", inVlanId);
+        if( cfg.getDataCenterId() != null ) {
+            parameters.put("Placement.AvailabilityZone", cfg.getDataCenterId());
+        }
+        if( cfg.getBootstrapKey() != null ) {
+            parameters.put("KeyName", cfg.getBootstrapKey());
+        }
+        if( cfg.getVlanId() != null ) {
+            parameters.put("SubnetId", cfg.getVlanId());
         }
         if( provider.isAmazon() ) {
-            parameters.put("Monitoring.Enabled", String.valueOf(withMonitoring));
+            parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
         }
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
-        	doc = method.invoke();
+            doc = method.invoke();
         }
         catch( EC2Exception e ) {
             String code = e.getCode();
-            
+
             if( code != null && code.equals("InsufficientInstanceCapacity") ) {
                 return null;
             }
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         blocks = doc.getElementsByTagName("instancesSet");
         VirtualMachine server = null;
         for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList instances = blocks.item(i).getChildNodes();
-        	
+            NodeList instances = blocks.item(i).getChildNodes();
+
             for( int j=0; j<instances.getLength(); j++ ) {
-            	Node instance = instances.item(j);
-            	
-            	if( instance.getNodeName().equals("item") ) {
-            		server = toVirtualMachine(ctx, instance);
-            		if( server != null ) {
-            			break;
-            		}
-            	}
+                Node instance = instances.item(j);
+
+                if( instance.getNodeName().equals("item") ) {
+                    server = toVirtualMachine(ctx, instance);
+                    if( server != null ) {
+                        break;
+                    }
+                }
             }
         }
-        if( server != null && keypair != null ) {
-        	try {
+        if( server != null && cfg.getBootstrapKey() != null ) {
+            try {
                 final String sid = server.getProviderVirtualMachineId();
-                
-        	    Callable<String> pwMethod = new Callable<String>() {
-        	        public String call() throws CloudException {
-        	            try {
-        	                Map<String,String> params = provider.getStandardParameters(provider.getContext(), EC2Method.GET_PASSWORD_DATA);
-        	                EC2Method m;
-        	                
-        	                params.put("InstanceId", sid);
-        	                m = new EC2Method(provider, provider.getEc2Url(), params);
-        	                
-        	                Document doc = m.invoke();
-        	                NodeList blocks = doc.getElementsByTagName("passwordData");
-        	                
-        	                if( blocks.getLength() > 0 ) {
-        	                    Node pw = blocks.item(0);
 
-        	                    if( pw.hasChildNodes() ) {
-        	                        String password = pw.getFirstChild().getNodeValue();
-        	                    
-        	                        provider.release();
-        	                        return password;
-        	                    }
-        	                    return null;
-        	                }
-        	                return null;
-        	            }
-        	            catch( Throwable t ) {
-        	                throw new CloudException("Unable to retrieve password for " + sid + ", Let's hope it's Unix: " + t.getMessage());                       	                
-        	            }
-        	        }
-        	    };
-                
-        	    provider.hold();
-        	    try {
-        	        String password = pwMethod.call();
-        	    
+                Callable<String> pwMethod = new Callable<String>() {
+                    public String call() throws CloudException {
+                        try {
+                            Map<String,String> params = provider.getStandardParameters(provider.getContext(), EC2Method.GET_PASSWORD_DATA);
+                            EC2Method m;
+
+                            params.put("InstanceId", sid);
+                            m = new EC2Method(provider, provider.getEc2Url(), params);
+
+                            Document doc = m.invoke();
+                            NodeList blocks = doc.getElementsByTagName("passwordData");
+
+                            if( blocks.getLength() > 0 ) {
+                                Node pw = blocks.item(0);
+
+                                if( pw.hasChildNodes() ) {
+                                    String password = pw.getFirstChild().getNodeValue();
+
+                                    provider.release();
+                                    return password;
+                                }
+                                return null;
+                            }
+                            return null;
+                        }
+                        catch( Throwable t ) {
+                            throw new CloudException("Unable to retrieve password for " + sid + ", Let's hope it's Unix: " + t.getMessage());
+                        }
+                    }
+                };
+
+                provider.hold();
+                try {
+                    String password = pwMethod.call();
+
                     if( password == null ) {
                         server.setRootPassword(null);
                         server.setPasswordCallback(pwMethod);
@@ -1009,49 +1142,141 @@ public class EC2Instance implements VirtualMachineSupport {
                         server.setRootPassword(password);
                     }
                     server.setPlatform(Platform.WINDOWS);
-        	    }
-        	    catch( CloudException e ) {
-        	        logger.warn(e.getMessage());
-        	    }
-        	}
-        	catch( Throwable t ) {
-                logger.warn("Unable to retrieve password for " + server.getProviderVirtualMachineId() + ", Let's hope it's Unix: " + t.getMessage());               
-        	}
+                }
+                catch( CloudException e ) {
+                    logger.warn(e.getMessage());
+                }
+            }
+            catch( Throwable t ) {
+                logger.warn("Unable to retrieve password for " + server.getProviderVirtualMachineId() + ", Let's hope it's Unix: " + t.getMessage());
+            }
         }
+        Map<String,Object> meta = cfg.getMetaData();
         Tag[] toCreate;
         int i = 0;
-        
-        if( tags == null ) {
+
+        if( meta.isEmpty() ) {
             toCreate = new Tag[2];
         }
         else {
             int count = 0;
-            
-            for( Tag t : tags ) {
-                if( t.getKey().equalsIgnoreCase("name") || t.getKey().equalsIgnoreCase("description") ) {
+
+            for( Map.Entry<String,Object> entry : meta.entrySet() ) {
+                if( entry.getKey().equalsIgnoreCase("name") || entry.getKey().equalsIgnoreCase("description") ) {
                     continue;
                 }
                 count++;
             }
             toCreate = new Tag[count + 2];
-            for( Tag t : tags ) {
-                if( t.getKey().equalsIgnoreCase("name") || t.getKey().equalsIgnoreCase("description") ) {
+            for( Map.Entry<String,Object> entry : meta.entrySet() ) {
+                if( entry.getKey().equalsIgnoreCase("name") || entry.getKey().equalsIgnoreCase("description") ) {
                     continue;
                 }
-                toCreate[i++] = t;
+                toCreate[i++] = new Tag(entry.getKey(), entry.getValue().toString());
             }
         }
         Tag t = new Tag();
-        
+
         t.setKey("Name");
-        t.setValue(name);
+        t.setValue(cfg.getFriendlyName());
         toCreate[i++] = t;
         t = new Tag();
         t.setKey("Description");
-        t.setValue(description);
+        t.setValue(cfg.getDescription());
         toCreate[i] = t;
         provider.createTags(server.getProviderVirtualMachineId(), toCreate);
-        return server;
+        return server;        
+    }
+    
+	@Override
+    public @Nonnull VirtualMachine launch(@Nonnull String imageId, @Nonnull VirtualMachineProduct size, @Nullable String inZoneId, @Nonnull String name, @Nullable String description, @Nullable String keypair, @Nullable String inVlanId, boolean withMonitoring, boolean asImageSandbox, @Nullable String ... protectedByFirewalls) throws CloudException, InternalException {
+        VMLaunchOptions cfg = VMLaunchOptions.getInstance(size.getProviderProductId(), imageId, name, description == null ? name : description);
+
+        if( keypair != null ) {
+            cfg.withBoostrapKey(keypair);
+        }
+        if( inVlanId != null ) {
+            if( inZoneId == null ) {
+                NetworkServices svc = provider.getNetworkServices();
+
+                if( svc != null ) {
+                    VLANSupport support = svc.getVlanSupport();
+
+                    if( support != null ) {
+                        Subnet subnet = support.getSubnet(inVlanId);
+
+                        if( subnet == null ) {
+                            throw new CloudException("No such VPC subnet: " + inVlanId);
+                        }
+                        inZoneId = subnet.getProviderDataCenterId();
+                    }
+                }
+            }
+            if( inZoneId == null ) {
+                throw new CloudException("Unable to match zone to subnet");
+            }
+            cfg.inVlan(null, inZoneId, inVlanId);
+        }
+        else if( inZoneId != null ) {
+            cfg.inDataCenter(inZoneId);
+        }
+        if( withMonitoring ) {
+            cfg.withExtendedAnalytics();
+        }
+        if( protectedByFirewalls != null && protectedByFirewalls.length > 0 ) {
+            cfg.behindFirewalls(protectedByFirewalls);
+        }
+        return launch(cfg);
+    }
+
+	@Override
+    @Deprecated
+	public @Nonnull VirtualMachine launch(@Nonnull String imageId, @Nonnull VirtualMachineProduct size, @Nullable String inZoneId, @Nonnull String name, @Nullable String description, @Nullable String keypair, @Nullable String inVlanId, boolean withMonitoring, boolean asImageSandbox, @Nullable String[] protectedByFirewalls, @Nullable Tag ... tags) throws CloudException, InternalException {
+        VMLaunchOptions cfg = VMLaunchOptions.getInstance(size.getProviderProductId(), imageId, name, description == null ? name : description);
+
+        if( keypair != null ) {
+            cfg.withBoostrapKey(keypair);
+        }
+        if( inVlanId != null ) {
+            if( inZoneId == null ) {
+                NetworkServices svc = provider.getNetworkServices();
+                
+                if( svc != null ) {
+                    VLANSupport support = svc.getVlanSupport();
+                    
+                    if( support != null ) {
+                        Subnet subnet = support.getSubnet(inVlanId);
+                    
+                        if( subnet == null ) {
+                            throw new CloudException("No such VPC subnet: " + inVlanId);
+                        }
+                        inZoneId = subnet.getProviderDataCenterId();
+                    }
+                }
+            }
+            if( inZoneId == null ) {
+                throw new CloudException("Unable to match zone to subnet");
+            }
+            cfg.inVlan(null, inZoneId, inVlanId);
+        }
+        else if( inZoneId != null ) {
+            cfg.inDataCenter(inZoneId);
+        }
+        if( withMonitoring ) {
+            cfg.withExtendedAnalytics();
+        }
+        if( protectedByFirewalls != null && protectedByFirewalls.length > 0 ) {
+            cfg.behindFirewalls(protectedByFirewalls);
+        }
+        if( tags != null && tags.length > 0 ) {
+            HashMap<String,Object> meta = new HashMap<String, Object>();
+            
+            for( Tag t : tags ) {
+                meta.put(t.getKey(), t.getValue());
+            }
+            cfg.withMetaData(meta);
+        }
+        return launch(cfg);
 	}
 
 	@Override
@@ -1348,9 +1573,8 @@ public class EC2Instance implements VirtualMachineSupport {
             }
 			else if( name.equals("instanceType") ) {
 				String value = attr.getFirstChild().getNodeValue().trim();
-				VirtualMachineProduct product = getProduct(value);
 				
-				server.setProduct(product);
+				server.setProductId(value);
 			}
 			else if( name.equals("launchTime") ) {
 				SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
@@ -1396,10 +1620,10 @@ public class EC2Instance implements VirtualMachineSupport {
             server.setName(server.getProviderVirtualMachineId());
         }
         if( server.getDescription() == null ) {
-            server.setDescription(server.getName() + " (" + server.getProduct().getName() + ")");
+            server.setDescription(server.getName() + " (" + server.getProductId() + ")");
         }
-        if( server.getArchitecture() == null && server.getProduct() != null ) {
-            server.setArchitecture(getArchitecture(server.getProduct().getProductId()));
+        if( server.getArchitecture() == null && server.getProductId() != null ) {
+            server.setArchitecture(getArchitecture(server.getProductId()));
         }
         else if( server.getArchitecture() == null ) {
             server.setArchitecture(Architecture.I64);

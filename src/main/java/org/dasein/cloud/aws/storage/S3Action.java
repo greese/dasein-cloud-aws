@@ -18,25 +18,25 @@
 
 package org.dasein.cloud.aws.storage;
 
-import org.apache.commons.httpclient.HttpMethod;
-import org.apache.commons.httpclient.methods.DeleteMethod;
-import org.apache.commons.httpclient.methods.GetMethod;
-import org.apache.commons.httpclient.methods.HeadMethod;
-import org.apache.commons.httpclient.methods.PutMethod;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpRequestBase;
 
 public enum S3Action {
 	CREATE_BUCKET, DELETE_BUCKET, LIST_BUCKETS, LIST_CONTENTS, LOCATE_BUCKET, COPY_OBJECT, OBJECT_EXISTS, GET_OBJECT, PUT_OBJECT, DELETE_OBJECT, GET_ACL, SET_ACL;
 	
-	public HttpMethod getMethod(String url) {
+	public HttpRequestBase getMethod(String url) {
 		switch( this ) {
 		case OBJECT_EXISTS:
-			return new HeadMethod(url);
+			return new HttpHead(url);
 		case DELETE_BUCKET: case DELETE_OBJECT:
-			return new DeleteMethod(url);
+			return new HttpDelete(url);
 		case LIST_BUCKETS: case LIST_CONTENTS: case LOCATE_BUCKET: case GET_OBJECT: case GET_ACL:
-			return new GetMethod(url);
+			return new HttpGet(url);
 		case CREATE_BUCKET: case COPY_OBJECT: case PUT_OBJECT: case SET_ACL:
-			return new PutMethod(url);
+			return new HttpPost(url);
 		}
 		return null;
 	}
