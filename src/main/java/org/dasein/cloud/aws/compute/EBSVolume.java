@@ -21,6 +21,7 @@ package org.dasein.cloud.aws.compute;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 
@@ -28,16 +29,23 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.Requirement;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.Volume;
+import org.dasein.cloud.compute.VolumeCreateOptions;
+import org.dasein.cloud.compute.VolumeProduct;
 import org.dasein.cloud.compute.VolumeState;
 import org.dasein.cloud.compute.VolumeSupport;
+import org.dasein.cloud.compute.VolumeType;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.util.uom.storage.Gigabyte;
+import org.dasein.util.uom.storage.Storage;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -51,7 +59,7 @@ public class EBSVolume implements VolumeSupport {
 	}
 	
 	@Override
-	public void attach(String volumeId, String toServer, String device) throws InternalException, CloudException {
+	public void attach(@Nonnull String volumeId, @Nonnull String toServer, @Nonnull String device) throws InternalException, CloudException {
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ATTACH_VOLUME);
 		EC2Method method;
 
@@ -67,60 +75,51 @@ public class EBSVolume implements VolumeSupport {
         	throw new CloudException(e);
         }
 	}
-
+    
 	@Override
-	public String create(String fromSnapshot, int sizeInGb, String inZone) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_VOLUME);
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
+	public @Nonnull String create(@Nullable String fromSnapshot, @Nonnegative int sizeInGb, @Nonnull String inZone) throws InternalException, CloudException {
+        if( fromSnapshot != null ) {
+            return createVolume(VolumeCreateOptions.getInstanceForSnapshot(fromSnapshot, new Storage<Gigabyte>(sizeInGb, Storage.GIGABYTE), "dsn-auto-volume", "dsn-auto-volume").inDataCenter(inZone));
+        }
+        else {
+            return createVolume(VolumeCreateOptions.getInstance(new Storage<Gigabyte>(sizeInGb, Storage.GIGABYTE), "dsn-auto-volume", "dsn-auto-volume").inDataCenter(inZone));
+        }
+	}
 
-		if( fromSnapshot != null ) {
-		    parameters.put("SnapshotId", fromSnapshot);
-		}
-		parameters.put("Size", String.valueOf(sizeInGb));
-		parameters.put("AvailabilityZone", inZone);
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+    @Override
+    public @Nonnull String createVolume(@Nonnull VolumeCreateOptions options) throws InternalException, CloudException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new InternalException("No context was specified for this request");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(ctx, EC2Method.CREATE_VOLUME);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        if( options.getSnapshotId() != null ) {
+            parameters.put("SnapshotId", options.getSnapshotId());
+        }
+        parameters.put("Size", String.valueOf(options.getVolumeSize().getQuantity().intValue()));
+        parameters.put("AvailabilityZone", options.getDataCenterId());
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
-        	doc = method.invoke();
+            doc = method.invoke();
         }
         catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         blocks = doc.getElementsByTagName("volumeId");
         if( blocks.getLength() > 0 ) {
-        	return blocks.item(0).getFirstChild().getNodeValue().trim();
+            return blocks.item(0).getFirstChild().getNodeValue().trim();
         }
-        return null;
-	}
+        throw new CloudException("Successful POST, but no volume information was provided");
+    }
 
 	@Override
-	public void remove(String volumeId) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_VOLUME);
-		EC2Method method;
-		NodeList blocks;
-		Document doc;
-		
-		parameters.put("VolumeId", volumeId);
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("return");
-        if( blocks.getLength() > 0 ) {
-        	if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
-        		throw new CloudException("Deletion of volume denied.");
-        	}
-        }
-	}
-
-	@Override
-	public void detach(String volumeId) throws InternalException, CloudException {
+	public void detach(@Nonnull String volumeId) throws InternalException, CloudException {
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DETACH_VOLUME);
 		EC2Method method;
 		NodeList blocks;
@@ -143,8 +142,23 @@ public class EBSVolume implements VolumeSupport {
         }
 	}
 
-	@Override
-	public String getProviderTermForVolume(Locale locale) {
+    @Override
+    public int getMaximumVolumeCount() throws InternalException, CloudException {
+        return -2;
+    }
+
+    @Override
+    public @Nullable Storage<Gigabyte> getMaximumVolumeSize() throws InternalException, CloudException {
+        return new Storage<Gigabyte>(1024, Storage.GIGABYTE);
+    }
+
+    @Override
+    public @Nonnull Storage<Gigabyte> getMinimumVolumeSize() throws InternalException, CloudException {
+        return new Storage<Gigabyte>(1, Storage.GIGABYTE);
+    }
+
+    @Override
+	public @Nonnull String getProviderTermForVolume(@Nonnull Locale locale) {
 		return "volume";
 	}
 
@@ -154,7 +168,7 @@ public class EBSVolume implements VolumeSupport {
     }
     
     @Override
-    public Iterable<String> listPossibleDeviceIds(Platform platform) throws InternalException, CloudException {
+    public @Nonnull Iterable<String> listPossibleDeviceIds(@Nonnull Platform platform) throws InternalException, CloudException {
         ArrayList<String> list = new ArrayList<String>();
         
         if( platform.isWindows() ) {
@@ -173,9 +187,14 @@ public class EBSVolume implements VolumeSupport {
         }
         return list;
     }
-    
-	@Override
-	public Volume getVolume(String volumeId) throws InternalException, CloudException {
+
+    @Override
+    public @Nonnull Iterable<VolumeProduct> listVolumeProducts() throws InternalException, CloudException {
+        return Collections.emptyList();
+    }
+
+    @Override
+	public @Nullable Volume getVolume(@Nonnull String volumeId) throws InternalException, CloudException {
         ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
@@ -219,8 +238,18 @@ public class EBSVolume implements VolumeSupport {
         return null;
 	}
 
-	@Override
-	public Iterable<Volume> listVolumes() throws InternalException, CloudException {
+    @Override
+    public @Nonnull Requirement getVolumeProductRequirement() throws InternalException, CloudException {
+        return Requirement.NONE;
+    }
+
+    @Override
+    public boolean isVolumeSizeDeterminedByProduct() throws InternalException, CloudException {
+        return false;
+    }
+
+    @Override
+	public @Nonnull Iterable<Volume> listVolumes() throws InternalException, CloudException {
         ProviderContext ctx = provider.getContext();
         
         if( ctx == null ) {
@@ -281,6 +310,30 @@ public class EBSVolume implements VolumeSupport {
         }
         return new String[0];
     }
+
+    @Override
+    public void remove(@Nonnull String volumeId) throws InternalException, CloudException {
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_VOLUME);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("VolumeId", volumeId);
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("return");
+        if( blocks.getLength() > 0 ) {
+            if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                throw new CloudException("Deletion of volume denied.");
+            }
+        }
+    }
     
 	private @Nullable Volume toVolume(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException {
         if( node == null ) {
@@ -289,6 +342,7 @@ public class EBSVolume implements VolumeSupport {
 		NodeList attrs = node.getChildNodes();
 		Volume volume = new Volume();
 		
+        volume.setType(VolumeType.HDD);
 		for( int i=0; i<attrs.getLength(); i++ ) {
 			Node attr = attrs.item(i);
 			String name;
@@ -301,7 +355,7 @@ public class EBSVolume implements VolumeSupport {
 			else if( name.equals("size") ) {
 				int size = Integer.parseInt(attr.getFirstChild().getNodeValue().trim());
 				
-				volume.setSizeInGigabytes(size);
+                volume.setSize(new Storage<Gigabyte>(size, Storage.GIGABYTE));
 			}
 			else if( name.equals("snapshotId") ) {
 				NodeList values = attr.getChildNodes();
