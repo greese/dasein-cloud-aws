@@ -23,6 +23,9 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -37,10 +40,13 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpVersion;
+import org.apache.http.NameValuePair;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpParams;
 import org.apache.http.params.HttpProtocolParams;
@@ -395,9 +401,6 @@ public class EC2Method {
         HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
         HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
         HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
-        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
-        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
 
         Properties p = ctx.getCustomProperties();
 
@@ -421,6 +424,10 @@ public class EC2Method {
 	    if( logger.isTraceEnabled() ) {
 	        logger.trace("ENTER - " + EC2Method.class.getName() + ".invoke(" + debug + ")");
 	    }
+        if( wire.isDebugEnabled() ) {
+            wire.debug("");
+            wire.debug("--------------------------------------------------------------------------------------");
+        }
 	    try {
     		if( logger.isDebugEnabled() ) {
     			logger.debug("Talking to server at " + url);
@@ -432,20 +439,34 @@ public class EC2Method {
 
             attempts++;
             post.addHeader("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
+
+            List<NameValuePair> params = new ArrayList<NameValuePair>();
+
             for( Map.Entry<String, String> entry : parameters.entrySet() ) {
-                post.getParams().setParameter(entry.getKey(), entry.getValue());
-                //post.addParameter(entry.getKey(), entry.getValue());
+                params.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
+            }
+            try {
+                post.setEntity(new UrlEncodedFormEntity(params));
+            }
+            catch( UnsupportedEncodingException e ) {
+                throw new InternalException(e);
             }
             if( wire.isDebugEnabled() ) {
                 wire.debug(post.getRequestLine().toString());
                 for( Header header : post.getAllHeaders() ) {
                     wire.debug(header.getName() + ": " + header.getValue());
                 }
+                wire.debug("");
+
+                try { wire.debug(EntityUtils.toString(post.getEntity())); }
+                catch( IOException ignore ) { }
+
+                wire.debug("");
             }
             try {
                 response = client.execute(post);
                 if( wire.isDebugEnabled() ) {
-                    wire.debug("HTTP STATUS: " + response.getStatusLine().getStatusCode());
+                    wire.debug(response.getStatusLine().toString());
                 }
             }
             catch( IOException e ) {
@@ -659,6 +680,11 @@ public class EC2Method {
 	        if( logger.isTraceEnabled() ) {
 	            logger.trace("EXIT - " + EC2Method.class.getName() + ".invoke()");
 	        }
+            if( wire.isDebugEnabled() ) {
+                wire.debug("--------------------------------------------------------------------------------------");
+                wire.debug("");
+            }
+
 	    }
 	}
 	

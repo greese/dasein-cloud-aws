@@ -31,8 +31,10 @@ import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Pattern;
@@ -49,7 +51,9 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpVersion;
+import org.apache.http.NameValuePair;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
@@ -57,10 +61,12 @@ import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.entity.FileEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpParams;
 import org.apache.http.params.HttpProtocolParams;
 import org.apache.http.protocol.HTTP;
+import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
@@ -209,7 +215,7 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
 	    return invoke(bucket, object, null);
 	}
 
-    protected @Nonnull HttpClient getClient(String url) throws InternalException {
+    protected @Nonnull HttpClient getClient(String url, boolean multipart) throws InternalException {
         ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
@@ -219,10 +225,9 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
         HttpParams params = new BasicHttpParams();
 
         HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
-        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
-        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
+        if( !multipart ) {
+            HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
+        }
         HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
 
         Properties p = ctx.getCustomProperties();
@@ -243,311 +248,354 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
         return new DefaultHttpClient(params);
     }
 
+    static private final Logger wire = AWSCloud.getWireLogger(S3.class);
+
 	S3Response invoke(String bucket, String object, String temporaryEndpoint) throws S3Exception, CloudException, InternalException {
-		StringBuilder url = new StringBuilder();
-		boolean leaveOpen = false;
-        HttpRequestBase method;
-		HttpClient client;
-		int status;
-
-		if( provider.isAmazon() ) {
-		    url.append("https://");
-	        if( temporaryEndpoint == null ) {
-            	boolean validDomainName = isValidDomainName(bucket);
-	            if( bucket != null && validDomainName ) {
-	            	url.append(bucket);
-		            url.append(".");
-	            }
-	            url.append("s3.amazonaws.com/");
-	            if ( bucket != null && !validDomainName) {
-	            	url.append(bucket);
-                    url.append("/");
-	            }
-	        }
-	        else {
-	            url.append(temporaryEndpoint);
-	            url.append("/");
-	        }
-		}
-		else {
-		    int idx = 0;
-		    
-		    if( !provider.getContext().getEndpoint().startsWith("http") ) {
-		        url.append("https://");
-		    }
-		    else {
-		        idx = provider.getContext().getEndpoint().indexOf("https://");
-		        if( idx == -1 ) {
-		            idx = "http://".length();
-                    url.append("http://");
-		        }
-		        else {
-		            idx = "https://".length();
-                    url.append("https://");
-		        }
-		    }
-		    if( temporaryEndpoint == null ) {
-		        url.append(provider.getContext().getEndpoint().substring(idx));
-	            if( !provider.getContext().getEndpoint().endsWith("/") ) {
-	                url.append("/Walrus/");
-	            }
-	            else {
-	                url.append("Walrus/");                
-	            }
-		    }
-		    else {
-		        url.append(temporaryEndpoint);
-		        url.append("/Walrus/");
-		    }
-            if( bucket != null ) {
-                url.append(bucket);
-                url.append("/");
-            }
-		}
-		if( object != null ) {
-			url.append(object);
-		}
-		if( parameters != null ) {
-			boolean first = true;
-			
-			if( object != null && object.indexOf('?') != -1 ) {
-				first = false;
-			}
-			for( Map.Entry<String,String> entry : parameters.entrySet() ) {
-				String key = entry.getKey();
-				String val = entry.getValue();
-
-				if( first ) {
-					url.append("?");
-					first = false;
-				}
-				else {
-					url.append("&");
-				}
-				if( val != null ) {
-					url.append(AWSCloud.encode(key, false));
-					url.append("=");
-					url.append(AWSCloud.encode(val, false));
-				}
-				else {
-					url.append(AWSCloud.encode(key, false));
-				}
-			}
-		}
-		headers.put(AWSCloud.P_DATE, getDate());
-		method = action.getMethod(url.toString());
-		if( headers != null ) {
-			for( Map.Entry<String, String> entry : headers.entrySet() ) {
-				method.addHeader(entry.getKey(), entry.getValue());
-			}
-		}
-		try {
-			String hash = null;
-			String signature;
-			
-			signature = provider.signS3(new String(provider.getContext().getAccessPublic(), "utf-8"), provider.getContext().getAccessPrivate(), method.getMethod(), hash, contentType, headers, bucket, object);
-			method.addHeader(AWSCloud.P_CFAUTH, signature);
-		} 
-		catch (UnsupportedEncodingException e) {
-			logger.error(e);
-			e.printStackTrace();
-			throw new InternalException(e);
-		}
-        if( body != null ) {
-            try {
-                ((HttpEntityEnclosingRequestBase)method).setEntity(new StringEntity(body, "application/xml", "utf-8"));
-            }
-            catch( UnsupportedEncodingException e ) {
-                throw new InternalException(e);
-            }
-        }
-		else if( uploadFile != null ) {
-            ((HttpEntityEnclosingRequestBase)method).setEntity(new FileEntity(uploadFile, contentType));
-		}
-		attempts++;
-        client = getClient(url.toString());
-        S3Response response = new S3Response();
-        HttpResponse httpResponse;
-        
-        try {
-            httpResponse = client.execute(method);
-            status = httpResponse.getStatusLine().getStatusCode();
-        } 
-        catch( IOException e ) {
-            logger.error(url + ": " + e.getMessage());
-            e.printStackTrace();
-            throw new InternalException(e);
-        }
-        response.headers = method.getAllHeaders();
-
-        HttpEntity entity = httpResponse.getEntity();
-
-        if( entity == null ) {
-            throw new S3Exception(status, null, "NoResponse", "No response body was specified");
-        }
-        InputStream input;
-        
-        try {
-            input = entity.getContent();
-        } 
-        catch( IOException e ) {
-            throw new CloudException(e);
+        if( wire.isDebugEnabled() ) {
+            wire.debug("");
+            wire.debug("----------------------------------------------------------------------------------");
         }
         try {
-            if( status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_CREATED || status == HttpServletResponse.SC_ACCEPTED ) {
-                Header[] clen = httpResponse.getHeaders("Content-Length");
-                long len = -1L;
-                
-                if( clen != null && clen.length > 0 ) {
-                    len = Long.parseLong(clen[0].getValue());
-                }
-                if( len != 0L ) {
-                    try {
-                        Header[] ct = httpResponse.getHeaders("Content-Type");
-
-                        if( ct != null && ct.length > 0 && (ct[0].getValue().startsWith("application/xml") || ct[0].getValue().startsWith("text/xml")) ) {
-                            try {
-                                response.document = parseResponse(input);
-                                return response;
-                            }
-                            finally {
-                                input.close();
-                            }
-                        }
-                        else if( ct != null && ct.length > 0 && ct[0].getValue().startsWith("application/octet-stream") && len < 1 ) {
-                            return null;
-                        }
-                        else {
-                            response.contentLength = len;
-                            if( ct != null && ct.length > 0 ) {
-                                response.contentType = ct[0].getValue();
-                            }
-                            response.input = input;
-                            response.method = method;
-                            leaveOpen = true;
-                            return response;
-                        }
+            StringBuilder url = new StringBuilder();
+            boolean leaveOpen = false;
+            HttpRequestBase method;
+            HttpClient client;
+            int status;
+    
+            if( provider.isAmazon() ) {
+                url.append("https://");
+                if( temporaryEndpoint == null ) {
+                    boolean validDomainName = isValidDomainName(bucket);
+                    if( bucket != null && validDomainName ) {
+                        url.append(bucket);
+                        url.append(".");
                     }
-                    catch( IOException e ) {
-                        logger.error(e);
-                        e.printStackTrace();
-                        throw new CloudException(e);
+                    url.append("s3.amazonaws.com/");
+                    if ( bucket != null && !validDomainName) {
+                        url.append(bucket);
+                        url.append("/");
                     }
                 }
                 else {
-                    return response;
+                    url.append(temporaryEndpoint);
+                    url.append("/");
                 }
-            }
-            else if( status == HttpServletResponse.SC_NO_CONTENT ) {
-                return response;
-            }
-            else if( status == HttpServletResponse.SC_NOT_FOUND ) {
-                throw new S3Exception(status, null, null, "Object not found.");
             }
             else {
-                if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE || status == HttpServletResponse.SC_INTERNAL_SERVER_ERROR ) {
-                    if( attempts >= 5 ) {
-                        String msg;
-                        
-                        if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE ) {
-                            msg = "Cloud service is currently unavailable.";
-                        }
-                        else {
-                            msg = "The cloud service encountered a server error while processing your request.";
-                        }
-                        logger.error(msg);
-                        throw new CloudException(msg);
+                int idx = 0;
+                
+                if( !provider.getContext().getEndpoint().startsWith("http") ) {
+                    url.append("https://");
+                }
+                else {
+                    idx = provider.getContext().getEndpoint().indexOf("https://");
+                    if( idx == -1 ) {
+                        idx = "http://".length();
+                        url.append("http://");
                     }
                     else {
-                        leaveOpen = true;
-                        if( input != null ) {
-                            try { input.close(); }
-                            catch( IOException ignore ) { }
-                        }
-                        try { Thread.sleep(5000L); }
-                        catch( InterruptedException ignore ) { }
-                        return invoke(bucket, object);
+                        idx = "https://".length();
+                        url.append("https://");
                     }
                 }
-                try {
-                    Document doc;
-                    
-                    try {
-                        logger.warn("Received error code: " + status);
-                        doc = parseResponse(input);
-                    }
-                    finally {
-                        input.close();
-                    }
-                    if( doc != null ) {
-                        String endpoint = null, code = null, message = null, requestId = null;
-                        NodeList blocks = doc.getElementsByTagName("Error");
-    
-                        if( blocks.getLength() > 0 ) {
-                            Node error = blocks.item(0);
-                            NodeList attrs;
-                            
-                            attrs = error.getChildNodes();
-                            for( int i=0; i<attrs.getLength(); i++ ) {
-                                Node attr = attrs.item(i);
-                                
-                                if( attr.getNodeName().equals("Code") ) {
-                                    code = attr.getFirstChild().getNodeValue().trim();
-                                }
-                                else if( attr.getNodeName().equals("Message") ) {
-                                    message = attr.getFirstChild().getNodeValue().trim();
-                                }
-                                else if( attr.getNodeName().equals("RequestId") ) {
-                                    requestId = attr.getFirstChild().getNodeValue().trim();
-                                }
-                                else if( attr.getNodeName().equals("Endpoint") ) {
-                                    endpoint = attr.getFirstChild().getNodeValue().trim();
-                                }
-                            }
-                            
-                        }
-                        if( endpoint != null && code.equals("TemporaryRedirect") ) {
-                            if( temporaryEndpoint != null ) {
-                                throw new CloudException("Too deep redirect to " + endpoint);
-                            }
-                            else {
-                                return invoke(bucket, object, endpoint);
-                            }
-                        }
-                        else {
-                            if( message == null ) {
-                                throw new CloudException("Unable to identify error condition: " + status + "/" + requestId + "/" + code);
-                            }
-                            throw new S3Exception(status, requestId, code, message);
-                        }
+                if( temporaryEndpoint == null ) {
+                    url.append(provider.getContext().getEndpoint().substring(idx));
+                    if( !provider.getContext().getEndpoint().endsWith("/") ) {
+                        url.append("/Walrus/");
                     }
                     else {
-                        throw new CloudException("Unable to parse error.");
+                        url.append("Walrus/");                
                     }
+                }
+                else {
+                    url.append(temporaryEndpoint);
+                    url.append("/Walrus/");
+                }
+                if( bucket != null ) {
+                    url.append(bucket);
+                    url.append("/");
+                }
+            }
+            if( object != null ) {
+                url.append(object);
+            }
+            else if( parameters != null ) {
+                boolean first = true;
+
+                if( object != null && object.indexOf('?') != -1 ) {
+                    first = false;
+                }
+                for( Map.Entry<String,String> entry : parameters.entrySet() ) {
+                    String key = entry.getKey();
+                    String val = entry.getValue();
+
+                    if( first ) {
+                        url.append("?");
+                        first = false;
+                    }
+                    else {
+                        url.append("&");
+                    }
+                    if( val != null ) {
+                        url.append(AWSCloud.encode(key, false));
+                        url.append("=");
+                        url.append(AWSCloud.encode(val, false));
+                    }
+                    else {
+                        url.append(AWSCloud.encode(key, false));
+                    }
+                }
+            }            
+            
+            headers.put(AWSCloud.P_DATE, getDate());
+            method = action.getMethod(url.toString());
+            if( headers != null ) {
+                for( Map.Entry<String, String> entry : headers.entrySet() ) {
+                    method.addHeader(entry.getKey(), entry.getValue());
+                }
+            }
+            if( contentType == null && body != null ) {
+                contentType = "application/xml";
+                method.addHeader("Content-Type", contentType);
+            }
+            try {
+                String hash = null;
+                String signature;
+                
+                signature = provider.signS3(new String(provider.getContext().getAccessPublic(), "utf-8"), provider.getContext().getAccessPrivate(), method.getMethod(), hash, contentType, headers, bucket, object);
+                method.addHeader(AWSCloud.P_CFAUTH, signature);
+            } 
+            catch (UnsupportedEncodingException e) {
+                logger.error(e);
+                e.printStackTrace();
+                throw new InternalException(e);
+            }
+            if( body != null ) {
+                try {
+                    ((HttpEntityEnclosingRequestBase)method).setEntity(new StringEntity(body, "application/xml", "utf-8"));
+                }
+                catch( UnsupportedEncodingException e ) {
+                    throw new InternalException(e);
+                }
+            }
+            else if( uploadFile != null ) {
+                ((HttpEntityEnclosingRequestBase)method).setEntity(new FileEntity(uploadFile, contentType));
+            }
+            attempts++;
+            client = getClient(url.toString(), body == null && uploadFile == null);
+            
+            if( wire.isDebugEnabled() ) {
+                wire.debug("[" + url.toString() + "]");
+                wire.debug(method.getRequestLine().toString());
+                for( Header header : method.getAllHeaders() ) {
+                    wire.debug(header.getName() + ": " + header.getValue());
+                }
+                wire.debug("");
+                if( body != null ) {
+                    try { wire.debug(EntityUtils.toString(((HttpEntityEnclosingRequestBase)method).getEntity())); }
+                    catch( IOException ignore ) { }
+
+                    wire.debug("");                    
+                }
+                else if( uploadFile != null ) {
+                    wire.debug("-- file upload --");
+                    wire.debug("");
+                }
+            }
+            S3Response response = new S3Response();
+            HttpResponse httpResponse;
+            
+            try {
+                httpResponse = client.execute(method);
+                if( wire.isDebugEnabled() ) {
+                    wire.debug(httpResponse.getStatusLine().toString());
+                    for( Header header : httpResponse.getAllHeaders() ) {
+                        wire.debug(header.getName() + ": " + header.getValue());
+                    }             
+                    wire.debug("");
+                }
+                status = httpResponse.getStatusLine().getStatusCode();
+            } 
+            catch( IOException e ) {
+                logger.error(url + ": " + e.getMessage());
+                e.printStackTrace();
+                throw new InternalException(e);
+            }
+            response.headers = httpResponse.getAllHeaders();
+    
+            HttpEntity entity = httpResponse.getEntity();
+            InputStream input = null;
+
+            if( entity != null ) {
+                try {
+                    input = entity.getContent();
                 }
                 catch( IOException e ) {
-                    if( status == HttpServletResponse.SC_FORBIDDEN ) {
-                        throw new S3Exception(status, "", "AccessForbidden", "Access was denied without explanation.");
-                    }                              
                     throw new CloudException(e);
                 }
-                catch( RuntimeException e ) {
-                    throw new CloudException(e);
+            }
+            try {
+                if( status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_CREATED || status == HttpServletResponse.SC_ACCEPTED ) {
+                    Header clen = httpResponse.getFirstHeader("Content-Length");
+                    long len = -1L;
+                    
+                    if( clen != null ) {
+                        len = Long.parseLong(clen.getValue());
+                    }
+                    if( len != 0L ) {
+                        try {
+                            Header ct = httpResponse.getFirstHeader("Content-Type");
+    
+                            if( ct != null && (ct.getValue().startsWith("application/xml") || ct.getValue().startsWith("text/xml")) ) {
+                                try {
+                                    response.document = parseResponse(input);
+                                    return response;
+                                }
+                                finally {
+                                    input.close();
+                                }
+                            }
+                            else if( ct != null && ct.getValue().startsWith("application/octet-stream") && len < 1 ) {
+                                return null;
+                            }
+                            else {
+                                response.contentLength = len;
+                                if( ct != null ) {
+                                    response.contentType = ct.getValue();
+                                }
+                                response.input = input;
+                                response.method = method;
+                                leaveOpen = true;
+                                return response;
+                            }
+                        }
+                        catch( IOException e ) {
+                            logger.error(e);
+                            e.printStackTrace();
+                            throw new CloudException(e);
+                        }
+                    }
+                    else {
+                        return response;
+                    }
                 }
-                catch( Error e ) {
-                    throw new CloudException(e);
-                }					
+                else if( status == HttpServletResponse.SC_NO_CONTENT ) {
+                    return response;
+                }
+                else if( status == HttpServletResponse.SC_NOT_FOUND ) {
+                    throw new S3Exception(status, null, null, "Object not found.");
+                }
+                else {
+                    if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE || status == HttpServletResponse.SC_INTERNAL_SERVER_ERROR ) {
+                        if( attempts >= 5 ) {
+                            String msg;
+                            
+                            if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE ) {
+                                msg = "Cloud service is currently unavailable.";
+                            }
+                            else {
+                                msg = "The cloud service encountered a server error while processing your request.";
+                            }
+                            logger.error(msg);
+                            throw new CloudException(msg);
+                        }
+                        else {
+                            leaveOpen = true;
+                            if( input != null ) {
+                                try { input.close(); }
+                                catch( IOException ignore ) { }
+                            }
+                            try { Thread.sleep(5000L); }
+                            catch( InterruptedException ignore ) { }
+                            return invoke(bucket, object);
+                        }
+                    }
+                    try {
+                        Document doc;
+                        
+                        try {
+                            logger.warn("Received error code: " + status);
+                            doc = parseResponse(input);
+                        }
+                        finally {
+                            input.close();
+                        }
+                        if( doc != null ) {
+                            String endpoint = null, code = null, message = null, requestId = null;
+                            NodeList blocks = doc.getElementsByTagName("Error");
+        
+                            if( blocks.getLength() > 0 ) {
+                                Node error = blocks.item(0);
+                                NodeList attrs;
+                                
+                                attrs = error.getChildNodes();
+                                for( int i=0; i<attrs.getLength(); i++ ) {
+                                    Node attr = attrs.item(i);
+                                    
+                                    if( attr.getNodeName().equals("Code") ) {
+                                        code = attr.getFirstChild().getNodeValue().trim();
+                                    }
+                                    else if( attr.getNodeName().equals("Message") ) {
+                                        message = attr.getFirstChild().getNodeValue().trim();
+                                    }
+                                    else if( attr.getNodeName().equals("RequestId") ) {
+                                        requestId = attr.getFirstChild().getNodeValue().trim();
+                                    }
+                                    else if( attr.getNodeName().equals("Endpoint") ) {
+                                        endpoint = attr.getFirstChild().getNodeValue().trim();
+                                    }
+                                }
+                                
+                            }
+                            if( endpoint != null && code.equals("TemporaryRedirect") ) {
+                                if( temporaryEndpoint != null ) {
+                                    throw new CloudException("Too deep redirect to " + endpoint);
+                                }
+                                else {
+                                    return invoke(bucket, object, endpoint);
+                                }
+                            }
+                            else {
+                                if( message == null ) {
+                                    throw new CloudException("Unable to identify error condition: " + status + "/" + requestId + "/" + code);
+                                }
+                                throw new S3Exception(status, requestId, code, message);
+                            }
+                        }
+                        else {
+                            throw new CloudException("Unable to parse error.");
+                        }
+                    }
+                    catch( IOException e ) {
+                        if( status == HttpServletResponse.SC_FORBIDDEN ) {
+                            throw new S3Exception(status, "", "AccessForbidden", "Access was denied without explanation.");
+                        }                              
+                        throw new CloudException(e);
+                    }
+                    catch( RuntimeException e ) {
+                        throw new CloudException(e);
+                    }
+                    catch( Error e ) {
+                        throw new CloudException(e);
+                    }					
+                }
+            }
+            finally {
+                if( !leaveOpen ) {
+                    if( input != null ) {
+                        try { input.close(); }
+                        catch( IOException ignore ) { }
+                    }
+                }
             }
         }
         finally {
-            if( !leaveOpen ) {
-                if( input != null ) {
-                    try { input.close(); }
-                    catch( IOException ignore ) { }
-                }
+            if( wire.isDebugEnabled() ) {
+                wire.debug("----------------------------------------------------------------------------------");
+                wire.debug("");
             }
         }
-	}
+    }
 	
 	private boolean isValidDomainName(String bucket) {
         return (bucket != null && Pattern.matches("^[a-z0-9](-*[a-z0-9]){2,62}$", bucket));
@@ -564,7 +612,8 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
 			}
 			in.close();
 	            
-			//System.out.println(sb);
+            wire.debug(sb.toString());
+
 			ByteArrayInputStream bas = new ByteArrayInputStream(sb.toString().getBytes());
 	            
 			DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();

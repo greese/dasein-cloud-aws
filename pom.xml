@@ -69,7 +69,7 @@
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-cloud-test</artifactId>
-        <version>2012.04</version>
+        <version>2012.07-SNAPSHOT</version>
         <scope>test</scope>
         <optional>false</optional>
     </dependency>      
@@ -83,8 +83,15 @@
     <dependency>
         <groupId>org.apache.httpcomponents</groupId>
         <artifactId>httpclient</artifactId>
-        <version>4.1.3</version>
+        <version>4.2</version>
     </dependency>
+      <!--
+      <dependency>
+          <groupId>org.apache.httpcomponents</groupId>
+          <artifactId>httpmime</artifactId>
+          <version>4.2</version>
+      </dependency>
+      -->
     <dependency>
         <groupId>junit</groupId>
         <artifactId>junit</artifactId>
@@ -250,7 +257,7 @@
                 
             </systemProperties>
           <includes>
-            <!-- <include>**/AWSTestSuite.java</include>  -->
+            <include>**/AWSTestSuite.java</include>
           </includes>
         </configuration>
       </plugin>     

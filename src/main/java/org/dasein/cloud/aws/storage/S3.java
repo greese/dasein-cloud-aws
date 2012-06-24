@@ -32,6 +32,7 @@ import java.io.PrintWriter;
 import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -43,6 +44,7 @@ import org.apache.http.Header;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.storage.S3Method.S3Response;
 import org.dasein.cloud.encryption.Encryption;
@@ -63,7 +65,7 @@ import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletResponse;
 
 public class S3 implements BlobStoreSupport {
-    static private final Logger logger = Logger.getLogger(S3.class);
+    static private final Logger logger = AWSCloud.getLogger(S3.class);
     
     private AWSCloud provider = null;
     
@@ -176,7 +178,16 @@ public class S3 implements BlobStoreSupport {
     }
     
     public String createDirectory(String bucket, boolean findFreeName) throws InternalException, CloudException {
-    	String regionId = provider.getContext().getRegionId();
+        ProviderContext ctx = provider.getContext();
+        
+        if( ctx == null ) {
+            throw new InternalException("No context was set for this request");
+        }
+    	String regionId = ctx.getRegionId();
+        
+        if( regionId == null ) {
+            throw new InternalException("No region ID was specified for this request");
+        }
     	StringBuilder body = null;
     	boolean success;
     	int idx;
@@ -1451,7 +1462,7 @@ public class S3 implements BlobStoreSupport {
     	String ct = "text/xml; charset=utf-8";
 		S3Method method;
 	
-		method = new S3Method(provider, S3Action.SET_ACL, null, null, ct, body);
+		method = new S3Method(provider, S3Action.SET_ACL, null, null, null /* ct */, body);
 		try {
 			method.invoke(bucket, object == null ? "?acl" : object + "?acl");
 		}

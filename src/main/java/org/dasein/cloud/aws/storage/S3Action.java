@@ -21,7 +21,7 @@ package org.dasein.cloud.aws.storage;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 
 public enum S3Action {
@@ -36,7 +36,7 @@ public enum S3Action {
 		case LIST_BUCKETS: case LIST_CONTENTS: case LOCATE_BUCKET: case GET_OBJECT: case GET_ACL:
 			return new HttpGet(url);
 		case CREATE_BUCKET: case COPY_OBJECT: case PUT_OBJECT: case SET_ACL:
-			return new HttpPost(url);
+			return new HttpPut(url);
 		}
 		return null;
 	}
