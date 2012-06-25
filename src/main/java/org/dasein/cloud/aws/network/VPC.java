@@ -19,9 +19,12 @@
 package org.dasein.cloud.aws.network;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeSet;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -61,7 +64,29 @@ public class VPC implements VLANSupport {
 
     @Override
     public void attachNetworkInterface(@Nonnull String nicId, @Nonnull String vmId, int index) throws CloudException, InternalException {
-        //To change body of implemented methods use File | Settings | File Templates.
+        if( index < 1 ) {
+            index = 1;
+            for( NetworkInterface nic : listNetworkInterfacesForVM(vmId) ) {
+                if( nic != null ) {
+                    index++;
+                }
+            }
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.ATTACH_NIC);
+        EC2Method method;
+
+        parameters.put("NetworkInterfaceId", nicId);
+        parameters.put("InstanceId", vmId);
+        parameters.put("DeviceIndex", String.valueOf(index));
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            e.printStackTrace();
+            throw new CloudException(e);
+        }
     }
 
     @Override
@@ -307,7 +332,7 @@ public class VPC implements VLANSupport {
     }
 
     @Override
-    public VLAN createVlan(String cidr, String name, String description, String domainName, String[] dnsServers, String[] ntpServers) throws CloudException, InternalException {
+    public @Nonnull VLAN createVlan(@Nonnull String cidr, @Nonnull String name, @Nonnull String description, @Nullable String domainName, @Nonnull String[] dnsServers, @Nonnull String[] ntpServers) throws CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
@@ -338,7 +363,7 @@ public class VPC implements VLANSupport {
             VLAN vlan = toVLAN(ctx, item);
             
             if( vlan != null ) {
-                if( domainName != null || (dnsServers != null && dnsServers.length > 0) || (ntpServers != null && ntpServers.length > 0) ) {
+                if( domainName != null || dnsServers.length > 0 || ntpServers.length > 0 ) {
                     assignDHCPOptions(vlan, domainName, dnsServers, ntpServers);
                 }
                 return vlan;
@@ -347,9 +372,88 @@ public class VPC implements VLANSupport {
         throw new CloudException("No VLAN was created, but no error was reported");
     }
 
+    static private class Attachment {
+        public String attachmentId;
+        public String virtualMachineId;
+    }
+    
+    private @Nonnull Collection<Attachment> getAttachments(@Nonnull String nicId) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was configured");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("NetworkInterfaceId.1", nicId);
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            if( e.getCode() != null && e.getCode().startsWith("InvalidNetworkInterfaceID") ) {
+                Collections.emptyList();
+            }
+            logger.error(e.getSummary());
+            e.printStackTrace();
+            throw new CloudException(e);
+        }
+        ArrayList<Attachment> attachments = new ArrayList<Attachment>();
+
+        blocks = doc.getElementsByTagName("item");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            Node item = blocks.item(i);
+
+            NodeList attrs = item.getChildNodes();
+            
+            for( int j=0; j<attrs.getLength(); j++ ) {
+                Node attr = attrs.item(j);
+                
+                if( attr.getNodeName().equalsIgnoreCase("attachment") ) {
+                    NodeList parts = attr.getChildNodes();
+                    Attachment a = new Attachment();
+                    
+                    for( int k=0; k<parts.getLength(); k++ ) {
+                        Node part = parts.item(k);
+                        
+                        if( part.getNodeName().equalsIgnoreCase("instanceId") && part.hasChildNodes() ) {
+                            a.virtualMachineId = part.getFirstChild().getNodeValue().trim();
+                        }
+                        else if( part.getNodeName().equalsIgnoreCase("attachmentId") && part.hasChildNodes() ) {
+                            a.attachmentId = part.getFirstChild().getNodeValue().trim();
+                        }
+                    }
+                    if( a.virtualMachineId != null && a.attachmentId != null ) {
+                        attachments.add(a);
+                    }
+                }
+            }
+        }
+        return attachments;
+    }
+    
     @Override
     public void detachNetworkInterface(@Nonnull String nicId) throws CloudException, InternalException {
-        //To change body of implemented methods use File | Settings | File Templates.
+        Collection<Attachment> attachments = getAttachments(nicId);
+        
+        for( Attachment a : attachments ) {
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DETACH_NIC);
+            EC2Method method;
+    
+            parameters.put("AttachmentId", a.attachmentId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                e.printStackTrace();
+                throw new CloudException(e);
+            }
+        }
     }
 
     @Override
@@ -363,23 +467,56 @@ public class VPC implements VLANSupport {
     }
 
     @Override
-    public String getProviderTermForNetworkInterface(Locale locale) {
+    public @Nonnull String getProviderTermForNetworkInterface(@Nonnull Locale locale) {
         return "network interface";
     }
 
     @Override
-    public String getProviderTermForSubnet(Locale locale) {
+    public @Nonnull String getProviderTermForSubnet(@Nonnull Locale locale) {
         return "subnet";
     }
 
     @Override
-    public String getProviderTermForVlan(Locale locale) {
+    public @Nonnull String getProviderTermForVlan(@Nonnull Locale locale) {
         return "VPC";
     }
 
     @Override
     public NetworkInterface getNetworkInterface(@Nonnull String nicId) throws CloudException, InternalException {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was configured");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("NetworkInterfaceId.1", nicId);
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            if( e.getCode() != null && e.getCode().startsWith("InvalidNetworkInterfaceID") ) {
+                return null;
+            }
+            logger.error(e.getSummary());
+            e.printStackTrace();
+            throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("item");
+
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            Node item = blocks.item(i);
+            NetworkInterface nic = toNIC(ctx, item);
+
+            if( nic != null ) {
+                return nic;
+            }
+        }
+        return null;
     }
 
     @Override 
@@ -499,18 +636,220 @@ public class VPC implements VLANSupport {
         return false;
     }
 
-    @Nonnull
+
     @Override
-    public Iterable<NetworkInterface> listNetworkInterfaces() throws CloudException, InternalException {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+    public Collection<String> listFirewallIdsForNIC(@Nonnull String nicId) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was configured");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("NetworkInterfaceId.1", nicId);
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            if( e.getCode() != null && e.getCode().startsWith("InvalidNetworkInterfaceID") ) {
+                Collections.emptyList();
+            }
+            logger.error(e.getSummary());
+            e.printStackTrace();
+            throw new CloudException(e);
+        }
+        TreeSet<String> firewallIds = new TreeSet<String>();
+
+        blocks = doc.getElementsByTagName("item");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            Node item = blocks.item(i);
+
+            NodeList attrs = item.getChildNodes();
+
+            for( int j=0; j<attrs.getLength(); j++ ) {
+                Node attr = attrs.item(j);
+
+                if( attr.getNodeName().equalsIgnoreCase("groupSet") ) {
+                    NodeList parts = attr.getChildNodes();
+
+                    for( int k=0; k<parts.getLength(); k++ ) {
+                        Node part = parts.item(k);
+
+                        if( part.getNodeName().equalsIgnoreCase("item") && part.hasChildNodes() ) {
+                            NodeList fws = part.getChildNodes();
+                            
+                            for( int l=0; l<fws.getLength(); l++ ) {
+                                Node fw = fws.item(l);
+
+                                if( fw.hasChildNodes() ) {
+                                    NodeList faList = fw.getChildNodes();
+                                    
+                                    for( int m=0; m<faList.getLength(); m++ ) {
+                                        Node fa = faList.item(m);
+                                        
+                                        if( fa.getNodeName().equalsIgnoreCase("groupId") && fa.hasChildNodes() ) {
+                                            firewallIds.add(fw.getFirstChild().getNodeValue().trim());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return firewallIds;
     }
 
-    @Nonnull
     @Override
-    public Iterable<NetworkInterface> listNetworkInterfacesForVM(@Nonnull String forVmId) throws CloudException, InternalException {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+    public @Nonnull Iterable<NetworkInterface> listNetworkInterfaces() throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was configured");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            e.printStackTrace();
+            throw new CloudException(e);
+        }
+        ArrayList<NetworkInterface> nics = new ArrayList<NetworkInterface>();
+        blocks = doc.getElementsByTagName("item");
+
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            Node item = blocks.item(i);
+            NetworkInterface nic = toNIC(ctx, item);
+
+            if( nic != null ) {
+                nics.add(nic);
+            }
+        }
+        return nics;
     }
 
+    @Override
+    public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesForVM(@Nonnull String forVmId) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was configured");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("Filter.1.Name", "attachment.instance-id");
+        parameters.put("Filter.2.Value", forVmId);
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            e.printStackTrace();
+            throw new CloudException(e);
+        }
+        ArrayList<NetworkInterface> nics = new ArrayList<NetworkInterface>();
+        blocks = doc.getElementsByTagName("item");
+
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            Node item = blocks.item(i);
+            NetworkInterface nic = toNIC(ctx, item);
+
+            if( nic != null ) {
+                nics.add(nic);
+            }
+        }
+        return nics;
+    }
+
+    @Override
+    public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesInSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was configured");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("Filter.1.Name", "subnet-id");
+        parameters.put("Filter.2.Value", subnetId);
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            e.printStackTrace();
+            throw new CloudException(e);
+        }
+        ArrayList<NetworkInterface> nics = new ArrayList<NetworkInterface>();
+        blocks = doc.getElementsByTagName("item");
+
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            Node item = blocks.item(i);
+            NetworkInterface nic = toNIC(ctx, item);
+
+            if( nic != null ) {
+                nics.add(nic);
+            }
+        }
+        return nics;
+    }
+
+    @Override
+    public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesInVLAN(@Nonnull String vlanId) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was configured");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("Filter.1.Name", "vpc-id");
+        parameters.put("Filter.2.Value", vlanId);
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            e.printStackTrace();
+            throw new CloudException(e);
+        }
+        ArrayList<NetworkInterface> nics = new ArrayList<NetworkInterface>();
+        blocks = doc.getElementsByTagName("item");
+
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            Node item = blocks.item(i);
+            NetworkInterface nic = toNIC(ctx, item);
+
+            if( nic != null ) {
+                nics.add(nic);
+            }
+        }
+        return nics;
+    }
 
     @Override
     public boolean isSubnetDataCenterConstrained() throws CloudException, InternalException {
@@ -597,7 +936,19 @@ public class VPC implements VLANSupport {
 
     @Override
     public void removeNetworkInterface(@Nonnull String nicId) throws CloudException, InternalException {
-        //To change body of implemented methods use File | Settings | File Templates.
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_NIC);
+        EC2Method method;
+
+        parameters.put("networkInterfaceId", nicId);
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            e.printStackTrace();
+            throw new CloudException(e);
+        }
     }
 
     private void loadDHCPOptions(String dhcpOptionsId, VLAN vlan) throws CloudException, InternalException {
@@ -712,7 +1063,22 @@ public class VPC implements VLANSupport {
         else if( action.equals(VLANSupport.CREATE_NIC) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.CREATE_NIC };
         }
-        return new String[0];    
+        else if( action.equals(VLANSupport.ATTACH_NIC) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.ATTACH_NIC };
+        }
+        else if( action.equals(VLANSupport.DETACH_NIC) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.DETACH_NIC };
+        }
+        else if( action.equals(VLANSupport.REMOVE_NIC) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.DELETE_NIC };
+        }
+        else if( action.equals(VLANSupport.GET_NIC) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_NICS };
+        }
+        else if( action.equals(VLANSupport.LIST_NIC) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_NICS };
+        }
+        return new String[0];
     }
 
     @Override
@@ -821,9 +1187,6 @@ public class VPC implements VLANSupport {
             }
             else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
                 // TODO: tags
-            }
-            else if( nodeName.equalsIgnoreCase("groupSet") && child.hasChildNodes() ) {
-                // TODO: firewalls
             }
         }
         if( nic.getName() == null ) {

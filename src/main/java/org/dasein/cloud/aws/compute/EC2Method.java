@@ -202,7 +202,11 @@ public class EC2Method {
     static public final String DESCRIBE_VPCS          = "DescribeVpcs";
     
     // network interface operations
+    static public final String ATTACH_NIC             = "AttachNetworkInterface";
     static public final String CREATE_NIC             = "CreateNetworkInterface";
+    static public final String DELETE_NIC             = "DeleteNetworkInterface";
+    static public final String DETACH_NIC             = "DetachNetworkInterface";
+    static public final String DESCRIBE_NICS          = "DescribeNetworkInterfaces";
 
     static public @Nonnull ServiceAction[] asEC2ServiceAction(@Nonnull String action) {
         // TODO: implement me
@@ -367,6 +371,22 @@ public class EC2Method {
         }
         else if( action.equals(DESCRIBE_VPCS) ) {
             return new ServiceAction[] { VLANSupport.GET_VLAN, VLANSupport.LIST_VLAN };
+        }
+        // NIC operations
+        if( action.equals(CREATE_NIC) ) {
+            return new ServiceAction[] { VLANSupport.CREATE_NIC };
+        }
+        else if( action.equals(ATTACH_NIC) ) {
+            return new ServiceAction[] { VLANSupport.ATTACH_NIC };
+        }
+        else if( action.equals(DETACH_NIC) ) {
+            return new ServiceAction[] { VLANSupport.DETACH_NIC };
+        }
+        else if( action.equals(DELETE_NIC) ) {
+            return new ServiceAction[] { VLANSupport.REMOVE_NIC };
+        }
+        else if( action.equals(DESCRIBE_NICS) ) {
+            return new ServiceAction[] { VLANSupport.GET_NIC, VLANSupport.LIST_NIC };
         }
         return new ServiceAction[0];
     }
