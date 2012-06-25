@@ -1066,6 +1066,29 @@ public class EC2Instance implements VirtualMachineSupport {
         if( provider.isAmazon() ) {
             parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
         }
+        final ArrayList<VMLaunchOptions.VolumeAttachment> existingVolumes = new ArrayList<VMLaunchOptions.VolumeAttachment>();
+        
+        if( cfg.getVolumes().length > 0 ) {
+            int i=1;
+            
+            for( VMLaunchOptions.VolumeAttachment a : cfg.getVolumes() ) {
+                if( a.existingVolumeId == null ) {
+                    if( a.deviceId == null ) {
+                        parameters.put("BlockDeviceMapping." + i + ".DeviceName", a.deviceId);
+                        if( a.volumeToCreate.getSnapshotId() != null ) {
+                            parameters.put("BlockDeviceMapping." + i + ".Ebs.SnapshotId", a.volumeToCreate.getSnapshotId());
+                        }
+                        else {
+                            parameters.put("BlockDeviceMapping." + i + ".Ebs.VolumeSize", String.valueOf(a.volumeToCreate.getVolumeSize().getQuantity().intValue()));
+                        }
+                    }
+                    i++;
+                }
+                else {
+                    existingVolumes.add(a);
+                }
+            }
+        }
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
             doc = method.invoke();
@@ -1185,6 +1208,31 @@ public class EC2Instance implements VirtualMachineSupport {
         t.setValue(cfg.getDescription());
         toCreate[i] = t;
         provider.createTags(server.getProviderVirtualMachineId(), toCreate);
+        if( !existingVolumes.isEmpty() ) {
+            final VirtualMachine vm = server;
+
+            provider.hold();
+            Thread thread = new Thread() {
+                public void run() {
+                    try {
+                        for( VMLaunchOptions.VolumeAttachment a : existingVolumes ) {
+                            try {
+                                provider.getComputeServices().getVolumeSupport().attach(a.existingVolumeId, vm.getProviderMachineImageId(), a.deviceId);
+                            }
+                            catch( Throwable t ) {
+                                t.printStackTrace();
+                            }
+                        }
+                    }
+                    finally {
+                        provider.release();
+                    }
+                }
+            };
+            
+            thread.setName("Volume Mounter for " + server);
+            thread.start();
+        }
         return server;        
     }
     

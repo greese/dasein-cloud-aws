@@ -201,6 +201,9 @@ public class EC2Method {
     static public final String DESCRIBE_SUBNETS       = "DescribeSubnets";
     static public final String DESCRIBE_VPCS          = "DescribeVpcs";
     
+    // network interface operations
+    static public final String CREATE_NIC             = "CreateNetworkInterface";
+
     static public @Nonnull ServiceAction[] asEC2ServiceAction(@Nonnull String action) {
         // TODO: implement me
         // AMI operations
@@ -446,7 +449,7 @@ public class EC2Method {
                 params.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
             }
             try {
-                post.setEntity(new UrlEncodedFormEntity(params));
+                post.setEntity(new UrlEncodedFormEntity(params, "UTF-8"));
             }
             catch( UnsupportedEncodingException e ) {
                 throw new InternalException(e);

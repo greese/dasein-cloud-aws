@@ -229,6 +229,7 @@ public class EBSVolume implements VolumeSupport {
             	if( item.getNodeName().equals("item") ) {
             		Volume volume = toVolume(ctx, item);
             		
+                    if( volume !=null ) System.out.println("id=" + volume.getProviderVolumeId());
             		if( volume != null && volume.getProviderVolumeId().equals(volumeId) ) {
             			return volume;
             		}
