@@ -499,7 +499,7 @@ public class VPC implements VLANSupport {
             doc = method.invoke();
         }
         catch( EC2Exception e ) {
-            if( e.getCode() != null && e.getCode().startsWith("InvalidNetworkInterfaceID") ) {
+            if( e.getCode() != null && e.getCode().toLowerCase().startsWith("invalidnetworkinterfaceid") ) {
                 return null;
             }
             logger.error(e.getSummary());
@@ -939,7 +939,7 @@ public class VPC implements VLANSupport {
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_NIC);
         EC2Method method;
 
-        parameters.put("networkInterfaceId", nicId);
+        parameters.put("NetworkInterfaceId", nicId);
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
             method.invoke();
@@ -1188,6 +1188,9 @@ public class VPC implements VLANSupport {
             else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
                 // TODO: tags
             }
+        }
+        if( nic.getProviderNetworkInterfaceId() == null ) {
+            return null;
         }
         if( nic.getName() == null ) {
             nic.setName(nic.getProviderNetworkInterfaceId());

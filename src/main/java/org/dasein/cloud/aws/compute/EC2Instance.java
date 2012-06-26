@@ -55,6 +55,8 @@ import org.dasein.cloud.Requirement;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.Architecture;
+import org.dasein.cloud.compute.ComputeServices;
+import org.dasein.cloud.compute.MachineImage;
 import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.VMLaunchOptions;
 import org.dasein.cloud.compute.VirtualMachine;
@@ -63,6 +65,7 @@ import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.compute.VmStatistics;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.network.NICCreateOptions;
 import org.dasein.cloud.network.NetworkServices;
 import org.dasein.cloud.network.Subnet;
 import org.dasein.cloud.network.VLANSupport;
@@ -1025,6 +1028,11 @@ public class EC2Instance implements VirtualMachineSupport {
         if( ctx == null ) {
             throw new CloudException("No context was established for this request");
         }
+        MachineImage img = provider.getComputeServices().getImageSupport().getMachineImage(cfg.getMachineImageId());
+
+        if( img == null ) {
+            throw new InternalException("No such machine image: " + cfg.getMachineImageId());
+        }
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.RUN_INSTANCES);
         EC2Method method;
         NodeList blocks;
@@ -1057,6 +1065,21 @@ public class EC2Instance implements VirtualMachineSupport {
         if( cfg.getDataCenterId() != null ) {
             parameters.put("Placement.AvailabilityZone", cfg.getDataCenterId());
         }
+        else if( cfg.getVolumes().length > 0 ) {
+            String dc = null;
+
+            for( VMLaunchOptions.VolumeAttachment a : cfg.getVolumes() ) {
+                if( a.volumeToCreate != null ) {
+                    dc = a.volumeToCreate.getDataCenterId();
+                    if( dc != null ) {
+                        break;
+                    }
+                }
+            }
+            if( dc != null ) {
+                cfg.inDataCenter(dc);
+            }
+        }
         if( cfg.getBootstrapKey() != null ) {
             parameters.put("KeyName", cfg.getBootstrapKey());
         }
@@ -1067,26 +1090,72 @@ public class EC2Instance implements VirtualMachineSupport {
             parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
         }
         final ArrayList<VMLaunchOptions.VolumeAttachment> existingVolumes = new ArrayList<VMLaunchOptions.VolumeAttachment>();
+        TreeSet<String> deviceIds = new TreeSet<String>();
         
         if( cfg.getVolumes().length > 0 ) {
+            Iterable<String> possibles = provider.getComputeServices().getVolumeSupport().listPossibleDeviceIds(img.getPlatform());
             int i=1;
-            
+
             for( VMLaunchOptions.VolumeAttachment a : cfg.getVolumes() ) {
-                if( a.existingVolumeId == null ) {
+                if( a.deviceId != null ) {
+                    deviceIds.add(a.deviceId);
+                }
+                else if( a.volumeToCreate != null && a.volumeToCreate.getDeviceId() != null ) {
+                    deviceIds.add(a.volumeToCreate.getDeviceId());
+                    a.deviceId = a.volumeToCreate.getDeviceId();
+                }
+            }
+            for( VMLaunchOptions.VolumeAttachment a : cfg.getVolumes() ) {
+                if( a.deviceId == null ) {
+                    for( String id : possibles ) {
+                        if( !deviceIds.contains(id) ) {
+                            a.deviceId = id;
+                            deviceIds.add(id);
+                        }
+                    }
                     if( a.deviceId == null ) {
-                        parameters.put("BlockDeviceMapping." + i + ".DeviceName", a.deviceId);
-                        if( a.volumeToCreate.getSnapshotId() != null ) {
-                            parameters.put("BlockDeviceMapping." + i + ".Ebs.SnapshotId", a.volumeToCreate.getSnapshotId());
-                        }
-                        else {
-                            parameters.put("BlockDeviceMapping." + i + ".Ebs.VolumeSize", String.valueOf(a.volumeToCreate.getVolumeSize().getQuantity().intValue()));
-                        }
+                        throw new InternalException("Unable to identify a device ID for volume");
+                    }
+                }
+                if( a.existingVolumeId == null ) {
+                    parameters.put("BlockDeviceMapping." + i + ".DeviceName", a.deviceId);
+                    if( a.volumeToCreate.getSnapshotId() != null ) {
+                        parameters.put("BlockDeviceMapping." + i + ".Ebs.SnapshotId", a.volumeToCreate.getSnapshotId());
+                    }
+                    else {
+                        parameters.put("BlockDeviceMapping." + i + ".Ebs.VolumeSize", String.valueOf(a.volumeToCreate.getVolumeSize().getQuantity().intValue()));
                     }
                     i++;
                 }
                 else {
                     existingVolumes.add(a);
                 }
+            }
+        }
+        if( cfg.getNetworkInterfaces().length > 0 ) {
+            int i=1;
+            
+            for( VMLaunchOptions.NICConfig c : cfg.getNetworkInterfaces() ) {
+                parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
+                if( c.nicId == null ) {
+                    parameters.put("NetworkInterface." + i + ".SubnetId", c.nicToCreate.getSubnetId());
+                    parameters.put("NetworkInterface." + i + ".Description", c.nicToCreate.getDescription());
+                    if( c.nicToCreate.getIpAddress() != null ) {
+                        parameters.put("NetworkInterface." + i + ".PrivateIpAddress", c.nicToCreate.getIpAddress());
+                    }
+                    if( c.nicToCreate.getFirewallIds().length > 0 ) {
+                        int j=1;
+
+                        for( String id : c.nicToCreate.getFirewallIds() ) {
+                            parameters.put("NetworkInterface." + i + ".SecurityGroupId." + j, id);
+                            j++;
+                        }
+                    }
+                }
+                else {
+                    parameters.put("NetworkInterface." + i + ".NetworkInterfaceId", c.nicId);
+                }
+                i++;
             }
         }
         method = new EC2Method(provider, provider.getEc2Url(), parameters);

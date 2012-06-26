@@ -99,7 +99,7 @@ public class AWSCloud extends AbstractCloud {
     static public final String EC2_ALGORITHM         = "HmacSHA256";
 	static public final String S3_ALGORITHM          = "HmacSHA1";
     static public final String SIGNATURE             = "2";
-    static public final String VERSION               = "2011-07-15";
+    static public final String VERSION               = "2012-06-01";
     static public final String AUTO_SCALE_VERSION    = "2009-05-15";
     static public final String ELB_VERSION           = "2009-05-15";
     static public final String CLOUD_WATCH_VERSION   = "2009-05-15";
