@@ -69,6 +69,7 @@ import org.dasein.cloud.identity.ShellKeySupport;
 import org.dasein.cloud.network.FirewallSupport;
 import org.dasein.cloud.network.IpAddressSupport;
 import org.dasein.cloud.network.VLANSupport;
+import org.dasein.cloud.network.VPNSupport;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -207,6 +208,19 @@ public class EC2Method {
     static public final String DELETE_NIC             = "DeleteNetworkInterface";
     static public final String DETACH_NIC             = "DetachNetworkInterface";
     static public final String DESCRIBE_NICS          = "DescribeNetworkInterfaces";
+
+    // VPN operations
+    static public final String ATTACH_VPN_GATEWAY          = "AttachVpnGateway";
+    static public final String CREATE_CUSTOMER_GATEWAY     = "CreateCustomerGateway";
+    static public final String CREATE_VPN_CONNECTION       = "CreateVpnConnection";
+    static public final String CREATE_VPN_GATEWAY          = "CreateVpnGateway";
+    static public final String DELETE_CUSTOMER_GATEWAY     = "DeleteCustomerGateway";
+    static public final String DELETE_VPN_GATEWAY          = "DeleteVpnGateway";
+    static public final String DELETE_VPN_CONNECTION       = "DeleteVpnConnection";
+    static public final String DESCRIBE_CUSTOMER_GATEWAYS  = "DescribeCustomerCateways";
+    static public final String DESCRIBE_VPN_CONNECTIONS    = "DescribeVpnConnections";
+    static public final String DESCRIBE_VPN_GATEWAYS       = "DescribeVpnGateways";
+    static public final String DETACH_VPN_GATEWAY          = "DetachVpnGateway";
 
     static public @Nonnull ServiceAction[] asEC2ServiceAction(@Nonnull String action) {
         // TODO: implement me
@@ -387,6 +401,40 @@ public class EC2Method {
         }
         else if( action.equals(DESCRIBE_NICS) ) {
             return new ServiceAction[] { VLANSupport.GET_NIC, VLANSupport.LIST_NIC };
+        }
+        // VPN operations
+        if( action.equals(CREATE_CUSTOMER_GATEWAY) ) {
+            return new ServiceAction[] {VPNSupport.CREATE_GATEWAY };
+        }
+        else if( action.equals(ATTACH_VPN_GATEWAY) ) {
+            return new ServiceAction[] { VPNSupport.ATTACH };
+        }
+        else if( action.equals(CREATE_VPN_GATEWAY) ) {
+            return new ServiceAction[] {VPNSupport.CREATE_VPN };
+        }
+        else if( action.equals(DELETE_CUSTOMER_GATEWAY) ) {
+            return new ServiceAction[] { VPNSupport.REMOVE_GATEWAY };
+        }
+        else if( action.equals(DELETE_VPN_GATEWAY) ) {
+            return new ServiceAction[] { VPNSupport.REMOVE_VPN };
+        }
+        else if( action.equals(DESCRIBE_CUSTOMER_GATEWAYS) ) {
+            return new ServiceAction[] { VPNSupport.LIST_GATEWAY, VPNSupport.GET_GATEWAY };
+        }
+        else if( action.equals(DESCRIBE_VPN_CONNECTIONS) ) {
+            return new ServiceAction[] { VPNSupport.LIST_GATEWAY, VPNSupport.GET_GATEWAY, VPNSupport.LIST_VPN, VPNSupport.GET_VPN  };
+        }
+        else if( action.equals(DESCRIBE_VPN_GATEWAYS) ) {
+            return new ServiceAction[] { VPNSupport.LIST_VPN, VPNSupport.GET_VPN };
+        }
+        else if( action.equals(CREATE_VPN_CONNECTION) ) {
+            return new ServiceAction[] { VPNSupport.CONNECT_GATEWAY };
+        }
+        else if( action.equals(DELETE_VPN_CONNECTION) ) {
+            return new ServiceAction[] { VPNSupport.DISCONNECT_GATEWAY };
+        }
+        else if( action.equals(DETACH_VPN_GATEWAY) ) {
+            return new ServiceAction[] { VPNSupport.DETACH };
         }
         return new ServiceAction[0];
     }

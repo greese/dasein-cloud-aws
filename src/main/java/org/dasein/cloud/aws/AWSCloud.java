@@ -45,6 +45,7 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Tag;
+import org.dasein.cloud.Taggable;
 import org.dasein.cloud.aws.admin.AWSAdminServices;
 import org.dasein.cloud.aws.compute.EC2ComputeServices;
 import org.dasein.cloud.aws.compute.EC2Exception;
@@ -53,6 +54,8 @@ import org.dasein.cloud.aws.identity.AWSIdentityServices;
 import org.dasein.cloud.aws.network.EC2NetworkServices;
 import org.dasein.cloud.aws.platform.AWSPlatformServices;
 import org.dasein.cloud.aws.storage.AWSCloudStorageServices;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 public class AWSCloud extends AbstractCloud {
     static private String getLastItem(String name) {
@@ -593,5 +596,38 @@ public class AWSCloud extends AbstractCloud {
             return null;
         }
         return getContext().getAccountNumber();
+    }
+
+    public void setTags(@Nonnull Node attr, @Nonnull Taggable item) {
+        if( attr.hasChildNodes() ) {
+            NodeList tags = attr.getChildNodes();
+
+            for( int j=0; j<tags.getLength(); j++ ) {
+                Node tag = tags.item(j);
+
+                if( tag.getNodeName().equals("item") && tag.hasChildNodes() ) {
+                    NodeList parts = tag.getChildNodes();
+                    String key = null, value = null;
+
+                    for( int k=0; k<parts.getLength(); k++ ) {
+                        Node part = parts.item(k);
+
+                        if( part.getNodeName().equalsIgnoreCase("key") ) {
+                            if( part.hasChildNodes() ) {
+                                key = part.getFirstChild().getNodeValue().trim();
+                            }
+                        }
+                        else if( part.getNodeName().equalsIgnoreCase("value") ) {
+                            if( part.hasChildNodes() ) {
+                                value = part.getFirstChild().getNodeValue().trim();
+                            }
+                        }
+                    }
+                    if( key != null ) {
+                        item.setTag(key, value);
+                    }
+                }
+            }
+        }        
     }
 }
