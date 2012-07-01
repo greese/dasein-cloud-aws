@@ -29,6 +29,7 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.Requirement;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
@@ -176,6 +177,11 @@ public class Keypairs implements ShellKeySupport {
         }
         throw new CloudException("Unable to identify key fingerprint.");
 	}
+
+    @Override
+    public Requirement getKeyImportSupport() throws CloudException, InternalException {
+        return Requirement.OPTIONAL;
+    }
 
     @Override
     public @Nullable SSHKeypair getKeypair(@Nonnull String name) throws InternalException, CloudException {
