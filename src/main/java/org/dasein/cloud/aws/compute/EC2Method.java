@@ -192,16 +192,28 @@ public class EC2Method {
     static public final String MODIFY_SNAPSHOT_ATTRIBUTE   = "ModifySnapshotAttribute";
 
     // VPC operations
-    static public final String ASSOCIATE_DHCP_OPTIONS = "AssociateDhcpOptions";
-    static public final String CREATE_DHCP_OPTIONS    = "CreateDhcpOptions";
-    static public final String CREATE_SUBNET          = "CreateSubnet";
-    static public final String CREATE_VPC             = "CreateVpc";
-    static public final String DELETE_SUBNET          = "DeleteSubnet";
-    static public final String DELETE_VPC             = "DeleteVpc";
-    static public final String DESCRIBE_DHCP_OPTIONS  = "DescribeDhcpOptions";
-    static public final String DESCRIBE_SUBNETS       = "DescribeSubnets";
-    static public final String DESCRIBE_VPCS          = "DescribeVpcs";
-    
+    static public final String ASSOCIATE_DHCP_OPTIONS  = "AssociateDhcpOptions";
+    static public final String ASSOCIATE_ROUTE_TABLE   = "AssociateRouteTable";
+    static public final String ATTACH_INTERNET_GATEWAY = "AttachInternetGateway";
+    static public final String CREATE_DHCP_OPTIONS     = "CreateDhcpOptions";
+    static public final String CREATE_INTERNET_GATEWAY = "CreateInternetGateway";
+    static public final String CREATE_ROUTE            = "CreateRoute";
+    static public final String CREATE_ROUTE_TABLE      = "CreateRouteTable";
+    static public final String CREATE_SUBNET           = "CreateSubnet";
+    static public final String CREATE_VPC              = "CreateVpc";
+    static public final String DELETE_INTERNET_GATEWAY = "DeleteInternetGateway";
+    static public final String DELETE_SUBNET           = "DeleteSubnet";
+    static public final String DELETE_VPC              = "DeleteVpc";
+    static public final String DESCRIBE_DHCP_OPTIONS   = "DescribeDhcpOptions";
+    static public final String DESCRIBE_INTERNET_GATEWAYS = "DescribeInternetGateways";
+    static public final String DELETE_ROUTE            = "DeleteRoute";
+    static public final String DELETE_ROUTE_TABLE      = "DeleteRouteTable";
+    static public final String DESCRIBE_ROUTE_TABLES   = "DescribeRouteTables";
+    static public final String DESCRIBE_SUBNETS        = "DescribeSubnets";
+    static public final String DESCRIBE_VPCS           = "DescribeVpcs";
+    static public final String DETACH_INTERNET_GATEWAY = "DetachInternetGateway";
+    static public final String REPLACE_ROUTE_TABLE_ASSOCIATION = "ReplaceRouteTableAssociation";
+
     // network interface operations
     static public final String ATTACH_NIC             = "AttachNetworkInterface";
     static public final String CREATE_NIC             = "CreateNetworkInterface";
@@ -362,14 +374,32 @@ public class EC2Method {
         if( action.equals(ASSOCIATE_DHCP_OPTIONS) ) {
             return new ServiceAction[0];
         }
+        else if( action.equals(ASSOCIATE_ROUTE_TABLE) ) {
+            return new ServiceAction[] { VLANSupport.ASSIGN_ROUTE_TO_SUBNET };
+        }
         else if( action.equals(CREATE_DHCP_OPTIONS) ) {
             return new ServiceAction[0];
+        }
+        else if( action.equals(CREATE_ROUTE_TABLE) ) {
+            return new ServiceAction[] { VLANSupport.CREATE_ROUTING_TABLE };
+        }
+        else if( action.equals(CREATE_ROUTE) ) {
+            return new ServiceAction[] { VLANSupport.ADD_ROUTE };
         }
         else if( action.equals(CREATE_SUBNET) ) {
             return new ServiceAction[] { VLANSupport.CREATE_SUBNET };
         }
         else if( action.equals(CREATE_VPC) ) {
             return new ServiceAction[] { VLANSupport.CREATE_VLAN};
+        }
+        else if( action.equals(DELETE_INTERNET_GATEWAY) ) {
+            return new ServiceAction[] { VLANSupport.REMOVE_INTERNET_GATEWAY};
+        }
+        else if( action.equals(DELETE_ROUTE) ) {
+            return new ServiceAction[] { VLANSupport.REMOVE_ROUTE };
+        }
+        else if( action.equals(DELETE_ROUTE_TABLE) ) {
+            return new ServiceAction[] { VLANSupport.REMOVE_ROUTING_TABLE };
         }
         else if( action.equals(DELETE_SUBNET) ) {
             return new ServiceAction[] { VLANSupport.REMOVE_SUBNET };
@@ -380,12 +410,22 @@ public class EC2Method {
         else if( action.equals(DESCRIBE_DHCP_OPTIONS) ) {
             return new ServiceAction[0];            
         }
+        else if( action.equalsIgnoreCase(DESCRIBE_ROUTE_TABLES) ) {
+            return new ServiceAction[] { VLANSupport.GET_ROUTING_TABLE, VLANSupport.LIST_ROUTING_TABLE };
+        }
         else if( action.equals(DESCRIBE_SUBNETS) ) {
             return new ServiceAction[] { VLANSupport.GET_SUBNET, VLANSupport.LIST_SUBNET };
         }
         else if( action.equals(DESCRIBE_VPCS) ) {
             return new ServiceAction[] { VLANSupport.GET_VLAN, VLANSupport.LIST_VLAN };
         }
+        else if( action.equals(CREATE_INTERNET_GATEWAY) ) {
+            return new ServiceAction[] { VLANSupport.CREATE_VLAN };
+        }
+        else if( action.equals(ATTACH_INTERNET_GATEWAY) ) {
+            return new ServiceAction[] { VLANSupport.CREATE_VLAN };
+        }
+
         // NIC operations
         if( action.equals(CREATE_NIC) ) {
             return new ServiceAction[] { VLANSupport.CREATE_NIC };
@@ -432,6 +472,9 @@ public class EC2Method {
         }
         else if( action.equals(DELETE_VPN_CONNECTION) ) {
             return new ServiceAction[] { VPNSupport.DISCONNECT_GATEWAY };
+        }
+        else if( action.equals(DETACH_INTERNET_GATEWAY) ) {
+            return new ServiceAction[] { VPNSupport.REMOVE_GATEWAY };
         }
         else if( action.equals(DETACH_VPN_GATEWAY) ) {
             return new ServiceAction[] { VPNSupport.DETACH };
