@@ -37,6 +37,7 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.network.IPVersion;
 import org.dasein.cloud.network.LbAlgorithm;
 import org.dasein.cloud.network.LbListener;
 import org.dasein.cloud.network.LbProtocol;
@@ -254,7 +255,21 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
         }
         return algorithms;
     }
+
+    static private volatile List<IPVersion> versions;
     
+    @Override
+    public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
+        if( versions == null ) {
+            ArrayList<IPVersion> tmp = new ArrayList<IPVersion>();
+            
+            tmp.add(IPVersion.IPV4);
+            tmp.add(IPVersion.IPV6);
+            versions = Collections.unmodifiableList(tmp);
+        }
+        return versions;
+    }
+
     static private volatile List<LbProtocol> protocols;
     
     @Override
@@ -535,6 +550,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
         loadBalancer.setCurrentState(LoadBalancerState.ACTIVE);
         loadBalancer.setProviderOwnerId(ctx.getAccountNumber());
         loadBalancer.setPublicPorts(new int[0]);
+        loadBalancer.setSupportedTraffic(new IPVersion[] { IPVersion.IPV4, IPVersion.IPV6 });
         for( int i=0; i<attrs.getLength(); i++ ) {
             Node attr = attrs.item(i);
             String name;

@@ -874,9 +874,9 @@ public class VPC implements VLANSupport {
         Document doc;
 
         parameters.put("Filter.1.Name", "association.main");
-        parameters.put("Filter.1.Value", "true");
+        parameters.put("Filter.1.Value.1", "true");
         parameters.put("Filter.2.Name", "association.subnet-id");
-        parameters.put("Filter.2.Value", subnetId);
+        parameters.put("Filter.2.Value.1", subnetId);
 
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
@@ -925,9 +925,9 @@ public class VPC implements VLANSupport {
         Document doc;
 
         parameters.put("Filter.1.Name", "association.main");
-        parameters.put("Filter.1.Value", "true");
+        parameters.put("Filter.1.Value.1", "true");
         parameters.put("Filter.2.Name", "vpc-id");
-        parameters.put("Filter.2.Value", vlanId);
+        parameters.put("Filter.2.Value.1", vlanId);
 
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
@@ -1197,7 +1197,7 @@ public class VPC implements VLANSupport {
         Document doc;
 
         parameters.put("Filter.1.Name", "attachment.instance-id");
-        parameters.put("Filter.2.Value", forVmId);
+        parameters.put("Filter.2.Value.1", forVmId);
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
             doc = method.invoke();
@@ -1234,7 +1234,7 @@ public class VPC implements VLANSupport {
         Document doc;
 
         parameters.put("Filter.1.Name", "subnet-id");
-        parameters.put("Filter.2.Value", subnetId);
+        parameters.put("Filter.2.Value.1", subnetId);
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
             doc = method.invoke();
@@ -1271,7 +1271,7 @@ public class VPC implements VLANSupport {
         Document doc;
 
         parameters.put("Filter.1.Name", "vpc-id");
-        parameters.put("Filter.2.Value", vlanId);
+        parameters.put("Filter.2.Value.1", vlanId);
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
             doc = method.invoke();
@@ -1386,6 +1386,11 @@ public class VPC implements VLANSupport {
     }
 
     @Override
+    public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
+        return Collections.singletonList(IPVersion.IPV4);
+    }
+
+    @Override
     public @Nonnull Iterable<VLAN> listVlans() throws CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
 
@@ -1435,7 +1440,7 @@ public class VPC implements VLANSupport {
         Document doc;
 
         parameters.put("Filter.1.Name", "attachment.vpc-id");
-        parameters.put("Filter.1.Value", forVlanId);
+        parameters.put("Filter.1.Value.1", forVlanId);
 
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
@@ -2011,6 +2016,7 @@ public class VPC implements VLANSupport {
         vlan.setProviderOwnerId(ctx.getAccountNumber());
         vlan.setProviderRegionId(ctx.getRegionId());
         vlan.setTags(new HashMap<String,String>());
+        vlan.setSupportedTraffic(new IPVersion[] { IPVersion.IPV4 });
         for( int i=0; i<children.getLength(); i++ ) {
             Node child = children.item(i);
             String nodeName = child.getNodeName();

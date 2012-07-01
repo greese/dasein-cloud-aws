@@ -34,6 +34,7 @@ import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.AddressType;
+import org.dasein.cloud.network.IPVersion;
 import org.dasein.cloud.network.IpAddress;
 import org.dasein.cloud.network.IpAddressSupport;
 import org.dasein.cloud.network.IpForwardingRule;
@@ -214,16 +215,31 @@ public class ElasticIP implements IpAddressSupport {
 		return type.equals(AddressType.PUBLIC);
 	}
 
-	@Override
+    @Override
+    public boolean isAssigned(@Nonnull IPVersion version) throws CloudException, InternalException {
+        return version.equals(IPVersion.IPV4);
+    }
+
+    @Override
 	public boolean isForwarding() {
 		return false;
 	}
 
-	@Override
+    @Override
+    public boolean isForwarding(IPVersion version) throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
     public boolean isRequestable(@Nonnull AddressType type) {
         return type.equals(AddressType.PUBLIC);
     }
-	
+
+    @Override
+    public boolean isRequestable(@Nonnull IPVersion version) throws CloudException, InternalException {
+        return version.equals(IPVersion.IPV4);
+    }
+
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         return true;
@@ -236,48 +252,61 @@ public class ElasticIP implements IpAddressSupport {
 	
 	@Override
 	public @Nonnull Iterable<IpAddress> listPublicIpPool(boolean unassignedOnly) throws InternalException, CloudException {
+        return listIpPool(IPVersion.IPV4, unassignedOnly);
+    }
+
+    @Override
+    public @Nonnull Iterable<IpAddress> listIpPool(@Nonnull IPVersion version, boolean unassignedOnly) throws InternalException, CloudException {
+        if( !version.equals(IPVersion.IPV4) ) {
+            return Collections.emptyList();
+        }
         ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
         }
-    	Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ADDRESSES);
-    	ArrayList<IpAddress> list = new ArrayList<IpAddress>();
-    	EC2Method method;
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ADDRESSES);
+        ArrayList<IpAddress> list = new ArrayList<IpAddress>();
+        EC2Method method;
         NodeList blocks;
-    	Document doc;
-    
-    	method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        Document doc;
+
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
-        	doc = method.invoke();
+            doc = method.invoke();
         }
         catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         blocks = doc.getElementsByTagName("addressesSet");
         for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList items = blocks.item(i).getChildNodes();
-        	
+            NodeList items = blocks.item(i).getChildNodes();
+
             for( int j=0; j<items.getLength(); j++ ) {
-            	Node item = items.item(j);
-            	
-            	if( item.getNodeName().equals("item") ) {
-            		IpAddress address = toAddress(ctx, item);
-            		
+                Node item = items.item(j);
+
+                if( item.getNodeName().equals("item") ) {
+                    IpAddress address = toAddress(ctx, item);
+
                     if( address != null && (!unassignedOnly || (address.getServerId() == null && address.getProviderLoadBalancerId() == null)) ) {
-            			list.add(address);
-            		}
-            	}
+                        list.add(address);
+                    }
+                }
             }
         }
         return list;
     }
 
-	@Override
+    @Override
 	public @Nonnull Collection<IpForwardingRule> listRules(@Nonnull String addressId)	throws InternalException, CloudException {
 		return new ArrayList<IpForwardingRule>();
 	}
+
+    @Override
+    public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
+        return Collections.singletonList(IPVersion.IPV4);
+    }
 
     @Override
     public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
@@ -378,11 +407,19 @@ public class ElasticIP implements IpAddressSupport {
         if( !betterBePublic.equals(AddressType.PUBLIC) ) {
             throw new OperationNotSupportedException("AWS supports only public IP address requests.");
         }
+       return request(IPVersion.IPV4);
+    }
+
+    @Override
+    public @Nonnull String request(@Nonnull IPVersion version) throws InternalException, CloudException {
+        if( !version.equals(IPVersion.IPV4) ) {
+            throw new OperationNotSupportedException(provider.getCloudName() + " does not support " + version);
+        }
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ALLOCATE_ADDRESS);
         EC2Method method;
         NodeList blocks;
         Document doc;
-        
+
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
             doc = method.invoke();
@@ -398,9 +435,11 @@ public class ElasticIP implements IpAddressSupport {
         throw new CloudException("Unable to create an address.");
     }
 
-    @Nonnull
     @Override
-    public String requestForVLAN() throws InternalException, CloudException {
+    public @Nonnull String requestForVLAN(IPVersion forVersion) throws InternalException, CloudException {
+        if( !forVersion.equals(IPVersion.IPV4) ) {
+            throw new OperationNotSupportedException(provider.getCloudName() + " does not support " + forVersion + ".");
+        }
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ALLOCATE_ADDRESS);
         EC2Method method;
         NodeList blocks;
@@ -428,8 +467,8 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     @Override
-    public boolean supportsVLANAddresses() throws InternalException, CloudException {
-        return true;
+    public boolean supportsVLANAddresses(@Nonnull IPVersion version) throws InternalException, CloudException {
+        return version.equals(IPVersion.IPV4);
     }
 
     private @Nullable IpAddress toAddress(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException {
@@ -487,6 +526,7 @@ public class ElasticIP implements IpAddressSupport {
         if( ipAddressId == null ) {
             ipAddressId = ip;
         }
+        address.setVersion(IPVersion.IPV4);
 		address.setAddressType(AddressType.PUBLIC);
 		address.setAddress(ip);
 		address.setIpAddressId(ipAddressId);

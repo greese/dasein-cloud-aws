@@ -179,9 +179,11 @@ public class EC2Method {
 
     // Security group operations
     static public final String AUTHORIZE_SECURITY_GROUP_INGRESS = "AuthorizeSecurityGroupIngress";
+    static public final String AUTHORIZE_SECURITY_GROUP_EGRESS  = "AuthorizeSecurityGroupEgress";
     static public final String CREATE_SECURITY_GROUP            = "CreateSecurityGroup";
     static public final String DELETE_SECURITY_GROUP            = "DeleteSecurityGroup";
     static public final String DESCRIBE_SECURITY_GROUPS         = "DescribeSecurityGroups";
+    static public final String REVOKE_SECURITY_GROUP_EGRESS     = "RevokeSecurityGroupEgress";
     static public final String REVOKE_SECURITY_GROUP_INGRESS    = "RevokeSecurityGroupIngress";
 
     // Snapshot operations
@@ -342,6 +344,9 @@ public class EC2Method {
         if( action.equals(AUTHORIZE_SECURITY_GROUP_INGRESS) ) {
             return new ServiceAction[] { FirewallSupport.AUTHORIZE };
         }
+        else if( action.equals(AUTHORIZE_SECURITY_GROUP_EGRESS) ) {
+            return new ServiceAction[] { FirewallSupport.AUTHORIZE };
+        }
         else if( action.equals(CREATE_SECURITY_GROUP) ) {
             return new ServiceAction[] { FirewallSupport.CREATE_FIREWALL };
         }
@@ -352,6 +357,9 @@ public class EC2Method {
             return new ServiceAction[] { FirewallSupport.GET_FIREWALL, FirewallSupport.LIST_FIREWALL };
         }
         else if( action.equals(REVOKE_SECURITY_GROUP_INGRESS) ) {
+            return new ServiceAction[] { FirewallSupport.REVOKE };
+        }
+        else if( action.equals(REVOKE_SECURITY_GROUP_EGRESS) ) {
             return new ServiceAction[] { FirewallSupport.REVOKE };
         }
         // snapshot operations
@@ -499,6 +507,14 @@ public class EC2Method {
 		parameters.put(AWSCloud.P_SIGNATURE, provider.signEc2(ctx.getAccessPrivate(), url, parameters));
 	}
 	
+    public void checkSuccess(NodeList returnNodes) throws CloudException {
+        if( returnNodes.getLength() > 0 ) {
+            if( !returnNodes.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                throw new CloudException("Failed to revoke security group rule without explanation.");
+            }
+        }
+    }
+
 	public Document invoke() throws EC2Exception, CloudException, InternalException {
 	    return invoke(false);
 	}
