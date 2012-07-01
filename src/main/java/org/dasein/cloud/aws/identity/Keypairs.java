@@ -247,6 +247,68 @@ public class Keypairs implements ShellKeySupport {
 	}
 
     @Override
+    public @Nonnull SSHKeypair importKeypair(@Nonnull String name, @Nonnull String material) throws InternalException, CloudException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was established for this call.");
+        }
+        String regionId = ctx.getRegionId();
+
+        if( regionId == null ) {
+            throw new CloudException("No region was set for this request.");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.IMPORT_KEY_PAIR);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("KeyName", name);
+        parameters.put("PublicKeyMaterial", material);
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        String fingerprint = null;
+
+        blocks = doc.getElementsByTagName("ImportKeyPairResponse");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            Node item = blocks.item(i);
+            NodeList attrs = item.getChildNodes();
+
+            for( int j=0; j<attrs.getLength(); j++ ) {
+                Node attr = attrs.item(j);
+
+                if( attr.getNodeName().equalsIgnoreCase("keyFingerPrint")) {
+                    fingerprint = attr.getFirstChild().getNodeValue();
+
+                }
+            }
+        }
+        if( fingerprint == null ) {
+            throw new CloudException("Invalid response to attempt to create the keypair");
+        }
+        SSHKeypair key = new SSHKeypair();
+
+        try {
+            key.setPrivateKey(material.getBytes("utf-8"));
+        }
+        catch( UnsupportedEncodingException e ) {
+            throw new InternalException(e);
+        }
+        key.setFingerprint(fingerprint);
+        key.setName(name);
+        key.setProviderKeypairId(name);
+        key.setProviderOwnerId(ctx.getAccountNumber());
+        key.setProviderRegionId(regionId);
+        return key;
+    }
+    
+    @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         provider.testContext();
         return true;
@@ -323,7 +385,7 @@ public class Keypairs implements ShellKeySupport {
             return new String[] { EC2Method.EC2_PREFIX + "*" };
         }
         if( action.equals(ShellKeySupport.CREATE_KEYPAIR) ) {
-            return new String[] { EC2Method.EC2_PREFIX + EC2Method.CREATE_KEY_PAIR };
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.CREATE_KEY_PAIR, EC2Method.EC2_PREFIX + EC2Method.IMPORT_KEY_PAIR };
         }
         else if( action.equals(ShellKeySupport.GET_KEYPAIR) || action.equals(ShellKeySupport.LIST_KEYPAIR) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_KEY_PAIRS };

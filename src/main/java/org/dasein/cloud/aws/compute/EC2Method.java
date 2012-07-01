@@ -171,7 +171,8 @@ public class EC2Method {
     static public final String CREATE_KEY_PAIR    = "CreateKeyPair";
     static public final String DELETE_KEY_PAIR    = "DeleteKeyPair";
     static public final String DESCRIBE_KEY_PAIRS = "DescribeKeyPairs";
-    
+    static public final String IMPORT_KEY_PAIR    = "ImportKeyPair";
+
     // Reserved instances operations
     static public final String DESCRIBE_RESERVED_INSTANCES           = "DescribeReservedInstances";
     static public final String DESCRIBE_RESERVED_INSTANCES_OFFERINGS = "DescribeReservedInstancesOfferings";
@@ -326,6 +327,9 @@ public class EC2Method {
         }
         else if( action.equals(DELETE_KEY_PAIR) ) {
             return new ServiceAction[] { ShellKeySupport.REMOVE_KEYPAIR };
+        }
+        else if( action.equals(IMPORT_KEY_PAIR) ) {
+            return new ServiceAction[] { ShellKeySupport.CREATE_KEYPAIR };
         }
         else if( action.equals(DESCRIBE_KEY_PAIRS) ) {
             return new ServiceAction[] { ShellKeySupport.GET_KEYPAIR, ShellKeySupport.LIST_KEYPAIR };
