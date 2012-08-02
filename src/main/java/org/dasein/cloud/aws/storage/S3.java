@@ -18,166 +18,73 @@
 
 package org.dasein.cloud.aws.storage;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
-import java.util.Properties;
-import java.util.concurrent.Callable;
 
 import org.apache.http.Header;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.NameRules;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.storage.S3Method.S3Response;
-import org.dasein.cloud.encryption.Encryption;
-import org.dasein.cloud.encryption.EncryptionException;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.storage.AbstractBlobStoreSupport;
+import org.dasein.cloud.storage.Blob;
 import org.dasein.cloud.storage.BlobStoreSupport;
-import org.dasein.cloud.storage.CloudStoreObject;
 import org.dasein.cloud.storage.FileTransfer;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
 import org.dasein.util.PopulatorThread;
-import org.dasein.util.Retry;
+import org.dasein.util.uom.storage.Storage;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 
-public class S3 implements BlobStoreSupport {
+public class S3 extends AbstractBlobStoreSupport {
     static private final Logger logger = AWSCloud.getLogger(S3.class);
-    
+
+    static public final int                                       MAX_BUCKETS     = 100;
+    static public final int                                       MAX_OBJECTS     = -1;
+    static public final Storage<org.dasein.util.uom.storage.Byte> MAX_OBJECT_SIZE = new Storage<org.dasein.util.uom.storage.Byte>(5000000000L, Storage.BYTE);
+
     private AWSCloud provider = null;
     
     public S3(AWSCloud provider) {
         this.provider = provider;
     }
-    
-    public void clear(String bucket) throws CloudException, InternalException {
-        for( CloudStoreObject file : listFiles(bucket) ) {
-            if( file.isContainer() ) {
-                clear(bucket + "." + file.getName());
-            }
-            else {
-                removeFile(file.getDirectory(), file.getName());
-            }
-        }
-        removeDirectory(bucket);
-    }
-    
-    public CloudStoreObject copy(CloudStoreObject file, CloudStoreObject toDirectory, String copyName) throws InternalException, CloudException {
-    	if( file.isContainer() ) {
-    		CloudStoreObject directory = new CloudStoreObject();
-    		String pathName;
-    		int idx;
-             
-    		directory.setContainer(true);
-    		directory.setCreationDate(new Date());
-    		directory.setSize(0);
-    		if( file.getDirectory() != null ) {
-    			pathName = createDirectory(file.getDirectory() + "." + copyName, true);
-    		}
-    		else {
-    			pathName = createDirectory(copyName, true);
-    		}
-    		idx = pathName.lastIndexOf('.');
-    		String tmp = pathName;
-    		while( idx > -1 && idx == tmp.length()-1 ) {
-    			tmp = tmp.substring(0, idx);
-    			idx = tmp.lastIndexOf('.');
-    		}
-    		if( idx == -1 ) {
-    			directory.setDirectory(null);
-    			directory.setName(pathName);
-    		}
-    		else {
-    			directory.setDirectory(pathName.substring(0, idx));
-    			directory.setName(pathName.substring(idx+1));
-    		}
-    		for( CloudStoreObject f : listFiles(file.getDirectory()) ) {
-    			copy(f, directory, f.getName());
-    		}
-    		return directory;
-    	}
-    	else {
-    		return copyFile(file, toDirectory, copyName);
-    	}
+
+    @Override
+    public boolean allowsNestedBuckets() throws CloudException, InternalException {
+        return false;
     }
 
-    private void copy(InputStream input, OutputStream output, FileTransfer xfer) throws IOException {
-        try {
-            byte[] bytes = new byte[10240];
-            long total = 0L;
-            int count;
-            
-            if( xfer != null ) {
-            	xfer.setBytesTransferred(0L);
-            }
-            while( (count = input.read(bytes, 0, 10240)) != -1 ) {
-                if( count > 0 ) {
-                    output.write(bytes, 0, count);
-                	total = total + count;
-                	if( xfer != null ) {
-                		xfer.setBytesTransferred(total);
-                	}
-                }
-            }
-            output.flush();
-        }
-        finally {
-            input.close();
-            output.close();
-        }
+    @Override
+    public boolean allowsRootObjects() throws CloudException, InternalException {
+        return false;
     }
 
-    private CloudStoreObject copyFile(CloudStoreObject file, CloudStoreObject toDirectory, String newName) throws InternalException, CloudException {
-    	HashMap<String,String> headers = new HashMap<String,String>();
-    	CloudStoreObject replacement;
-    	S3Method method;
-    	
-    	newName = verifyName(newName);
-    	headers.put("x-amz-copy-source", "/" + file.getDirectory() + "/" + file.getName());
-    	method = new S3Method(provider, S3Action.COPY_OBJECT, null, headers);
-    	String source = (toDirectory.getDirectory() == null ? toDirectory.getName() : toDirectory.getDirectory() + "." + toDirectory.getName());
-		try {
-			method.invoke(source, newName);
-		}
-		catch( S3Exception e ) {
-			logger.error("Error copying files in S3: " + e.getSummary());
-			throw new CloudException(e);
-		}
-		replacement = new CloudStoreObject();
-		replacement.setContainer(false);
-		replacement.setCreationDate(new Date());
-		replacement.setDirectory(source);
-		replacement.setLocation("http://" + replacement.getDirectory() + ".s3.amazonaws.com/" + newName);
-		replacement.setName(newName);
-		replacement.setProviderRegionId(provider.getContext().getRegionId());
-		replacement.setSize(file.getSize());
-		return replacement;
+    @Override
+    public boolean allowsPublicSharing() throws CloudException, InternalException {
+        return true;
     }
-    
-    public String createDirectory(String bucket, boolean findFreeName) throws InternalException, CloudException {
+
+    @Override
+    public @Nonnull Blob createBucket(@Nonnull String bucketName, boolean findFreeName) throws InternalException, CloudException {
         ProviderContext ctx = provider.getContext();
         
         if( ctx == null ) {
@@ -190,15 +97,7 @@ public class S3 implements BlobStoreSupport {
         }
     	StringBuilder body = null;
     	boolean success;
-    	int idx;
 
-    	bucket = verifyName(bucket);
-    	idx = bucket.lastIndexOf(".");
-    	if( idx > -1 ) {
-    		String dirName = bucket.substring(0,idx);
-    		
-    		bucket = createDirectory(dirName, true) + "." + bucket.substring(idx+1);
-    	}
     	success = false;
     	if( regionId.equals("eu-west-1") ) {
         	body = new StringBuilder();
@@ -238,7 +137,7 @@ public class S3 implements BlobStoreSupport {
 		
     		method = new S3Method(provider, S3Action.CREATE_BUCKET, null, null, ct, body == null ? null : body.toString());
     		try {
-    			method.invoke(bucket, null);
+    			method.invoke(bucketName, null);
     			success = true;
     		}
     		catch( S3Exception e ) {
@@ -246,15 +145,15 @@ public class S3 implements BlobStoreSupport {
     			
     			if( code != null && (code.equals("BucketAlreadyExists") || code.equals("BucketAlreadyOwnedByYou")) ) {
     				if( code.equals("BucketAlreadyOwnedByYou") ) {
-    				    if( !isLocation(bucket) ) {
-    				        bucket = findFreeName(bucket);
+    				    if( !isLocation(bucketName) ) {
+    				        bucketName = findFreeName(bucketName);
     				    }
     				    else {
-    				        return bucket;
-    				    }
+                            return Blob.getInstance(regionId, getLocation(bucketName, null), bucketName, System.currentTimeMillis());
+                        }
     				}
     				else if( findFreeName ) {
-    					bucket = findFreeName(bucket);
+    					bucketName = findFreeName(bucketName);
     				}
     				else {
     	    			throw new CloudException(e);    					
@@ -266,229 +165,15 @@ public class S3 implements BlobStoreSupport {
     			}
     		}
     	}
-        return bucket;
-    }
-    
-    public FileTransfer download(CloudStoreObject cloudFile, File diskFile) throws CloudException, InternalException {
-    	final FileTransfer transfer = new FileTransfer();
-        final CloudStoreObject source = cloudFile;
-        final File target = diskFile;
-        
-        transfer.setBytesToTransfer(exists(cloudFile.getDirectory(), cloudFile.getName(), false));
-        if( transfer.getBytesToTransfer() == -1L ) {
-        	throw new CloudException("No such file: " + cloudFile.getDirectory() + "." + cloudFile.getName());
-        }
-        Thread t = new Thread() {
-        	public void run() {
-		        Callable<Object> operation = new Callable<Object>() {
-		            public Object call() throws Exception {
-		                boolean success = false;
-		                
-		                try {
-		                    get(source.getDirectory(), source.getName(), target, transfer);
-		                    success = true;
-		                    return null;
-		                }
-		                finally {
-		                    if( !success ) {
-		                        if( target.exists() ) {
-		                            target.delete();
-		                        }
-		                    }
-		                }
-		            }
-		        };
-		        try {
-		            (new Retry<Object>()).retry(5, operation);
-                    transfer.complete(null);
-		        }
-		        catch( CloudException e ) {
-		        	transfer.complete(e);
-		        }
-		        catch( InternalException e ) {
-		        	transfer.complete(e);
-		        }
-		        catch( Throwable t ) {
-		            logger.error(t);
-		            t.printStackTrace();
-		            transfer.complete(t);
-		        }
-        	}
-        };
-        
-        t.setDaemon(true);
-        t.start();
-        return transfer;
+        return Blob.getInstance(regionId, "http://" + bucketName + ".s3.amazonaws.com", bucketName, System.currentTimeMillis());
     }
 
-    public FileTransfer download(String directory, String fileName, File toFile, Encryption encryption) throws InternalException, CloudException {
-    	final FileTransfer transfer = new FileTransfer();
-        final Encryption enc = encryption;
-        final String dname = directory;
-        final String fname = fileName;
-        final File target = toFile;
-
-        Thread t = new Thread() {
-        	public void run() {
-                try {
-		            Callable<Object> operation = new Callable<Object>() {
-		                public Object call() throws Exception {
-		                    boolean success = false;
-		                    
-		                    try {
-		                        downloadMultipartFile(dname, fname, target, transfer, enc);
-		                        success = true;
-		                        return null;
-		                    }
-		                    finally {
-		                        if( !success ) {
-		                            if( target.exists() ) {
-		                                target.delete();
-		                            }
-		                        }
-		                    }
-		                }
-		            };
-		            try {
-		                (new Retry<Object>()).retry(5, operation);
-		                transfer.complete(null);
-		            }
-		            catch( CloudException e ) {
-		            	transfer.complete(e);
-		            }
-		            catch( InternalException e ) {
-		            	transfer.complete(e);
-		            }
-		            catch( Throwable t ) {
-		                logger.error(t);
-		                t.printStackTrace();
-		                transfer.complete(t);
-		            }
-		        }
-		        finally {
-		            if( enc != null ) {
-		                enc.clear();
-		            }
-		        }
-            }
-        };
-        
-        t.setDaemon(true);
-        t.start();
-        return transfer;
-    }
-    
-    private void downloadMultipartFile(String directory, String fileName, File restoreFile, FileTransfer transfer, Encryption encryption) throws CloudException, InternalException {
-        try {
-            File f;
-            String str;
-            int parts;
-            
-            if( restoreFile.exists() ) {
-                if( !restoreFile.delete() ) {
-                    throw new InternalException("Unable to delete restore file: " + restoreFile.getAbsolutePath());
-                }
-            }
-            f = File.createTempFile("download", ".dl");
-            f.deleteOnExit();
-            Properties props = new Properties();
-            try {
-                get(directory, fileName + ".properties", f, transfer);                
-                props.load(new FileInputStream(f));
-            }
-            finally {
-                f.delete();
-            }
-            try {
-                str = props.getProperty("parts");
-                parts = (str == null ? 1 : Integer.parseInt(str));
-                
-                String checksum = props.getProperty("checksum");
-                
-                File encFile = null;
-                
-                if( encryption != null ) {
-                    encFile = new File(restoreFile.getAbsolutePath() + ".enc");
-                    if( encFile.exists() ) {
-                        encFile.delete();
-                    }
-                }
-                for( int i = 1; i<=parts; i++ ) {
-                    FileOutputStream out;
-                    FileInputStream in;
-                    
-                    if( f.exists() ) {
-                        f.delete();
-                    }
-                    f = File.createTempFile("part", "." + i);
-                    get(directory, fileName + ".part." + i, f, transfer);
-                    in = new FileInputStream(f);
-                    if( encryption != null ) {
-                        out = new FileOutputStream(encFile, true);
-                    }
-                    else {
-                        out = new FileOutputStream(restoreFile, true);                
-                    }
-                    copy(in, out, transfer);
-                }
-                if( encryption != null ) {
-                    try {
-                        try {
-                            try {
-                                if( !S3Method.getChecksum(encFile).equals(checksum) ) {
-                                    throw new IOException("Checksum mismatch.");
-                                }
-                            }
-                            catch( NoSuchAlgorithmException e ) {
-                                logger.error(e);
-                                e.printStackTrace();
-                                throw new InternalException(e.getMessage());
-                            }
-                            encryption.decrypt(new FileInputStream(encFile), new FileOutputStream(restoreFile));
-                        }
-                        finally {
-                            if( encFile.exists() ) {
-                                encFile.delete();
-                            }
-                        }
-                    }
-                    catch( EncryptionException e ) {
-                        logger.error(e);
-                        e.printStackTrace();
-                        throw new InternalException(e);
-                    }
-                }
-                else {
-                    try {
-                        if( !S3Method.getChecksum(restoreFile).equals(checksum) ) {
-                            throw new IOException("Checksum mismatch.");
-                        }
-                    }
-                    catch( NoSuchAlgorithmException e ) {
-                    	logger.error(e);
-                        e.printStackTrace();
-                        throw new InternalException(e.getMessage());
-                    }
-                }
-            }
-            finally {
-                if( f != null && f.exists() ) {
-                    f.delete();
-                }
-            }
-        }
-        catch( IOException e ) {
-            logger.error(e);
-            e.printStackTrace();
-            throw new InternalException(e);
-        }
-    }
-    
-    public boolean exists(String bucket) throws InternalException, CloudException {
+    @Override
+    public boolean exists(@Nonnull String bucketName) throws InternalException, CloudException {
 		S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
 		
 		try {
-			method.invoke(bucket, "?location");
+			method.invoke(bucketName, "?location");
 			return true;
 		}
 		catch( S3Exception e ) {
@@ -506,12 +191,41 @@ public class S3 implements BlobStoreSupport {
 		}
 		return false;
     }
-    
-    public boolean belongsToAnother(String bucket) throws InternalException, CloudException {
+
+    @Override
+    public Blob getBucket(@Nonnull String bucketName) throws InternalException, CloudException {
+        for( Blob blob : list(null) ) {
+            if( blob.isContainer() ) {
+                String name = blob.getBucketName();
+
+                if( name != null && name.equals(bucketName) ) {
+                    return blob;
+                }
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public Blob getObject(@Nullable String bucketName, @Nonnull String objectName) throws InternalException, CloudException {
+        if( bucketName == null ) {
+            throw new CloudException("No bucket was specified for this request");
+        }
+        for( Blob blob : list(bucketName) ) {
+            String name = blob.getObjectName();
+
+            if( name != null && name.equals(objectName) ) {
+                return blob;
+            }
+        }
+        return null;
+    }
+
+    private boolean belongsToAnother(@Nonnull String bucketName) throws InternalException, CloudException {
 		S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
 		
 		try {
-			method.invoke(bucket, "?location");
+			method.invoke(bucketName, "?location");
 			return false;
 		}
 		catch( S3Exception e ) {
@@ -536,71 +250,55 @@ public class S3 implements BlobStoreSupport {
 		}
 		return false;
     }
-    
-    public long exists(String bucket, String object, boolean multiPart) throws InternalException, CloudException {
-    	if( object == null ) {
-    		return 0L;
-    	}
-    	if( !multiPart ) {
-    		S3Method method = new S3Method(provider, S3Action.OBJECT_EXISTS);
-    		S3Response response;
-    		
-    		try {
-    			response = method.invoke(bucket, object);
-    			if( response != null && response.headers != null ) {
-    			    for( Header header : response.headers ) {
-    			        if( header.getName().equalsIgnoreCase("Content-Length") ) {
-    			            return Long.parseLong(header.getValue());
-    			        }
-    				}
-    			}
-    			return 0L;
-    		}
-    		catch( S3Exception e ) {
-    			if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
-    				String code = e.getCode();
-    			
-    				if( code == null || (!code.equals("NoSuchBucket") && !code.equals("NoSuchKey")) ) {
-    					logger.error(e.getSummary());
-    					throw new CloudException(e);
-    				}
-    			}
-    			return -1L;
-    		}    		
-    	}
-    	else {
-    		if( exists(bucket, object + ".properties", false) == -1L ) {
-    			return -1L;
-    		}
-    		try {
-		        File propsFile = File.createTempFile("props", ".properties");
-                Properties props = new Properties();
-                String str;
 
-		        try {
-		            get(bucket, object + ".properties", propsFile, null);        
-		            props.load(new FileInputStream(propsFile));
-		        }
-		        finally {
-		            propsFile.delete();
-		        }
-		        str = props.getProperty("length");
-		        if( str == null ) {
-		        	return 0L;
-		        }
-		        else {
-		        	return Long.parseLong(str);
-		        }
-    		}
-    		catch( IOException e ) {
-    			logger.error(e);
-    			e.printStackTrace();
-    			throw new InternalException(e);
-    		}
-    	}
+    private @Nonnull String getLocation(@Nonnull String bucketName, @Nullable String objectName) {
+        if( objectName == null ) {
+            return ("http://" + bucketName + ".s3.amazonaws.com");
+        }
+        return ("http://" + bucketName + ".s3.amazonaws.com/" + objectName);
     }
-    
-    private String findFreeName(String bucket) throws InternalException, CloudException {
+
+    @Override
+    public @Nullable Storage<org.dasein.util.uom.storage.Byte> getObjectSize(@Nullable String bucket, @Nullable String object) throws InternalException, CloudException {
+        if( bucket == null ) {
+            throw new CloudException("Requested object size for object in null bucket");
+        }
+        if( object == null ) {
+            return null;
+        }
+        S3Method method = new S3Method(provider, S3Action.OBJECT_EXISTS);
+        S3Response response;
+
+        try {
+            response = method.invoke(bucket, object);
+            if( response != null && response.headers != null ) {
+                for( Header header : response.headers ) {
+                    if( header.getName().equalsIgnoreCase("Content-Length") ) {
+                        return new Storage<org.dasein.util.uom.storage.Byte>(Long.parseLong(header.getValue()), Storage.BYTE);
+                    }
+                }
+            }
+            return null;
+        }
+        catch( S3Exception e ) {
+            if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
+                String code = e.getCode();
+
+                if( code == null || (!code.equals("NoSuchBucket") && !code.equals("NoSuchKey")) ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+            }
+            return null;
+        }
+    }
+
+    @Override
+    public int getMaxBuckets() throws CloudException, InternalException {
+        return MAX_BUCKETS;
+    }
+
+    private @Nonnull String findFreeName(@Nonnull String bucket) throws InternalException, CloudException {
     	int idx = bucket.lastIndexOf(".");
     	String prefix, rawName;
     	
@@ -643,8 +341,12 @@ public class S3 implements BlobStoreSupport {
     	}
     	return bucket;
     }
-    
-    private void get(String bucket, String object, File toFile, FileTransfer transfer) throws InternalException, CloudException {
+
+    @Override
+    protected void get(@Nullable String bucket, @Nonnull String object, @Nonnull File toFile, @Nullable FileTransfer transfer) throws InternalException, CloudException {
+        if( bucket == null ) {
+            throw new CloudException("No bucket was specified");
+        }
     	IOException lastError = null;
     	int attempts = 0;
     	
@@ -679,12 +381,18 @@ public class S3 implements BlobStoreSupport {
     		} 
     		attempts++;
     	}
-		logger.error(lastError);
-		lastError.printStackTrace();
-		throw new InternalException(lastError);
+        if( lastError != null ) {
+            logger.error(lastError);
+            lastError.printStackTrace();
+            throw new InternalException(lastError);
+        }
+        else {
+            logger.error("Unable to figure out error");
+            throw new InternalException("Unknown error");
+        }
     }
 
-    public Document getAcl(String bucket, String object) throws CloudException, InternalException {
+    private @Nullable Document getAcl(@Nonnull String bucket, @Nullable String object) throws CloudException, InternalException {
 		S3Method method;
 	
 		method = new S3Method(provider, S3Action.GET_ACL);
@@ -698,72 +406,100 @@ public class S3 implements BlobStoreSupport {
 			throw new CloudException(e);
 		}      	
     }
-    
-    public long getMaxFileSizeInBytes() {
-        return 5000000000L;
+
+    @Override
+    public Storage<org.dasein.util.uom.storage.Byte> getMaxObjectSize() {
+        return MAX_OBJECT_SIZE;
     }
-    
-    public String getProviderTermForDirectory(Locale locale) {
+
+    @Override
+    public int getMaxObjectsPerBucket() throws CloudException, InternalException {
+        return MAX_OBJECTS;
+    }
+
+    @Override
+    public @Nonnull String getProviderTermForBucket(@Nonnull Locale locale) {
         return "bucket";
     }
-    
-    public String getProviderTermForFile(Locale locale) {
+
+    @Override
+    public @Nonnull String getProviderTermForObject(@Nonnull Locale locale) {
         return "object";
     }
     
-    private boolean isLocation(String bucket) throws CloudException, InternalException {
-        if( bucket != null ) {
-    		S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
-    		String regionId = provider.getContext().getRegionId();
-    		S3Response response;
-    		
-    		try {
-    			response = method.invoke(bucket, "?location");
-    		}
-    		catch( S3Exception e ) {
-    			String code = e.getCode();
-    			
-    			if( code == null || !code.equals("NoSuchBucket") ) {
-    				logger.error(e.getSummary());
-    				throw new CloudException(e);
-    			}
-    			response = null;
-    		}
-    		if( response != null ) {
-    			NodeList constraints = response.document.getElementsByTagName("LocationConstraint");
-    			if( constraints.getLength() > 0 ) {
-    				Node constraint = constraints.item(0);
-    				
-    				if( constraint != null && constraint.hasChildNodes() ) {
-    					String location = constraint.getFirstChild().getNodeValue().trim();
-    
-    					if( location.equals("EU") && !regionId.equals("eu-west-1") ) {
-    						return false;
-    					}
-    					else if( location.equals("us-west-1") && !regionId.equals("us-west-1") ) {
-    					    return false;
-    					}
-    					else if( location.startsWith("ap-") && !regionId.equals(location) ) {
-    					    return false;
-    					}
-    					else if( location.equals("US") && !regionId.equals("us-east-1") ) {
-    						return false;
-    					}
-    				}
-                    else {
-                        return regionId.equals("us-east-1");
+    private boolean isLocation(@Nonnull String bucket) throws CloudException, InternalException {
+        S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was set for this request");
+        }
+        String regionId = ctx.getRegionId();
+
+        if( regionId == null ) {
+            return false;
+        }
+        S3Response response;
+
+        try {
+            response = method.invoke(bucket, "?location");
+        }
+        catch( S3Exception e ) {
+            if( e.getStatus() == HttpServletResponse.SC_NOT_FOUND ) {
+                response = null;
+            }
+            else {
+                String code = e.getCode();
+
+                if( code == null || !code.equals("NoSuchBucket") ) {
+                    logger.error(e.getStatus() + "/" + code + ": " + e.getSummary());
+                    throw new CloudException(e);
+                }
+                response = null;
+            }
+        }
+        if( response != null ) {
+            NodeList constraints = response.document.getElementsByTagName("LocationConstraint");
+            if( constraints.getLength() > 0 ) {
+                Node constraint = constraints.item(0);
+
+                if( constraint != null && constraint.hasChildNodes() ) {
+                    String location = constraint.getFirstChild().getNodeValue().trim();
+
+                    if( location.equals("EU") && !regionId.equals("eu-west-1") ) {
+                        return false;
                     }
-    			}
+                    else if( location.equals("us-west-1") && !regionId.equals("us-west-1") ) {
+                        return false;
+                    }
+                    else if( location.startsWith("ap-") && !regionId.equals(location) ) {
+                        return false;
+                    }
+                    else if( location.equals("US") && !regionId.equals("us-east-1") ) {
+                        return false;
+                    }
+                }
                 else {
                     return regionId.equals("us-east-1");
                 }
-    		}
+            }
+            else {
+                return regionId.equals("us-east-1");
+            }
         }
-		return true;
+        return true;
     }
-    
-    public boolean isPublic(String bucket, String object) throws CloudException, InternalException {
+
+    @Override
+    public boolean isPublic(@Nullable String bucket, @Nullable String object) throws CloudException, InternalException {
+        if( bucket == null ) {
+            throw new CloudException("A bucket name was not specified");
+        }
     	Document acl = getAcl(bucket, object);
+
+        if( acl == null ) {
+            return false;
+        }
     	NodeList grants;
     	
     	grants = acl.getElementsByTagName("Grant");
@@ -828,33 +564,48 @@ public class S3 implements BlobStoreSupport {
             return false;
         }
     }
-    
-    public Collection<CloudStoreObject> listFiles(String bucket) throws CloudException, InternalException {
-    	PopulatorThread <CloudStoreObject> populator;
-    	final String dir = bucket;
-    	
-    	if( !isLocation(dir) ) {
-    		throw new CloudException("No such bucket in target region: " + dir + "/" + provider.getContext().getRegionId());
+
+    @Override
+    public @Nonnull Collection<Blob> list(final @Nullable String bucket) throws CloudException, InternalException {
+        final ProviderContext ctx = provider.getContext();
+        PopulatorThread <Blob> populator;
+
+        if( ctx == null ) {
+            throw new CloudException("No context was specified for this request");
+        }
+        final String regionId = ctx.getRegionId();
+
+        if( regionId == null ) {
+            throw new CloudException("No region ID was specified");
+        }
+    	if( bucket != null && !isLocation(bucket) ) {
+    		throw new CloudException("No such bucket in target region: " + bucket + " in " + regionId);
     	}
     	provider.hold();
-    	populator = new PopulatorThread<CloudStoreObject>(new JiteratorPopulator<CloudStoreObject>() {
-    		public void populate(Jiterator<CloudStoreObject> iterator) throws CloudException, InternalException {
-    			listFiles(dir, iterator);
-    			provider.release();
+    	populator = new PopulatorThread<Blob>(new JiteratorPopulator<Blob>() {
+    		public void populate(@Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
+                try {
+                    list(regionId, bucket, iterator);
+                }
+                finally {
+                    provider.release();
+                }
     		}
     	});
     	populator.populate();
     	return populator.getResult();
     }
 
-    private void listFiles(String bucket, Jiterator<CloudStoreObject> iterator) throws CloudException, InternalException {
-    	loadDirectories(bucket, iterator);
-    	if( bucket != null ) {
-    		loadFiles(bucket, iterator);
-    	}
+    private void list(@Nonnull String regionId, @Nullable String bucket, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
+        if( bucket == null ) {
+            loadBuckets(regionId, iterator);
+        }
+        else {
+            loadObjects(regionId, bucket, iterator);
+        }
     }
 
-    private void loadDirectories(String bucket, Jiterator<CloudStoreObject> iterator) throws CloudException, InternalException {
+    private void loadBuckets(@Nonnull String regionId, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
     	S3Method method = new S3Method(provider, S3Action.LIST_BUCKETS);
 		S3Response response;
 		NodeList blocks;		
@@ -868,11 +619,12 @@ public class S3 implements BlobStoreSupport {
 		}
 		blocks = response.document.getElementsByTagName("Bucket");
 		for( int i=0; i<blocks.getLength(); i++ ) {
-			String dateString = null, name = null;
 			Node object = blocks.item(i);
-			NodeList attrs;
-			
-			attrs = object.getChildNodes();
+            String name = null;
+            NodeList attrs;
+            long ts = 0L;
+
+            attrs = object.getChildNodes();
 			for( int j=0; j<attrs.getLength(); j++ ) {
 				Node attr = attrs.item(j);
 				
@@ -880,126 +632,57 @@ public class S3 implements BlobStoreSupport {
 					name = attr.getFirstChild().getNodeValue().trim();
 				}
 				else if( attr.getNodeName().equals("CreationDate") ) {
-					dateString = attr.getFirstChild().getNodeValue().trim();
+                    provider.parseTime(attr.getFirstChild().getNodeValue().trim());
 				}
 			}
 			if( name == null ) { 
 				throw new CloudException("Bad response from server.");
 			}
-			if( bucket == null ) {
-				if( name.indexOf(".") > -1 ) { // a sub-directory of another directory
-					continue;
-				}
-			}
-			else if( name.equals(bucket) ) {
-				continue;
-			}
-			else if( !name.startsWith(bucket + ".") ) {
-				continue;
-			}
-			else if( bucket.equals(name) ) {
-				continue;
-			}
-			if( bucket != null ) {
-				String tmp = name.substring(bucket.length() + 1);
-				int idx = tmp.indexOf(".");
-				
-				if( idx > 0 /* yes 0, not -1 */ && idx < (tmp.length()-1) ) { // this is a sub of a sub
-					continue;
-				}
-			}
-			if( bucket == null ) {
-    			method = new S3Method(provider, S3Action.LOCATE_BUCKET);
-    			try {
-    				response = method.invoke(name, "?location");
-    			}
-    			catch( S3Exception e ) {
-    				if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
-    					String code = e.getCode();
-    				
-    					if( code == null || !code.equals("NoSuchBucket") ) {
-    						logger.error(e.getSummary());
-    						throw new CloudException(e);
-    					}
-    				}
-    				response = null;
-    			}
-    			if( response != null ) {
-    				NodeList constraints = response.document.getElementsByTagName("LocationConstraint");
-    				if( constraints.getLength() > 0 ) {
-    					Node constraint = constraints.item(0);
-    					
-    					if( constraint != null && constraint.hasChildNodes() ) {
-    						String location = constraint.getFirstChild().getNodeValue().trim();
-    	
-    						if( location.equals("EU") && !provider.getContext().getRegionId().equals("eu-west-1") ) {
-    							continue;
-    						}
-    						else if( location.equals("us-west-1") && !provider.getContext().getRegionId().equals("us-west-1") ) {
-    						    continue;
-    						}
-    						else if( location.startsWith("ap-") && !provider.getContext().getRegionId().equals(location) ) {
-    						    continue;
-    						}
-    						else if( location.equals("US") && !provider.getContext().getRegionId().equals("us-east-1") ) {
-    							continue;
-    						}
-    					}
-                        else if( !provider.getContext().getRegionId().equals("us-east-1") ){
+            method = new S3Method(provider, S3Action.LOCATE_BUCKET);
+            try {
+                response = method.invoke(name, "?location");
+            }
+            catch( S3Exception e ) {
+                response = null;
+            }
+            if( response != null ) {
+                NodeList constraints = response.document.getElementsByTagName("LocationConstraint");
+
+                if( constraints.getLength() > 0 ) {
+                    Node constraint = constraints.item(0);
+
+                    if( constraint != null && constraint.hasChildNodes() ) {
+                        String location = constraint.getFirstChild().getNodeValue().trim();
+
+                        if( location.equals("EU") && !provider.getContext().getRegionId().equals("eu-west-1") ) {
                             continue;
                         }
-    				}
+                        else if( location.equals("us-west-1") && !provider.getContext().getRegionId().equals("us-west-1") ) {
+                            continue;
+                        }
+                        else if( location.startsWith("ap-") && !provider.getContext().getRegionId().equals(location) ) {
+                            continue;
+                        }
+                        else if( location.equals("US") && !provider.getContext().getRegionId().equals("us-east-1") ) {
+                            continue;
+                        }
+                    }
                     else if( !provider.getContext().getRegionId().equals("us-east-1") ){
-    				    continue;
-    				}
-    			}
-    			else {
-    				continue;
-    			}
-			}
-			CloudStoreObject file = new CloudStoreObject();
-			String[] parts = name.split("\\.");
-			
-			if( parts == null || parts.length < 2 ) {
-				file.setName(name);
-				file.setDirectory(null);
-			}
-			else {
-				StringBuilder dirName = new StringBuilder();
-				
-				file.setName(parts[parts.length-1]);
-				for( int part=0; part<parts.length-1; part++ ) {
-					if( dirName.length() > 0 ) {
-						dirName.append(".");
-					}
-					dirName.append(parts[part]);
-				}
-				file.setDirectory(dirName.toString());
-			}
-			file.setContainer(true);
-			file.setProviderRegionId(provider.getContext().getRegionId());
-			file.setLocation("http://" + name + ".s3.amazonaws.com");
-			file.setSize(0L);
-			if( dateString != null ) {
-				try {
-					SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-				
-					file.setCreationDate(fmt.parse(dateString));
-				} 
-				catch( ParseException e ) {
-					logger.error(e);
-					e.printStackTrace();
-					throw new CloudException(e);
-				}
-			}
-			else {
-				file.setCreationDate(new Date());
-			}
-			iterator.push(file);
-		}    	
+                        continue;
+                    }
+                }
+                else if( !provider.getContext().getRegionId().equals("us-east-1") ){
+                    continue;
+                }
+            }
+            else {
+                continue;
+            }
+            iterator.push(Blob.getInstance(regionId, getLocation(name, null), name, ts));
+		}
     }
     
-    private void loadFiles(String bucket, Jiterator<CloudStoreObject> iterator) throws CloudException, InternalException {
+    private void loadObjects(@Nonnull String regionId, @Nonnull String bucket, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
 		HashMap<String,String> parameters = new HashMap<String,String>();
 		S3Response response;
 		String marker = null;
@@ -1020,7 +703,7 @@ public class S3 implements BlobStoreSupport {
 			}
 			catch( S3Exception e ) {
 			    String code = e.getCode();
-			    
+
 			    if( code == null || !code.equals("SignatureDoesNotMatch") ) {
 			        throw new CloudException(e);
 			    }
@@ -1033,56 +716,64 @@ public class S3 implements BlobStoreSupport {
 			}
 			blocks = response.document.getElementsByTagName("Contents");
 			for( int i=0; i<blocks.getLength(); i++ ) {
-				CloudStoreObject file = new CloudStoreObject();
 				Node object = blocks.item(i);
-				
-				file.setDirectory(bucket);
-				file.setContainer(false);
-				file.setProviderRegionId(provider.getContext().getRegionId());
-				if( object.hasChildNodes() ) {
-					NodeList attrs = object.getChildNodes();
-					
-					for( int j=0; j<attrs.getLength(); j++ ) {
-						Node attr = attrs.item(j);
-						String name;
-						
-						name = attr.getNodeName();
-						if( name.equals("Key") ) {
-							String key = attr.getFirstChild().getNodeValue().trim();
-							
-							file.setName(key);
-							file.setLocation("http://" + bucket + ".s3.amazonaws.com/" + key);
-							marker = key;
-						}
-						else if( name.equals("Size") ) {
-							file.setSize(Long.parseLong(attr.getFirstChild().getNodeValue().trim()));
-						}
-						else if( name.equals("LastModified") ) {
-							SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-							String dateString = attr.getFirstChild().getNodeValue().trim();
-							
-							try {
-								file.setCreationDate(fmt.parse(dateString));
-							} 
-							catch( ParseException e ) {
-								logger.error(e);
-								e.printStackTrace();
-								throw new CloudException(e);
-							}
-						}
-					}
-				}
-				iterator.push(file);
+                Storage<org.dasein.util.uom.storage.Byte> size = null;
+                String name = null;
+                long ts = -1L;
+
+                if( object.hasChildNodes() ) {
+                    NodeList attrs = object.getChildNodes();
+
+                    for( int j=0; j<attrs.getLength(); j++ ) {
+                        Node attr = attrs.item(j);
+
+                        if( attr.getNodeName().equalsIgnoreCase("Key") ) {
+                            String key = attr.getFirstChild().getNodeValue().trim();
+
+                            name = key;
+                            marker = key;
+                        }
+                        else if( attr.getNodeName().equalsIgnoreCase("Size") ) {
+                            size = new Storage<org.dasein.util.uom.storage.Byte>(Long.parseLong(attr.getFirstChild().getNodeValue().trim()), Storage.BYTE);
+                        }
+                        else if( attr.getNodeName().equalsIgnoreCase("LastModified") ) {
+                            SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+                            String dateString = attr.getFirstChild().getNodeValue().trim();
+
+                            try {
+                                ts = fmt.parse(dateString).getTime();
+                            }
+                            catch( ParseException e ) {
+                                logger.error(e);
+                                e.printStackTrace();
+                                throw new CloudException(e);
+                            }
+                        }
+                    }
+                }
+                if( name == null || size == null ) {
+                    continue;
+                }
+                iterator.push(Blob.getInstance(regionId, getLocation(bucket, name), bucket, name, ts, size));
 			}
 		}    	
     }
-    
-    public void makePublic(String bucket) throws InternalException, CloudException {
+
+    @Override
+    public void makePublic(@Nonnull String bucket) throws InternalException, CloudException {
     	makePublic(bucket, null);
     }
-    
-    public void makePublic(String bucket, String object) throws InternalException, CloudException {
+
+    @Override
+    public void makePublic(@Nullable String bucket, @Nullable String object) throws InternalException, CloudException {
+        if( bucket == null ) {
+            throw new CloudException("No bucket was specified for this request");
+        }
     	Document current = getAcl(bucket, object);
+
+        if( current == null ) {
+            throw new CloudException("Target does not exist");
+        }
     	StringBuilder xml = new StringBuilder();
     	NodeList blocks;
 
@@ -1225,41 +916,23 @@ public class S3 implements BlobStoreSupport {
         return new String[0]; 
     }
 
-    public void moveFile(String sourceBucket, String object, String targetBucket) throws InternalException, CloudException {
-    	CloudStoreObject directory = new CloudStoreObject();
-    	CloudStoreObject file = new CloudStoreObject();
-    	String[] parts = targetBucket.split("\\.");
-    	String dirPath, dirName;
-    	
-    	if( parts == null || parts.length < 2 ) {
-    		dirPath = null;
-    		dirName = targetBucket;
-    	}
-    	else {
-    		StringBuilder str = new StringBuilder();
-    		
-    		dirName = parts[parts.length-1];
-    		for( int i = 0; i<parts.length-1; i++ ) {
-    			if( i > 0 ) {
-    				str.append(".");
-    			}
-    			str.append(parts[i]);
-    		}
-    		dirPath = str.toString();
-    	}
-    	file.setContainer(false);
-    	file.setDirectory(sourceBucket);
-    	file.setName(object);
-    	file.setProviderRegionId(provider.getContext().getRegionId());
-    	directory.setContainer(true);
-    	directory.setDirectory(dirPath);
-    	directory.setName(dirName);
-    	directory.setProviderRegionId(provider.getContext().getRegionId());
-    	copy(file, directory, object);
-    	removeFile(sourceBucket, object, false);    	
+    @Override
+    public void move(@Nullable String sourceBucket, @Nullable String object, @Nullable String targetBucket) throws InternalException, CloudException {
+        if( sourceBucket == null ) {
+            throw new CloudException("No source bucket was specified");
+        }
+        if( targetBucket == null ) {
+            throw new CloudException("No target bucket was specified");
+        }
+        if( object == null ) {
+            throw new CloudException("No source object was specified");
+        }
+    	copy(sourceBucket, object, targetBucket, object);
+    	removeObject(sourceBucket, object);
     }
 
-    private void put(String bucket, String object, File file) throws CloudException, InternalException {
+    @Override
+    protected void put(@Nullable String bucket, @Nonnull String object, @Nonnull File file) throws CloudException, InternalException {
 		boolean bucketIsPublic = isPublic(bucket, null);
 		HashMap<String,String> headers = null;
     	S3Method method;
@@ -1277,7 +950,8 @@ public class S3 implements BlobStoreSupport {
 		}
     }
 
-    private void put(String bucket, String object, String content) throws CloudException, InternalException {
+    @Override
+    protected void put(@Nullable String bucket, @Nonnull String object, @Nonnull String content) throws CloudException, InternalException {
 		boolean bucketIsPublic = isPublic(bucket, null);
 		HashMap<String,String> headers = null;
     	S3Method method;
@@ -1311,12 +985,14 @@ public class S3 implements BlobStoreSupport {
     	}
         finally {
             if( file != null ) {
+                //noinspection ResultOfMethodCallIgnored
                 file.delete();
             }
         }
     }
-    
-    public void removeDirectory(String bucket) throws CloudException, InternalException {
+
+    @Override
+    public void removeBucket(@Nonnull String bucket) throws CloudException, InternalException {
     	S3Method method = new S3Method(provider, S3Action.DELETE_BUCKET);
     	
 		try {
@@ -1333,16 +1009,11 @@ public class S3 implements BlobStoreSupport {
 		}
     }
 
-    public void removeFile(String directory, String name, boolean multipartFile) throws CloudException, InternalException {
-        if( !multipartFile ) {
-            removeFile(directory, name);
+    @Override
+    public void removeObject(@Nullable String bucket, @Nonnull String name) throws CloudException, InternalException {
+        if( bucket == null ) {
+            throw new CloudException("No bucket was specified for this request");
         }
-        else {
-        	removeMultipart(directory, name);
-        }
-    }
-
-    private void removeFile(String bucket, String name) throws CloudException, InternalException {
     	S3Method method = new S3Method(provider, S3Action.DELETE_OBJECT);
     	
 		try {
@@ -1358,49 +1029,18 @@ public class S3 implements BlobStoreSupport {
 			throw new CloudException(e);
 		}
     }
-    
-    private void removeMultipart(String bucket, String object) throws InternalException, CloudException {
-    	try {
-	        File propsFile = File.createTempFile("props", ".properties");
-	        Properties props = new Properties();
-	        String str;
-            int parts;
-	        
-            try {
-                get(bucket, object + ".properties", propsFile, null);        
-                props.load(new FileInputStream(propsFile));
-            }
-            finally {
-                propsFile.delete();
-            }
-	        str = props.getProperty("parts");
-	        parts = (str == null ? 1 : Integer.parseInt(str));
-	        removeFile(bucket, object + ".properties");
-	        for( int i = 1; i<=parts; i++ ) {
-	        	removeFile(bucket, object + ".part." + i);
-	        }  
-    	}
-    	catch( IOException e ) {
-    		logger.error(e);
-    		e.printStackTrace();
-    		throw new InternalException(e);
-    	}
-    }
-    
-    public String renameDirectory(String oldName, String newName, boolean findFreeName) throws CloudException, InternalException {
-        newName = createDirectory(newName, findFreeName);
-        for( CloudStoreObject file : listFiles(oldName) ) {
+
+    @Override
+    public @Nonnull String renameBucket(@Nonnull String oldName, @Nonnull String newName, boolean findFreeName) throws CloudException, InternalException {
+        Blob bucket = createBucket(newName, findFreeName);
+
+        for( Blob file : list(oldName) ) {
             int retries = 10;
             
             while( true ) {
                 retries--;
                 try {
-                    if( file.isContainer() ) {
-                        renameDirectory(oldName + "." + file.getName(), newName + "." + file.getName(), true);
-                    }
-                    else {
-                        moveFile(oldName, file.getName(), newName);
-                    }                            
+                    move(oldName, file.getObjectName(), bucket.getBucketName());
                     break;
                 }
                 catch( CloudException e ) {
@@ -1409,57 +1049,32 @@ public class S3 implements BlobStoreSupport {
                     }
                 }
                 try { Thread.sleep(retries * 10000L); } 
-                catch( InterruptedException e ) { }
+                catch( InterruptedException ignore ) { }
             }
         }
         boolean ok = true;
-        for( CloudStoreObject file : listFiles(oldName ) ) {
+        for( Blob file : list(oldName ) ) {
             if( file != null ) {
                 ok = false;
             }
         }
         if( ok ) {
-            removeDirectory(oldName);
+            removeBucket(oldName);
         }
         return newName;
     }
 
-    public void renameFile(String bucket, String object, String newName) throws CloudException, InternalException {
-    	CloudStoreObject directory = new CloudStoreObject();
-    	CloudStoreObject file = new CloudStoreObject();
-    	String[] parts = bucket.split("\\.");
-    	String dirPath, dirName;
-    	
-    	if( parts == null || parts.length < 2 ) {
-    		dirPath = null;
-    		dirName = bucket;
-    	}
-    	else {
-    		StringBuilder str = new StringBuilder();
-    		
-    		dirName = parts[parts.length-1];
-    		for( int i = 0; i<parts.length-1; i++ ) {
-    			if( i > 0 ) {
-    				str.append(".");
-    			}
-    			str.append(parts[i]);
-    		}
-    		dirPath = str.toString();
-    	}
-    	file.setContainer(false);
-    	file.setDirectory(bucket);
-    	file.setName(object);
-    	file.setProviderRegionId(provider.getContext().getRegionId());
-    	directory.setContainer(true);
-    	directory.setDirectory(dirPath);
-    	directory.setName(dirName);
-    	directory.setProviderRegionId(provider.getContext().getRegionId());
-    	copy(file, directory, newName);
-    	removeFile(bucket, object, false);
+    @Override
+    public void renameObject(@Nullable String bucket, @Nonnull String object, @Nonnull String newName) throws CloudException, InternalException {
+        if( bucket == null ) {
+            throw new CloudException("No bucket was specified");
+        }
+        copy(bucket, object, bucket, newName);
+    	removeObject(bucket, object);
     }
     
-    private void setAcl(String bucket, String object, String body) throws CloudException, InternalException {
-    	String ct = "text/xml; charset=utf-8";
+    private void setAcl(@Nonnull String bucket, @Nullable String object, @Nonnull String body) throws CloudException, InternalException {
+        //String ct = "text/xml; charset=utf-8";
 		S3Method method;
 	
 		method = new S3Method(provider, S3Action.SET_ACL, null, null, null /* ct */, body);
@@ -1471,242 +1086,26 @@ public class S3 implements BlobStoreSupport {
 			throw new CloudException(e);
 		}    	
     }
-    
-    public void upload(File source, String directory, String fileName, boolean multipart, Encryption encryption) throws CloudException, InternalException {
-    	if( !exists(directory) ) {
-    		createDirectory(directory, false);
+
+    @Override
+    public @Nonnull Blob upload(@Nonnull File source, @Nullable String bucket, @Nonnull String fileName) throws CloudException, InternalException {
+        if( bucket == null ) {
+            throw new CloudException("No bucket was specified for this request");
+        }
+    	if( !exists(bucket) ) {
+    		createBucket(bucket, false);
     	}
-    	if( encryption != null ) {
-    	    multipart = true;
-    	}
-    	if( multipart ) {
-            try {
-                uploadMultipartFile(source, directory, fileName, encryption);
-            }
-            catch( InterruptedException e ) {
-                logger.error(e);
-                e.printStackTrace();
-                throw new CloudException(e.getMessage());
-            }
-    	}
-    	else {
-    		put(directory, fileName, source);
-    	}
+        put(bucket, fileName, source);
+        return getObject(bucket, fileName);
     }
-    
-    private void uploadMultipartFile(File sourceFile, String directory, String fileName, Encryption encryption) throws InterruptedException, InternalException, CloudException {
-    	long fileSize = sourceFile.length();
-        String checksum;
-        File toUpload;
-        
-        fileName = verifyName(fileName);
-        if( encryption == null ) {
-            try {
-                toUpload = File.createTempFile(fileName, ".upl");
-                copy(new FileInputStream(sourceFile), new FileOutputStream(toUpload), null);
-            }
-            catch( IOException e ) {
-                logger.error(e);
-                e.printStackTrace();
-                throw new InternalException(e);
-            }
-        }
-        else {
-            try {
-                File encryptedFile = File.createTempFile(sourceFile.getName(), ".enc");
-                FileInputStream input = new FileInputStream(sourceFile);
-                FileOutputStream output;
-                
-                encryptedFile.deleteOnExit();
-                output = new FileOutputStream(encryptedFile);
-                encryption.encrypt(input, output);
-                input.close();
-                output.flush();
-                output.close();
-                toUpload = encryptedFile;
-            }
-            catch( EncryptionException e ) {
-                logger.error(e);
-                e.printStackTrace();
-                throw new InternalException(e);
-            }
-            catch( IOException e ) {
-                logger.error(e);
-                e.printStackTrace();
-                throw new InternalException(e);
-            }
-        }
-        try {
-        	try {
-				checksum = S3Method.getChecksum(toUpload);
-			} 
-        	catch( NoSuchAlgorithmException e ) {
-        		logger.error(e);
-        		e.printStackTrace();
-        		throw new InternalException(e);
-			}
-            try {
-                BufferedOutputStream output;
-                BufferedInputStream input;
-                byte[] buffer = new byte[1024];
-                long count = 0;
-                int b, partNumber = 1;
-                File part;
-                
-                input = new BufferedInputStream(new FileInputStream(toUpload));
-                part = new File(toUpload.getParent() + "/" + fileName + ".part." + partNumber);
-                output = new BufferedOutputStream(new FileOutputStream(part));
-                while( (b = input.read(buffer, 0, 1024)) > 0 ) {
-                    count += b;
-                    output.write(buffer, 0, b);
-                    if( count >= 2000000000L ) {
-                        int tries = 5;
-                        
-                        output.flush();
-                        output.close();
-                        while( true ) {
-                            tries--;
-                            try {
-                                put(directory, fileName + ".part." + partNumber, part);
-                                part.delete();
-                                partNumber++;
-                                part = new File(toUpload.getParent() + "/" + fileName + ".part." + partNumber);
-                                output = new BufferedOutputStream(new FileOutputStream(part));
-                                count = 0L;
-                                break;
-                            } 
-                            catch( Exception e ) {
-                                e.printStackTrace();
-                                if( tries < 1 ) {
-                                    throw new InternalException("Unable to complete upload for part " + partNumber + " of " + part.getAbsolutePath());
-                                }
-                            }
-                        }
-                    }
-                }
-                if( count > 0L ) {
-                    int tries = 5;
-                    
-                    output.flush();
-                    output.close();
-                    while( true ) {
-                        tries--;
-                        try {
-                            put(directory, fileName + ".part." + partNumber, part);
-                            part.delete();
-                            break;
-                        } 
-                        catch( Exception e ) {
-                            e.printStackTrace();
-                            if( tries < 1 ) {
-                                throw new InternalException("Unable to complete upload for part " + partNumber + " of " + part.getAbsolutePath());
-                            }
-                        }
-                    }                
-                    part.delete();            
-                }
-                String content = "parts=" + partNumber + "\nchecksum=" + checksum + "\nlength=" + fileSize;
-                
-                if( encryption != null ) {
-                    content = content + "\nencrypted=true\n";
-                    content = content + "encryptionVersion=" + encryption.getClass().getName() + "\n";
-                }
-                else {
-                    content = content + "\nencrypted=false\n";
-                }
-                int tries = 5;
-                while( true ) {
-                    tries--;
-                    try {
-                        put(directory, fileName + ".properties", content);
-                        break;
-                    } 
-                    catch( Exception e ) {
-                        e.printStackTrace();
-                        if( tries < 1 ) {
-                            throw new InternalException("Unable to complete upload for properties of " + part.getAbsolutePath());
-                        }
-                    }
-                }
-            }
-            finally {
-                toUpload.delete();
-            }
-        }
-        catch( IOException e ) {
-            logger.error(e);
-            e.printStackTrace();
-            throw new InternalException(e);
-        }
+
+    @Override
+    public @Nonnull NameRules getBucketNameRules() throws CloudException, InternalException {
+        return NameRules.getInstance(1, 255, false, true, true, new char[] { '-', '.' });
     }
-    
-    static private String verifyName(String name) throws CloudException {
-    	if( name == null ) {
-    		return null;
-    	}
-    	StringBuilder str = new StringBuilder();
-    	name = name.toLowerCase().trim();
-    	if( name.length() > 255 ) {
-    		String extra = name.substring(255);
-    		int idx = extra.indexOf(".");
-    		
-    		if( idx > -1 ) {
-    			throw new CloudException("S3 names are limited to 255 characters.");
-    		}
-    		name = name.substring(0,255);
-    	}
-        while( name.indexOf("--") != -1 ) {
-            name = name.replaceAll("--", "-");         
-        }
-        while( name.indexOf("..") != -1 ) {
-            name = name.replaceAll("\\.\\.", ".");         
-        }
-        while( name.indexOf(".-") != -1 ) {
-            name = name.replaceAll("\\.-", ".");         
-        }
-        while( name.indexOf("-.") != -1 ) {
-            name = name.replaceAll("-\\.", ".");         
-        }
-    	for( int i=0; i<name.length(); i++ ) {
-    		char c = name.charAt(i);
-    		
-    		if( Character.isLetterOrDigit(c) ) {
-    			str.append(c);
-    		}
-    		else {
-    			if( i > 0 ) {
-    				if( c == '/' ) {
-    					c = '.';
-    				}
-    				else if( c != '.' && c != '-' ) {
-    					c = '-';
-    				}
-    				str.append(c);
-    			}
-    		}
-    	}
-    	name = str.toString();
-        while( name.indexOf("..") != -1 ) {
-            name = name.replaceAll("\\.\\.", ".");         
-        }
-        if( name.length() < 1 ) { 
-            return "000";
-        }
-    	while( name.charAt(name.length()-1) == '-' || name.charAt(name.length()-1) == '.' ) {
-    		name = name.substring(0,name.length()-1);
-            if( name.length() < 1 ) { 
-                return "000";
-            }
-    	}
-        if( name.length() < 1 ) { 
-            return "000";
-        }
-        else if( name.length() == 1 ) {
-    		name = name + "00";
-    	}
-    	else if ( name.length() == 2 ) {
-    		name = name + "0";
-    	}
-    	return name;
+
+    @Override
+    public @Nonnull NameRules getObjectNameRules() throws CloudException, InternalException {
+        return NameRules.getInstance(1, 255, false, true, true, new char[] { '-', '.', ',', '#', '+' });
     }
 }

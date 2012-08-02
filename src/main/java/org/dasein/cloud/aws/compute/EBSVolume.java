@@ -21,7 +21,6 @@ package org.dasein.cloud.aws.compute;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 
@@ -38,6 +37,7 @@ import org.dasein.cloud.compute.VolumeProduct;
 import org.dasein.cloud.compute.VolumeState;
 import org.dasein.cloud.compute.VolumeSupport;
 import org.dasein.cloud.compute.VolumeType;
+import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
@@ -102,7 +102,37 @@ public class EBSVolume implements VolumeSupport {
             parameters.put("SnapshotId", options.getSnapshotId());
         }
         parameters.put("Size", String.valueOf(options.getVolumeSize().getQuantity().intValue()));
-        parameters.put("AvailabilityZone", options.getDataCenterId());
+
+        String az = options.getDataCenterId();
+
+        if( az == null ) {
+            for( DataCenter dc : provider.getDataCenterServices().listDataCenters(ctx.getRegionId()) ) {
+                az = dc.getProviderDataCenterId();
+            }
+            if( az == null ) {
+                throw new CloudException("Unable to identify a launch data center");
+            }
+        }
+        parameters.put("AvailabilityZone", az);
+        if( options.getVolumeProductId() != null ) {
+            VolumeProduct prd = null;
+
+            for( VolumeProduct p : listVolumeProducts() ) {
+                if( p.getProviderProductId().equals(options.getVolumeProductId()) ) {
+                    prd = p;
+                    break;
+                }
+            }
+            if( prd != null ) {
+                parameters.put("VolumeType", prd.getProviderProductId());
+                if( prd.getMaxIops() > 0 && options.getIops() > 0 ) {
+                    parameters.put("Iops", String.valueOf(options.getIops()));
+                }
+                else if( prd.getMinIops() > 0 ) {
+                    parameters.put("Iops", String.valueOf(prd.getMinIops()));
+                }
+            }
+        }
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
             doc = method.invoke();
@@ -154,7 +184,7 @@ public class EBSVolume implements VolumeSupport {
 
     @Override
     public @Nonnull Storage<Gigabyte> getMinimumVolumeSize() throws InternalException, CloudException {
-        return new Storage<Gigabyte>(1, Storage.GIGABYTE);
+        return new Storage<Gigabyte>(10, Storage.GIGABYTE);
     }
 
     @Override
@@ -190,7 +220,29 @@ public class EBSVolume implements VolumeSupport {
 
     @Override
     public @Nonnull Iterable<VolumeProduct> listVolumeProducts() throws InternalException, CloudException {
-        return Collections.emptyList();
+        ArrayList<VolumeProduct> prds = new ArrayList<VolumeProduct>();
+        ProviderContext ctx = provider.getContext();
+        float rawPrice = 0.11f;
+
+        if( ctx != null ) {
+            String regionId = ctx.getRegionId();
+
+            if( regionId != null ) {
+                if( regionId.equals("us-east-1") || regionId.equals("us-west-2") ) {
+                    rawPrice = 0.10f;
+                }
+                else if( regionId.equals("ap-northeast-1") ) {
+                    rawPrice = 0.12f;
+                }
+                else if( regionId.equals("sa-east-1") ) {
+                    rawPrice = 0.19f;
+                }
+            }
+        }
+
+        prds.add(VolumeProduct.getInstance("standard", "Standard", "Standard EBS with no IOPS Guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 0, 0, rawPrice, 0f));
+        prds.add(VolumeProduct.getInstance("io1", "IOPS EBS", "EBS Volume with IOPS guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 100, 1000, 0.125f, 0.1f));
+        return prds;
     }
 
     @Override
@@ -229,7 +281,6 @@ public class EBSVolume implements VolumeSupport {
             	if( item.getNodeName().equals("item") ) {
             		Volume volume = toVolume(ctx, item);
             		
-                    if( volume !=null ) System.out.println("id=" + volume.getProviderVolumeId());
             		if( volume != null && volume.getProviderVolumeId().equals(volumeId) ) {
             			return volume;
             		}
@@ -241,7 +292,7 @@ public class EBSVolume implements VolumeSupport {
 
     @Override
     public @Nonnull Requirement getVolumeProductRequirement() throws InternalException, CloudException {
-        return Requirement.NONE;
+        return Requirement.OPTIONAL;
     }
 
     @Override
@@ -342,7 +393,8 @@ public class EBSVolume implements VolumeSupport {
         }
 		NodeList attrs = node.getChildNodes();
 		Volume volume = new Volume();
-		
+
+        volume.setProviderProductId("standard");
         volume.setType(VolumeType.HDD);
 		for( int i=0; i<attrs.getLength(); i++ ) {
 			Node attr = attrs.item(i);
@@ -370,6 +422,12 @@ public class EBSVolume implements VolumeSupport {
 				
 				volume.setProviderDataCenterId(zoneId);
 			}
+            else if( name.equalsIgnoreCase("volumeType") && attr.hasChildNodes() ) {
+                volume.setProviderProductId(attr.getFirstChild().getNodeValue().trim());
+            }
+            else if( name.equalsIgnoreCase("iops") && attr.hasChildNodes() ) {
+                volume.setIops(Integer.parseInt(attr.getFirstChild().getNodeValue().trim()));
+            }
 			else if( name.equals("createTime") ) {
 				SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
 				String value = attr.getFirstChild().getNodeValue().trim();

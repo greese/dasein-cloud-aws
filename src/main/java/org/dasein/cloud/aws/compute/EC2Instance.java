@@ -1132,10 +1132,12 @@ public class EC2Instance implements VirtualMachineSupport {
                 }
             }
         }
-        if( cfg.getNetworkInterfaces().length > 0 ) {
+        VMLaunchOptions.NICConfig[] nics = cfg.getNetworkInterfaces();
+
+        if( nics != null && nics.length > 0 ) {
             int i=1;
             
-            for( VMLaunchOptions.NICConfig c : cfg.getNetworkInterfaces() ) {
+            for( VMLaunchOptions.NICConfig c : nics ) {
                 parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
                 if( c.nicId == null ) {
                     parameters.put("NetworkInterface." + i + ".SubnetId", c.nicToCreate.getSubnetId());

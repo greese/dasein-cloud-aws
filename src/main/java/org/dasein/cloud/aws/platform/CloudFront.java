@@ -36,7 +36,7 @@ import org.dasein.cloud.aws.platform.CloudFrontMethod.CloudFrontResponse;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.CDNSupport;
 import org.dasein.cloud.platform.Distribution;
-import org.dasein.cloud.storage.CloudStoreObject;
+import org.dasein.cloud.storage.Blob;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
@@ -61,9 +61,9 @@ public class CloudFront implements CDNSupport {
         NodeList blocks;
 
         provider.getStorageServices().getBlobStoreSupport().makePublic(bucket);
-        for( CloudStoreObject file : provider.getStorageServices().getBlobStoreSupport().listFiles(bucket) ) {
+        for( Blob file : provider.getStorageServices().getBlobStoreSupport().list(bucket) ) {
         	if( !file.isContainer() ) {
-        		provider.getStorageServices().getBlobStoreSupport().makePublic(file.getDirectory(), file.getName());
+        		provider.getStorageServices().getBlobStoreSupport().makePublic(file.getBucketName(), file.getObjectName());
         	}
         }
         method = new CloudFrontMethod(provider, CloudFrontAction.CREATE_DISTRIBUTION, null, toConfigXml(bucket, name, null, null, null, active, cnames));

@@ -44,11 +44,12 @@ import org.dasein.cloud.compute.MachineImageSupport;
 import org.dasein.cloud.compute.MachineImageType;
 import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.storage.CloudStoreObject;
+import org.dasein.cloud.storage.Blob;
 import org.dasein.util.CalendarWrapper;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
 import org.dasein.util.PopulatorThread;
+import org.dasein.util.uom.storage.Storage;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -66,12 +67,15 @@ public class AMI implements MachineImageSupport {
 
     @Override
     public void downloadImage(String machineImageId, OutputStream toOutput) throws CloudException, InternalException {
-        CloudStoreObject manifest = getManifest(machineImageId);
+        Blob manifest = getManifest(machineImageId);
         
         if( manifest == null ) {
             throw new CloudException("No such image manifest: " + machineImageId);
         }
-        String name = manifest.getName();
+        String name = manifest.getObjectName();
+        if( name == null ) {
+            throw new CloudException("Manifest name is empty");
+        }
         int idx = name.indexOf(".manifest.xml");
         
         if( idx < 1 ) {
@@ -81,9 +85,9 @@ public class AMI implements MachineImageSupport {
         idx = 0;
         while( true ) {
             String postfix = ".part." + (idx < 10 ? ("0" + idx) : String.valueOf(idx));
-            long len = provider.getStorageServices().getBlobStoreSupport().exists(manifest.getDirectory(), name + postfix, false);
+            Storage<org.dasein.util.uom.storage.Byte>  size = provider.getStorageServices().getBlobStoreSupport().getObjectSize(manifest.getBucketName(), name + postfix);
 
-            if( len < 1 ) {
+            if( size == null ) {
                 return;
             }
             // TODO: get source file
@@ -187,18 +191,13 @@ public class AMI implements MachineImageSupport {
         }
     }
     
-	private CloudStoreObject getManifest(String imageId) throws CloudException, InternalException {
+	private Blob getManifest(String imageId) throws CloudException, InternalException {
         String location = getImageLocation(imageId);
         
         if( location != null ) {
 	        String[] parts = location.split("/");
-	        CloudStoreObject file = new CloudStoreObject();
-	        
-	        file.setContainer(false);
-	        file.setDirectory(parts[0]);
-	        file.setLocation(location);
-	        file.setName(parts[1]);
-	        return file;
+
+            return provider.getStorageServices().getBlobStoreSupport().getObject(parts[0], parts[1]);
         }
         return null;
 	}		
