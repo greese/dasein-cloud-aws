@@ -76,7 +76,7 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public @Nullable DataCenter getDataCenter(@Nonnull String zoneId) throws InternalException, CloudException {
-        if( !provider.getEC2Provider().isAWS() ) {
+        if( provider.getEC2Provider().isStorage() ) {
             return (zoneId.equals(oneZoneId) ? getZone() : null);
         }
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
@@ -160,7 +160,7 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Region getRegion(String regionId) throws InternalException, CloudException {
-        if( !provider.getEC2Provider().isAWS() ) {
+        if( provider.getEC2Provider().isStorage() ) {
             return (regionId.equals(oneRegionId) ? getRegion() : null);
         }
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
@@ -209,7 +209,7 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Collection<DataCenter> listDataCenters(String regionId) throws InternalException, CloudException {
-        if( !provider.getEC2Provider().isAWS() ) {
+        if( provider.getEC2Provider().isStorage() ) {
             if( regionId.equals(oneRegionId) ) {
                 return Collections.singletonList(getZone());
             }
@@ -245,7 +245,7 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Collection<Region> listRegions() throws InternalException, CloudException {
-        if( !provider.getEC2Provider().isAWS() ) {
+        if( provider.getEC2Provider().isStorage() ) {
             return Collections.singletonList(getRegion());
         }
         ArrayList<Region> list = new ArrayList<Region>();

@@ -31,7 +31,7 @@ public class EC2ComputeServices extends AbstractComputeServices {
     
     @Override
     public @Nullable AutoScaling getAutoScalingSupport() {
-        if( !cloud.getEC2Provider().isAWS() ) {
+        if( !cloud.getEC2Provider().isAWS() && !cloud.getEC2Provider().isEnStratus() ) {
             return null;
         }
         return new AutoScaling(cloud);

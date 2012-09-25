@@ -28,7 +28,10 @@ public class AWSIdentityServices extends AbstractIdentityServices {
     
     @Override
     public IAM getIdentityAndAccessSupport() {
-        return new IAM(cloud);
+        if( cloud.getEC2Provider().isAWS() || cloud.getEC2Provider().isEnStratus() ) {
+            return new IAM(cloud);
+        }
+        return null;
     }
 
     @Override

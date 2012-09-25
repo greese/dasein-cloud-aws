@@ -247,7 +247,7 @@ public class AWSCloud extends AbstractCloud {
     public AWSAdminServices getAdminServices() {
         EC2Provider p = getEC2Provider();
 
-        if( p.isAWS() || p.isEnStratus() ) {
+        if( p.isAWS() || p.isEnStratus() || p.isOpenStack() || p.isEucalyptus() ) {
             return new AWSAdminServices(this);
         }
         return null;
@@ -390,6 +390,9 @@ public class AWSCloud extends AbstractCloud {
         }
         else if( getEC2Provider().isEucalyptus() ) {
             return "2010-11-15";
+        }
+        else if( getEC2Provider().isOpenStack() ) {
+            return "2009-11-30";
         }
         return "2012-07-20";
     }
