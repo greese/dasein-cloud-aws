@@ -47,9 +47,20 @@ public class RegionsAndZones implements DataCenterServices {
 	static public final String DESCRIBE_REGIONS            = "DescribeRegions";
 	
 	private AWSCloud provider = null;
-	
+
+    private String oneRegionId;
+    private String oneZoneId;
+
 	RegionsAndZones(AWSCloud provider) {
 		this.provider = provider;
+        if( (provider.getEC2Provider().isStorage() && "google".equalsIgnoreCase(provider.getProviderName())) ) {
+            oneRegionId = "us";
+            oneZoneId = "us1";
+        }
+        else {
+            oneRegionId = "region-1";
+            oneZoneId = "zone-1";
+        }
 	}
 
     private @Nonnull DataCenter getZone() {
@@ -57,16 +68,16 @@ public class RegionsAndZones implements DataCenterServices {
 
         dc.setActive(true);
         dc.setAvailable(true);
-        dc.setName("Zone 1");
-        dc.setProviderDataCenterId("zone-1");
-        dc.setRegionId("region-1");
+        dc.setName(oneZoneId);
+        dc.setProviderDataCenterId(oneZoneId);
+        dc.setRegionId(oneRegionId);
         return dc;
     }
 
 	@Override
 	public @Nullable DataCenter getDataCenter(@Nonnull String zoneId) throws InternalException, CloudException {
         if( !provider.getEC2Provider().isAWS() ) {
-            return (zoneId.equals("zone-1") ? getZone() : null);
+            return (zoneId.equals(oneZoneId) ? getZone() : null);
         }
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
 		EC2Method method;
@@ -142,15 +153,15 @@ public class RegionsAndZones implements DataCenterServices {
         region.setActive(true);
         region.setAvailable(true);
         region.setJurisdiction("US");
-        region.setName("Region 1");
-        region.setProviderRegionId("region-1");
+        region.setName(oneRegionId);
+        region.setProviderRegionId(oneRegionId);
         return region;
     }
 
 	@Override
 	public Region getRegion(String regionId) throws InternalException, CloudException {
         if( !provider.getEC2Provider().isAWS() ) {
-            return (regionId.equals("region-1") ? getRegion() : null);
+            return (regionId.equals(oneRegionId) ? getRegion() : null);
         }
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
         NodeList blocks, regions;
@@ -199,7 +210,7 @@ public class RegionsAndZones implements DataCenterServices {
 	@Override
 	public Collection<DataCenter> listDataCenters(String regionId) throws InternalException, CloudException {
         if( !provider.getEC2Provider().isAWS() ) {
-            if( regionId.equals("region-1") ) {
+            if( regionId.equals(oneRegionId) ) {
                 return Collections.singletonList(getZone());
             }
             throw new CloudException("No such region: " + regionId);
