@@ -187,7 +187,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
         }
         parameters.put(AWSCloud.P_SIGNATURE_METHOD, AWSCloud.EC2_ALGORITHM);
         parameters.put(AWSCloud.P_TIMESTAMP, provider.getTimestamp(System.currentTimeMillis(), true));
-        parameters.put(AWSCloud.P_VERSION, AWSCloud.ELB_VERSION);
+        parameters.put(AWSCloud.P_VERSION, provider.getElbVersion());
         return parameters;
     }
     
@@ -316,7 +316,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
             if( ctx == null ) {
                 throw new CloudException("No valid context is established for this request");
             }
-            if( !provider.isAmazon() ) {
+            if( !provider.getEC2Provider().isAWS() ) {
                 return false;
             }
             Map<String,String> parameters = getELBParameters(provider.getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
@@ -368,12 +368,11 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
             throw new CloudException("No valid context is established for this request");
         }
 
-        ArrayList<LoadBalancer> list = new ArrayList<LoadBalancer>();
-
-        if( !provider.isAmazon() ) {
-            return list;
+        if(!provider.getEC2Provider().isAWS() ) {
+            return Collections.emptyList();
         }
-        
+
+        ArrayList<LoadBalancer> list = new ArrayList<LoadBalancer>();
         Map<String,String> parameters = getELBParameters(provider.getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
         ELBMethod method;
         NodeList blocks;

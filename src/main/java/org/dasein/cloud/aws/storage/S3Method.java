@@ -32,14 +32,18 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.SimpleTimeZone;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -80,11 +84,7 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 public class S3Method {
-static private final Logger logger = Logger.getLogger(S3Method.class);
-	
-	static public final String CLOUD_FRONT_URL = "https://cloudfront.amazonaws.com";
-		
-	static public final String CF_VERSION      = "2009-04-02";
+    static private final Logger logger = Logger.getLogger(S3Method.class);
 
     static public final String S3_PREFIX     = "s3:";
 
@@ -206,11 +206,21 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
 	}
 	
 	private String getDate() throws CloudException {
-		SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
+        if( provider.getEC2Provider().isStorage() && "google".equalsIgnoreCase(provider.getProviderName()) ) {
+            SimpleDateFormat format = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ssz", new Locale("US"));
+            Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
 
-		// TODO: sync regularly with CloudFront
-		return fmt.format(new Date());
+            format.setCalendar(cal);
+            return format.format(new Date());
+        }
+        else {
+            SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
+
+            // TODO: sync regularly with CloudFront
+            return fmt.format(new Date());
+        }
 	}
+
 	S3Response invoke(String bucket, String object) throws S3Exception, CloudException, InternalException {
 	    return invoke(bucket, object, null);
 	}
@@ -250,7 +260,7 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
 
     static private final Logger wire = AWSCloud.getWireLogger(S3.class);
 
-	S3Response invoke(String bucket, String object, String temporaryEndpoint) throws S3Exception, CloudException, InternalException {
+	S3Response invoke(@Nullable String bucket, @Nullable String object, @Nullable String temporaryEndpoint) throws S3Exception, CloudException, InternalException {
         if( wire.isDebugEnabled() ) {
             wire.debug("");
             wire.debug("----------------------------------------------------------------------------------");
@@ -262,7 +272,7 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
             HttpClient client;
             int status;
     
-            if( provider.isAmazon() ) {
+            if( provider.getEC2Provider().isAWS() ) {
                 url.append("https://");
                 if( temporaryEndpoint == null ) {
                     boolean validDomainName = isValidDomainName(bucket);
@@ -275,6 +285,20 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
                         url.append(bucket);
                         url.append("/");
                     }
+                }
+                else {
+                    url.append(temporaryEndpoint);
+                    url.append("/");
+                }
+            }
+            else if( provider.getEC2Provider().isStorage() && "google".equalsIgnoreCase(provider.getProviderName()) ) {
+                url.append("https://");
+                if( temporaryEndpoint == null ) {
+                    if( bucket != null ) {
+                        url.append(bucket);
+                        url.append(".");
+                    }
+                    url.append("commondatastorage.googleapis.com/");
                 }
                 else {
                     url.append(temporaryEndpoint);
@@ -298,18 +322,24 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
                         url.append("https://");
                     }
                 }
+                String service = "";
+                if( provider.getEC2Provider().isEucalyptus() ) {
+                    service = "Walrus/";
+                }
+
                 if( temporaryEndpoint == null ) {
                     url.append(provider.getContext().getEndpoint().substring(idx));
                     if( !provider.getContext().getEndpoint().endsWith("/") ) {
-                        url.append("/Walrus/");
+                        url.append("/").append(service);
                     }
                     else {
-                        url.append("Walrus/");                
+                        url.append(service);
                     }
                 }
                 else {
                     url.append(temporaryEndpoint);
-                    url.append("/Walrus/");
+                    url.append("/");
+                    url.append(service);
                 }
                 if( bucket != null ) {
                     url.append(bucket);
@@ -346,8 +376,13 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
                     }
                 }
             }            
-            
-            headers.put(AWSCloud.P_DATE, getDate());
+
+            if( provider.getEC2Provider().isStorage() && provider.getProviderName().equalsIgnoreCase("Google") ) {
+                headers.put(AWSCloud.P_GOOG_DATE, getDate());
+            }
+            else {
+                headers.put(AWSCloud.P_AWS_DATE, getDate());
+            }
             method = action.getMethod(url.toString());
             if( headers != null ) {
                 for( Map.Entry<String, String> entry : headers.entrySet() ) {
@@ -532,16 +567,16 @@ static private final Logger logger = Logger.getLogger(S3Method.class);
                                 for( int i=0; i<attrs.getLength(); i++ ) {
                                     Node attr = attrs.item(i);
                                     
-                                    if( attr.getNodeName().equals("Code") ) {
+                                    if( attr.getNodeName().equals("Code") && attr.hasChildNodes() ) {
                                         code = attr.getFirstChild().getNodeValue().trim();
                                     }
-                                    else if( attr.getNodeName().equals("Message") ) {
+                                    else if( attr.getNodeName().equals("Message") && attr.hasChildNodes() ) {
                                         message = attr.getFirstChild().getNodeValue().trim();
                                     }
-                                    else if( attr.getNodeName().equals("RequestId") ) {
+                                    else if( attr.getNodeName().equals("RequestId") && attr.hasChildNodes() ) {
                                         requestId = attr.getFirstChild().getNodeValue().trim();
                                     }
-                                    else if( attr.getNodeName().equals("Endpoint") ) {
+                                    else if( attr.getNodeName().equals("Endpoint") && attr.hasChildNodes() ) {
                                         endpoint = attr.getFirstChild().getNodeValue().trim();
                                     }
                                 }

@@ -299,15 +299,15 @@ public class Route53 implements DNSSupport {
 
     private @Nonnull String getHostedZoneUrl(@Nullable String zoneId) {
         if( zoneId == null ) {
-            return "https://route53.amazonaws.com/" + AWSCloud.ROUTE53_VERSION + "/hostedzone";
+            return "https://route53.amazonaws.com/" + provider.getRoute53Version() + "/hostedzone";
         }
         else {
-            return "https://route53.amazonaws.com/" + AWSCloud.ROUTE53_VERSION + "/hostedzone/" + zoneId;
+            return "https://route53.amazonaws.com/" + provider.getRoute53Version() + "/hostedzone/" + zoneId;
         }
     }
     
     private @Nonnull String getResourceUrl(@Nonnull String zoneId) {
-        return "https://route53.amazonaws.com/" + AWSCloud.ROUTE53_VERSION + "/hostedzone/" + zoneId + "/rrset";
+        return "https://route53.amazonaws.com/" + provider.getRoute53Version()+ "/hostedzone/" + zoneId + "/rrset";
     }
     
     @Override

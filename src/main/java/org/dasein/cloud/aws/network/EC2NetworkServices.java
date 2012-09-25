@@ -22,33 +22,45 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.network.AbstractNetworkServices;
 import org.dasein.cloud.network.DNSSupport;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 public class EC2NetworkServices extends AbstractNetworkServices {
     private AWSCloud cloud;
     
     public EC2NetworkServices(AWSCloud cloud) { this.cloud = cloud; }
     
     @Override
-    public DNSSupport getDnsSupport() {
-        return new Route53(cloud);
+    public @Nullable DNSSupport getDnsSupport() {
+        if( cloud.getEC2Provider().isAWS() || cloud.getEC2Provider().isEnStratus() ) {
+            return new Route53(cloud);
+        }
+        return null;
     }
     
     @Override
-    public SecurityGroup getFirewallSupport() {
+    public @Nonnull SecurityGroup getFirewallSupport() {
         return new SecurityGroup(cloud);
     }
     
     @Override
-    public ElasticIP getIpAddressSupport() {
+    public @Nonnull ElasticIP getIpAddressSupport() {
         return new ElasticIP(cloud);
     }
     
     @Override
-    public ElasticLoadBalancer getLoadBalancerSupport() {
-        return new ElasticLoadBalancer(cloud);
+    public @Nullable ElasticLoadBalancer getLoadBalancerSupport() {
+        if( cloud.getEC2Provider().isAWS() || cloud.getEC2Provider().isEnStratus() ) {
+            return new ElasticLoadBalancer(cloud);
+        }
+        return null;
     }
     
     @Override
-    public VPC getVlanSupport() {
-        return new VPC(cloud);
+    public @Nullable VPC getVlanSupport() {
+        if( cloud.getEC2Provider().isAWS() || cloud.getEC2Provider().isEnStratus() ) {
+            return new VPC(cloud);
+        }
+        return null;
     }
 }

@@ -31,10 +31,12 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.TimeZone;
 import java.util.TreeSet;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -54,6 +56,10 @@ import org.dasein.cloud.aws.identity.AWSIdentityServices;
 import org.dasein.cloud.aws.network.EC2NetworkServices;
 import org.dasein.cloud.aws.platform.AWSPlatformServices;
 import org.dasein.cloud.aws.storage.AWSCloudStorageServices;
+import org.dasein.cloud.compute.ComputeServices;
+import org.dasein.cloud.compute.VirtualMachineSupport;
+import org.dasein.cloud.storage.BlobStoreSupport;
+import org.dasein.cloud.storage.StorageServices;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
@@ -91,7 +97,8 @@ public class AWSCloud extends AbstractCloud {
 	static public final String P_ACCESS            = "AWSAccessKeyId";
 	static public final String P_ACTION            = "Action";
 	static public final String P_CFAUTH            = "Authorization";
-	static public final String P_DATE              = "x-amz-date";
+	static public final String P_AWS_DATE          = "x-amz-date";
+    static public final String P_GOOG_DATE         = "x-goog-date";
 	static public final String P_SIGNATURE         = "Signature";
 	static public final String P_SIGNATURE_METHOD  = "SignatureMethod";
 	static public final String P_SIGNATURE_VERSION = "SignatureVersion";
@@ -102,18 +109,9 @@ public class AWSCloud extends AbstractCloud {
     static public final String EC2_ALGORITHM         = "HmacSHA256";
 	static public final String S3_ALGORITHM          = "HmacSHA1";
     static public final String SIGNATURE             = "2";
-    static public final String VERSION               = "2012-07-20";
-    static public final String AUTO_SCALE_VERSION    = "2009-05-15";
-    static public final String ELB_VERSION           = "2009-05-15";
-    static public final String CLOUD_WATCH_VERSION   = "2009-05-15";
-    static public final String RDS_VERSION           = "2011-04-01";
-    static public final String ROUTE53_VERSION       = "2010-10-01";
-    static public final String SDB_VERSION           = "2009-04-15";
-    static public final String SNS_VERSION           = "2010-03-31";
-    static public final String SQS_VERSION           = "2009-02-01";
-    
+
     static public String encode(String value, boolean encodePath) throws InternalException {
-        String encoded = null;
+        String encoded;
         
         try {
             encoded = URLEncoder.encode(value, "utf-8").replace("+", "%20").replace("*", "%2A").replace("%7E","~");
@@ -154,7 +152,7 @@ public class AWSCloud extends AbstractCloud {
     private String buildEc2AuthString(String method, String serviceUrl, Map<String, String> parameters) throws InternalException {
     	StringBuilder authString = new StringBuilder();
     	TreeSet<String> sortedKeys;
-    	URI endpoint = null;
+    	URI endpoint;
     	String tmp;
     	
     	authString.append(method);
@@ -247,103 +245,126 @@ public class AWSCloud extends AbstractCloud {
     
     @Override
     public AWSAdminServices getAdminServices() {
-        return new AWSAdminServices(this);
+        EC2Provider p = getEC2Provider();
+
+        if( p.isAWS() || p.isEnStratus() ) {
+            return new AWSAdminServices(this);
+        }
+        return null;
     }
     
-	private String[] getBootstrapUrls(ProviderContext ctx) {
-	    String endpoint = ctx.getEndpoint();
+	private @Nonnull String[] getBootstrapUrls(@Nullable ProviderContext ctx) {
+	    String endpoint = (ctx == null ? null : ctx.getEndpoint());
         
         if( endpoint == null ) {
             return new String[0];
         }
-        if( endpoint.indexOf(",") == -1 ) {
+        if( !endpoint.contains(",") ) {
             return new String[] { endpoint };
         }
         String[] endpoints = endpoint.split(",");
-        if( endpoints != null && endpoints.length > 1 ) {
+
+        if( endpoints == null ) {
+            endpoints = new String[0];
+        }
+        if( endpoints.length > 1 ) {
             String second = endpoints[1];
             
             if( !second.startsWith("http") ) {
                 if( endpoints[0].startsWith("http") ) {
                     // likely a URL with a , in it
-                    return new String[] { endpoint + (isAmazon() ? "" : "/Eucalyptus") };
+                    return new String[] { endpoint + (getEC2Provider().isEucalyptus() ? "/Eucalyptus" : "") };
                 }
             }
         }
         for( int i=0; i<endpoints.length; i++ ) {
             if( !endpoints[i].startsWith("http") ) {
-                endpoints[i] = "https://" + endpoints[i] + (isAmazon() ? "" : "/Eucalyptus");        
+                endpoints[i] = "https://" + endpoints[i] + (getEC2Provider().isEucalyptus() ? "/Eucalyptus" : "");
             }
         }
         return endpoints;
     }
 	   
 	@Override
-	public String getCloudName() {
-		String name = getContext().getCloudName();
+	public @Nonnull String getCloudName() {
+        ProviderContext ctx = getContext();
+		String name = (ctx == null ? null : ctx.getCloudName());
 		
 		return ((name == null ) ? "AWS" : name);
 	}
 
 	@Override
 	public EC2ComputeServices getComputeServices() {
+        if( getEC2Provider().isStorage() ) {
+            return null;
+        }
 	    return new EC2ComputeServices(this);
 	}
 	
 	@Override
-	public RegionsAndZones getDataCenterServices() {
+	public @Nonnull RegionsAndZones getDataCenterServices() {
 	    return new RegionsAndZones(this);
 	}
-    
-    public String getEc2Url() throws InternalException, CloudException {
-        String url = getEc2Url(getContext().getRegionId());
+
+    private transient volatile EC2Provider provider;
+
+    public @Nonnull EC2Provider getEC2Provider() {
+        if( provider == null ) {
+            provider = EC2Provider.valueOf(getProviderName());
+        }
+        return provider;
+    }
+
+    public @Nullable String getEc2Url() throws InternalException, CloudException {
+        ProviderContext ctx = getContext();
+        String url = getEc2Url(ctx == null ? null : ctx.getRegionId());
         
-        if( isAmazon() ) {
-            return url;
+        if( getEC2Provider().isEucalyptus() ) {
+            return url + "/Eucalyptus";
         }
         else {
-            return url + "/Eucalyptus";
+            return url;
         }
     }
     
-    String getEc2Url(String regionId) throws InternalException, CloudException {
+    @Nullable String getEc2Url(@Nullable String regionId) throws InternalException, CloudException {
+        ProviderContext ctx = getContext();
         String url;
         
         if( regionId == null ) {
-            return getBootstrapUrls(getContext())[0];
+            return getBootstrapUrls(ctx)[0];
         }
-        if( isAmazon() ) {
-            if( !getContext().getEndpoint().contains("amazon") ) {
-                url = getContext().getEndpoint();
-                if( url == null ) {
-                    return null;
-                }
-                if( !url.startsWith("http") ) {
-                    String cloudUrl = getContext().getEndpoint();
-                    
-                    if( cloudUrl != null && cloudUrl.startsWith("http:") ) {
-                        return "http://" + url + "/" + regionId;         
-                    }
-                    return "https://" + url + "/" + regionId;
-                }
-                else {
-                    return url + "/" + regionId;
-                }               
-            }
-            else {
-                url = getContext().getEndpoint();
-                if( url != null && url.endsWith("amazonaws.com") ) {
-                    return "https://ec2." + regionId + ".amazonaws.com";
-                }
+        if( getEC2Provider().isAWS() ) {
+
+            url = (ctx == null ? null : ctx.getEndpoint());
+            if( url != null && url.endsWith("amazonaws.com") ) {
                 return "https://ec2." + regionId + ".amazonaws.com";
             }
+            return "https://ec2." + regionId + ".amazonaws.com";
         }
-        url = getContext().getEndpoint();
+        else if( !getEC2Provider().isEucalyptus() ) {
+            url = (ctx == null ? null : ctx.getEndpoint());
+            if( url == null ) {
+                return null;
+            }
+            if( !url.startsWith("http") ) {
+                String cloudUrl = ctx.getEndpoint();
+
+                if( cloudUrl != null && cloudUrl.startsWith("http:") ) {
+                    return "http://" + url + "/" + regionId;
+                }
+                return "https://" + url + "/" + regionId;
+            }
+            else {
+                return url + "/" + regionId;
+            }
+        }
+        url = (ctx == null ? null : ctx.getEndpoint());
         if( url == null ) {
             return null;
         }
         if( !url.startsWith("http") ) {
-            String cloudUrl = getContext().getEndpoint();
+            String cloudUrl = ctx.getEndpoint();
             
             if( cloudUrl != null && cloudUrl.startsWith("http:") ) {
                 return "http://" + url;         
@@ -354,35 +375,106 @@ public class AWSCloud extends AbstractCloud {
             return url;
         }
     }
-    
+
+    public String getAutoScaleVersion() {
+        return "2009-05-15";
+    }
+
+    public String getCloudWatchVersion() {
+        return "2009-05-15";
+    }
+
+    public String getEc2Version() {
+        if( getEC2Provider().isAWS() ) {
+            return "2012-07-20";
+        }
+        else if( getEC2Provider().isEucalyptus() ) {
+            return "2010-11-15";
+        }
+        return "2012-07-20";
+    }
+
+    public String getElbVersion() {
+        return "2009-05-15";
+    }
+
+    public String getRdsVersion() {
+        return "2011-04-01";
+    }
+
+    public String getRoute53Version() {
+        return "2010-10-01";
+    }
+
+    public String getSdbVersion() {
+        return "2009-04-15";
+    }
+
+    public String getSnsVersion() {
+        return "2010-03-31";
+    }
+
+    public String getSqsVersion() {
+        return "2009-02-01";
+    }
+
 	@Override
 	public AWSIdentityServices getIdentityServices() {
-	    return new AWSIdentityServices(this);
+        if( getEC2Provider().isStorage() ) {
+            return null;
+        }
+        return new AWSIdentityServices(this);
 	}
     
 	@Override
 	public EC2NetworkServices getNetworkServices() {
-	    return new EC2NetworkServices(this);
+        if( getEC2Provider().isStorage() ) {
+            return null;
+        }
+        return new EC2NetworkServices(this);
 	}
 	
 	@Override
-	public AWSPlatformServices getPlatformServices() {
-	    return new AWSPlatformServices(this);
+	public @Nullable AWSPlatformServices getPlatformServices() {
+        EC2Provider p = getEC2Provider();
+
+        if( p.isAWS() || p.isEnStratus() ) {
+            return new AWSPlatformServices(this);
+        }
+        return null;
 	}
     
 	@Override
-	public String getProviderName() {
-		String name = getContext().getProviderName();
+	public @Nonnull String getProviderName() {
+        ProviderContext ctx = getContext();
+		String name = (ctx == null ? null : ctx.getProviderName());
 		
-		return ((name == null) ? "Amazon" : name);
+		return ((name == null) ? EC2Provider.AWS.getName() : name);
 	}
 	
-	public String getProxyHost() {
-	    return getContext().getCustomProperties().getProperty("proxyHost");
+	public @Nullable String getProxyHost() {
+        ProviderContext ctx = getContext();
+
+        if( ctx == null ) {
+            return null;
+        }
+        Properties props = ctx.getCustomProperties();
+
+        return (props == null ? null : props.getProperty("proxyHost"));
 	}
 	
 	public int getProxyPort() {
-	    String port = getContext().getCustomProperties().getProperty("proxyPort");
+        ProviderContext ctx = getContext();
+
+        if( ctx == null ) {
+            return -1;
+        }
+        Properties props = ctx.getCustomProperties();
+
+        if( props == null ) {
+            return -1;
+        }
+	    String port = props.getProperty("proxyPort");
 	    
 	    if( port != null ) {
 	        return Integer.parseInt(port);
@@ -396,7 +488,7 @@ public class AWSCloud extends AbstractCloud {
 	}
 	
 	public Map<String,String> getStandardParameters(ProviderContext ctx, String action) throws InternalException {
-        return getStandardParameters(ctx, action, VERSION);
+        return getStandardParameters(ctx, action, getEc2Version());
 	}
 
     public Map<String,String> getStandardParameters(ProviderContext ctx, String action, String version) throws InternalException {
@@ -421,39 +513,39 @@ public class AWSCloud extends AbstractCloud {
 	public Map<String,String> getStandardCloudWatchParameters(ProviderContext ctx, String action) throws InternalException {
         Map<String,String> parameters = getStandardParameters(ctx, action);
         
-        parameters.put(P_VERSION, CLOUD_WATCH_VERSION);
+        parameters.put(P_VERSION, getCloudWatchVersion());
         return parameters;
     }
 	   
 	public Map<String,String> getStandardRdsParameters(ProviderContext ctx, String action) throws InternalException {
        Map<String,String> parameters = getStandardParameters(ctx, action);
        
-       parameters.put(P_VERSION, RDS_VERSION);
+       parameters.put(P_VERSION, getRdsVersion());
        return parameters;
 	}  
    
 	public Map<String,String> getStandardSimpleDBParameters(ProviderContext ctx, String action) throws InternalException {
        Map<String,String> parameters = getStandardParameters(ctx, action);
        
-       parameters.put(P_VERSION, SDB_VERSION);
+       parameters.put(P_VERSION, getSdbVersion());
        return parameters;
 	} 
    
 	public Map<String,String> getStandardSnsParameters(ProviderContext ctx, String action) throws InternalException {
        Map<String,String> parameters = getStandardParameters(ctx, action);
        
-       parameters.put(P_VERSION, SNS_VERSION);
+       parameters.put(P_VERSION, getSnsVersion());
        return parameters;
 	}
 	   
 	public Map<String,String> getStandardSqsParameters(ProviderContext ctx, String action) throws InternalException {
        Map<String,String> parameters = getStandardParameters(ctx, action);
        
-       parameters.put(P_VERSION, SQS_VERSION);
+       parameters.put(P_VERSION, getSqsVersion());
        return parameters;
 	}   
    
-	public String getTimestamp(long timestamp, boolean withMillis) {
+	public @Nonnull String getTimestamp(long timestamp, boolean withMillis) {
         SimpleDateFormat fmt;
         
         if( withMillis ) {
@@ -465,12 +557,8 @@ public class AWSCloud extends AbstractCloud {
         fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
         return fmt.format(new Date(timestamp));
 	}
-	
-	public boolean isAmazon() {
-	    return (getContext().getEndpoint().contains("amazon") || getContext().getEndpoint().contains("enstratus")); 
-	}
-	
-	public long parseTime(String time) throws CloudException {
+
+	public long parseTime(@Nullable String time) throws CloudException {
 	    if( time == null ) {
 	        return 0L;
 	    }
@@ -523,13 +611,23 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public String signUploadPolicy(String base64Policy) throws InternalException {
-    	return sign(getContext().getAccessPrivate(), base64Policy, S3_ALGORITHM);
+        ProviderContext ctx = getContext();
+
+        if( ctx == null ) {
+            throw new InternalException("No context for signing the request");
+        }
+    	return sign(ctx.getAccessPrivate(), base64Policy, S3_ALGORITHM);
     }
     
     public String signCloudFront(String accessKey, byte[] secretKey, String dateString) throws InternalException {
     	String signature = sign(secretKey, dateString, CLOUD_FRONT_ALGORITHM);
-    	
-    	return ("AWS" + " " + accessKey + ":" + signature);
+
+        if( getEC2Provider().isStorage() && "google".equalsIgnoreCase(getProviderName()) ) {
+            return ("GOOG1 " + accessKey + ":" + signature);
+        }
+        else {
+            return ("AWS " + accessKey + ":" + signature);
+        }
     }
     
     public String signEc2(byte[] key, String serviceUrl, Map<String, String> parameters) throws InternalException {
@@ -557,7 +655,7 @@ public class AWSCloud extends AbstractCloud {
     	keys.addAll(headers.keySet());
     	Collections.sort(keys);
     	for( String hkey : keys ) {
-    		if( hkey.startsWith("x-amz") ) {
+    		if( hkey.startsWith("x-amz") || (getEC2Provider().isStorage() && hkey.startsWith("x-goog")) ) {
     			String val = headers.get(hkey);
     			
     			if( val != null ) {
@@ -569,7 +667,7 @@ public class AWSCloud extends AbstractCloud {
     		}
     	}
     	toSign.append("/");
-    	if( !isAmazon() ) {
+    	if( getEC2Provider().isEucalyptus() ) {
     	    toSign.append("services/Walrus/");
     	}
     	if( bucket != null ) {
@@ -580,22 +678,49 @@ public class AWSCloud extends AbstractCloud {
     		toSign.append(object.toLowerCase());
     	}
     	String signature = sign(secretKey, toSign.toString(), S3_ALGORITHM);
-    	
-    	return ("AWS" + " " + accessKey + ":" + signature);
+
+        if( getEC2Provider().isStorage() && "google".equalsIgnoreCase(getProviderName()) ) {
+            return ("GOOG1 " + accessKey + ":" + signature);
+        }
+        else {
+            return ("AWS " + accessKey + ":" + signature);
+        }
     }
     
     @Override
     public String testContext() {
+        ProviderContext ctx = getContext();
+
+        if( ctx == null ) {
+            logger.warn("No context exists for testing");
+            return null;
+        }
         try {
-            if( !getComputeServices().getVirtualMachineSupport().isSubscribed() ) {
-                return null;
+            ComputeServices compute = getComputeServices();
+
+            if( compute != null ) {
+                VirtualMachineSupport support = compute.getVirtualMachineSupport();
+
+                if( support == null || !support.isSubscribed() ) {
+                    logger.warn("Not subscribed to virtual machine support");
+                    return null;
+                }
+            }
+            else {
+                StorageServices storage = getStorageServices();
+                BlobStoreSupport support = storage.getBlobStoreSupport();
+
+                if( support == null || !support.isSubscribed() ) {
+                    logger.warn("No subscribed to storage services");
+                    return null;
+                }
             }
         }
         catch( Throwable t ) {
-            logger.warn("Unable to connect to AWS for " + getContext().getAccountNumber() + ": " + t.getMessage());
+            logger.warn("Unable to connect to AWS for " + ctx.getAccountNumber() + ": " + t.getMessage());
             return null;
         }
-        return getContext().getAccountNumber();
+        return ctx.getAccountNumber();
     }
 
     public void setTags(@Nonnull Node attr, @Nonnull Taggable item) {
@@ -623,7 +748,7 @@ public class AWSCloud extends AbstractCloud {
                             }
                         }
                     }
-                    if( key != null ) {
+                    if( key != null && value != null) {
                         item.setTag(key, value);
                     }
                 }

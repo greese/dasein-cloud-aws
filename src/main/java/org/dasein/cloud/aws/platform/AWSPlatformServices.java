@@ -21,28 +21,30 @@ package org.dasein.cloud.aws.platform;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.platform.AbstractPlatformServices;
 
+import javax.annotation.Nonnull;
+
 public class AWSPlatformServices extends AbstractPlatformServices {
     private AWSCloud cloud;
     
     public AWSPlatformServices(AWSCloud cloud) { this.cloud = cloud; }
     
     @Override
-    public CloudFront getCDNSupport() {
+    public @Nonnull CloudFront getCDNSupport() {
         return new CloudFront(cloud);
     }
     
     @Override
-    public SimpleDB getKeyValueDatabaseSupport() {
+    public @Nonnull SimpleDB getKeyValueDatabaseSupport() {
         return new SimpleDB(cloud);
     }
     
     @Override
-    public SNS getPushNotificationSupport() {
+    public @Nonnull SNS getPushNotificationSupport() {
         return new SNS(cloud);
     }
     
     @Override
-    public RDS getRelationalDatabaseSupport() {
+    public @Nonnull RDS getRelationalDatabaseSupport() {
         return new RDS(cloud);
     }
 }

@@ -20,6 +20,7 @@ package org.dasein.cloud.aws;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -36,6 +37,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 public class RegionsAndZones implements DataCenterServices {
 	static private final Logger logger = Logger.getLogger(RegionsAndZones.class);
 
@@ -48,8 +52,22 @@ public class RegionsAndZones implements DataCenterServices {
 		this.provider = provider;
 	}
 
+    private @Nonnull DataCenter getZone() {
+        DataCenter dc = new DataCenter() ;
+
+        dc.setActive(true);
+        dc.setAvailable(true);
+        dc.setName("Zone 1");
+        dc.setProviderDataCenterId("zone-1");
+        dc.setRegionId("region-1");
+        return dc;
+    }
+
 	@Override
-	public DataCenter getDataCenter(String zoneId) throws InternalException, CloudException {
+	public @Nullable DataCenter getDataCenter(@Nonnull String zoneId) throws InternalException, CloudException {
+        if( !provider.getEC2Provider().isAWS() ) {
+            return (zoneId.equals("zone-1") ? getZone() : null);
+        }
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
 		EC2Method method;
         NodeList blocks;
@@ -118,8 +136,22 @@ public class RegionsAndZones implements DataCenterServices {
 		return "region";
 	}
 
+    private @Nonnull Region getRegion() {
+        Region region = new Region();
+
+        region.setActive(true);
+        region.setAvailable(true);
+        region.setJurisdiction("US");
+        region.setName("Region 1");
+        region.setProviderRegionId("region-1");
+        return region;
+    }
+
 	@Override
 	public Region getRegion(String regionId) throws InternalException, CloudException {
+        if( !provider.getEC2Provider().isAWS() ) {
+            return (regionId.equals("region-1") ? getRegion() : null);
+        }
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
         NodeList blocks, regions;
 		EC2Method method;
@@ -166,6 +198,12 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Collection<DataCenter> listDataCenters(String regionId) throws InternalException, CloudException {
+        if( !provider.getEC2Provider().isAWS() ) {
+            if( regionId.equals("region-1") ) {
+                return Collections.singletonList(getZone());
+            }
+            throw new CloudException("No such region: " + regionId);
+        }
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
 		EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
 		ArrayList<DataCenter> list = new ArrayList<DataCenter>();
@@ -196,6 +234,9 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Collection<Region> listRegions() throws InternalException, CloudException {
+        if( !provider.getEC2Provider().isAWS() ) {
+            return Collections.singletonList(getRegion());
+        }
         ArrayList<Region> list = new ArrayList<Region>();
         
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
@@ -220,7 +261,7 @@ public class RegionsAndZones implements DataCenterServices {
             	if( region.getNodeName().equals("item") ) {
             	    Region r = toRegion(regions.item(j));
 
-            	    if( !provider.isAmazon() ) {
+            	    if( provider.getEC2Provider().isEucalyptus() ) {
             	        if( r.getProviderRegionId().equalsIgnoreCase("eucalyptus") ) {
             	            list.add(r);
             	        }
@@ -299,7 +340,7 @@ public class RegionsAndZones implements DataCenterServices {
 			else if( name.equals("zoneState") ) {
 				String value = item.getFirstChild().getNodeValue();
 
-				if( !provider.isAmazon() ) {
+				if( !provider.getEC2Provider().isAWS() ) {
 				    dc.setAvailable(true);
 				}
 				else {

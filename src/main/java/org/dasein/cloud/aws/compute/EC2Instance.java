@@ -55,7 +55,6 @@ import org.dasein.cloud.Requirement;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.Architecture;
-import org.dasein.cloud.compute.ComputeServices;
 import org.dasein.cloud.compute.MachineImage;
 import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.VMLaunchOptions;
@@ -65,7 +64,6 @@ import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.compute.VmStatistics;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.NICCreateOptions;
 import org.dasein.cloud.network.NetworkServices;
 import org.dasein.cloud.network.Subnet;
 import org.dasein.cloud.network.VLANSupport;
@@ -252,7 +250,7 @@ public class EC2Instance implements VirtualMachineSupport {
 	}
 
 	@Override
-	public void boot(@Nonnull String instanceId) throws InternalException, CloudException {
+	public void start(@Nonnull String instanceId) throws InternalException, CloudException {
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.START_INSTANCES);
         EC2Method method;
         
@@ -283,7 +281,7 @@ public class EC2Instance implements VirtualMachineSupport {
 	}
 	
 	private Set<Metric> calculate(String metric, String unit, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
-	    if( !provider.isAmazon() ) {
+	    if( !provider.getEC2Provider().isAWS() ) {
 	        return new TreeSet<Metric>();
 	    }
         Map<String,String> parameters = provider.getStandardCloudWatchParameters(provider.getContext(), EC2Method.GET_METRIC_STATISTICS);
@@ -729,7 +727,7 @@ public class EC2Instance implements VirtualMachineSupport {
             return VmState.STOPPING;
         }
         else if( state.equals("stopped") ) {
-            return VmState.PAUSED;
+            return VmState.STOPPED;
         }
         else if( state.equals("shutting-down") ) {
             return VmState.STOPPING;
@@ -1086,7 +1084,7 @@ public class EC2Instance implements VirtualMachineSupport {
         if( cfg.getVlanId() != null ) {
             parameters.put("SubnetId", cfg.getVlanId());
         }
-        if( provider.isAmazon() ) {
+        if( provider.getEC2Provider().isAWS() ) {
             parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
         }
         final ArrayList<VMLaunchOptions.VolumeAttachment> existingVolumes = new ArrayList<VMLaunchOptions.VolumeAttachment>();
@@ -1434,6 +1432,11 @@ public class EC2Instance implements VirtualMachineSupport {
 	}
 
     @Override
+    public void pause(@Nonnull String vmId) throws InternalException, CloudException {
+        throw new OperationNotSupportedException("Pause/unpause not supported by the EC2 API");
+    }
+
+    @Override
     public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
         if( action.equals(VirtualMachineSupport.ANY) ) {
             return new String[] { EC2Method.EC2_PREFIX + "*" };
@@ -1472,7 +1475,7 @@ public class EC2Instance implements VirtualMachineSupport {
     }
     
 	@Override
-	public void pause(@Nonnull String instanceId) throws InternalException, CloudException {
+	public void stop(@Nonnull String instanceId) throws InternalException, CloudException {
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.STOP_INSTANCES);
         EC2Method method;
         
@@ -1503,7 +1506,12 @@ public class EC2Instance implements VirtualMachineSupport {
         }
 	}
 
-	private String resolve(String dnsName) {
+    @Override
+    public void resume(@Nonnull String vmId) throws CloudException, InternalException {
+        throw new OperationNotSupportedException("Suspend/resume not supported by the EC2 API");
+    }
+
+    private String resolve(String dnsName) {
         if( dnsName != null && dnsName.length() > 0 ) {
             InetAddress[] addresses;
             
@@ -1529,8 +1537,28 @@ public class EC2Instance implements VirtualMachineSupport {
     public boolean supportsAnalytics() throws CloudException, InternalException {
         return true;
     }
-    
-	@Override
+
+    @Override
+    public boolean supportsPauseUnpause(@Nonnull VirtualMachine vm) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsStartStop(@Nonnull VirtualMachine vm) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsSuspendResume(@Nonnull VirtualMachine vm) {
+        return false;
+    }
+
+    @Override
+    public void suspend(@Nonnull String vmId) throws CloudException, InternalException {
+        throw new OperationNotSupportedException("Suspend/resume not supported by the EC2 API");
+    }
+
+    @Override
 	public void terminate(@Nonnull String instanceId) throws InternalException, CloudException {
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.TERMINATE_INSTANCES);
 		EC2Method method;
@@ -1546,7 +1574,12 @@ public class EC2Instance implements VirtualMachineSupport {
         }
 	}
 
-	private @Nullable VirtualMachine toVirtualMachine(@Nonnull ProviderContext ctx, @Nullable Node instance) throws CloudException {
+    @Override
+    public void unpause(@Nonnull String vmId) throws CloudException, InternalException {
+        throw new OperationNotSupportedException("Pause/unpause not supported by the EC2 API");
+    }
+
+    private @Nullable VirtualMachine toVirtualMachine(@Nonnull ProviderContext ctx, @Nullable Node instance) throws CloudException {
         if( instance == null ) {
             return null;
         }

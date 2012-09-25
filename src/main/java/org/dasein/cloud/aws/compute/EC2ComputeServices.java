@@ -22,6 +22,7 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.AbstractComputeServices;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 public class EC2ComputeServices extends AbstractComputeServices {
     private AWSCloud cloud;
@@ -29,7 +30,10 @@ public class EC2ComputeServices extends AbstractComputeServices {
     public EC2ComputeServices(@Nonnull AWSCloud cloud) { this.cloud = cloud; }
     
     @Override
-    public @Nonnull AutoScaling getAutoScalingSupport() {
+    public @Nullable AutoScaling getAutoScalingSupport() {
+        if( !cloud.getEC2Provider().isAWS() ) {
+            return null;
+        }
         return new AutoScaling(cloud);
     }
     

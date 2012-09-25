@@ -533,7 +533,7 @@ public class ElasticIP implements IpAddressSupport {
 		address.setRegionId(regionId);
         address.setForVlan(forVlan);
         address.setProviderNetworkInterfaceId(nicId);
-        if( instanceId != null && !provider.isAmazon() ) {
+        if( instanceId != null && provider.getEC2Provider().isEucalyptus() ) {
             if( instanceId.startsWith("available") ) {
                 instanceId = null;
             }

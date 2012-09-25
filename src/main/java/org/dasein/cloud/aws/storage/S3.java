@@ -99,38 +99,40 @@ public class S3 extends AbstractBlobStoreSupport {
     	boolean success;
 
     	success = false;
-    	if( regionId.equals("eu-west-1") ) {
-        	body = new StringBuilder();
-        	body.append("<CreateBucketConfiguration>\r\n");
-        	body.append("<LocationConstraint>");
-        	body.append("EU");
-        	body.append("</LocationConstraint>\r\n");
-        	body.append("</CreateBucketConfiguration>\r\n");
-    	}
-    	else if( regionId.equals("us-west-1") ) {
-            body = new StringBuilder();
-            body.append("<CreateBucketConfiguration>\r\n");
-            body.append("<LocationConstraint>");
-            body.append("us-west-1");
-            body.append("</LocationConstraint>\r\n");
-            body.append("</CreateBucketConfiguration>\r\n");
-    	}      
-    	else if( regionId.equals("ap-southeast-1") ) {
-            body = new StringBuilder();
-            body.append("<CreateBucketConfiguration>\r\n");
-            body.append("<LocationConstraint>");
-            body.append("ap-southeast-1");
-            body.append("</LocationConstraint>\r\n");
-            body.append("</CreateBucketConfiguration>\r\n");
+        if( provider.getEC2Provider().isAWS() ) {
+            if( regionId.equals("eu-west-1") ) {
+                body = new StringBuilder();
+                body.append("<CreateBucketConfiguration>\r\n");
+                body.append("<LocationConstraint>");
+                body.append("EU");
+                body.append("</LocationConstraint>\r\n");
+                body.append("</CreateBucketConfiguration>\r\n");
+            }
+            else if( regionId.equals("us-west-1") ) {
+                body = new StringBuilder();
+                body.append("<CreateBucketConfiguration>\r\n");
+                body.append("<LocationConstraint>");
+                body.append("us-west-1");
+                body.append("</LocationConstraint>\r\n");
+                body.append("</CreateBucketConfiguration>\r\n");
+            }
+            else if( regionId.equals("ap-southeast-1") ) {
+                body = new StringBuilder();
+                body.append("<CreateBucketConfiguration>\r\n");
+                body.append("<LocationConstraint>");
+                body.append("ap-southeast-1");
+                body.append("</LocationConstraint>\r\n");
+                body.append("</CreateBucketConfiguration>\r\n");
+            }
+            else if( !regionId.equals("us-east-1") ) {
+                body = new StringBuilder();
+                body.append("<CreateBucketConfiguration>\r\n");
+                body.append("<LocationConstraint>");
+                body.append(regionId);
+                body.append("</LocationConstraint>\r\n");
+                body.append("</CreateBucketConfiguration>\r\n");
+            }
         }
-    	else if( !regionId.equals("us-east-1") ) {
-            body = new StringBuilder();
-            body.append("<CreateBucketConfiguration>\r\n");
-            body.append("<LocationConstraint>");
-            body.append(regionId);
-            body.append("</LocationConstraint>\r\n");
-            body.append("</CreateBucketConfiguration>\r\n");    	    
-    	}
     	while( !success ) {
     		String ct = (body == null ? null : "text/xml; charset=utf-8");
     		S3Method method;
@@ -434,6 +436,9 @@ public class S3 extends AbstractBlobStoreSupport {
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
         }
+        if( !provider.getEC2Provider().isAWS() ) {
+            return true;
+        }
         String regionId = ctx.getRegionId();
 
         if( regionId == null ) {
@@ -635,35 +640,40 @@ public class S3 extends AbstractBlobStoreSupport {
                     provider.parseTime(attr.getFirstChild().getNodeValue().trim());
 				}
 			}
-			if( name == null ) { 
+			if( name == null ) {
 				throw new CloudException("Bad response from server.");
 			}
-            method = new S3Method(provider, S3Action.LOCATE_BUCKET);
-            try {
-                response = method.invoke(name, "?location");
-            }
-            catch( S3Exception e ) {
-                response = null;
-            }
-            if( response != null ) {
-                NodeList constraints = response.document.getElementsByTagName("LocationConstraint");
+            if( provider.getEC2Provider().isAWS() ) {
+                method = new S3Method(provider, S3Action.LOCATE_BUCKET);
+                try {
+                    response = method.invoke(name, "?location");
+                }
+                catch( S3Exception e ) {
+                    response = null;
+                }
+                if( response != null ) {
+                    NodeList constraints = response.document.getElementsByTagName("LocationConstraint");
 
-                if( constraints.getLength() > 0 ) {
-                    Node constraint = constraints.item(0);
+                    if( constraints.getLength() > 0 ) {
+                        Node constraint = constraints.item(0);
 
-                    if( constraint != null && constraint.hasChildNodes() ) {
-                        String location = constraint.getFirstChild().getNodeValue().trim();
+                        if( constraint != null && constraint.hasChildNodes() ) {
+                            String location = constraint.getFirstChild().getNodeValue().trim();
 
-                        if( location.equals("EU") && !provider.getContext().getRegionId().equals("eu-west-1") ) {
-                            continue;
+                            if( location.equals("EU") && !provider.getContext().getRegionId().equals("eu-west-1") ) {
+                                continue;
+                            }
+                            else if( location.equals("us-west-1") && !provider.getContext().getRegionId().equals("us-west-1") ) {
+                                continue;
+                            }
+                            else if( location.startsWith("ap-") && !provider.getContext().getRegionId().equals(location) ) {
+                                continue;
+                            }
+                            else if( location.equals("US") && !provider.getContext().getRegionId().equals("us-east-1") ) {
+                                continue;
+                            }
                         }
-                        else if( location.equals("us-west-1") && !provider.getContext().getRegionId().equals("us-west-1") ) {
-                            continue;
-                        }
-                        else if( location.startsWith("ap-") && !provider.getContext().getRegionId().equals(location) ) {
-                            continue;
-                        }
-                        else if( location.equals("US") && !provider.getContext().getRegionId().equals("us-east-1") ) {
+                        else if( !provider.getContext().getRegionId().equals("us-east-1") ){
                             continue;
                         }
                     }
@@ -671,12 +681,9 @@ public class S3 extends AbstractBlobStoreSupport {
                         continue;
                     }
                 }
-                else if( !provider.getContext().getRegionId().equals("us-east-1") ){
+                else {
                     continue;
                 }
-            }
-            else {
-                continue;
             }
             iterator.push(Blob.getInstance(regionId, getLocation(name, null), name, ts));
 		}

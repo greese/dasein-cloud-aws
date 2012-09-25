@@ -184,7 +184,7 @@ public class AutoScaling implements AutoScalingSupport {
         }
         parameters.put(AWSCloud.P_SIGNATURE_METHOD, AWSCloud.EC2_ALGORITHM);
         parameters.put(AWSCloud.P_TIMESTAMP, provider.getTimestamp(System.currentTimeMillis(), true));
-        parameters.put(AWSCloud.P_VERSION, AWSCloud.AUTO_SCALE_VERSION);
+        parameters.put(AWSCloud.P_VERSION, provider.getAutoScaleVersion());
         return parameters;
     }
     
@@ -333,9 +333,6 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public Collection<ScalingGroup> listScalingGroups() throws CloudException, InternalException {
-        if( !provider.isAmazon() ) {
-            return Collections.emptyList();
-        }
         ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {

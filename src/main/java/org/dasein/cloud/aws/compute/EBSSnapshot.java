@@ -112,7 +112,7 @@ public class EBSSnapshot implements SnapshotSupport {
 
 	@Override
 	public Iterable<String> listShares(String forSnapshotId) throws InternalException, CloudException {
-	    if( !provider.isAmazon() ) {
+	    if( !provider.getEC2Provider().isAWS() ) {
 	        return new ArrayList<String>();
 	    }
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOT_ATTRIBUTE);
@@ -173,7 +173,7 @@ public class EBSSnapshot implements SnapshotSupport {
         if( ctx == null ) {
             throw new CloudException("No context exists for this request.");
         }
-	    if( provider.isAmazon() ) {
+	    if( provider.getEC2Provider().isAWS() ) {
     		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
     		EC2Method method;
             NodeList blocks;
@@ -223,7 +223,7 @@ public class EBSSnapshot implements SnapshotSupport {
 
 	@Override
 	public boolean isPublic(String snapshotId) throws InternalException, CloudException {
-	    if( !provider.isAmazon() ) {
+	    if( !provider.getEC2Provider().isAWS()) {
 	        return false;
 	    }
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOT_ATTRIBUTE);
@@ -281,12 +281,12 @@ public class EBSSnapshot implements SnapshotSupport {
     
 	@Override
 	public boolean supportsSnapshotSharing() throws InternalException, CloudException {
-		return provider.isAmazon();
+		return provider.getEC2Provider().isAWS();
 	}
 
     @Override
     public boolean supportsSnapshotSharingWithPublic() throws InternalException, CloudException {
-        return provider.isAmazon();
+        return provider.getEC2Provider().isAWS();
     }
     
 	@Override
@@ -393,7 +393,7 @@ public class EBSSnapshot implements SnapshotSupport {
 		NodeList attrs = node.getChildNodes();
 		Snapshot snapshot = new Snapshot();
 		
-		if( !provider.isAmazon() ) {
+		if( !provider.getEC2Provider().isAWS() ) {
 		    snapshot.setOwner(ctx.getAccountNumber());
 		}
 		for( int i=0; i<attrs.getLength(); i++ ) {

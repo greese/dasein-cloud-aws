@@ -20,7 +20,7 @@
 
   <groupId>org.dasein</groupId>
   <artifactId>dasein-cloud-aws</artifactId>
-  <version>2012.07-SNAPSHOT</version>
+  <version>2012.09-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>dasein-cloud-aws</name>
@@ -62,21 +62,21 @@
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-cloud-core</artifactId>
-        <version>2012.07.1</version>
+        <version>2012.09</version>
         <scope>compile</scope>
         <optional>false</optional>
     </dependency>   
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-cloud-test</artifactId>
-        <version>2012.07-SNAPSHOT</version>
+        <version>2012.09.1-SNAPSHOT</version>
         <scope>test</scope>
         <optional>false</optional>
     </dependency>      
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-util</artifactId>
-        <version>2012.02</version>
+        <version>2012.08</version>
         <scope>compile</scope>
         <optional>false</optional>
     </dependency>
@@ -197,55 +197,55 @@
             <systemProperties>
                 <property>
                     <name>endpoint</name>
-                    <value>${org.dasein.cloud.aws.endpoint}</value>
+                    <value>${endpoint}</value>
                 </property>
                 <property>
                     <name>accountNumber</name>
-                    <value>${org.dasein.cloud.aws.accountNumber}</value>
+                    <value>${accountNumber}</value>
                 </property>
                 <property>
                     <name>apiSharedKey</name>
-                    <value>${org.dasein.cloud.aws.apiSharedKey}</value>
+                    <value>${apiSharedKey}</value>
                 </property>
                 <property>
                     <name>x509Cert</name>
-                    <value>${org.dasein.cloud.aws.x509Cert}</value>
+                    <value>${x509Cert}</value>
                 </property>
                 <property>
                     <name>x509Key</name>
-                    <value>${org.dasein.cloud.aws.x509Key}</value>
+                    <value>${x509Key}</value>
                 </property>
                 <property>
                     <name>apiSecretKey</name>
-                    <value>${org.dasein.cloud.aws.apiSecretKey}</value>
+                    <value>${apiSecretKey}</value>
                 </property>
                 <property>
                     <name>cloudName</name>
-                    <value>${org.dasein.cloud.aws.cloudName}</value>
+                    <value>${cloudName}</value>
                 </property>
                 <property>
                     <name>providerName</name>
-                    <value>${org.dasein.cloud.aws.providerName}</value>
+                    <value>${providerName}</value>
                 </property>
                 <property>
                     <name>regionId</name>
-                    <value>${org.dasein.cloud.aws.regionId}</value>
+                    <value>${regionId}</value>
                 </property>
                 <property>
                     <name>test.region</name>
-                    <value>${org.dasein.cloud.aws.test.region}</value>
+                    <value>${test.region}</value>
                 </property>
                 <property>
                     <name>test.dataCenter</name>
-                    <value>${org.dasein.cloud.aws.test.dataCenter}</value>
+                    <value>${test.dataCenter}</value>
                 </property>
                 <property>
                     <name>test.machineImage</name>
-                    <value>${org.dasein.cloud.aws.test.machineImage}</value>
+                    <value>${test.machineImage}</value>
                 </property>
                 <property>
                     <name>test.product</name>
-                    <value>${org.dasein.cloud.aws.test.product}</value>
+                    <value>${test.product}</value>
                 </property>
                 
             </systemProperties>

@@ -143,7 +143,7 @@ public class AMI implements MachineImageSupport {
     
     @Override
     public MachineImage getMachineImage(String imageId) throws InternalException, CloudException {
-        if( provider.isAmazon() ) {
+        if( provider.getEC2Provider().isAWS() ) {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
             NodeList blocks;
             EC2Method method;
@@ -359,7 +359,7 @@ public class AMI implements MachineImageSupport {
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
         EC2Method method;
 
-        if( provider.isAmazon() ) {
+        if( provider.getEC2Provider().isAWS() ) {
             parameters.put("Owner", provider.getContext().getAccountNumber());
         }
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
@@ -560,7 +560,7 @@ public class AMI implements MachineImageSupport {
 		if( accountNumber == null ) {
 			accountNumber = provider.getContext().getAccountNumber();
 		}
-		if( provider.isAmazon() ) {
+		if( provider.getEC2Provider().isAWS() ) {
 		    parameters.put("Owner", accountNumber);
 		}
 		method = new EC2Method(provider, provider.getEc2Url(), parameters);
@@ -587,7 +587,7 @@ public class AMI implements MachineImageSupport {
             	}
             }
         }
-        if( provider.isAmazon() ) {
+        if( provider.getEC2Provider().isAWS() ) {
             parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
             parameters.put("ExecutableBy", accountNumber);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
@@ -971,7 +971,7 @@ public class AMI implements MachineImageSupport {
                 image.setDescription(image.getName() +  " (" + image.getArchitecture().toString() + " " + image.getPlatform().toString() + ")");
             }
 		}
-		if( !provider.isAmazon() ) {
+		if( !provider.getEC2Provider().isAWS() ) {
 		    image.setProviderOwnerId(provider.getContext().getAccountNumber());
 		}
 		return image;

@@ -165,7 +165,7 @@ public class CloudFrontMethod {
 			}
 		}
 		method = action.getMethod(url.toString());
-		method.addHeader(AWSCloud.P_DATE, dateString);
+		method.addHeader(AWSCloud.P_AWS_DATE, dateString);
 		try {
 			String signature = provider.signCloudFront(new String(ctx.getAccessPublic(), "utf-8"), ctx.getAccessPrivate(), dateString);
 			
