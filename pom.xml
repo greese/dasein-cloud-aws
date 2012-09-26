@@ -69,7 +69,7 @@
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-cloud-test</artifactId>
-        <version>2012.09.1-SNAPSHOT</version>
+        <version>2012.09.1</version>
         <scope>test</scope>
         <optional>false</optional>
     </dependency>      
