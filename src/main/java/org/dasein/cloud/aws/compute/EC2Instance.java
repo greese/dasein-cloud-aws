@@ -251,6 +251,14 @@ public class EC2Instance implements VirtualMachineSupport {
 
 	@Override
 	public void start(@Nonnull String instanceId) throws InternalException, CloudException {
+        VirtualMachine vm = getVirtualMachine(instanceId);
+
+        if( vm == null ) {
+            throw new CloudException("No such instance: " + instanceId);
+        }
+        if( !vm.isPersistent() ) {
+            throw new OperationNotSupportedException("Instances backed by ephemeral drives are not start/stop capable");
+        }
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.START_INSTANCES);
         EC2Method method;
         
@@ -509,17 +517,19 @@ public class EC2Instance implements VirtualMachineSupport {
 
     @Override
     public void enableAnalytics(String instanceId) throws InternalException, CloudException {
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.MONITOR_INSTANCES);
-        EC2Method method;
+        if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.MONITOR_INSTANCES);
+            EC2Method method;
         
-        parameters.put("InstanceId.1", instanceId);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        try {
-            method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
+            parameters.put("InstanceId.1", instanceId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
         }
     }
     
@@ -923,22 +933,22 @@ public class EC2Instance implements VirtualMachineSupport {
 
     @Override
     public @Nonnull Requirement identifyVlanRequirement() {
-        return Requirement.OPTIONAL;
+        return (provider.getEC2Provider().isEucalyptus() ? Requirement.NONE : Requirement.OPTIONAL);
     }
 
     @Override
     public boolean isAPITerminationPreventable() {
-        return true;
+        return provider.getEC2Provider().isAWS();
     }
 
     @Override
     public boolean isBasicAnalyticsSupported() {
-        return true;
+        return (provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus());
     }
 
     @Override
     public boolean isExtendedAnalyticsSupported() {
-        return true;
+        return (provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus());
     }
 
     @Override
@@ -1476,6 +1486,14 @@ public class EC2Instance implements VirtualMachineSupport {
     
 	@Override
 	public void stop(@Nonnull String instanceId) throws InternalException, CloudException {
+        VirtualMachine vm = getVirtualMachine(instanceId);
+
+        if( vm == null ) {
+            throw new CloudException("No such instance: " + instanceId);
+        }
+        if( !vm.isPersistent() ) {
+            throw new OperationNotSupportedException("Instances backed by ephemeral drives are not start/stop capable");
+        }
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.STOP_INSTANCES);
         EC2Method method;
         
@@ -1545,7 +1563,7 @@ public class EC2Instance implements VirtualMachineSupport {
 
     @Override
     public boolean supportsStartStop(@Nonnull VirtualMachine vm) {
-        return true;
+        return vm.isPersistent();
     }
 
     @Override
@@ -1785,17 +1803,19 @@ public class EC2Instance implements VirtualMachineSupport {
 	
 	@Override
 	public void disableAnalytics(String instanceId) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.UNMONITOR_INSTANCES);
-		EC2Method method;
-        
-        parameters.put("InstanceId.1", instanceId);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        try {
-        	method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+        if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.UNMONITOR_INSTANCES);
+            EC2Method method;
+
+            parameters.put("InstanceId.1", instanceId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
         }
 	}
 }

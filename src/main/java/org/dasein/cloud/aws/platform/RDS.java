@@ -223,9 +223,14 @@ public class RDS implements RelationalDatabaseSupport {
         if( engineVersion == null ) {
             engineVersion = getDefaultVersion(product.getEngine());
         }
+        int size = product.getStorageInGigabytes();
+
+        if( size < 5 ) {
+            size = 5;
+        }
         parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_INSTANCE);
         parameters.put("DBInstanceIdentifier", id);
-        parameters.put("AllocatedStorage", String.valueOf(product.getStorageInGigabytes()));
+        parameters.put("AllocatedStorage", String.valueOf(size));
         parameters.put("DBInstanceClass", product.getProductSize());
         parameters.put("Engine", getEngineString(product.getEngine()));
         parameters.put("EngineVersion", engineVersion);
@@ -540,7 +545,7 @@ public class RDS implements RelationalDatabaseSupport {
             boolean us = provider.getContext().getRegionId().equals("us-east-1");
             
             products = new ArrayList<DatabaseProduct>();
-            if( engine.equals(DatabaseEngine.MYSQL51) || engine.equals(DatabaseEngine.MYSQL55) ) {
+            if( engine.equals(DatabaseEngine.MYSQL) || engine.equals(DatabaseEngine.MYSQL51) || engine.equals(DatabaseEngine.MYSQL55) ) {
                 DatabaseProduct product;
                 
                 product = new DatabaseProduct("db.m1.small", "64-bit, 1.7GB RAM, 1x1.0 GHz CPU Core");
@@ -1060,7 +1065,7 @@ public class RDS implements RelationalDatabaseSupport {
             blocks = doc.getElementsByTagName("DBInstances");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 NodeList items = blocks.item(i).getChildNodes();
-                
+
                 for( int j=0; j<items.getLength(); j++ ) {
                     Node item = items.item(j);
                     
@@ -1073,7 +1078,7 @@ public class RDS implements RelationalDatabaseSupport {
                     }
                 }
             }
-        } while( marker != null );      
+        } while( marker != null );
         return list;
     }
     
@@ -1859,10 +1864,11 @@ public class RDS implements RelationalDatabaseSupport {
             }
         }
         if( db.getHostName() == null ) {
-            if( db.getCurrentState().equals(DatabaseState.MODIFYING) || db.getCurrentState().equals(DatabaseState.RESTARTING) ) {
+            if( db.getCurrentState().equals(DatabaseState.PENDING) || db.getCurrentState().equals(DatabaseState.MODIFYING) || db.getCurrentState().equals(DatabaseState.RESTARTING) ) {
                 db.setHostName("");
             }
             else {
+                System.out.println("DEBUG: null database for " + db.getCurrentState());
                 return null;
             }
         }
@@ -1878,6 +1884,7 @@ public class RDS implements RelationalDatabaseSupport {
     
     private DatabaseState toDatabaseState(String value) throws CloudException {
         if( value == null ) {
+            System.out.println("DEBUG: Null state value");
             return DatabaseState.PENDING;
         }
         else if( value.equalsIgnoreCase("available") ) {
@@ -1911,7 +1918,8 @@ public class RDS implements RelationalDatabaseSupport {
             return DatabaseState.STORAGE_FULL;
         }
         else {
-            throw new CloudException("Unknown database state: " + value);
+            System.out.println("DEBUG: Unknown database state: " + value);
+            return DatabaseState.PENDING;
         }
     }
     

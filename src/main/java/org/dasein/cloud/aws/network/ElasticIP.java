@@ -114,7 +114,7 @@ public class ElasticIP implements IpAddressSupport {
 	public @Nullable IpAddress getIpAddress(@Nonnull String addressId) throws InternalException, CloudException {
         IpAddress address = getEC2Address(addressId);
         
-        return (address == null ? getVPCAddress(addressId) : address);
+        return ((address == null && provider.getEC2Provider().isAWS()) ? getVPCAddress(addressId) : address);
     }
     
     private @Nullable IpAddress getEC2Address(@Nonnull String addressId) throws InternalException, CloudException {
@@ -181,7 +181,7 @@ public class ElasticIP implements IpAddressSupport {
         catch( EC2Exception e ) {
             String code = e.getCode();
 
-            if( code != null && code.equals("InvalidAddress.NotFound") || e.getMessage().contains("Invalid value") || e.getMessage().startsWith("InvalidAllocation") ) {
+            if( code != null && (code.equals("InvalidAllocationID.NotFound") || code.equals("InvalidAddress.NotFound") || e.getMessage().contains("Invalid value") || e.getMessage().startsWith("InvalidAllocation")) ) {
                 return null;
             }
             logger.error(e.getSummary());

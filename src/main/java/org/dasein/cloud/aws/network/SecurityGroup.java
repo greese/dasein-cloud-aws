@@ -71,11 +71,20 @@ public class SecurityGroup implements FirewallSupport {
         if( cidr.indexOf('/') == -1 ) {
             cidr = cidr + "/32";
         }
-        parameters.put("GroupId", firewallId);
-        parameters.put("IpPermissions.1.IpProtocol", protocol.name().toLowerCase());
-        parameters.put("IpPermissions.1.FromPort", String.valueOf(beginPort));
-        parameters.put("IpPermissions.1.ToPort", endPort == -1 ? String.valueOf(beginPort) : String.valueOf(endPort));
-        parameters.put("IpPermissions.1.IpRanges.1.CidrIp", cidr);
+        if( provider.getEC2Provider().isEucalyptus() ) {
+            parameters.put("GroupName", firewallId);
+            parameters.put("IpProtocol", protocol.name().toLowerCase());
+            parameters.put("FromPort", String.valueOf(beginPort));
+            parameters.put("ToPort", endPort == -1 ? String.valueOf(beginPort) : String.valueOf(endPort));
+            parameters.put("CidrIp", cidr);
+        }
+        else {
+            parameters.put("GroupId", firewallId);
+            parameters.put("IpPermissions.1.IpProtocol", protocol.name().toLowerCase());
+            parameters.put("IpPermissions.1.FromPort", String.valueOf(beginPort));
+            parameters.put("IpPermissions.1.ToPort", endPort == -1 ? String.valueOf(beginPort) : String.valueOf(endPort));
+            parameters.put("IpPermissions.1.IpRanges.1.CidrIp", cidr);
+        }
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
             doc = method.invoke();
@@ -116,11 +125,16 @@ public class SecurityGroup implements FirewallSupport {
         	logger.error(e.getSummary());
         	throw new CloudException(e);
         }
-        blocks = doc.getElementsByTagName("groupId");
-        if( blocks.getLength() > 0 ) {
-        	return blocks.item(0).getFirstChild().getNodeValue().trim();
+        if( provider.getEC2Provider().isEucalyptus() ) {
+            return name;
         }
-		throw new CloudException("Failed to create security group without explanation.");
+        else {
+            blocks = doc.getElementsByTagName("groupId");
+            if( blocks.getLength() > 0 ) {
+                return blocks.item(0).getFirstChild().getNodeValue().trim();
+            }
+            throw new CloudException("Failed to create security group without explanation.");
+        }
 	}
  	
    @Override
@@ -156,7 +170,12 @@ public class SecurityGroup implements FirewallSupport {
         NodeList blocks;
 		Document doc;
 
-		parameters.put("GroupId", securityGroupId);
+        if( provider.getEC2Provider().isEucalyptus() ) {
+            parameters.put("GroupName", securityGroupId);
+        }
+        else {
+            parameters.put("GroupId", securityGroupId);
+        }
 		method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
         	doc = method.invoke();
@@ -185,7 +204,12 @@ public class SecurityGroup implements FirewallSupport {
         NodeList blocks;
 		Document doc;
 
-		parameters.put("GroupId.1", securityGroupId);
+        if( provider.getEC2Provider().isEucalyptus() ) {
+            parameters.put("GroupName.1", securityGroupId);
+        }
+        else {
+            parameters.put("GroupId.1", securityGroupId);
+        }
 		method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
         	doc = method.invoke();
@@ -231,7 +255,12 @@ public class SecurityGroup implements FirewallSupport {
         NodeList blocks;
 		Document doc;
 
-		parameters.put("GroupId.1", securityGroupId);
+        if( provider.getEC2Provider().isEucalyptus() ) {
+            parameters.put("GroupName.1", securityGroupId);
+        }
+        else {
+            parameters.put("GroupId.1", securityGroupId);
+        }
 		method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
         	doc = method.invoke();
@@ -428,7 +457,12 @@ public class SecurityGroup implements FirewallSupport {
         EC2Method method;
         Document doc;
 
-        parameters.put("GroupId", firewallId);
+        if( provider.getEC2Provider().isEucalyptus() ) {
+            parameters.put("GroupName", firewallId);
+        }
+        else {
+            parameters.put("GroupId", firewallId);
+        }
         parameters.put("IpProtocol", protocol.name().toLowerCase());
         parameters.put("FromPort", String.valueOf(beginPort));
         parameters.put("ToPort", endPort == -1 ? String.valueOf(beginPort) : String.valueOf(endPort));
@@ -446,7 +480,7 @@ public class SecurityGroup implements FirewallSupport {
 
     @Override
     public boolean supportsRules(@Nonnull Direction direction, boolean inVlan) throws CloudException, InternalException {
-        return (inVlan || direction.equals(Direction.INGRESS));
+        return !(inVlan && provider.getEC2Provider().isEucalyptus()) && (inVlan || direction.equals(Direction.INGRESS));
     }
 
     private @Nullable Firewall toFirewall(@Nonnull ProviderContext ctx, @Nullable Node node) {

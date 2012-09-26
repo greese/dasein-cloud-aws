@@ -114,22 +114,24 @@ public class EBSVolume implements VolumeSupport {
             }
         }
         parameters.put("AvailabilityZone", az);
-        if( options.getVolumeProductId() != null ) {
-            VolumeProduct prd = null;
+        if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
+            if( options.getVolumeProductId() != null ) {
+                VolumeProduct prd = null;
 
-            for( VolumeProduct p : listVolumeProducts() ) {
-                if( p.getProviderProductId().equals(options.getVolumeProductId()) ) {
-                    prd = p;
-                    break;
+                for( VolumeProduct p : listVolumeProducts() ) {
+                    if( p.getProviderProductId().equals(options.getVolumeProductId()) ) {
+                        prd = p;
+                        break;
+                    }
                 }
-            }
-            if( prd != null ) {
-                parameters.put("VolumeType", prd.getProviderProductId());
-                if( prd.getMaxIops() > 0 && options.getIops() > 0 ) {
-                    parameters.put("Iops", String.valueOf(options.getIops()));
-                }
-                else if( prd.getMinIops() > 0 ) {
-                    parameters.put("Iops", String.valueOf(prd.getMinIops()));
+                if( prd != null ) {
+                    parameters.put("VolumeType", prd.getProviderProductId());
+                    if( prd.getMaxIops() > 0 && options.getIops() > 0 ) {
+                        parameters.put("Iops", String.valueOf(options.getIops()));
+                    }
+                    else if( prd.getMinIops() > 0 ) {
+                        parameters.put("Iops", String.valueOf(prd.getMinIops()));
+                    }
                 }
             }
         }
@@ -292,7 +294,7 @@ public class EBSVolume implements VolumeSupport {
 
     @Override
     public @Nonnull Requirement getVolumeProductRequirement() throws InternalException, CloudException {
-        return Requirement.OPTIONAL;
+        return ((provider.getEC2Provider().isEucalyptus() || provider.getEC2Provider().isOpenStack()) ? Requirement.NONE : Requirement.OPTIONAL);
     }
 
     @Override
