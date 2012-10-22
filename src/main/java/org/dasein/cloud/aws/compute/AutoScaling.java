@@ -47,18 +47,18 @@ import javax.annotation.Nullable;
 
 public class AutoScaling implements AutoScalingSupport {
     static private final Logger logger = Logger.getLogger(AutoScaling.class);
-    
+
     private AWSCloud provider = null;
-    
+
     AutoScaling(AWSCloud provider) {
         this.provider = provider;
     }
-    
+
     @Override
     public String createAutoScalingGroup(String name, String launchConfigurationId, int minServers, int maxServers, int cooldown, String ... zoneIds) throws InternalException, CloudException {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_AUTO_SCALING_GROUP);
         EC2Method method;
-        
+
         if( minServers < 0 ) {
             minServers = 0;
         }
@@ -89,7 +89,7 @@ public class AutoScaling implements AutoScalingSupport {
     public String createLaunchConfiguration(String name, String imageId, VirtualMachineProduct size, String ... firewalls) throws InternalException, CloudException {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_LAUNCH_CONFIGURATION);
         EC2Method method;
-        
+
         parameters.put("LaunchConfigurationName", name);
         parameters.put("ImageId", imageId);
         parameters.put("InstanceType", size.getProviderProductId());
@@ -107,12 +107,12 @@ public class AutoScaling implements AutoScalingSupport {
         }
         return name;
     }
-    
+
     @Override
     public void deleteAutoScalingGroup(String providerAutoScalingGroupId) throws InternalException, CloudException {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DELETE_AUTO_SCALING_GROUP);
         EC2Method method;
-        
+
         parameters.put("AutoScalingGroupName", providerAutoScalingGroupId);
         method = new EC2Method(provider, getAutoScalingUrl(), parameters);
         try {
@@ -128,8 +128,8 @@ public class AutoScaling implements AutoScalingSupport {
     public void deleteLaunchConfiguration(String providerLaunchConfigurationId) throws InternalException, CloudException {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DELETE_LAUNCH_CONFIGURATION);
         EC2Method method;
-        
-        parameters.put("LaunchConfigurationNames.member.1", providerLaunchConfigurationId);
+
+        parameters.put("LaunchConfigurationName", providerLaunchConfigurationId);
         method = new EC2Method(provider, getAutoScalingUrl(), parameters);
         try {
             method.invoke();
@@ -139,12 +139,12 @@ public class AutoScaling implements AutoScalingSupport {
             throw new CloudException(e);
         }
     }
-    
+
     @Override
     public String setTrigger(String name, String scalingGroupId, String statistic, String unitOfMeasure, String metric, int periodInSeconds, double lowerThreshold, double upperThreshold, int lowerIncrement, boolean lowerIncrementAbsolute, int upperIncrement, boolean upperIncrementAbsolute, int breachDuration) throws InternalException, CloudException {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_OR_UPDATE_SCALING_TRIGGER);
         EC2Method method;
-        
+
         parameters.put("AutoScalingGroupName", scalingGroupId);
         parameters.put("MeasureName", metric);
         parameters.put("Period", String.valueOf(periodInSeconds));
@@ -171,12 +171,12 @@ public class AutoScaling implements AutoScalingSupport {
 
     private Map<String,String> getAutoScalingParameters(ProviderContext ctx, String action) throws InternalException {
         HashMap<String,String> parameters = new HashMap<String,String>();
-        
+
         parameters.put(AWSCloud.P_ACTION, action);
         parameters.put(AWSCloud.P_SIGNATURE_VERSION, AWSCloud.SIGNATURE);
         try {
             parameters.put(AWSCloud.P_ACCESS, new String(ctx.getAccessPublic(), "utf-8"));
-        } 
+        }
         catch( UnsupportedEncodingException e ) {
             logger.error(e);
             e.printStackTrace();
@@ -187,7 +187,7 @@ public class AutoScaling implements AutoScalingSupport {
         parameters.put(AWSCloud.P_VERSION, provider.getAutoScaleVersion());
         return parameters;
     }
-    
+
     private String getAutoScalingUrl() throws CloudException {
         ProviderContext ctx = provider.getContext();
 
@@ -196,14 +196,14 @@ public class AutoScaling implements AutoScalingSupport {
         }
         return "https://autoscaling." + ctx.getRegionId() + ".amazonaws.com";
     }
-    
+
     @Override
     public LaunchConfiguration getLaunchConfiguration(String providerLaunchConfigurationId) throws CloudException, InternalException {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_LAUNCH_CONFIGURATIONS);
         EC2Method method;
         NodeList blocks;
         Document doc;
-        
+
         parameters.put("LaunchConfigurationNames.member.1", providerLaunchConfigurationId);
         method = new EC2Method(provider, getAutoScalingUrl(), parameters);
         try {
@@ -216,13 +216,13 @@ public class AutoScaling implements AutoScalingSupport {
         blocks = doc.getElementsByTagName("LaunchConfigurations");
         for( int i=0; i<blocks.getLength(); i++ ) {
             NodeList items = blocks.item(i).getChildNodes();
-            
+
             for( int j=0; j<items.getLength(); j++ ) {
                 Node item = items.item(j);
-                
+
                 if( item.getNodeName().equals("member") ) {
                     LaunchConfiguration cfg = toLaunchConfiguration(item);
-                    
+
                     if( cfg != null ) {
                         return cfg;
                     }
@@ -243,7 +243,7 @@ public class AutoScaling implements AutoScalingSupport {
         EC2Method method;
         NodeList blocks;
         Document doc;
-        
+
         parameters.put("AutoScalingGroupNames.member.1", providerScalingGroupId);
         method = new EC2Method(provider, getAutoScalingUrl(), parameters);
         try {
@@ -262,7 +262,7 @@ public class AutoScaling implements AutoScalingSupport {
 
                 if( item.getNodeName().equals("member") ) {
                     ScalingGroup group = toScalingGroup(ctx, item);
-    
+
                     if( group != null ) {
                         return group;
                     }
@@ -271,7 +271,7 @@ public class AutoScaling implements AutoScalingSupport {
         }
         return null;
     }
-    
+
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_AUTO_SCALING_GROUPS);
@@ -295,7 +295,7 @@ public class AutoScaling implements AutoScalingSupport {
             throw new CloudException(e);
         }
     }
-    
+
     @Override
     public Collection<LaunchConfiguration> listLaunchConfigurations() throws CloudException, InternalException {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_LAUNCH_CONFIGURATIONS);
@@ -303,7 +303,7 @@ public class AutoScaling implements AutoScalingSupport {
         EC2Method method;
         NodeList blocks;
         Document doc;
-        
+
         method = new EC2Method(provider, getAutoScalingUrl(), parameters);
         try {
             doc = method.invoke();
@@ -315,13 +315,13 @@ public class AutoScaling implements AutoScalingSupport {
         blocks = doc.getElementsByTagName("LaunchConfigurations");
         for( int i=0; i<blocks.getLength(); i++ ) {
             NodeList items = blocks.item(i).getChildNodes();
-            
+
             for( int j=0; j<items.getLength(); j++ ) {
                 Node item = items.item(j);
-                
+
                 if( item.getNodeName().equals("member") ) {
                     LaunchConfiguration cfg = toLaunchConfiguration(item);
-                    
+
                     if( cfg != null ) {
                         list.add(cfg);
                     }
@@ -344,7 +344,7 @@ public class AutoScaling implements AutoScalingSupport {
         EC2Method method;
         NodeList blocks;
         Document doc;
-        
+
         method = new EC2Method(provider, getAutoScalingUrl(), parameters);
         try {
             doc = method.invoke();
@@ -356,13 +356,13 @@ public class AutoScaling implements AutoScalingSupport {
         blocks = doc.getElementsByTagName("AutoScalingGroups");
         for( int i=0; i<blocks.getLength(); i++ ) {
             NodeList items = blocks.item(i).getChildNodes();
-            
+
             for( int j=0; j<items.getLength(); j++ ) {
                 Node item = items.item(j);
-                
+
                 if( item.getNodeName().equals("member") ) {
                     ScalingGroup group = toScalingGroup(ctx, item);
-                    
+
                     if( group != null ) {
                         list.add(group);
                     }
@@ -412,12 +412,12 @@ public class AutoScaling implements AutoScalingSupport {
         }
         return new String[0];
     }
-    
+
     @Override
     public void setDesiredCapacity(String scalingGroupId, int capacity) throws CloudException, InternalException {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.SET_DESIRED_CAPACITY);
         EC2Method method;
-        
+
         parameters.put("AutoScalingGroupName", scalingGroupId);
         parameters.put("DesiredCapacity", String.valueOf(capacity));
         method = new EC2Method(provider, getAutoScalingUrl(), parameters);
@@ -429,34 +429,34 @@ public class AutoScaling implements AutoScalingSupport {
             throw new CloudException(e);
         }
     }
-    
+
     private @Nullable LaunchConfiguration toLaunchConfiguration(@Nullable Node item) {
         if( item == null ) {
             return null;
         }
         LaunchConfiguration cfg = new LaunchConfiguration();
         NodeList attrs = item.getChildNodes();
-        
+
         for( int i=0; i<attrs.getLength(); i++ ) {
             Node attr = attrs.item(i);
             String name;
-            
+
             name = attr.getNodeName();
             if( name.equalsIgnoreCase("ImageId") ) {
-                cfg.setProviderImageId(attr.getFirstChild().getNodeValue());                
+                cfg.setProviderImageId(attr.getFirstChild().getNodeValue());
             }
             else if( name.equalsIgnoreCase("InstanceType") ) {
                 cfg.setServerSizeId(attr.getFirstChild().getNodeValue());
             }
             else if( name.equalsIgnoreCase("LaunchConfigurationName") ) {
                 String lcname = attr.getFirstChild().getNodeValue();
-                
+
                 cfg.setProviderLaunchConfigurationId(lcname);
                 cfg.setName(lcname);
             }
             else if( name.equalsIgnoreCase("CreatedTime") ) {
                 SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-                
+
                 try {
                     cfg.setCreationTimestamp(fmt.parse(attr.getFirstChild().getNodeValue()).getTime());
                 }
@@ -467,21 +467,21 @@ public class AutoScaling implements AutoScalingSupport {
             }
             else if( name.equalsIgnoreCase("SecurityGroups") ) {
                 String[] ids;
-                
+
                 if( attr.hasChildNodes() ) {
                     ArrayList<String> instanceIds = new ArrayList<String>();
                     NodeList instances = attr.getChildNodes();
-                    
+
                     for( int j=0; j<instances.getLength(); j++ ) {
                         Node instance = instances.item(j);
-                        
+
                         if( instance.getNodeName().equalsIgnoreCase("member") ) {
-                            if( instance.hasChildNodes() ) {    
+                            if( instance.hasChildNodes() ) {
                                 NodeList items = instance.getChildNodes();
-                                
+
                                 for( int k=0; k<items.getLength(); k++ ) {
                                     Node val = items.item(k);
-                                    
+
                                     if( val.getNodeName().equalsIgnoreCase("InstanceId") ) {
                                         instanceIds.add(val.getFirstChild().getNodeValue());
                                     }
@@ -515,20 +515,20 @@ public class AutoScaling implements AutoScalingSupport {
         for( int i=0; i<attrs.getLength(); i++ ) {
             Node attr = attrs.item(i);
             String name;
-            
+
             name = attr.getNodeName();
             if( name.equalsIgnoreCase("MinSize") ) {
                 group.setMinServers(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
             else if( name.equalsIgnoreCase("MaxSize") ) {
-                group.setMaxServers(Integer.parseInt(attr.getFirstChild().getNodeValue()));                
+                group.setMaxServers(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
             else if( name.equalsIgnoreCase("Cooldown") ) {
-                group.setCooldown(Integer.parseInt(attr.getFirstChild().getNodeValue()));                
+                group.setCooldown(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
             else if( name.equalsIgnoreCase("CreatedTime") ) {
                 SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-                
+
                 try {
                     group.setCreationTimestamp(fmt.parse(attr.getFirstChild().getNodeValue()).getTime());
                 }
@@ -538,35 +538,35 @@ public class AutoScaling implements AutoScalingSupport {
                 }
             }
             else if( name.equalsIgnoreCase("DesiredCapacity") ) {
-                group.setTargetCapacity(Integer.parseInt(attr.getFirstChild().getNodeValue()));                                
+                group.setTargetCapacity(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
             else if( name.equalsIgnoreCase("LaunchConfigurationName") ) {
                 group.setProviderLaunchConfigurationId(attr.getFirstChild().getNodeValue());
             }
             else if( name.equalsIgnoreCase("AutoScalingGroupName") ) {
                 String gname = attr.getFirstChild().getNodeValue();
-                
+
                 group.setProviderScalingGroupId(gname);
                 group.setName(gname);
                 group.setDescription(gname);
             }
             else if( name.equalsIgnoreCase("Instances") ) {
                 String[] ids;
-                
+
                 if( attr.hasChildNodes() ) {
                     ArrayList<String> instanceIds = new ArrayList<String>();
                     NodeList instances = attr.getChildNodes();
-                    
+
                     for( int j=0; j<instances.getLength(); j++ ) {
                         Node instance = instances.item(j);
-                        
+
                         if( instance.getNodeName().equals("member") ) {
-                            if( instance.hasChildNodes() ) {    
+                            if( instance.hasChildNodes() ) {
                                 NodeList items = instance.getChildNodes();
-                                
+
                                 for( int k=0; k<items.getLength(); k++ ) {
                                     Node val = items.item(k);
-                                    
+
                                     if( val.getNodeName().equalsIgnoreCase("InstanceId") ) {
                                         instanceIds.add(val.getFirstChild().getNodeValue());
                                     }
@@ -587,14 +587,14 @@ public class AutoScaling implements AutoScalingSupport {
             }
             else if( name.equalsIgnoreCase("AvailabilityZones") ) {
                 String[] ids;
-                
+
                 if( attr.hasChildNodes() ) {
                     ArrayList<String> zoneIds = new ArrayList<String>();
                     NodeList zones = attr.getChildNodes();
-                    
+
                     for( int j=0; j<zones.getLength(); j++ ) {
                         Node zone = zones.item(j);
-                        
+
                         if( zone.getNodeName().equalsIgnoreCase("member") ) {
                             zoneIds.add(zone.getFirstChild().getNodeValue());
                         }
@@ -613,12 +613,12 @@ public class AutoScaling implements AutoScalingSupport {
         }
         return group;
     }
-    
+
     @Override
     public void updateAutoScalingGroup(@Nonnull String scalingGroupId, @Nonnull String launchConfigurationId, @Nonnegative int minServers, @Nonnegative int maxServers, @Nonnegative int cooldown, @Nonnull String ... zoneIds) throws InternalException, CloudException {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.UPDATE_AUTO_SCALING_GROUP);
         EC2Method method;
-        
+
         if( minServers < 0 ) {
             minServers = 0;
         }
