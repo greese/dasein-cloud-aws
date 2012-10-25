@@ -1762,7 +1762,11 @@ public class EC2Instance implements VirtualMachineSupport {
 			}
 			else if( name.equals("platform") ) {
 			    if( attr.hasChildNodes() ) {
-			        server.setPlatform(Platform.guess(attr.getFirstChild().getNodeValue()));
+			    	Platform platform = Platform.guess(attr.getFirstChild().getNodeValue());
+			    	if (platform.equals(Platform.UNKNOWN)){
+			    		platform = Platform.UNIX;
+			    	}
+			        server.setPlatform(platform);
 			    }
 			}
 			else if( name.equals("placement") ) {
