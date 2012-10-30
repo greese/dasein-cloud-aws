@@ -70,7 +70,7 @@
 
     <category name="dasein.cloud.aws.std">
         <priority value="TRACE" />
-        <appender-ref ref="ASYNCUNIT" />
+        <appender-ref ref="ASYNCDASEIN" />
     </category>
 
     <category name="org.apache.http.wire">

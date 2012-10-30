@@ -69,7 +69,7 @@
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-cloud-test</artifactId>
-        <version>2012.09.1</version>
+        <version>2012.09.8-SNAPSHOT</version>
         <scope>test</scope>
         <optional>false</optional>
     </dependency>      
@@ -247,7 +247,10 @@
                     <name>test.product</name>
                     <value>${test.product}</value>
                 </property>
-                
+                <property>
+                    <name>test.shareAccount</name>
+                    <value>${test.shareAccount}</value>
+                </property>
             </systemProperties>
           <includes>
             <!-- <include>**/AWSTestSuite.java</include> -->

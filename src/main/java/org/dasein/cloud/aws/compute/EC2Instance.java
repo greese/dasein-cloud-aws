@@ -64,6 +64,9 @@ import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.compute.VmStatistics;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.network.IPVersion;
+import org.dasein.cloud.network.IpAddress;
+import org.dasein.cloud.network.IpAddressSupport;
 import org.dasein.cloud.network.NetworkServices;
 import org.dasein.cloud.network.Subnet;
 import org.dasein.cloud.network.VLANSupport;
@@ -700,7 +703,21 @@ public class EC2Instance implements VirtualMachineSupport {
             	Node instance = instances.item(j);
             	
             	if( instance.getNodeName().equals("item") ) {
-            		VirtualMachine server = toVirtualMachine(ctx, instance);
+                    Iterable<IpAddress> addresses = Collections.emptyList();
+
+
+                    if( provider.hasNetworkServices() ) {
+                        NetworkServices services = provider.getNetworkServices();
+
+                        if( services != null ) {
+                            IpAddressSupport support = services.getIpAddressSupport();
+
+                            if( support != null ) {
+                                addresses = support.listIpPool(IPVersion.IPV4, false);
+                            }
+                        }
+                    }
+            		VirtualMachine server = toVirtualMachine(ctx, instance, addresses);
             		
             		if( server != null && server.getProviderVirtualMachineId().equals(instanceId) ) {
             			return server;
@@ -1190,7 +1207,7 @@ public class EC2Instance implements VirtualMachineSupport {
                 Node instance = instances.item(j);
 
                 if( instance.getNodeName().equals("item") ) {
-                    server = toVirtualMachine(ctx, instance);
+                    server = toVirtualMachine(ctx, instance, new ArrayList<IpAddress>() /* can't be an elastic IP */);
                     if( server != null ) {
                         break;
                     }
@@ -1413,6 +1430,18 @@ public class EC2Instance implements VirtualMachineSupport {
         if( ctx == null ) {
             throw new CloudException("No context was established for this request");
         }
+        Iterable<IpAddress> addresses = Collections.emptyList();
+        NetworkServices services = provider.getNetworkServices();
+
+        if( services != null ) {
+            if( services.hasIpAddressSupport() ) {
+                IpAddressSupport support = services.getIpAddressSupport();
+
+                if( support != null ) {
+                    addresses = support.listIpPool(IPVersion.IPV4, false);
+                }
+            }
+        }
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
 		EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
 		ArrayList<VirtualMachine> list = new ArrayList<VirtualMachine>();
@@ -1434,7 +1463,7 @@ public class EC2Instance implements VirtualMachineSupport {
             	Node instance = instances.item(j);
             	
             	if( instance.getNodeName().equals("item") ) {
-            		list.add(toVirtualMachine(ctx, instance));
+            		list.add(toVirtualMachine(ctx, instance, addresses));
             	}
             }
         }
@@ -1597,7 +1626,7 @@ public class EC2Instance implements VirtualMachineSupport {
         throw new OperationNotSupportedException("Pause/unpause not supported by the EC2 API");
     }
 
-    private @Nullable VirtualMachine toVirtualMachine(@Nonnull ProviderContext ctx, @Nullable Node instance) throws CloudException {
+    private @Nullable VirtualMachine toVirtualMachine(@Nonnull ProviderContext ctx, @Nullable Node instance, @Nonnull Iterable<IpAddress> addresses) throws CloudException {
         if( instance == null ) {
             return null;
         }
@@ -1694,6 +1723,12 @@ public class EC2Instance implements VirtualMachineSupport {
                     String value = attr.getFirstChild().getNodeValue();
 
                     server.setPublicIpAddresses(new String[] { value });
+                    for( IpAddress addr : addresses ) {
+                        if( value.equals(addr.getAddress()) ) {
+                            server.setProviderAssignedIpAddressId(addr.getProviderIpAddressId());
+                            break;
+                        }
+                    }
                 }
             }
             else if( name.equals("rootDeviceType") ) {

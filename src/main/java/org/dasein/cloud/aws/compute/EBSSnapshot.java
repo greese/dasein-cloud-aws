@@ -121,7 +121,7 @@ public class EBSSnapshot implements SnapshotSupport {
         NodeList blocks;
 		Document doc;
 
-		parameters.put("SnapshotId", forSnapshotId);
+		parameters.put("SnapshotId.1", forSnapshotId);
 		parameters.put("Attribute", "createVolumePermission");
 		method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
@@ -130,7 +130,7 @@ public class EBSSnapshot implements SnapshotSupport {
         catch( EC2Exception e ) {
         	String code = e.getCode();
         	
-        	if( code != null && code.startsWith("InvalidSnapshotID") ) {
+        	if( code != null && (code.startsWith("InvalidSnapshotID") || code.equals("InvalidSnapshot.NotFound")) ) {
         		return list;
         	}
         	logger.error(e.getSummary());
@@ -187,7 +187,7 @@ public class EBSSnapshot implements SnapshotSupport {
             catch( EC2Exception e ) {
             	String code = e.getCode();
             	
-            	if( code != null && code.startsWith("InvalidSnapshot.NotFound") ) {
+            	if( code != null && (code.startsWith("InvalidSnapshot.NotFound") || code.equals("InvalidParameterValue")) ) {
             		return null;
             	}
             	logger.error(e.getSummary());
@@ -231,7 +231,7 @@ public class EBSSnapshot implements SnapshotSupport {
         NodeList blocks;
 		Document doc;
 
-		parameters.put("SnapshotId", snapshotId);
+		parameters.put("SnapshotId.1", snapshotId);
 		parameters.put("Attribute", "createVolumePermission");
 		method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {

@@ -32,6 +32,10 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
+import org.dasein.cloud.compute.ComputeServices;
+import org.dasein.cloud.compute.VirtualMachine;
+import org.dasein.cloud.compute.VirtualMachineSupport;
+import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.AddressType;
 import org.dasein.cloud.network.IPVersion;
@@ -39,6 +43,7 @@ import org.dasein.cloud.network.IpAddress;
 import org.dasein.cloud.network.IpAddressSupport;
 import org.dasein.cloud.network.IpForwardingRule;
 import org.dasein.cloud.network.Protocol;
+import org.dasein.util.CalendarWrapper;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -54,9 +59,39 @@ public class ElasticIP implements IpAddressSupport {
 	ElasticIP(AWSCloud provider) {
 		this.provider = provider;
 	}
-	
+
+    private @Nullable VirtualMachine getInstance(@Nonnull String instanceId) throws InternalException, CloudException {
+        ComputeServices services = provider.getComputeServices();
+
+        if( services != null ) {
+            VirtualMachineSupport support = services.getVirtualMachineSupport();
+
+            if( support != null ) {
+                return support.getVirtualMachine(instanceId);
+            }
+        }
+        throw new CloudException("Instances are not supported in " + provider.getCloudName());
+    }
+
 	@Override
 	public void assign(@Nonnull String addressId, @Nonnull String instanceId) throws InternalException,	CloudException {
+        long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
+        VirtualMachine vm = getInstance(instanceId);
+
+        while( System.currentTimeMillis() < timeout ) {
+            if( vm == null || VmState.TERMINATED.equals(vm.getCurrentState()) ) {
+                throw new CloudException("No such virtual machine " + instanceId);
+            }
+            VmState s = vm.getCurrentState();
+
+            if( VmState.RUNNING.equals(s) || VmState.STOPPED.equals(s) || VmState.PAUSED.equals(s) || VmState.SUSPENDED.equals(s) ) {
+                break;
+            }
+            try { Thread.sleep(20000L); }
+            catch( InterruptedException ignore ) { }
+            try { vm = getInstance(instanceId); }
+            catch( Throwable ignore ) { }
+        }
 		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ASSOCIATE_ADDRESS);
 		EC2Method method;
 		NodeList blocks;
@@ -258,7 +293,7 @@ public class ElasticIP implements IpAddressSupport {
     @Override
     public @Nonnull Iterable<IpAddress> listIpPool(@Nonnull IPVersion version, boolean unassignedOnly) throws InternalException, CloudException {
         if( !version.equals(IPVersion.IPV4) ) {
-            return Collections.emptyList();
+            throw new OperationNotSupportedException(version + " is not supported in " + provider.getCloudName());
         }
         ProviderContext ctx = provider.getContext();
 
@@ -300,7 +335,7 @@ public class ElasticIP implements IpAddressSupport {
 
     @Override
 	public @Nonnull Collection<IpForwardingRule> listRules(@Nonnull String addressId)	throws InternalException, CloudException {
-		return new ArrayList<IpForwardingRule>();
+        return Collections.emptyList();
 	}
 
     @Override
@@ -445,7 +480,7 @@ public class ElasticIP implements IpAddressSupport {
         NodeList blocks;
         Document doc;
 
-        parameters.put("domain","vpc");
+        parameters.put("Domain","vpc");
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
             doc = method.invoke();
