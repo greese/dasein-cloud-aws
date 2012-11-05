@@ -1685,6 +1685,10 @@ public class EC2Instance implements VirtualMachineSupport {
             else if( name.equals("privateIpAddress") ) {
                 if( attr.hasChildNodes() ) {
                     String value = attr.getFirstChild().getNodeValue();
+                    String guess = guess(value);
+                    if (guess != null) {
+                    	value = guess;
+                    }
 
                     server.setPrivateIpAddresses(new String[] { value });
                 }
@@ -1692,6 +1696,10 @@ public class EC2Instance implements VirtualMachineSupport {
             else if( name.equals("ipAddress") ) {
                 if( attr.hasChildNodes() ) {
                     String value = attr.getFirstChild().getNodeValue();
+                    String resolved = resolve(value);
+                    if (resolved != null) {
+                    	value = resolved;
+                    }
 
                     server.setPublicIpAddresses(new String[] { value });
                 }
