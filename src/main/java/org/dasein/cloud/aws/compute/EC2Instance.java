@@ -1059,6 +1059,7 @@ public class EC2Instance implements VirtualMachineSupport {
             throw new InternalException("No such machine image: " + cfg.getMachineImageId());
         }
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.RUN_INSTANCES);
+        String ramdiskImage = (String)cfg.getMetaData().get("ramdiskImageId"), kernelImage = (String)cfg.getMetaData().get("kernelImageId");
         EC2Method method;
         NodeList blocks;
         Document doc;
@@ -1067,6 +1068,12 @@ public class EC2Instance implements VirtualMachineSupport {
         parameters.put("MinCount", "1");
         parameters.put("MaxCount", "1");
         parameters.put("InstanceType", cfg.getStandardProductId());
+        if( ramdiskImage != null ) {
+            parameters.put("ramdiskId", ramdiskImage);
+        }
+        if( kernelImage != null ) {
+            parameters.put("kernelId", kernelImage);
+        }
         if( cfg.getUserData() != null ) {
             try {
                 parameters.put("UserData", Base64.encodeBase64String(cfg.getUserData().getBytes("utf-8")));
@@ -1665,6 +1672,16 @@ public class EC2Instance implements VirtualMachineSupport {
 				
 				server.setProviderMachineImageId(value);
 			}
+            else if( name.equals("kernelId") ) {
+                String value = attr.getFirstChild().getNodeValue().trim();
+
+                server.setTag("kernelImageId", value);
+            }
+            else if( name.equals("ramdiskId") ) {
+                String value = attr.getFirstChild().getNodeValue().trim();
+
+                server.setTag("ramdiskImageId", value);
+            }
 			else if( name.equalsIgnoreCase("subnetId") ) {
                 server.setProviderSubnetId(attr.getFirstChild().getNodeValue().trim());
 			}
@@ -1714,10 +1731,6 @@ public class EC2Instance implements VirtualMachineSupport {
             else if( name.equals("privateIpAddress") ) {
                 if( attr.hasChildNodes() ) {
                     String value = attr.getFirstChild().getNodeValue();
-                    String guess = guess(value);
-                    if (guess != null) {
-                    	value = guess;
-                    }
 
                     server.setPrivateIpAddresses(new String[] { value });
                 }
@@ -1725,10 +1738,6 @@ public class EC2Instance implements VirtualMachineSupport {
             else if( name.equals("ipAddress") ) {
                 if( attr.hasChildNodes() ) {
                     String value = attr.getFirstChild().getNodeValue();
-                    String resolved = resolve(value);
-                    if (resolved != null) {
-                    	value = resolved;
-                    }
 
                     server.setPublicIpAddresses(new String[] { value });
                     for( IpAddress addr : addresses ) {
