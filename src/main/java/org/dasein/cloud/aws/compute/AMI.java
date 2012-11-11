@@ -235,8 +235,14 @@ public class AMI implements MachineImageSupport {
         t.start();
         return task;
     }
-    
-    private String imageVirtualMachine(String vmId, String name, String description, AsynchronousTask<String> task) throws CloudException, InternalException {
+
+
+  @Override
+  public @Nonnull String imageVirtualMachineSynchronously(String vmId, String name, String description) throws CloudException, InternalException {
+    return imageVirtualMachine(vmId, name, description, null);
+  }
+
+  private String imageVirtualMachine(String vmId, String name, String description, AsynchronousTask<String> task) throws CloudException, InternalException {
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_IMAGE);           
         NodeList blocks;
         EC2Method method;
