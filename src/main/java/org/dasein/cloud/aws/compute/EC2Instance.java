@@ -55,6 +55,7 @@ import org.dasein.cloud.Requirement;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.Architecture;
+import org.dasein.cloud.compute.ImageClass;
 import org.dasein.cloud.compute.MachineImage;
 import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.VMLaunchOptions;
@@ -934,6 +935,11 @@ public class EC2Instance implements VirtualMachineSupport {
     }
 
     @Override
+    public @Nonnull Requirement identifyImageRequirement(@Nonnull ImageClass cls) throws CloudException, InternalException {
+        return (ImageClass.MACHINE.equals(cls) ? Requirement.REQUIRED : Requirement.OPTIONAL);
+    }
+
+    @Override
     public @Nonnull Requirement identifyPasswordRequirement() {
         return Requirement.NONE;
     }
@@ -946,6 +952,11 @@ public class EC2Instance implements VirtualMachineSupport {
     @Override
     public @Nonnull Requirement identifyShellKeyRequirement() {
         return Requirement.OPTIONAL;
+    }
+
+    @Override
+    public @Nonnull Requirement identifyStaticIPRequirement() throws CloudException, InternalException {
+        return Requirement.NONE; // TODO: make this optional and fake it during provisioning
     }
 
     @Override
@@ -1676,11 +1687,13 @@ public class EC2Instance implements VirtualMachineSupport {
                 String value = attr.getFirstChild().getNodeValue().trim();
 
                 server.setTag("kernelImageId", value);
+                server.setProviderKernelImageId(value);
             }
             else if( name.equals("ramdiskId") ) {
                 String value = attr.getFirstChild().getNodeValue().trim();
 
                 server.setTag("ramdiskImageId", value);
+                server.setProviderRamdiskImageId(value);
             }
 			else if( name.equalsIgnoreCase("subnetId") ) {
                 server.setProviderSubnetId(attr.getFirstChild().getNodeValue().trim());
