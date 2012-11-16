@@ -390,6 +390,9 @@ public class EBSSnapshot implements SnapshotSupport {
     public void removeAllSnapshotShares(@Nonnull String providerSnapshotId) throws CloudException, InternalException {
         List<String> shares = (List<String>)listShares(providerSnapshotId);
 
+        if( shares.isEmpty() ) {
+            return;
+        }
         setPrivateShare(providerSnapshotId, false, shares.toArray(new String[shares.size()]));
     }
 
@@ -524,7 +527,6 @@ public class EBSSnapshot implements SnapshotSupport {
         }
     }
 
-
     @Override
     public @Nonnull Snapshot snapshot(@Nonnull String volumeId, @Nonnull String name, @Nonnull String description, @Nullable Tag... tags) throws InternalException, CloudException {
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_SNAPSHOT);
@@ -564,6 +566,7 @@ public class EBSSnapshot implements SnapshotSupport {
             t.setValue(name);
             toCreate[toCreate.length-1] = t;
             provider.createTags(snapshot.getProviderSnapshotId(), toCreate);
+            snapshot.setName(name);
             return snapshot;
         }
         throw new CloudException("No error occurred, but no snapshot was provided");
@@ -601,7 +604,6 @@ public class EBSSnapshot implements SnapshotSupport {
 			name = attr.getNodeName();
 			if( name.equals("snapshotId") ) {
 				snapshot.setProviderSnapshotId(attr.getFirstChild().getNodeValue().trim());
-				snapshot.setName(snapshot.getProviderSnapshotId());
 			}
 			else if( name.equals("volumeId") ) {
 				NodeList children = attr.getChildNodes();
@@ -699,7 +701,47 @@ public class EBSSnapshot implements SnapshotSupport {
 				}
 				snapshot.setDescription(description);
 			}
+            else if( name.equals("tagSet") ) {
+                if( attr.hasChildNodes() ) {
+                    NodeList tags = attr.getChildNodes();
+
+                    for( int j=0; j<tags.getLength(); j++ ) {
+                        Node tag = tags.item(j);
+
+                        if( tag.getNodeName().equals("item") && tag.hasChildNodes() ) {
+                            NodeList parts = tag.getChildNodes();
+                            String key = null, value = null;
+
+                            for( int k=0; k<parts.getLength(); k++ ) {
+                                Node part = parts.item(k);
+
+                                if( part.getNodeName().equalsIgnoreCase("key") ) {
+                                    if( part.hasChildNodes() ) {
+                                        key = part.getFirstChild().getNodeValue().trim();
+                                    }
+                                }
+                                else if( part.getNodeName().equalsIgnoreCase("value") ) {
+                                    if( part.hasChildNodes() ) {
+                                        value = part.getFirstChild().getNodeValue().trim();
+                                    }
+                                }
+                            }
+                            if( key != null ) {
+                                if( key.equalsIgnoreCase("name") ) {
+                                    snapshot.setName(value);
+                                }
+                                else {
+                                    snapshot.addTag(key, value);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 		}
+        if( snapshot.getName() == null ) {
+            snapshot.setName(snapshot.getProviderSnapshotId());
+        }
 		if( snapshot.getDescription() == null ) {
 		    snapshot.setDescription(snapshot.getName() + " [" + snapshot.getSizeInGb() + " GB]");
 		}
