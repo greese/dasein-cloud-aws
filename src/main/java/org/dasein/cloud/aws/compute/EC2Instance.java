@@ -52,6 +52,7 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
+import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.Architecture;
@@ -1441,6 +1442,45 @@ public class EC2Instance implements VirtualMachineSupport {
         return launch(cfg);
 	}
 
+    @Override
+    public @Nonnull Iterable<ResourceStatus> listVirtualMachineStatus() throws InternalException, CloudException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was established for this request");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
+        EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+        NodeList blocks;
+        Document doc;
+
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("instancesSet");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            NodeList instances = blocks.item(i).getChildNodes();
+
+            for( int j=0; j<instances.getLength(); j++ ) {
+                Node instance = instances.item(j);
+
+                if( instance.getNodeName().equals("item") ) {
+                    ResourceStatus status = toStatus(instance);
+
+                    if( status != null ) {
+                        list.add(status);
+                    }
+                }
+            }
+        }
+        return list;
+    }
+
 	@Override
 	public @Nonnull Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
         ProviderContext ctx = provider.getContext();
@@ -1642,6 +1682,43 @@ public class EC2Instance implements VirtualMachineSupport {
     @Override
     public void unpause(@Nonnull String vmId) throws CloudException, InternalException {
         throw new OperationNotSupportedException("Pause/unpause not supported by the EC2 API");
+    }
+
+    private @Nullable ResourceStatus toStatus(@Nullable Node instance) throws CloudException {
+        if( instance == null ) {
+            return null;
+        }
+        NodeList attrs = instance.getChildNodes();
+        VmState state = VmState.PENDING;
+        String vmId = null;
+
+        for( int i=0; i<attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String name;
+
+            name = attr.getNodeName();
+            if( name.equals("instanceId") ) {
+                vmId = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if( name.equals("instanceState") ) {
+                NodeList details = attr.getChildNodes();
+
+                for( int j=0; j<details.getLength(); j++ ) {
+                    Node detail = details.item(j);
+
+                    name = detail.getNodeName();
+                    if( name.equals("name") ) {
+                        String value = detail.getFirstChild().getNodeValue().trim();
+
+                        state = getServerState(value);
+                    }
+                }
+            }
+        }
+        if( vmId == null ) {
+            return null;
+        }
+        return new ResourceStatus(vmId, state);
     }
 
     private @Nullable VirtualMachine toVirtualMachine(@Nonnull ProviderContext ctx, @Nullable Node instance, @Nonnull Iterable<IpAddress> addresses) throws CloudException {

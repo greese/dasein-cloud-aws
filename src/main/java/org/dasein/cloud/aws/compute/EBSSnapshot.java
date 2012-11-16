@@ -21,6 +21,7 @@ package org.dasein.cloud.aws.compute;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -28,6 +29,9 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.Requirement;
+import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.Snapshot;
 import org.dasein.cloud.compute.SnapshotState;
@@ -46,183 +50,96 @@ public class EBSSnapshot implements SnapshotSupport {
 	
 	private AWSCloud provider = null;
 	
-	EBSSnapshot(AWSCloud provider) {
+	EBSSnapshot(@Nonnull AWSCloud provider) {
 		this.provider = provider;
 	}
-	
-	@Override
-	public String create(String fromVolumeId, String description) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_SNAPSHOT);
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
 
-		parameters.put("VolumeId", fromVolumeId);
-		parameters.put("Description", description == null ? ("From " + fromVolumeId) : description);
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("snapshotId");
-        if( blocks.getLength() > 0 ) {
-        	return blocks.item(0).getFirstChild().getNodeValue().trim();
-        }
-        return null;
-	}
+    @Override
+    public void addSnapshotShare(@Nonnull String providerSnapshotId, @Nonnull String accountNumber) throws CloudException, InternalException {
+        setPrivateShare(providerSnapshotId, true, accountNumber);
+    }
 
-	@Override
-	public void remove(String snapshotId) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_SNAPSHOT);
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
+    @Override
+    public void addPublicShare(@Nonnull String providerSnapshotId) throws CloudException, InternalException {
+        setPublicShare(providerSnapshotId, true);
+    }
 
-		parameters.put("SnapshotId", snapshotId);
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            String code = e.getCode();
-            
-            if( code != null ) {
-                if( code.equals("InvalidSnapshot.NotFound") ) {
-                    return;
-                }
-            }
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("return");
-        if( blocks.getLength() > 0 ) {
-        	if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
-        		throw new CloudException("Deletion of snapshot denied.");
-        	}
-        }
-	}
+    @Override
+    @Deprecated
+	public @Nonnull String create(@Nonnull String fromVolumeId, @Nonnull String description) throws InternalException, CloudException {
+        @SuppressWarnings("ConstantConditions") String name = (description == null ? ("From " + fromVolumeId) : description);
 
-	@Override
-	public String getProviderTermForSnapshot(Locale locale) {
+        return snapshot(fromVolumeId, name, name).getProviderSnapshotId();
+    }
+
+    @Override
+	public @Nonnull String getProviderTermForSnapshot(@Nonnull Locale locale) {
 		return "snapshot";
 	}
 
-	@Override
-	public Iterable<String> listShares(String forSnapshotId) throws InternalException, CloudException {
-	    if( !provider.getEC2Provider().isAWS() ) {
-	        return new ArrayList<String>();
-	    }
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOT_ATTRIBUTE);
-		ArrayList<String> list = new ArrayList<String>();
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
 
-		parameters.put("SnapshotId.1", forSnapshotId);
-		parameters.put("Attribute", "createVolumePermission");
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	String code = e.getCode();
-        	
-        	if( code != null && (code.startsWith("InvalidSnapshotID") || code.equals("InvalidSnapshot.NotFound")) ) {
-        		return list;
-        	}
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("createVolumePermission");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList items = blocks.item(i).getChildNodes();
-        	
-            for( int j=0; j<items.getLength(); j++ ) {
-            	Node item = items.item(j);
-            	
-            	if( item.getNodeName().equals("item") ) {
-            		NodeList attrs = item.getChildNodes();
-            		
-            		for( int k=0; k<attrs.getLength(); k++ ) {
-            			Node attr = attrs.item(k);
-            			
-            			if( attr.getNodeName().equals("userId") ) {
-            				String userId = attr.getFirstChild().getNodeValue();
-            				
-            				if( userId != null ) {
-            					userId = userId.trim();
-            					if( userId.length() > 0 ) {
-            						list.add(userId);
-            					}
-            				}
-            			}
-            		}
-            	}
-            }
-        }
-        return list;		
-	}
-
-	@Override
-	public Snapshot getSnapshot(String snapshotId) throws InternalException, CloudException {
+    @Override
+    public @Nullable Snapshot getSnapshot(@Nonnull String snapshotId) throws InternalException, CloudException {
         ProviderContext ctx = provider.getContext();
-        
+
         if( ctx == null ) {
             throw new CloudException("No context exists for this request.");
         }
-	    if( provider.getEC2Provider().isAWS() ) {
-    		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
-    		EC2Method method;
+        if( provider.getEC2Provider().isAWS() ) {
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
+            EC2Method method;
             NodeList blocks;
-    		Document doc;
-    
-    		parameters.put("SnapshotId.1", snapshotId);
-    		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            Document doc;
+
+            parameters.put("SnapshotId.1", snapshotId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
-            	doc = method.invoke();
+                doc = method.invoke();
             }
             catch( EC2Exception e ) {
-            	String code = e.getCode();
-            	
-            	if( code != null && (code.startsWith("InvalidSnapshot.NotFound") || code.equals("InvalidParameterValue")) ) {
-            		return null;
-            	}
-            	logger.error(e.getSummary());
-            	throw new CloudException(e);
+                String code = e.getCode();
+
+                if( code != null && (code.startsWith("InvalidSnapshot.NotFound") || code.equals("InvalidParameterValue")) ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
             }
             blocks = doc.getElementsByTagName("snapshotSet");
             for( int i=0; i<blocks.getLength(); i++ ) {
-            	NodeList items = blocks.item(i).getChildNodes();
-            	
+                NodeList items = blocks.item(i).getChildNodes();
+
                 for( int j=0; j<items.getLength(); j++ ) {
-                	Node item = items.item(j);
-                	
-                	if( item.getNodeName().equals("item") ) {
-                		Snapshot snapshot = toSnapshot(ctx, item);
-                		
-                		if( snapshot != null && snapshot.getProviderSnapshotId().equals(snapshotId) ) {
-                			return snapshot;
-                		}
-                	}
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        Snapshot snapshot = toSnapshot(ctx, item);
+
+                        if( snapshot != null && snapshot.getProviderSnapshotId().equals(snapshotId) ) {
+                            return snapshot;
+                        }
+                    }
                 }
             }
             return null;
-	    }
-	    else {
-	        for( Snapshot snapshot : listSnapshots() ) {
-	            if( snapshot.getProviderSnapshotId().equals(snapshotId) ) {
-	                return snapshot;
-	            }
-	        }
-	        return null;
-	    }
-	}
+        }
+        else {
+            for( Snapshot snapshot : listSnapshots() ) {
+                if( snapshot.getProviderSnapshotId().equals(snapshotId) ) {
+                    return snapshot;
+                }
+            }
+            return null;
+        }
+    }
 
-	@Override
-	public boolean isPublic(String snapshotId) throws InternalException, CloudException {
+    @Override
+    public @Nonnull Requirement identifyAttachmentRequirement() throws InternalException, CloudException {
+        return Requirement.OPTIONAL;
+    }
+
+    @Override
+	public boolean isPublic(@Nonnull String snapshotId) throws InternalException, CloudException {
 	    if( !provider.getEC2Provider().isAWS()) {
 	        return false;
 	    }
@@ -278,19 +195,107 @@ public class EBSSnapshot implements SnapshotSupport {
     public boolean isSubscribed() throws InternalException, CloudException {
         return true;
     }
-    
-	@Override
-	public boolean supportsSnapshotSharing() throws InternalException, CloudException {
-		return provider.getEC2Provider().isAWS();
-	}
+
 
     @Override
-    public boolean supportsSnapshotSharingWithPublic() throws InternalException, CloudException {
-        return provider.getEC2Provider().isAWS();
+    public @Nonnull Iterable<String> listShares(@Nonnull String forSnapshotId) throws InternalException, CloudException {
+        if( !provider.getEC2Provider().isAWS() ) {
+            return new ArrayList<String>();
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOT_ATTRIBUTE);
+        ArrayList<String> list = new ArrayList<String>();
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("SnapshotId.1", forSnapshotId);
+        parameters.put("Attribute", "createVolumePermission");
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            String code = e.getCode();
+
+            if( code != null && (code.startsWith("InvalidSnapshotID") || code.equals("InvalidSnapshot.NotFound")) ) {
+                return list;
+            }
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("createVolumePermission");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            NodeList items = blocks.item(i).getChildNodes();
+
+            for( int j=0; j<items.getLength(); j++ ) {
+                Node item = items.item(j);
+
+                if( item.getNodeName().equals("item") ) {
+                    NodeList attrs = item.getChildNodes();
+
+                    for( int k=0; k<attrs.getLength(); k++ ) {
+                        Node attr = attrs.item(k);
+
+                        if( attr.getNodeName().equals("userId") ) {
+                            String userId = attr.getFirstChild().getNodeValue();
+
+                            if( userId != null ) {
+                                userId = userId.trim();
+                                if( userId.length() > 0 ) {
+                                    list.add(userId);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return list;
+    }
+
+    @Override
+    public @Nonnull Iterable<ResourceStatus> listSnapshotStatus() throws InternalException, CloudException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context exists for this request.");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
+        ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("Owner.1", "self");
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("snapshotSet");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            NodeList items = blocks.item(i).getChildNodes();
+
+            for( int j=0; j<items.getLength(); j++ ) {
+                Node item = items.item(j);
+
+                if( item.getNodeName().equals("item") ) {
+                    ResourceStatus status = toStatus(item);
+
+                    if( status != null ) {
+                        list.add(status);
+                    }
+                }
+            }
+        }
+        return list;
     }
     
 	@Override
-	public Iterable<Snapshot> listSnapshots() throws InternalException, CloudException {
+	public @Nonnull Iterable<Snapshot> listSnapshots() throws InternalException, CloudException {
         ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
@@ -302,6 +307,7 @@ public class EBSSnapshot implements SnapshotSupport {
         NodeList blocks;
 		Document doc;
 
+        parameters.put("Owner.1", "self");
 		method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
         	doc = method.invoke();
@@ -349,44 +355,236 @@ public class EBSSnapshot implements SnapshotSupport {
         return new String[0];
     }
 
-	@Override
-	public void shareSnapshot(String snapshotId, String withAccountId, boolean affirmative) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.MODIFY_SNAPSHOT_ATTRIBUTE);
-		EC2Method method;
+    @Override
+    public void remove(@Nonnull String snapshotId) throws InternalException, CloudException {
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_SNAPSHOT);
+        EC2Method method;
         NodeList blocks;
-		Document doc;
+        Document doc;
 
-		parameters.put("SnapshotId", snapshotId);
-		if( withAccountId == null ) {
-			parameters.put("UserGroup.1", "all");
-		}
-		else {
-			parameters.put("UserId.1", withAccountId);
-		}
-		parameters.put("Attribute", "createVolumePermission");
-		parameters.put("OperationType", affirmative ? "add" : "remove");
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        parameters.put("SnapshotId", snapshotId);
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
-        	doc = method.invoke();
+            doc = method.invoke();
         }
         catch( EC2Exception e ) {
-        	String code = e.getCode();
-        	
-        	if( code != null && code.startsWith("InvalidSnapshot.NotFound") ) {
-        		return;
-        	}
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+            String code = e.getCode();
+
+            if( code != null ) {
+                if( code.equals("InvalidSnapshot.NotFound") ) {
+                    return;
+                }
+            }
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         blocks = doc.getElementsByTagName("return");
         if( blocks.getLength() > 0 ) {
-        	if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
-        		throw new CloudException("Deletion of snapshot denied.");
-        	}
+            if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                throw new CloudException("Deletion of snapshot denied.");
+            }
         }
-	}
-	
-	private @Nullable Snapshot toSnapshot(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException {
+    }
+
+    @Override
+    public void removeAllSnapshotShares(@Nonnull String providerSnapshotId) throws CloudException, InternalException {
+        List<String> shares = (List<String>)listShares(providerSnapshotId);
+
+        setPrivateShare(providerSnapshotId, false, shares.toArray(new String[shares.size()]));
+    }
+
+    @Override
+    public void removeSnapshotShare(@Nonnull String providerSnapshotId, @Nonnull String accountNumber) throws CloudException, InternalException {
+        setPrivateShare(providerSnapshotId, false, accountNumber);
+    }
+
+    @Override
+    public void removePublicShare(@Nonnull String providerSnapshotId) throws CloudException, InternalException {
+        setPublicShare(providerSnapshotId, false);
+    }
+
+    @Override
+    public @Nonnull Iterable<Snapshot> searchSnapshots(@Nullable String ownerId, @Nullable String keyword) throws InternalException, CloudException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context exists for this request.");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
+        ArrayList<Snapshot> list = new ArrayList<Snapshot>();
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("snapshotSet");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            NodeList items = blocks.item(i).getChildNodes();
+
+            for( int j=0; j<items.getLength(); j++ ) {
+                Node item = items.item(j);
+
+                if( item.getNodeName().equals("item") ) {
+                    Snapshot snapshot = toSnapshot(ctx, item);
+
+                    if( snapshot != null ) {
+                        if( ownerId != null && !ownerId.equals(snapshot.getProviderSnapshotId()) ) {
+                            continue;
+                        }
+                        if( keyword != null && !snapshot.getName().contains(keyword) && !snapshot.getDescription().contains(keyword) ) {
+                            continue;
+                        }
+                        list.add(snapshot);
+                    }
+                }
+            }
+        }
+        return list;
+    }
+
+    private void setPublicShare(@Nonnull String snapshotId, boolean affirmative) throws InternalException, CloudException {
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.MODIFY_SNAPSHOT_ATTRIBUTE);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("SnapshotId", snapshotId);
+        parameters.put("UserGroup.1", "all");
+        parameters.put("Attribute", "createVolumePermission");
+        parameters.put("OperationType", affirmative ? "add" : "remove");
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            String code = e.getCode();
+
+            if( code != null && code.startsWith("InvalidSnapshot.NotFound") ) {
+                return;
+            }
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("return");
+        if( blocks.getLength() > 0 ) {
+            if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                throw new CloudException("Deletion of snapshot denied.");
+            }
+        }
+    }
+
+    private void setPrivateShare(@Nonnull String snapshotId, boolean affirmative, @Nonnull String ... accountIds) throws InternalException, CloudException {
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.MODIFY_SNAPSHOT_ATTRIBUTE);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("SnapshotId", snapshotId);
+        for(int i=0; i<accountIds.length; i++ ) {
+            parameters.put("UserId." + i, accountIds[i]);
+        }
+        parameters.put("Attribute", "createVolumePermission");
+        parameters.put("OperationType", affirmative ? "add" : "remove");
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            String code = e.getCode();
+
+            if( code != null && code.startsWith("InvalidSnapshot.NotFound") ) {
+                return;
+            }
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("return");
+        if( blocks.getLength() > 0 ) {
+            if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                throw new CloudException("Deletion of snapshot denied.");
+            }
+        }
+    }
+
+	@Override
+    @Deprecated
+	public void shareSnapshot(@Nonnull String snapshotId, @Nullable String withAccountId, boolean affirmative) throws InternalException, CloudException {
+        if( withAccountId == null ) {
+            setPublicShare(snapshotId, affirmative);
+        }
+        else {
+            setPrivateShare(snapshotId, affirmative, withAccountId);
+        }
+    }
+
+
+    @Override
+    public @Nonnull Snapshot snapshot(@Nonnull String volumeId, @Nonnull String name, @Nonnull String description, @Nullable Tag... tags) throws InternalException, CloudException {
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_SNAPSHOT);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("VolumeId", volumeId);
+        parameters.put("Description", description);
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("snapshotId");
+        if( blocks.getLength() > 0 ) {
+            Snapshot snapshot = getSnapshot(blocks.item(0).getFirstChild().getNodeValue().trim());
+
+            if( snapshot == null ) {
+                throw new CloudException("No error occurred, but no snapshot was provided");
+            }
+            Tag[] toCreate;
+
+            if( tags == null || tags.length < 1 ) {
+                toCreate = new Tag[1];
+            }
+            else {
+                toCreate = new Tag[1 + tags.length];
+                System.arraycopy(tags, 0, toCreate, 0, tags.length);
+            }
+            Tag t = new Tag();
+
+            t.setKey("Name");
+            t.setValue(name);
+            toCreate[toCreate.length-1] = t;
+            provider.createTags(snapshot.getProviderSnapshotId(), toCreate);
+            return snapshot;
+        }
+        throw new CloudException("No error occurred, but no snapshot was provided");
+    }
+
+    @Override
+    public boolean supportsSnapshotCreation() throws CloudException, InternalException {
+        return true;
+    }
+
+    @Override
+    public boolean supportsSnapshotSharing() throws InternalException, CloudException {
+        return provider.getEC2Provider().isAWS();
+    }
+
+    @Override
+    public boolean supportsSnapshotSharingWithPublic() throws InternalException, CloudException {
+        return provider.getEC2Provider().isAWS();
+    }
+
+    private @Nullable Snapshot toSnapshot(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException {
         if( node == null ) {
             return null;
         }
@@ -526,4 +724,40 @@ public class EBSSnapshot implements SnapshotSupport {
 		}
 		return snapshot;
 	}
+
+    private @Nullable ResourceStatus toStatus(@Nullable Node node) throws CloudException {
+        if( node == null ) {
+            return null;
+        }
+        NodeList attrs = node.getChildNodes();
+        SnapshotState state = SnapshotState.PENDING;
+        String snapshotId = null;
+
+        for( int i=0; i<attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String name;
+
+            name = attr.getNodeName();
+            if( name.equals("snapshotId") ) {
+                snapshotId = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if( name.equals("status") ) {
+                String s = attr.getFirstChild().getNodeValue().trim();
+
+                if( s.equals("completed") ) {
+                    state = SnapshotState.AVAILABLE;
+                }
+                else if( s.equals("deleting") || s.equals("deleted") ) {
+                    state = SnapshotState.DELETED;
+                }
+                else {
+                    state = SnapshotState.PENDING;
+                }
+            }
+        }
+        if( snapshotId == null ) {
+            return null;
+        }
+        return new ResourceStatus(snapshotId, state);
+    }
 }
