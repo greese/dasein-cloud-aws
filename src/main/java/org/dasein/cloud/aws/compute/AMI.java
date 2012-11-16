@@ -35,6 +35,7 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
+import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.storage.S3Method;
 import org.dasein.cloud.compute.Architecture;
@@ -636,6 +637,90 @@ public class AMI implements MachineImageSupport {
             }
             throw new CloudException(e);
         }
+    }
+
+    public @Nonnull Iterable<ResourceStatus> listImageStatus(@Nonnull ImageClass cls) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was set for this request");
+        }
+
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+        ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        String accountNumber = ctx.getAccountNumber();
+
+        if( provider.getEC2Provider().isAWS() ) {
+            parameters.put("Owner", accountNumber);
+        }
+        String t = "machine";
+
+        switch( cls ) {
+            case MACHINE: t = "machine"; break;
+            case KERNEL: t = "kernel"; break;
+            case RAMDISK: t = "ramdisk"; break;
+        }
+        parameters.put("Filter.1.Name", "image-type");
+        parameters.put("Filter.1.Value", t);
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("imagesSet");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            NodeList instances = blocks.item(i).getChildNodes();
+
+            for( int j=0; j<instances.getLength(); j++ ) {
+                Node instance = instances.item(j);
+
+                if( instance.getNodeName().equals("item") ) {
+                    ResourceStatus status = toStatus(instance);
+
+                    if( status != null ) {
+                        list.add(status);
+                    }
+                }
+            }
+        }
+        if( provider.getEC2Provider().isAWS() ) {
+            parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+            parameters.put("ExecutableBy", accountNumber);
+            parameters.put("Filter.1.Name", "image-type");
+            parameters.put("Filter.1.Value", t);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("imagesSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList instances = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<instances.getLength(); j++ ) {
+                    Node instance = instances.item(j);
+
+                    if( instance.getNodeName().equals("item") ) {
+                        ResourceStatus status = toStatus(instance);
+
+                        if( status != null ) {
+                            list.add(status);
+                        }
+                    }
+                }
+            }
+        }
+        return list;
     }
 
     @Override
@@ -1347,7 +1432,55 @@ public class AMI implements MachineImageSupport {
 		}
 		return task;
 	}
-	
+
+    private @Nullable ResourceStatus toStatus(@Nullable Node node) throws CloudException, InternalException {
+        if( node == null ) {
+            return null;
+        }
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was set for this request");
+        }
+        String regionId = ctx.getRegionId();
+
+        if( regionId == null ) {
+            throw new CloudException("No region was set for this request");
+        }
+        NodeList attributes = node.getChildNodes();
+        MachineImageState state = MachineImageState.PENDING;
+        String imageId = null;
+
+        for( int i=0; i<attributes.getLength(); i++ ) {
+            Node attribute = attributes.item(i);
+            String name = attribute.getNodeName();
+
+            if( name.equals("imageId") ) {
+                imageId = attribute.getFirstChild().getNodeValue().trim();
+            }
+            else if( name.equals("imageState") ) {
+                String value = null;
+
+                if( attribute.getChildNodes().getLength() > 0 ) {
+                    value = attribute.getFirstChild().getNodeValue().trim();
+                }
+                if( value != null && value.equalsIgnoreCase("available") ) {
+                    state = MachineImageState.ACTIVE;
+                }
+                else if( value != null && value.equalsIgnoreCase("failed") ) {
+                    state = MachineImageState.DELETED;
+                }
+                else {
+                    state = MachineImageState.PENDING;
+                }
+            }
+        }
+        if( imageId == null ) {
+            return null;
+        }
+        return new ResourceStatus(imageId, state);
+    }
+
 	private @Nullable MachineImage toMachineImage(@Nullable Node node) throws CloudException, InternalException {
         if( node == null ) {
             return null;
@@ -1375,10 +1508,16 @@ public class AMI implements MachineImageSupport {
 			
 			if( name.equals("imageType") ) {
 				String value = attribute.getFirstChild().getNodeValue().trim();
-				
-				if( !value.equals("machine") ) {
-					return null;
-				}
+
+                if( value.equalsIgnoreCase("machine") ) {
+                    image.setImageClass(ImageClass.MACHINE);
+                }
+                else if( value.equalsIgnoreCase("kernel") ) {
+                    image.setImageClass(ImageClass.KERNEL);
+                }
+                else if( value.equalsIgnoreCase("ramdisk") ) {
+                    image.setImageClass(ImageClass.RAMDISK);
+                }
 			}
 			else if( name.equals("imageId") ) {
 				String value = attribute.getFirstChild().getNodeValue().trim();				
