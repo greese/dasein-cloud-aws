@@ -243,7 +243,7 @@ public class AMI implements MachineImageSupport {
         Document doc;
         
         parameters.put("InstanceId", vmId);
-        parameters.put("Name", name + "-" + System.currentTimeMillis());
+        parameters.put("Name", name);
         parameters.put("Description", description);
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
