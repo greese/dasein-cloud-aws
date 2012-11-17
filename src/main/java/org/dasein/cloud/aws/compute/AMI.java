@@ -50,6 +50,7 @@ import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.util.APITrace;
 import org.dasein.util.CalendarWrapper;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
@@ -72,12 +73,24 @@ public class AMI implements MachineImageSupport {
 
     @Override
     public void addImageShare(@Nonnull String providerImageId, @Nonnull String accountNumber) throws CloudException, InternalException {
-        setPrivateShare(providerImageId, true, accountNumber);
+        APITrace.begin(provider, "addImageShare");
+        try {
+            setPrivateShare(providerImageId, true, accountNumber);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public void addPublicShare(@Nonnull String providerImageId) throws CloudException, InternalException {
-        setPublicShare(providerImageId, true);
+        APITrace.begin(provider, "addPublicShare");
+        try {
+            setPublicShare(providerImageId, true);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
@@ -101,97 +114,103 @@ public class AMI implements MachineImageSupport {
     }
 
     private @Nonnull MachineImage captureImage(@Nonnull ProviderContext ctx, @Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
-        if( task != null ) {
-            task.setStartTime(System.currentTimeMillis());
-        }
-        VirtualMachine vm = null;
-
-        long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
-
-        while( timeout > System.currentTimeMillis() ) {
-            try {
-                //noinspection ConstantConditions
-                vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(options.getVirtualMachineId());
-                if( vm == null || VmState.TERMINATED.equals(vm.getCurrentState()) ) {
-                    break;
-                }
-                if( !vm.isPersistent() ) {
-                    throw new OperationNotSupportedException("You cannot capture instance-backed virtual machines");
-                }
-                if( VmState.RUNNING.equals(vm.getCurrentState()) || VmState.STOPPED.equals(vm.getCurrentState()) ) {
-                    break;
-                }
+        APITrace.begin(provider, "captureImage");
+        try {
+            if( task != null ) {
+                task.setStartTime(System.currentTimeMillis());
             }
-            catch( Throwable ignore ) {
-                // ignore
-            }
-            try { Thread.sleep(15000L); }
-            catch( InterruptedException ignore ) { }
-        }
-        if( vm == null ) {
-            throw new CloudException("No such virtual machine: " + options.getVirtualMachineId());
-        }
-        String lastMessage = null;
-        int attempts = 5;
+            VirtualMachine vm = null;
 
-        while( attempts > 0 ) {
-            if( vm.getPlatform().isWindows() ) {
-                String bucket = provider.getStorageServices().getBlobStoreSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
+            long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
 
-                if( bucket == null ) {
-                    throw new CloudException("There is no bucket");
-                }
-                return captureWindows(ctx, options, bucket, task);
-            }
-            else {
-                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_IMAGE);
-                NodeList blocks;
-                EC2Method method;
-                Document doc;
-
-                parameters.put("InstanceId", options.getVirtualMachineId());
-                parameters.put("Name", options.getName());
-                parameters.put("Description", options.getDescription());
-                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            while( timeout > System.currentTimeMillis() ) {
                 try {
-                    doc = method.invoke();
-                }
-                catch( EC2Exception e ) {
-                    logger.error(e.getSummary());
-                    throw new CloudException(e);
-                }
-                blocks = doc.getElementsByTagName("imageId");
-                if( blocks.getLength() > 0 ) {
-                    Node imageIdNode = blocks.item(0);
-                    String id = imageIdNode.getFirstChild().getNodeValue().trim();
-                    MachineImage img = getImage(id);
-
-                    if( img == null ) {
-                        throw new CloudException("No image exists for " + id + " as created during the capture process");
+                    //noinspection ConstantConditions
+                    vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(options.getVirtualMachineId());
+                    if( vm == null || VmState.TERMINATED.equals(vm.getCurrentState()) ) {
+                        break;
                     }
-                    if( MachineImageState.DELETED.equals(img.getCurrentState()) ) {
-                        String errorMessage = (String)img.getTag("stateReason");
-
-                        if( errorMessage != null ) {
-                            if( errorMessage.contains("try again") ) {
-                                lastMessage = errorMessage;
-                                attempts--;
-                                try { Thread.sleep(CalendarWrapper.MINUTE); }
-                                catch( InterruptedException ignore ) { }
-                                continue;
-                            }
-                            throw new CloudException(errorMessage);
-                        }
+                    if( !vm.isPersistent() ) {
+                        throw new OperationNotSupportedException("You cannot capture instance-backed virtual machines");
                     }
-                    return img;
+                    if( VmState.RUNNING.equals(vm.getCurrentState()) || VmState.STOPPED.equals(vm.getCurrentState()) ) {
+                        break;
+                    }
                 }
-                throw new CloudException("No error occurred during imaging, but no machine image was specified");
+                catch( Throwable ignore ) {
+                    // ignore
+                }
+                try { Thread.sleep(15000L); }
+                catch( InterruptedException ignore ) { }
             }
+            if( vm == null ) {
+                throw new CloudException("No such virtual machine: " + options.getVirtualMachineId());
+            }
+            String lastMessage = null;
+            int attempts = 5;
+
+            while( attempts > 0 ) {
+                if( vm.getPlatform().isWindows() ) {
+                    String bucket = provider.getStorageServices().getBlobStoreSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
+
+                    if( bucket == null ) {
+                        throw new CloudException("There is no bucket");
+                    }
+                    return captureWindows(ctx, options, bucket, task);
+                }
+                else {
+                    Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_IMAGE);
+                    NodeList blocks;
+                    EC2Method method;
+                    Document doc;
+
+                    parameters.put("InstanceId", options.getVirtualMachineId());
+                    parameters.put("Name", options.getName());
+                    parameters.put("Description", options.getDescription());
+                    method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                    try {
+                        doc = method.invoke();
+                    }
+                    catch( EC2Exception e ) {
+                        logger.error(e.getSummary());
+                        throw new CloudException(e);
+                    }
+                    blocks = doc.getElementsByTagName("imageId");
+                    if( blocks.getLength() > 0 ) {
+                        Node imageIdNode = blocks.item(0);
+                        String id = imageIdNode.getFirstChild().getNodeValue().trim();
+                        MachineImage img = getImage(id);
+
+                        if( img == null ) {
+                            throw new CloudException("No image exists for " + id + " as created during the capture process");
+                        }
+                        if( MachineImageState.DELETED.equals(img.getCurrentState()) ) {
+                            String errorMessage = (String)img.getTag("stateReason");
+
+                            if( errorMessage != null ) {
+                                if( errorMessage.contains("try again") ) {
+                                    lastMessage = errorMessage;
+                                    attempts--;
+                                    try { Thread.sleep(CalendarWrapper.MINUTE); }
+                                    catch( InterruptedException ignore ) { }
+                                    continue;
+                                }
+                                throw new CloudException(errorMessage);
+                            }
+                        }
+                        return img;
+                    }
+                    throw new CloudException("No error occurred during imaging, but no machine image was specified");
+                }
+            }
+            if( lastMessage == null ) {
+                lastMessage = "Unknown error";
+            }
+            throw new CloudException(lastMessage);
         }
-        if( lastMessage == null ) {
-            lastMessage = "Unknown error";
+        finally {
+            APITrace.end();
         }
-        throw new CloudException(lastMessage);
     }
 
     @Override
@@ -249,233 +268,135 @@ public class AMI implements MachineImageSupport {
     }
 
     private MachineImage captureWindows(@Nonnull ProviderContext ctx, @Nonnull ImageCreateOptions options, @Nonnull String bucket, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.BUNDLE_INSTANCE);
-        StringBuilder uploadPolicy = new StringBuilder();
-        NodeList blocks;
-        EC2Method method;
-        Document doc;
-
-        uploadPolicy.append("{");
-        uploadPolicy.append("\"expiration\":\"");
-        {
-            SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-            Date date = new Date(System.currentTimeMillis() + (CalendarWrapper.HOUR*12L));
-
-            uploadPolicy.append(fmt.format(date));
-        }
-        uploadPolicy.append("\",\"conditions\":");
-        {
-            uploadPolicy.append("[");
-            uploadPolicy.append("{\"bucket\":\"");
-            uploadPolicy.append(bucket);
-            uploadPolicy.append("\"},");
-            uploadPolicy.append("{\"acl\": \"ec2-bundle-read\"},");
-            uploadPolicy.append("[\"starts-with\", \"$key\", \"");
-            uploadPolicy.append(options.getName());
-            uploadPolicy.append("\"]");
-            uploadPolicy.append("]");
-        }
-        uploadPolicy.append("}");
-        String base64Policy;
-
+        APITrace.begin(provider, "captureWindows");
         try {
-            base64Policy = S3Method.toBase64(uploadPolicy.toString().getBytes("utf-8"));
-        }
-        catch( UnsupportedEncodingException e ) {
-            logger.error(e);
-            e.printStackTrace();
-            throw new InternalException(e);
-        }
-        parameters.put("InstanceId", options.getVirtualMachineId());
-        parameters.put("Storage.S3.Bucket", bucket);
-        parameters.put("Storage.S3.Prefix", options.getName());
-        parameters.put("Storage.S3.AWSAccessKeyId", ctx.getAccountNumber());
-        parameters.put("Storage.S3.UploadPolicy", base64Policy);
-        parameters.put("Storage.S3.UploadPolicySignature", provider.signUploadPolicy(base64Policy));
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("bundleId");
-        if( blocks.getLength() < 1 ) {
-            throw new CloudException("Unable to identify the bundle task ID.");
-        }
-        String bundleId = blocks.item(0).getFirstChild().getNodeValue();
-        String manifest = (bucket + "/" + options.getName() + ".manifest.xml");
-
-        if( task == null ) {
-            task = new AsynchronousTask<MachineImage>();
-            task.setStartTime(System.currentTimeMillis());
-        }
-        waitForBundle(bundleId, manifest, options.getPlatform(), options.getName(), options.getDescription(), task);
-
-        Throwable t = task.getTaskError();
-
-        if( t != null ) {
-            if( t instanceof CloudException ) {
-                throw (CloudException)t;
-            }
-            else if( t instanceof InternalException ) {
-                throw (InternalException)t;
-            }
-            throw new InternalException(t);
-        }
-        MachineImage img = task.getResult();
-
-        if( img == null ) {
-            throw new CloudException("No image was created, but no error was given");
-        }
-        return img;
-    }
-
-    private @Nonnull Iterable<MachineImage> executeImageSearch(@Nullable String ownerId, @Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nonnull ImageClass cls) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was set for this request");
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
-        ArrayList<MachineImage> list = new ArrayList<MachineImage>();
-        NodeList blocks;
-        EC2Method method;
-        Document doc;
-
-        parameters.put("ExecutableBy.1", ctx.getAccountNumber());
-        int filter = 1;
-        if( architecture != null ) {
-            parameters.put("Filter." + filter + ".Name", "architecture");
-            parameters.put("Filter." + (filter++) + ".Value.1", architecture.equals(Architecture.I32) ? "i386" : "x86_64");
-        }
-        if( platform != null && platform.equals(Platform.WINDOWS) ) {
-            parameters.put("Filter." + filter + ".Name", "platform");
-            parameters.put("Filter." + (filter++) + ".Value.1", "windows");
-        }
-        String t = "machine";
-
-        switch( cls ) {
-            case MACHINE: t = "machine"; break;
-            case KERNEL: t = "kernel"; break;
-            case RAMDISK: t = "ramdisk"; break;
-        }
-        parameters.put("Filter." + filter + ".Name", "image-type");
-        parameters.put("Filter." + (filter++) + ".Value.1", t);
-        parameters.put("Filter." + filter + ".Name", "state");
-        parameters.put("Filter." + filter + ".Value.1", "available");
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("imagesSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            NodeList instances = blocks.item(i).getChildNodes();
-
-            for( int j=0; j<instances.getLength(); j++ ) {
-                Node instance = instances.item(j);
-
-                if( instance.getNodeName().equals("item") ) {
-                    MachineImage image = toMachineImage(instance);
-
-                    if( image != null ) {
-                        if( matches(image, ownerId, keyword, platform) ) {
-                            list.add(image);
-                        }
-                    }
-                }
-            }
-        }
-        return list;
-    }
-
-    private @Nonnull Iterable<MachineImage> executePublicImageSearch(@Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nonnull ImageClass cls) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
-        ArrayList<MachineImage> list = new ArrayList<MachineImage>();
-        NodeList blocks;
-        EC2Method method;
-        Document doc;
-
-        parameters.put("ExecutableBy.1", "all");
-        int filter = 1;
-        if( architecture != null ) {
-            parameters.put("Filter." + filter + ".Name", "architecture");
-            parameters.put("Filter." + (filter++) + ".Value.1", architecture.equals(Architecture.I32) ? "i386" : "x86_64");
-        }
-        if( platform != null && platform.equals(Platform.WINDOWS) ) {
-            parameters.put("Filter." + filter + ".Name", "platform");
-            parameters.put("Filter." + (filter++) + ".Value.1", "windows");
-        }
-        String t = "machine";
-
-        switch( cls ) {
-            case MACHINE: t = "machine"; break;
-            case KERNEL: t = "kernel"; break;
-            case RAMDISK: t = "ramdisk"; break;
-        }
-        parameters.put("Filter." + filter + ".Name", "image-type");
-        parameters.put("Filter." + (filter++) + ".Value.1", t);
-
-        parameters.put("Filter." + filter + ".Name", "state");
-        parameters.put("Filter." + filter + ".Value.1", "available");
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("imagesSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            NodeList instances = blocks.item(i).getChildNodes();
-
-            for( int j=0; j<instances.getLength(); j++ ) {
-                Node instance = instances.item(j);
-
-                if( instance.getNodeName().equals("item") ) {
-                    MachineImage image = toMachineImage(instance);
-
-                    if( image != null ) {
-                        if( matches(image, null, keyword, platform) ) {
-                            list.add(image);
-                        }
-                    }
-                }
-            }
-        }
-        return list;
-    }
-
-    @Override
-    public @Nullable MachineImage getImage(@Nonnull String providerImageId) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was set for this request");
-        }
-        if( provider.getEC2Provider().isAWS() ) {
-            Map<String,String> parameters = provider.getStandardParameters(ctx, EC2Method.DESCRIBE_IMAGES);
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.BUNDLE_INSTANCE);
+            StringBuilder uploadPolicy = new StringBuilder();
             NodeList blocks;
             EC2Method method;
             Document doc;
 
-            parameters.put("ImageId", providerImageId);
+            uploadPolicy.append("{");
+            uploadPolicy.append("\"expiration\":\"");
+            {
+                SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+                Date date = new Date(System.currentTimeMillis() + (CalendarWrapper.HOUR*12L));
+
+                uploadPolicy.append(fmt.format(date));
+            }
+            uploadPolicy.append("\",\"conditions\":");
+            {
+                uploadPolicy.append("[");
+                uploadPolicy.append("{\"bucket\":\"");
+                uploadPolicy.append(bucket);
+                uploadPolicy.append("\"},");
+                uploadPolicy.append("{\"acl\": \"ec2-bundle-read\"},");
+                uploadPolicy.append("[\"starts-with\", \"$key\", \"");
+                uploadPolicy.append(options.getName());
+                uploadPolicy.append("\"]");
+                uploadPolicy.append("]");
+            }
+            uploadPolicy.append("}");
+            String base64Policy;
+
+            try {
+                base64Policy = S3Method.toBase64(uploadPolicy.toString().getBytes("utf-8"));
+            }
+            catch( UnsupportedEncodingException e ) {
+                logger.error(e);
+                e.printStackTrace();
+                throw new InternalException(e);
+            }
+            parameters.put("InstanceId", options.getVirtualMachineId());
+            parameters.put("Storage.S3.Bucket", bucket);
+            parameters.put("Storage.S3.Prefix", options.getName());
+            parameters.put("Storage.S3.AWSAccessKeyId", ctx.getAccountNumber());
+            parameters.put("Storage.S3.UploadPolicy", base64Policy);
+            parameters.put("Storage.S3.UploadPolicySignature", provider.signUploadPolicy(base64Policy));
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
             }
             catch( EC2Exception e ) {
-                String code = e.getCode();
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("bundleId");
+            if( blocks.getLength() < 1 ) {
+                throw new CloudException("Unable to identify the bundle task ID.");
+            }
+            String bundleId = blocks.item(0).getFirstChild().getNodeValue();
+            String manifest = (bucket + "/" + options.getName() + ".manifest.xml");
 
-                if( code != null && code.startsWith("InvalidAMIID") ) {
-                    return null;
+            if( task == null ) {
+                task = new AsynchronousTask<MachineImage>();
+                task.setStartTime(System.currentTimeMillis());
+            }
+            waitForBundle(bundleId, manifest, options.getPlatform(), options.getName(), options.getDescription(), task);
+
+            Throwable t = task.getTaskError();
+
+            if( t != null ) {
+                if( t instanceof CloudException ) {
+                    throw (CloudException)t;
                 }
+                else if( t instanceof InternalException ) {
+                    throw (InternalException)t;
+                }
+                throw new InternalException(t);
+            }
+            MachineImage img = task.getResult();
+
+            if( img == null ) {
+                throw new CloudException("No image was created, but no error was given");
+            }
+            return img;
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    private @Nonnull Iterable<MachineImage> executeImageSearch(@Nullable String ownerId, @Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nonnull ImageClass cls) throws CloudException, InternalException {
+        APITrace.begin(provider, "executeImageSearch");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was set for this request");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+            ArrayList<MachineImage> list = new ArrayList<MachineImage>();
+            NodeList blocks;
+            EC2Method method;
+            Document doc;
+
+            parameters.put("ExecutableBy.1", ctx.getAccountNumber());
+            int filter = 1;
+            if( architecture != null ) {
+                parameters.put("Filter." + filter + ".Name", "architecture");
+                parameters.put("Filter." + (filter++) + ".Value.1", architecture.equals(Architecture.I32) ? "i386" : "x86_64");
+            }
+            if( platform != null && platform.equals(Platform.WINDOWS) ) {
+                parameters.put("Filter." + filter + ".Name", "platform");
+                parameters.put("Filter." + (filter++) + ".Value.1", "windows");
+            }
+            String t = "machine";
+
+            switch( cls ) {
+                case MACHINE: t = "machine"; break;
+                case KERNEL: t = "kernel"; break;
+                case RAMDISK: t = "ramdisk"; break;
+            }
+            parameters.put("Filter." + filter + ".Name", "image-type");
+            parameters.put("Filter." + (filter++) + ".Value.1", t);
+            parameters.put("Filter." + filter + ".Name", "state");
+            parameters.put("Filter." + filter + ".Value.1", "available");
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
@@ -489,31 +410,153 @@ public class AMI implements MachineImageSupport {
                     if( instance.getNodeName().equals("item") ) {
                         MachineImage image = toMachineImage(instance);
 
-                        if( image != null && image.getProviderMachineImageId().equals(providerImageId) ) {
-                            return image;
+                        if( image != null ) {
+                            if( matches(image, ownerId, keyword, platform) ) {
+                                list.add(image);
+                            }
                         }
                     }
                 }
             }
-            return null;
+            return list;
         }
-        else {
-            for( MachineImage image : listImages(ImageClass.MACHINE) ) {
-                if( image.getProviderMachineImageId().equals(providerImageId) ) {
-                    return image;
+        finally {
+            APITrace.end();
+        }
+    }
+
+    private @Nonnull Iterable<MachineImage> executePublicImageSearch(@Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nonnull ImageClass cls) throws CloudException, InternalException {
+        APITrace.begin(provider, "executePublicImageSearch");
+        try {
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+            ArrayList<MachineImage> list = new ArrayList<MachineImage>();
+            NodeList blocks;
+            EC2Method method;
+            Document doc;
+
+            parameters.put("ExecutableBy.1", "all");
+            int filter = 1;
+            if( architecture != null ) {
+                parameters.put("Filter." + filter + ".Name", "architecture");
+                parameters.put("Filter." + (filter++) + ".Value.1", architecture.equals(Architecture.I32) ? "i386" : "x86_64");
+            }
+            if( platform != null && platform.equals(Platform.WINDOWS) ) {
+                parameters.put("Filter." + filter + ".Name", "platform");
+                parameters.put("Filter." + (filter++) + ".Value.1", "windows");
+            }
+            String t = "machine";
+
+            switch( cls ) {
+                case MACHINE: t = "machine"; break;
+                case KERNEL: t = "kernel"; break;
+                case RAMDISK: t = "ramdisk"; break;
+            }
+            parameters.put("Filter." + filter + ".Name", "image-type");
+            parameters.put("Filter." + (filter++) + ".Value.1", t);
+
+            parameters.put("Filter." + filter + ".Name", "state");
+            parameters.put("Filter." + filter + ".Value.1", "available");
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("imagesSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList instances = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<instances.getLength(); j++ ) {
+                    Node instance = instances.item(j);
+
+                    if( instance.getNodeName().equals("item") ) {
+                        MachineImage image = toMachineImage(instance);
+
+                        if( image != null ) {
+                            if( matches(image, null, keyword, platform) ) {
+                                list.add(image);
+                            }
+                        }
+                    }
                 }
             }
-            for( MachineImage image : listImages(ImageClass.KERNEL) ) {
-                if( image.getProviderMachineImageId().equals(providerImageId) ) {
-                    return image;
-                }
+            return list;
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nullable MachineImage getImage(@Nonnull String providerImageId) throws CloudException, InternalException {
+        APITrace.begin(provider, "getImage");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was set for this request");
             }
-            for( MachineImage image : listImages(ImageClass.RAMDISK) ) {
-                if( image.getProviderMachineImageId().equals(providerImageId) ) {
-                    return image;
+            if( provider.getEC2Provider().isAWS() ) {
+                Map<String,String> parameters = provider.getStandardParameters(ctx, EC2Method.DESCRIBE_IMAGES);
+                NodeList blocks;
+                EC2Method method;
+                Document doc;
+
+                parameters.put("ImageId", providerImageId);
+                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                try {
+                    doc = method.invoke();
                 }
+                catch( EC2Exception e ) {
+                    String code = e.getCode();
+
+                    if( code != null && code.startsWith("InvalidAMIID") ) {
+                        return null;
+                    }
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                blocks = doc.getElementsByTagName("imagesSet");
+                for( int i=0; i<blocks.getLength(); i++ ) {
+                    NodeList instances = blocks.item(i).getChildNodes();
+
+                    for( int j=0; j<instances.getLength(); j++ ) {
+                        Node instance = instances.item(j);
+
+                        if( instance.getNodeName().equals("item") ) {
+                            MachineImage image = toMachineImage(instance);
+
+                            if( image != null && image.getProviderMachineImageId().equals(providerImageId) ) {
+                                return image;
+                            }
+                        }
+                    }
+                }
+                return null;
             }
-            return null;
+            else {
+                for( MachineImage image : listImages(ImageClass.MACHINE) ) {
+                    if( image.getProviderMachineImageId().equals(providerImageId) ) {
+                        return image;
+                    }
+                }
+                for( MachineImage image : listImages(ImageClass.KERNEL) ) {
+                    if( image.getProviderMachineImageId().equals(providerImageId) ) {
+                        return image;
+                    }
+                }
+                for( MachineImage image : listImages(ImageClass.RAMDISK) ) {
+                    if( image.getProviderMachineImageId().equals(providerImageId) ) {
+                        return image;
+                    }
+                }
+                return null;
+            }
+        }
+        finally {
+            APITrace.end();
         }
     }
 
@@ -597,102 +640,87 @@ public class AMI implements MachineImageSupport {
     
     @Override
     public boolean isImageSharedWithPublic(@Nonnull String machineImageId) throws CloudException, InternalException {
-        MachineImage image = getMachineImage(machineImageId);
-        
-        if( image == null ) {
-            return false;
+        APITrace.begin(provider, "isImageSharedWithPublic");
+        try {
+            MachineImage image = getMachineImage(machineImageId);
+
+            if( image == null ) {
+                return false;
+            }
+            String p = (String)image.getTag("public");
+
+            return (p != null && p.equalsIgnoreCase("true"));
         }
-        String p = (String)image.getTag("public");
-        
-        return (p != null && p.equalsIgnoreCase("true"));
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was set for this request");
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
-        EC2Method method;
-
-        if( provider.getEC2Provider().isAWS() ) {
-            parameters.put("Owner", ctx.getAccountNumber());
-        }
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "isSubscribed");
         try {
-            method.invoke();
-            return true;
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was set for this request");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+            EC2Method method;
+
+            if( provider.getEC2Provider().isAWS() ) {
+                parameters.put("Owner", ctx.getAccountNumber());
+            }
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+                return true;
+            }
+            catch( EC2Exception e ) {
+                String msg = e.getSummary();
+
+                if( msg != null && msg.contains("not able to validate the provided access credentials") ) {
+                    return false;
+                }
+                logger.error("AWS Error checking subscription: " + e.getCode() + "/" + e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-            String msg = e.getSummary();
-            
-            if( msg != null && msg.contains("not able to validate the provided access credentials") ) {
-                return false;
-            }
-            logger.error("AWS Error checking subscription: " + e.getCode() + "/" + e.getSummary());
-            if( logger.isDebugEnabled() ) {
-                e.printStackTrace();
-            }
-            throw new CloudException(e);
+        finally {
+            APITrace.end();
         }
     }
 
     public @Nonnull Iterable<ResourceStatus> listImageStatus(@Nonnull ImageClass cls) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was set for this request");
-        }
-
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
-        ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        String accountNumber = ctx.getAccountNumber();
-
-        if( provider.getEC2Provider().isAWS() ) {
-            parameters.put("Owner", accountNumber);
-        }
-        String t = "machine";
-
-        switch( cls ) {
-            case MACHINE: t = "machine"; break;
-            case KERNEL: t = "kernel"; break;
-            case RAMDISK: t = "ramdisk"; break;
-        }
-        parameters.put("Filter.1.Name", "image-type");
-        parameters.put("Filter.1.Value", t);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "listImageStatus");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("imagesSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            NodeList instances = blocks.item(i).getChildNodes();
+            ProviderContext ctx = provider.getContext();
 
-            for( int j=0; j<instances.getLength(); j++ ) {
-                Node instance = instances.item(j);
-
-                if( instance.getNodeName().equals("item") ) {
-                    ResourceStatus status = toStatus(instance);
-
-                    if( status != null ) {
-                        list.add(status);
-                    }
-                }
+            if( ctx == null ) {
+                throw new CloudException("No context was set for this request");
             }
-        }
-        if( provider.getEC2Provider().isAWS() ) {
-            parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
-            parameters.put("ExecutableBy", accountNumber);
+
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+            ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            String accountNumber = ctx.getAccountNumber();
+
+            if( provider.getEC2Provider().isAWS() ) {
+                parameters.put("Owner", accountNumber);
+            }
+            String t = "machine";
+
+            switch( cls ) {
+                case MACHINE: t = "machine"; break;
+                case KERNEL: t = "kernel"; break;
+                case RAMDISK: t = "ramdisk"; break;
+            }
             parameters.put("Filter.1.Name", "image-type");
             parameters.put("Filter.1.Value", t);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
@@ -719,8 +747,41 @@ public class AMI implements MachineImageSupport {
                     }
                 }
             }
+            if( provider.getEC2Provider().isAWS() ) {
+                parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+                parameters.put("ExecutableBy", accountNumber);
+                parameters.put("Filter.1.Name", "image-type");
+                parameters.put("Filter.1.Value", t);
+                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                blocks = doc.getElementsByTagName("imagesSet");
+                for( int i=0; i<blocks.getLength(); i++ ) {
+                    NodeList instances = blocks.item(i).getChildNodes();
+
+                    for( int j=0; j<instances.getLength(); j++ ) {
+                        Node instance = instances.item(j);
+
+                        if( instance.getNodeName().equals("item") ) {
+                            ResourceStatus status = toStatus(instance);
+
+                            if( status != null ) {
+                                list.add(status);
+                            }
+                        }
+                    }
+                }
+            }
+            return list;
         }
-        return list;
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
@@ -906,53 +967,26 @@ public class AMI implements MachineImageSupport {
     }
     
 	private void populateImages(@Nonnull ProviderContext ctx, @Nullable String accountNumber, @Nonnull Jiterator<MachineImage> iterator, @Nonnull ImageClass cls) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
-        EC2Method method;
-        NodeList blocks;
-		Document doc;
-
-		if( accountNumber == null ) {
-			accountNumber = ctx.getAccountNumber();
-		}
-		if( provider.getEC2Provider().isAWS() ) {
-		    parameters.put("Owner", accountNumber);
-		}
-        String t = "machine";
-
-        switch( cls ) {
-            case MACHINE: t = "machine"; break;
-            case KERNEL: t = "kernel"; break;
-            case RAMDISK: t = "ramdisk"; break;
-        }
-        parameters.put("Filter.1.Name", "image-type");
-        parameters.put("Filter.1.Value", t);
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "populateImages");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("imagesSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList instances = blocks.item(i).getChildNodes();
-        	
-            for( int j=0; j<instances.getLength(); j++ ) {
-            	Node instance = instances.item(j);
-            	
-            	if( instance.getNodeName().equals("item") ) {
-            		MachineImage image = toMachineImage(instance);
-            		
-            		if( image != null ) {
-            		    iterator.push(image);
-            		}
-            	}
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            if( accountNumber == null ) {
+                accountNumber = ctx.getAccountNumber();
             }
-        }
-        if( provider.getEC2Provider().isAWS() ) {
-            parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
-            parameters.put("ExecutableBy", accountNumber);
+            if( provider.getEC2Provider().isAWS() ) {
+                parameters.put("Owner", accountNumber);
+            }
+            String t = "machine";
+
+            switch( cls ) {
+                case MACHINE: t = "machine"; break;
+                case KERNEL: t = "kernel"; break;
+                case RAMDISK: t = "ramdisk"; break;
+            }
             parameters.put("Filter.1.Name", "image-type");
             parameters.put("Filter.1.Value", t);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
@@ -966,135 +1000,204 @@ public class AMI implements MachineImageSupport {
             blocks = doc.getElementsByTagName("imagesSet");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 NodeList instances = blocks.item(i).getChildNodes();
-                
+
                 for( int j=0; j<instances.getLength(); j++ ) {
                     Node instance = instances.item(j);
-                    
+
                     if( instance.getNodeName().equals("item") ) {
                         MachineImage image = toMachineImage(instance);
-                        
+
                         if( image != null ) {
                             iterator.push(image);
                         }
                     }
                 }
             }
+            if( provider.getEC2Provider().isAWS() ) {
+                parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+                parameters.put("ExecutableBy", accountNumber);
+                parameters.put("Filter.1.Name", "image-type");
+                parameters.put("Filter.1.Value", t);
+                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                blocks = doc.getElementsByTagName("imagesSet");
+                for( int i=0; i<blocks.getLength(); i++ ) {
+                    NodeList instances = blocks.item(i).getChildNodes();
+
+                    for( int j=0; j<instances.getLength(); j++ ) {
+                        Node instance = instances.item(j);
+
+                        if( instance.getNodeName().equals("item") ) {
+                            MachineImage image = toMachineImage(instance);
+
+                            if( image != null ) {
+                                iterator.push(image);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        finally {
+            APITrace.end();
         }
 	}
 
     @Override
     public @Nonnull MachineImage registerImageBundle(@Nonnull ImageCreateOptions options) throws CloudException, InternalException {
-        if( !MachineImageFormat.AWS.equals(options.getBundleFormat()) ) {
-            throw new CloudException("Unsupported bundle format: " + options.getBundleFormat());
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.REGISTER_IMAGE);
-        NodeList blocks;
-        EC2Method method;
-        Document doc;
-
-        parameters.put("ImageLocation", options.getBundleLocation());
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "registerImageBundle");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("imageId");
-        if( blocks.getLength() > 0 ) {
-            Node imageIdNode = blocks.item(0);
-            String id = imageIdNode.getFirstChild().getNodeValue().trim();
-            MachineImage img = getMachineImage(id);
-
-            if( img == null ) {
-                throw new CloudException("Expected to find newly registered machine image '" + id + "', but none was found");
+            if( !MachineImageFormat.AWS.equals(options.getBundleFormat()) ) {
+                throw new CloudException("Unsupported bundle format: " + options.getBundleFormat());
             }
-            return img;
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.REGISTER_IMAGE);
+            NodeList blocks;
+            EC2Method method;
+            Document doc;
+
+            parameters.put("ImageLocation", options.getBundleLocation());
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("imageId");
+            if( blocks.getLength() > 0 ) {
+                Node imageIdNode = blocks.item(0);
+                String id = imageIdNode.getFirstChild().getNodeValue().trim();
+                MachineImage img = getMachineImage(id);
+
+                if( img == null ) {
+                    throw new CloudException("Expected to find newly registered machine image '" + id + "', but none was found");
+                }
+                return img;
+            }
+            throw new CloudException("No machine image was registered, but no error was thrown");
         }
-        throw new CloudException("No machine image was registered, but no error was thrown");
+        finally {
+            APITrace.end();
+        }
     }
     
     @Override
     public void remove(@Nonnull String imageId) throws InternalException, CloudException {
-        long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
-
-        while( timeout > System.currentTimeMillis() ) {
-            try {
-                MachineImage img = getMachineImage(imageId);
-
-                if( img == null || MachineImageState.DELETED.equals(img.getCurrentState()) ) {
-                    return;
-                }
-                if( MachineImageState.ACTIVE.equals(img.getCurrentState()) ) {
-                    break;
-                }
-            }
-            catch( Throwable ignore ) {
-                // ignore
-            }
-            try { Thread.sleep(15000L); }
-            catch( InterruptedException ignore ) { }
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DEREGISTER_IMAGE);
-        NodeList blocks;
-        EC2Method method;
-        Document doc;
-        
-        parameters.put("ImageId", imageId);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "remove");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("return");
-        if( blocks.getLength() > 0 ) {
-            Node imageIdNode = blocks.item(0);
-            
-            if( !imageIdNode.getFirstChild().getNodeValue().trim().equals("true") ) {
-                throw new CloudException("Failed to de-register image " + imageId);
+            long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
+
+            while( timeout > System.currentTimeMillis() ) {
+                try {
+                    MachineImage img = getMachineImage(imageId);
+
+                    if( img == null || MachineImageState.DELETED.equals(img.getCurrentState()) ) {
+                        return;
+                    }
+                    if( MachineImageState.ACTIVE.equals(img.getCurrentState()) ) {
+                        break;
+                    }
+                }
+                catch( Throwable ignore ) {
+                    // ignore
+                }
+                try { Thread.sleep(15000L); }
+                catch( InterruptedException ignore ) { }
             }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DEREGISTER_IMAGE);
+            NodeList blocks;
+            EC2Method method;
+            Document doc;
+
+            parameters.put("ImageId", imageId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("return");
+            if( blocks.getLength() > 0 ) {
+                Node imageIdNode = blocks.item(0);
+
+                if( !imageIdNode.getFirstChild().getNodeValue().trim().equals("true") ) {
+                    throw new CloudException("Failed to de-register image " + imageId);
+                }
+            }
+        }
+        finally {
+            APITrace.end();
         }
     }
 
     @Override
     public void removeAllImageShares(@Nonnull String providerImageId) throws CloudException, InternalException {
-        List<String> shares = sharesAsList(providerImageId);
+        APITrace.begin(provider, "removeAllImageShares");
+        try {
+            List<String> shares = sharesAsList(providerImageId);
 
-        setPrivateShare(providerImageId, false, shares.toArray(new String[shares.size()]));
+            setPrivateShare(providerImageId, false, shares.toArray(new String[shares.size()]));
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public void removeImageShare(@Nonnull String providerImageId, @Nonnull String accountNumber) throws CloudException, InternalException {
-        setPrivateShare(providerImageId, false, accountNumber);
+        APITrace.begin(provider, "removeImageShare");
+        try {
+            setPrivateShare(providerImageId, false, accountNumber);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public void removePublicShare(@Nonnull String providerImageId) throws CloudException, InternalException {
-        setPublicShare(providerImageId, false);
+        APITrace.begin(provider, "removePublicShare");
+        try {
+            setPublicShare(providerImageId, false);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public @Nonnull Iterable<MachineImage> searchImages(@Nullable String ownerId, @Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nullable ImageClass ... classes) throws CloudException, InternalException {
-        if( classes == null || classes.length < 1 ) {
-            return executeImageSearch(ownerId, keyword, platform, architecture, ImageClass.MACHINE);
-        }
-        else if( classes.length == 1 ) {
-            return executeImageSearch(ownerId, keyword, platform, architecture, classes[0]);
-        }
-        else {
-            ArrayList<MachineImage> images = new ArrayList<MachineImage>();
-
-            // TODO: this should be optimized for asynchronous loading
-            for( ImageClass cls : classes ) {
-                for( MachineImage img : executeImageSearch(ownerId, keyword, platform, architecture, cls) ) {
-                    images.add(img);
-                }
+        APITrace.begin(provider, "searchImages");
+        try {
+            if( classes == null || classes.length < 1 ) {
+                return executeImageSearch(ownerId, keyword, platform, architecture, ImageClass.MACHINE);
             }
-            return images;
+            else if( classes.length == 1 ) {
+                return executeImageSearch(ownerId, keyword, platform, architecture, classes[0]);
+            }
+            else {
+                ArrayList<MachineImage> images = new ArrayList<MachineImage>();
+
+                // TODO: this should be optimized for asynchronous loading
+                for( ImageClass cls : classes ) {
+                    for( MachineImage img : executeImageSearch(ownerId, keyword, platform, architecture, cls) ) {
+                        images.add(img);
+                    }
+                }
+                return images;
+            }
+        }
+        finally {
+            APITrace.end();
         }
     }
 
@@ -1106,22 +1209,28 @@ public class AMI implements MachineImageSupport {
 
     @Override
     public @Nonnull Iterable<MachineImage> searchPublicImages(@Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nullable ImageClass ... classes) throws CloudException, InternalException {
-        if( classes == null || classes.length < 1 ) {
-            return executePublicImageSearch(keyword, platform, architecture, ImageClass.MACHINE);
-        }
-        else if( classes.length == 1 ) {
-            return executePublicImageSearch(keyword, platform, architecture, classes[0]);
-        }
-        else {
-            ArrayList<MachineImage> images = new ArrayList<MachineImage>();
-
-            // TODO: this should be optimized for asynchronous loading
-            for( ImageClass cls : classes ) {
-                for( MachineImage img : executePublicImageSearch(keyword, platform, architecture, cls) ) {
-                    images.add(img);
-                }
+        APITrace.begin(provider, "searchPublicImages");
+        try {
+            if( classes == null || classes.length < 1 ) {
+                return executePublicImageSearch(keyword, platform, architecture, ImageClass.MACHINE);
             }
-            return images;
+            else if( classes.length == 1 ) {
+                return executePublicImageSearch(keyword, platform, architecture, classes[0]);
+            }
+            else {
+                ArrayList<MachineImage> images = new ArrayList<MachineImage>();
+
+                // TODO: this should be optimized for asynchronous loading
+                for( ImageClass cls : classes ) {
+                    for( MachineImage img : executePublicImageSearch(keyword, platform, architecture, cls) ) {
+                        images.add(img);
+                    }
+                }
+                return images;
+            }
+        }
+        finally {
+            APITrace.end();
         }
     }
 

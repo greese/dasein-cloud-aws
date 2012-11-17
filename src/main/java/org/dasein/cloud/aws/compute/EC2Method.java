@@ -70,6 +70,7 @@ import org.dasein.cloud.network.FirewallSupport;
 import org.dasein.cloud.network.IpAddressSupport;
 import org.dasein.cloud.network.VLANSupport;
 import org.dasein.cloud.network.VPNSupport;
+import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -566,7 +567,9 @@ public class EC2Method {
     		if( logger.isDebugEnabled() ) {
     			logger.debug("Talking to server at " + url);
     		}
-    		HttpPost post = new HttpPost(url);
+            APITrace.trace(provider, parameters.get(AWSCloud.P_ACTION));
+
+            HttpPost post = new HttpPost(url);
             HttpClient client = getClient();
 
             HttpResponse response;

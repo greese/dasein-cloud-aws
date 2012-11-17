@@ -72,6 +72,7 @@ import org.dasein.cloud.network.IpAddressSupport;
 import org.dasein.cloud.network.NetworkServices;
 import org.dasein.cloud.network.Subnet;
 import org.dasein.cloud.network.VLANSupport;
+import org.dasein.cloud.util.APITrace;
 import org.dasein.util.CalendarWrapper;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Megabyte;
@@ -256,25 +257,31 @@ public class EC2Instance implements VirtualMachineSupport {
 
 	@Override
 	public void start(@Nonnull String instanceId) throws InternalException, CloudException {
-        VirtualMachine vm = getVirtualMachine(instanceId);
-
-        if( vm == null ) {
-            throw new CloudException("No such instance: " + instanceId);
-        }
-        if( !vm.isPersistent() ) {
-            throw new OperationNotSupportedException("Instances backed by ephemeral drives are not start/stop capable");
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.START_INSTANCES);
-        EC2Method method;
-        
-        parameters.put("InstanceId.1", instanceId);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "start");
         try {
-            method.invoke();
+            VirtualMachine vm = getVirtualMachine(instanceId);
+
+            if( vm == null ) {
+                throw new CloudException("No such instance: " + instanceId);
+            }
+            if( !vm.isPersistent() ) {
+                throw new OperationNotSupportedException("Instances backed by ephemeral drives are not start/stop capable");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.START_INSTANCES);
+            EC2Method method;
+
+            parameters.put("InstanceId.1", instanceId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
+        finally {
+            APITrace.end();
         }
 	}
 
@@ -294,72 +301,78 @@ public class EC2Instance implements VirtualMachineSupport {
 	}
 	
 	private Set<Metric> calculate(String metric, String unit, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
-	    if( !provider.getEC2Provider().isAWS() ) {
-	        return new TreeSet<Metric>();
-	    }
-        Map<String,String> parameters = provider.getStandardCloudWatchParameters(provider.getContext(), EC2Method.GET_METRIC_STATISTICS);
-        SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-        
-        parameters.put("EndTime", fmt.format(new Date(endTimestamp)));
-        parameters.put("StartTime", fmt.format(new Date(startTimestamp)));
-        parameters.put("MeasureName", metric);
-        parameters.put("Namespace", "AWS/EC2");
-        parameters.put("Unit", unit);
-        parameters.put("Dimensions.member.Name.1", "InstanceId");
-        parameters.put("Dimensions.member.Value.1", instanceId);
-        parameters.put("Statistics.member.1", "Average");
-        parameters.put("Statistics.member.2", "Minimum");
-        parameters.put("Statistics.member.3", "Maximum");
-        parameters.put("Period", "60");
-        method = new EC2Method(provider, getCloudWatchUrl(), parameters);
+        APITrace.begin(provider, "calculate");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        TreeSet<Metric> metrics = new TreeSet<Metric>();
-        fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        blocks = doc.getElementsByTagName("member");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            NodeList items = blocks.item(i).getChildNodes();
-            Metric m = new Metric();
-            
-            for( int j=0; j<items.getLength(); j++ ) {
-                Node item = items.item(j);
-                
-                if( item.getNodeName().equals("Timestamp") ) {
-                    String dateString = item.getFirstChild().getNodeValue();
-                    
-                    try {
-                        m.timestamp = fmt.parse(dateString).getTime();
-                    }
-                    catch( ParseException e ) {
-                        logger.error(e);
-                        e.printStackTrace();
-                        throw new InternalException(e);
-                    }
-                }
-                else if( item.getNodeName().equals("Average") ) {
-                    m.average = Double.parseDouble(item.getFirstChild().getNodeValue());
-                }
-                else if( item.getNodeName().equals("Minimum") ) {
-                    m.minimum = Double.parseDouble(item.getFirstChild().getNodeValue());
-                }
-                else if( item.getNodeName().equals("Maximum") ) {
-                    m.maximum = Double.parseDouble(item.getFirstChild().getNodeValue());
-                }
-                else if( item.getNodeName().equals("Samples") ) {
-                    m.samples = (int)Double.parseDouble(item.getFirstChild().getNodeValue());
-                }
+            if( !provider.getEC2Provider().isAWS() ) {
+                return new TreeSet<Metric>();
             }
-            metrics.add(m);
+            Map<String,String> parameters = provider.getStandardCloudWatchParameters(provider.getContext(), EC2Method.GET_METRIC_STATISTICS);
+            SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("EndTime", fmt.format(new Date(endTimestamp)));
+            parameters.put("StartTime", fmt.format(new Date(startTimestamp)));
+            parameters.put("MeasureName", metric);
+            parameters.put("Namespace", "AWS/EC2");
+            parameters.put("Unit", unit);
+            parameters.put("Dimensions.member.Name.1", "InstanceId");
+            parameters.put("Dimensions.member.Value.1", instanceId);
+            parameters.put("Statistics.member.1", "Average");
+            parameters.put("Statistics.member.2", "Minimum");
+            parameters.put("Statistics.member.3", "Maximum");
+            parameters.put("Period", "60");
+            method = new EC2Method(provider, getCloudWatchUrl(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            TreeSet<Metric> metrics = new TreeSet<Metric>();
+            fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+            blocks = doc.getElementsByTagName("member");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+                Metric m = new Metric();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("Timestamp") ) {
+                        String dateString = item.getFirstChild().getNodeValue();
+
+                        try {
+                            m.timestamp = fmt.parse(dateString).getTime();
+                        }
+                        catch( ParseException e ) {
+                            logger.error(e);
+                            e.printStackTrace();
+                            throw new InternalException(e);
+                        }
+                    }
+                    else if( item.getNodeName().equals("Average") ) {
+                        m.average = Double.parseDouble(item.getFirstChild().getNodeValue());
+                    }
+                    else if( item.getNodeName().equals("Minimum") ) {
+                        m.minimum = Double.parseDouble(item.getFirstChild().getNodeValue());
+                    }
+                    else if( item.getNodeName().equals("Maximum") ) {
+                        m.maximum = Double.parseDouble(item.getFirstChild().getNodeValue());
+                    }
+                    else if( item.getNodeName().equals("Samples") ) {
+                        m.samples = (int)Double.parseDouble(item.getFirstChild().getNodeValue());
+                    }
+                }
+                metrics.add(m);
+            }
+            return metrics;
         }
-        return metrics;
+        finally {
+            APITrace.end();
+        }
     }
     
 	private interface ApplyCalcs {
@@ -522,19 +535,25 @@ public class EC2Instance implements VirtualMachineSupport {
 
     @Override
     public void enableAnalytics(String instanceId) throws InternalException, CloudException {
-        if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.MONITOR_INSTANCES);
-            EC2Method method;
-        
-            parameters.put("InstanceId.1", instanceId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                method.invoke();
+        APITrace.begin(provider, "enableAnalytics");
+        try {
+            if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
+                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.MONITOR_INSTANCES);
+                EC2Method method;
+
+                parameters.put("InstanceId.1", instanceId);
+                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                try {
+                    method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
             }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+        }
+        finally {
+            APITrace.end();
         }
     }
     
@@ -553,66 +572,72 @@ public class EC2Instance implements VirtualMachineSupport {
     
 	@Override
 	public @Nonnull String getConsoleOutput(@Nonnull String instanceId) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.GET_CONSOLE_OUTPUT);
-		String output = null;
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
-        
-		parameters.put("InstanceId", instanceId);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "getConsoleOutput");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	String code = e.getCode();
-        	
-        	if( code != null && code.startsWith("InvalidInstanceID") ) {
-        		return "";
-        	}
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("timestamp");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-            String ts = blocks.item(i).getFirstChild().getNodeValue();
-            long timestamp;
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.GET_CONSOLE_OUTPUT);
+            String output = null;
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
+            parameters.put("InstanceId", instanceId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
-                timestamp = fmt.parse(ts).getTime();
-            } 
-            catch( ParseException e ) {
-                logger.error(e);
-                e.printStackTrace();
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.startsWith("InvalidInstanceID") ) {
+                    return "";
+                }
+                logger.error(e.getSummary());
                 throw new CloudException(e);
             }
-        	if( timestamp > -1L ) {
-        		break;
-        	}
-        }
-        blocks = doc.getElementsByTagName("output");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	Node item = blocks.item(i);
-        	
-        	if( item.hasChildNodes() ) {
-        	    output = item.getFirstChild().getNodeValue().trim();
-        	    if( output != null ) {
-        	        break;
-        	    }
-        	}
-        }
-        if( output != null ) {
-            try {
-                return new String(Base64.decodeBase64(output.getBytes("utf-8")), "utf-8");
+            blocks = doc.getElementsByTagName("timestamp");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+                String ts = blocks.item(i).getFirstChild().getNodeValue();
+                long timestamp;
+
+                try {
+                    timestamp = fmt.parse(ts).getTime();
+                }
+                catch( ParseException e ) {
+                    logger.error(e);
+                    e.printStackTrace();
+                    throw new CloudException(e);
+                }
+                if( timestamp > -1L ) {
+                    break;
+                }
             }
-            catch( UnsupportedEncodingException e ) {
-                logger.error(e);
-                e.printStackTrace();
-                throw new InternalException(e);
+            blocks = doc.getElementsByTagName("output");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+
+                if( item.hasChildNodes() ) {
+                    output = item.getFirstChild().getNodeValue().trim();
+                    if( output != null ) {
+                        break;
+                    }
+                }
             }
+            if( output != null ) {
+                try {
+                    return new String(Base64.decodeBase64(output.getBytes("utf-8")), "utf-8");
+                }
+                catch( UnsupportedEncodingException e ) {
+                    logger.error(e);
+                    e.printStackTrace();
+                    throw new InternalException(e);
+                }
+            }
+            return "";
         }
-        return "";
+        finally {
+            APITrace.end();
+        }
 	}
 
     @Override
@@ -622,48 +647,54 @@ public class EC2Instance implements VirtualMachineSupport {
 
     @Override
 	public @Nonnull Iterable<String> listFirewalls(@Nonnull String instanceId) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
-		ArrayList<String> firewalls = new ArrayList<String>();
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
-        
-        parameters.put("InstanceId.1", instanceId);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "listFirewalls");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	String code = e.getCode();
-        	
-        	if( code != null && code.startsWith("InvalidInstanceID") ) {
-        		return firewalls;
-        	}
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("groupSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList items = blocks.item(i).getChildNodes();
-        	
-            for( int j=0; j<items.getLength(); j++ ) {
-            	Node item = items.item(j);
-            	
-            	if( item.getNodeName().equals("item") ) {
-            		NodeList sub = item.getChildNodes();
-            		
-            		for( int k=0; k<sub.getLength(); k++ ) {
-            			Node id = sub.item(k);
-            			
-            			if( id.getNodeName().equalsIgnoreCase("groupId") && id.hasChildNodes() ) {
-            			    firewalls.add(id.getFirstChild().getNodeValue().trim());
-            			    break;
-            			}
-            		}
-            	}
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
+            ArrayList<String> firewalls = new ArrayList<String>();
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("InstanceId.1", instanceId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
             }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.startsWith("InvalidInstanceID") ) {
+                    return firewalls;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("groupSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        NodeList sub = item.getChildNodes();
+
+                        for( int k=0; k<sub.getLength(); k++ ) {
+                            Node id = sub.item(k);
+
+                            if( id.getNodeName().equalsIgnoreCase("groupId") && id.hasChildNodes() ) {
+                                firewalls.add(id.getFirstChild().getNodeValue().trim());
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            return firewalls;
         }
-        return firewalls;
+        finally {
+            APITrace.end();
+        }
 	}
 	
 	@Override
@@ -673,61 +704,67 @@ public class EC2Instance implements VirtualMachineSupport {
 
 	@Override
 	public @Nullable VirtualMachine getVirtualMachine(@Nonnull String instanceId) throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-        
-        if( ctx == null ) {
-            throw new CloudException("No context was established for this request");
-        }
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
-        
-        parameters.put("InstanceId.1", instanceId);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "getVirtualMachine");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {           
-        	String code = e.getCode();
-        	
-        	if( code != null && code.startsWith("InvalidInstanceID") ) {
-        		return null;
-        	}
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("instancesSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList instances = blocks.item(i).getChildNodes();
-        	
-            for( int j=0; j<instances.getLength(); j++ ) {
-            	Node instance = instances.item(j);
-            	
-            	if( instance.getNodeName().equals("item") ) {
-                    Iterable<IpAddress> addresses = Collections.emptyList();
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was established for this request");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("InstanceId.1", instanceId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.startsWith("InvalidInstanceID") ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("instancesSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList instances = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<instances.getLength(); j++ ) {
+                    Node instance = instances.item(j);
+
+                    if( instance.getNodeName().equals("item") ) {
+                        Iterable<IpAddress> addresses = Collections.emptyList();
 
 
-                    if( provider.hasNetworkServices() ) {
-                        NetworkServices services = provider.getNetworkServices();
+                        if( provider.hasNetworkServices() ) {
+                            NetworkServices services = provider.getNetworkServices();
 
-                        if( services != null ) {
-                            IpAddressSupport support = services.getIpAddressSupport();
+                            if( services != null ) {
+                                IpAddressSupport support = services.getIpAddressSupport();
 
-                            if( support != null ) {
-                                addresses = support.listIpPool(IPVersion.IPV4, false);
+                                if( support != null ) {
+                                    addresses = support.listIpPool(IPVersion.IPV4, false);
+                                }
                             }
                         }
+                        VirtualMachine server = toVirtualMachine(ctx, instance, addresses);
+
+                        if( server != null && server.getProviderVirtualMachineId().equals(instanceId) ) {
+                            return server;
+                        }
                     }
-            		VirtualMachine server = toVirtualMachine(ctx, instance, addresses);
-            		
-            		if( server != null && server.getProviderVirtualMachineId().equals(instanceId) ) {
-            			return server;
-            		}
-            	}
+                }
             }
+            return null;
         }
-        return null;
+        finally {
+            APITrace.end();
+        }
 	}
 	
 	@Override
@@ -773,166 +810,178 @@ public class EC2Instance implements VirtualMachineSupport {
 
 	@Override
 	public VmStatistics getVMStatistics(String instanceId, long startTimestamp, long endTimestamp) throws InternalException, CloudException {
-        VmStatistics statistics = new VmStatistics();
+        APITrace.begin(provider, "getVMStatistics");
+        try {
+            VmStatistics statistics = new VmStatistics();
 
-        if( endTimestamp < 1L ) {
-            endTimestamp = System.currentTimeMillis() + 1000L;
-        }
-        if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
-            startTimestamp = endTimestamp - (2L * CalendarWrapper.MINUTE);
-        }
-        else if( startTimestamp < (System.currentTimeMillis() - (2L * CalendarWrapper.DAY)) ) {
-            startTimestamp = System.currentTimeMillis() - (2L * CalendarWrapper.DAY);
-        }
+            if( endTimestamp < 1L ) {
+                endTimestamp = System.currentTimeMillis() + 1000L;
+            }
+            if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
+                startTimestamp = endTimestamp - (2L * CalendarWrapper.MINUTE);
+            }
+            else if( startTimestamp < (System.currentTimeMillis() - (2L * CalendarWrapper.DAY)) ) {
+                startTimestamp = System.currentTimeMillis() - (2L * CalendarWrapper.DAY);
+            }
 
-        calculateCpuUtilization(statistics, instanceId, startTimestamp, endTimestamp);
-        calculateDiskReadBytes(statistics, instanceId, startTimestamp, endTimestamp);
-        calculateDiskReadOps(statistics, instanceId, startTimestamp, endTimestamp);
-        calculateDiskWriteBytes(statistics, instanceId, startTimestamp, endTimestamp);
-        calculateDiskWriteOps(statistics, instanceId, startTimestamp, endTimestamp);
-        calculateNetworkIn(statistics, instanceId, startTimestamp, endTimestamp);
-        calculateNetworkOut(statistics, instanceId, startTimestamp, endTimestamp);
-        return statistics;
+            calculateCpuUtilization(statistics, instanceId, startTimestamp, endTimestamp);
+            calculateDiskReadBytes(statistics, instanceId, startTimestamp, endTimestamp);
+            calculateDiskReadOps(statistics, instanceId, startTimestamp, endTimestamp);
+            calculateDiskWriteBytes(statistics, instanceId, startTimestamp, endTimestamp);
+            calculateDiskWriteOps(statistics, instanceId, startTimestamp, endTimestamp);
+            calculateNetworkIn(statistics, instanceId, startTimestamp, endTimestamp);
+            calculateNetworkOut(statistics, instanceId, startTimestamp, endTimestamp);
+            return statistics;
+        }
+        finally {
+            APITrace.end();
+        }
 	}
 
     @Override
     public @Nonnull Iterable<VmStatistics> getVMStatisticsForPeriod(@Nonnull String instanceId, long startTimestamp, long endTimestamp) throws InternalException, CloudException {
-        if( endTimestamp < 1L ) {
-            endTimestamp = System.currentTimeMillis() + 1000L;
-        }
-        if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
-            startTimestamp = endTimestamp - (2L * CalendarWrapper.MINUTE);
-        }
-        else if( startTimestamp < (System.currentTimeMillis() - CalendarWrapper.DAY) ) {
-            startTimestamp = System.currentTimeMillis() - CalendarWrapper.DAY;
-        }
-        TreeMap<Integer,VmStatistics> statMap = new TreeMap<Integer,VmStatistics>();
-        int minutes = (int)((endTimestamp-startTimestamp)/CalendarWrapper.MINUTE);
+        APITrace.begin(provider, "getVMStatisticsForPeriod");
+        try {
+            if( endTimestamp < 1L ) {
+                endTimestamp = System.currentTimeMillis() + 1000L;
+            }
+            if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
+                startTimestamp = endTimestamp - (2L * CalendarWrapper.MINUTE);
+            }
+            else if( startTimestamp < (System.currentTimeMillis() - CalendarWrapper.DAY) ) {
+                startTimestamp = System.currentTimeMillis() - CalendarWrapper.DAY;
+            }
+            TreeMap<Integer,VmStatistics> statMap = new TreeMap<Integer,VmStatistics>();
+            int minutes = (int)((endTimestamp-startTimestamp)/CalendarWrapper.MINUTE);
 
-        for( int i =1; i<=minutes; i++ ) {
-            statMap.put(i, new VmStatistics());
-        }
-        Set<Metric> metrics = calculate("CPUUtilization", "Percent", instanceId, startTimestamp, endTimestamp);
-        for( Metric m : metrics ) {
-            int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
-            VmStatistics stats = statMap.get(minute);
-            
-            if( stats == null ) {
-                stats = new VmStatistics();
-                statMap.put(minute, stats);
+            for( int i =1; i<=minutes; i++ ) {
+                statMap.put(i, new VmStatistics());
             }
-            stats.setAverageCpuUtilization(m.average);
-            stats.setMaximumCpuUtilization(m.maximum);
-            stats.setMinimumCpuUtilization(m.minimum);
-            stats.setStartTimestamp(m.timestamp);
-            stats.setEndTimestamp(m.timestamp);
-            stats.setSamples(m.samples);
-        }
-        metrics = calculate("DiskReadBytes", "Bytes", instanceId, startTimestamp, endTimestamp);
-        for( Metric m : metrics ) {
-            int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
-            VmStatistics stats = statMap.get(minute);
-            
-            if( stats == null ) {
-                stats = new VmStatistics();
-                statMap.put(minute, stats);
-            }
-            stats.setAverageDiskReadBytes(m.average);
-            stats.setMinimumDiskReadBytes(m.minimum);
-            stats.setMaximumDiskReadBytes(m.maximum);
-            if( stats.getSamples() < 1 ) {
+            Set<Metric> metrics = calculate("CPUUtilization", "Percent", instanceId, startTimestamp, endTimestamp);
+            for( Metric m : metrics ) {
+                int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
+                VmStatistics stats = statMap.get(minute);
+
+                if( stats == null ) {
+                    stats = new VmStatistics();
+                    statMap.put(minute, stats);
+                }
+                stats.setAverageCpuUtilization(m.average);
+                stats.setMaximumCpuUtilization(m.maximum);
+                stats.setMinimumCpuUtilization(m.minimum);
+                stats.setStartTimestamp(m.timestamp);
+                stats.setEndTimestamp(m.timestamp);
                 stats.setSamples(m.samples);
             }
+            metrics = calculate("DiskReadBytes", "Bytes", instanceId, startTimestamp, endTimestamp);
+            for( Metric m : metrics ) {
+                int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
+                VmStatistics stats = statMap.get(minute);
+
+                if( stats == null ) {
+                    stats = new VmStatistics();
+                    statMap.put(minute, stats);
+                }
+                stats.setAverageDiskReadBytes(m.average);
+                stats.setMinimumDiskReadBytes(m.minimum);
+                stats.setMaximumDiskReadBytes(m.maximum);
+                if( stats.getSamples() < 1 ) {
+                    stats.setSamples(m.samples);
+                }
+            }
+            metrics = calculate("DiskReadOps", "Count", instanceId, startTimestamp, endTimestamp);
+            for( Metric m : metrics ) {
+                int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
+                VmStatistics stats = statMap.get(minute);
+
+                if( stats == null ) {
+                    stats = new VmStatistics();
+                    statMap.put(minute, stats);
+                }
+                stats.setAverageDiskReadOperations(m.average);
+                stats.setMinimumDiskReadOperations(m.minimum);
+                stats.setMaximumDiskReadOperations(m.maximum);
+                if( stats.getSamples() < 1 ) {
+                    stats.setSamples(m.samples);
+                }
+            }
+            metrics = calculate("DiskWriteBytes", "Bytes", instanceId, startTimestamp, endTimestamp);
+            for( Metric m : metrics ) {
+                int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
+                VmStatistics stats = statMap.get(minute);
+
+                if( stats == null ) {
+                    stats = new VmStatistics();
+                    statMap.put(minute, stats);
+                }
+                stats.setAverageDiskWriteBytes(m.average);
+                stats.setMinimumDiskWriteBytes(m.minimum);
+                stats.setMaximumDiskWriteBytes(m.maximum);
+                if( stats.getSamples() < 1 ) {
+                    stats.setSamples(m.samples);
+                }
+            }
+            metrics = calculate("DiskWriteOps", "Count", instanceId, startTimestamp, endTimestamp);
+            for( Metric m : metrics ) {
+                int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
+                VmStatistics stats = statMap.get(minute);
+
+                if( stats == null ) {
+                    stats = new VmStatistics();
+                    statMap.put(minute, stats);
+                }
+                stats.setAverageDiskWriteOperations(m.average);
+                stats.setMinimumDiskWriteOperations(m.minimum);
+                stats.setMaximumDiskWriteOperations(m.maximum);
+                if( stats.getSamples() < 1 ) {
+                    stats.setSamples(m.samples);
+                }
+            }
+            metrics = calculate("NetworkIn", "Bytes", instanceId, startTimestamp, endTimestamp);
+            for( Metric m : metrics ) {
+                int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
+                VmStatistics stats = statMap.get(minute);
+
+                if( stats == null ) {
+                    stats = new VmStatistics();
+                    statMap.put(minute, stats);
+                }
+                stats.setAverageNetworkIn(m.average);
+                stats.setMinimumNetworkIn(m.minimum);
+                stats.setMaximumNetworkIn(m.maximum);
+                if( stats.getSamples() < 1 ) {
+                    stats.setSamples(m.samples);
+                }
+            }
+            metrics = calculate("NetworkOut", "Bytes", instanceId, startTimestamp, endTimestamp);
+            for( Metric m : metrics ) {
+                int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
+                VmStatistics stats = statMap.get(minute);
+
+                if( stats == null ) {
+                    stats = new VmStatistics();
+                    statMap.put(minute, stats);
+                }
+                stats.setAverageNetworkOut(m.average);
+                stats.setMinimumNetworkOut(m.minimum);
+                stats.setMaximumNetworkOut(m.maximum);
+                if( stats.getSamples() < 1 ) {
+                    stats.setSamples(m.samples);
+                }
+            }
+            ArrayList<VmStatistics> list = new ArrayList<VmStatistics>();
+            for( Map.Entry<Integer,VmStatistics> entry : statMap.entrySet() ) {
+                VmStatistics stats = entry.getValue();
+
+                if( stats != null && stats.getSamples() > 0 ) {
+                    list.add(stats);
+                }
+            }
+            return list;
         }
-        metrics = calculate("DiskReadOps", "Count", instanceId, startTimestamp, endTimestamp);
-        for( Metric m : metrics ) {
-            int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
-            VmStatistics stats = statMap.get(minute);
-            
-            if( stats == null ) {
-                stats = new VmStatistics();
-                statMap.put(minute, stats);
-            }
-            stats.setAverageDiskReadOperations(m.average);
-            stats.setMinimumDiskReadOperations(m.minimum);
-            stats.setMaximumDiskReadOperations(m.maximum);
-            if( stats.getSamples() < 1 ) {
-                stats.setSamples(m.samples);
-            }            
+        finally {
+            APITrace.end();
         }
-        metrics = calculate("DiskWriteBytes", "Bytes", instanceId, startTimestamp, endTimestamp);
-        for( Metric m : metrics ) {
-            int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
-            VmStatistics stats = statMap.get(minute);
-            
-            if( stats == null ) {
-                stats = new VmStatistics();
-                statMap.put(minute, stats);
-            }
-            stats.setAverageDiskWriteBytes(m.average);
-            stats.setMinimumDiskWriteBytes(m.minimum);
-            stats.setMaximumDiskWriteBytes(m.maximum);
-            if( stats.getSamples() < 1 ) {
-                stats.setSamples(m.samples);
-            }
-        }
-        metrics = calculate("DiskWriteOps", "Count", instanceId, startTimestamp, endTimestamp);
-        for( Metric m : metrics ) {
-            int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
-            VmStatistics stats = statMap.get(minute);
-            
-            if( stats == null ) {
-                stats = new VmStatistics();
-                statMap.put(minute, stats);
-            }
-            stats.setAverageDiskWriteOperations(m.average);
-            stats.setMinimumDiskWriteOperations(m.minimum);
-            stats.setMaximumDiskWriteOperations(m.maximum);
-            if( stats.getSamples() < 1 ) {
-                stats.setSamples(m.samples);
-            }
-        }
-        metrics = calculate("NetworkIn", "Bytes", instanceId, startTimestamp, endTimestamp);
-        for( Metric m : metrics ) {
-            int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
-            VmStatistics stats = statMap.get(minute);
-            
-            if( stats == null ) {
-                stats = new VmStatistics();
-                statMap.put(minute, stats);
-            }
-            stats.setAverageNetworkIn(m.average);
-            stats.setMinimumNetworkIn(m.minimum);
-            stats.setMaximumNetworkIn(m.maximum);
-            if( stats.getSamples() < 1 ) {
-                stats.setSamples(m.samples);
-            }
-        }
-        metrics = calculate("NetworkOut", "Bytes", instanceId, startTimestamp, endTimestamp);
-        for( Metric m : metrics ) {
-            int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
-            VmStatistics stats = statMap.get(minute);
-            
-            if( stats == null ) {
-                stats = new VmStatistics();
-                statMap.put(minute, stats);
-            }
-            stats.setAverageNetworkOut(m.average);
-            stats.setMinimumNetworkOut(m.minimum);
-            stats.setMaximumNetworkOut(m.maximum);
-            if( stats.getSamples() < 1 ) {
-                stats.setSamples(m.samples);
-            }
-        }
-        ArrayList<VmStatistics> list = new ArrayList<VmStatistics>();
-        for( Map.Entry<Integer,VmStatistics> entry : statMap.entrySet() ) {
-            VmStatistics stats = entry.getValue();
-            
-            if( stats != null && stats.getSamples() > 0 ) {
-                list.add(stats);
-            }
-        }
-        return list;
     }
 
     @Override
@@ -982,24 +1031,30 @@ public class EC2Instance implements VirtualMachineSupport {
 
     @Override
     public boolean isSubscribed() throws InternalException, CloudException {
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
-        EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        
+        APITrace.begin(provider, "isSubscribed");
         try {
-            method.invoke();
-            return true;
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
+            EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+
+            try {
+                method.invoke();
+                return true;
+            }
+            catch( EC2Exception e ) {
+                if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    return false;
+                }
+                String code = e.getCode();
+
+                if( code != null && code.equals("SignatureDoesNotMatch") ) {
+                    return false;
+                }
+                logger.warn(e.getSummary());
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-            if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
-                return false;
-            }
-            String code = e.getCode();
-            
-            if( code != null && code.equals("SignatureDoesNotMatch") ) {
-                return false;
-            }
-            logger.warn(e.getSummary());
-            throw new CloudException(e);
+        finally {
+            APITrace.end();
         }
     }
 
@@ -1060,295 +1115,301 @@ public class EC2Instance implements VirtualMachineSupport {
 	
     @Override
     public @Nonnull VirtualMachine launch(@Nonnull VMLaunchOptions cfg) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
+        APITrace.begin(provider, "launch");
+        try {
+            ProviderContext ctx = provider.getContext();
 
-        if( ctx == null ) {
-            throw new CloudException("No context was established for this request");
-        }
-        MachineImage img = provider.getComputeServices().getImageSupport().getMachineImage(cfg.getMachineImageId());
-
-        if( img == null ) {
-            throw new InternalException("No such machine image: " + cfg.getMachineImageId());
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.RUN_INSTANCES);
-        String ramdiskImage = (String)cfg.getMetaData().get("ramdiskImageId"), kernelImage = (String)cfg.getMetaData().get("kernelImageId");
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        parameters.put("ImageId", cfg.getMachineImageId());
-        parameters.put("MinCount", "1");
-        parameters.put("MaxCount", "1");
-        parameters.put("InstanceType", cfg.getStandardProductId());
-        if( ramdiskImage != null ) {
-            parameters.put("ramdiskId", ramdiskImage);
-        }
-        if( kernelImage != null ) {
-            parameters.put("kernelId", kernelImage);
-        }
-        if( cfg.getUserData() != null ) {
-            try {
-                parameters.put("UserData", Base64.encodeBase64String(cfg.getUserData().getBytes("utf-8")));
+            if( ctx == null ) {
+                throw new CloudException("No context was established for this request");
             }
-            catch( UnsupportedEncodingException e ) {
-                throw new InternalException(e);
-            }
-        }
-        if( cfg.isPreventApiTermination() ) {
-            parameters.put("DisableApiTermination", "true");
-        }
-        String[] ids = cfg.getFirewallIds();
-        
-        if( ids.length > 0 ) {
-            int i = 1;
+            MachineImage img = provider.getComputeServices().getImageSupport().getMachineImage(cfg.getMachineImageId());
 
-            for( String id : ids ) {
-                parameters.put("SecurityGroupId." + (i++), id);
+            if( img == null ) {
+                throw new InternalException("No such machine image: " + cfg.getMachineImageId());
             }
-        }
-        if( cfg.getDataCenterId() != null ) {
-            parameters.put("Placement.AvailabilityZone", cfg.getDataCenterId());
-        }
-        else if( cfg.getVolumes().length > 0 ) {
-            String dc = null;
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.RUN_INSTANCES);
+            String ramdiskImage = (String)cfg.getMetaData().get("ramdiskImageId"), kernelImage = (String)cfg.getMetaData().get("kernelImageId");
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-            for( VMLaunchOptions.VolumeAttachment a : cfg.getVolumes() ) {
-                if( a.volumeToCreate != null ) {
-                    dc = a.volumeToCreate.getDataCenterId();
-                    if( dc != null ) {
-                        break;
-                    }
+            parameters.put("ImageId", cfg.getMachineImageId());
+            parameters.put("MinCount", "1");
+            parameters.put("MaxCount", "1");
+            parameters.put("InstanceType", cfg.getStandardProductId());
+            if( ramdiskImage != null ) {
+                parameters.put("ramdiskId", ramdiskImage);
+            }
+            if( kernelImage != null ) {
+                parameters.put("kernelId", kernelImage);
+            }
+            if( cfg.getUserData() != null ) {
+                try {
+                    parameters.put("UserData", Base64.encodeBase64String(cfg.getUserData().getBytes("utf-8")));
+                }
+                catch( UnsupportedEncodingException e ) {
+                    throw new InternalException(e);
                 }
             }
-            if( dc != null ) {
-                cfg.inDataCenter(dc);
+            if( cfg.isPreventApiTermination() ) {
+                parameters.put("DisableApiTermination", "true");
             }
-        }
-        if( cfg.getBootstrapKey() != null ) {
-            parameters.put("KeyName", cfg.getBootstrapKey());
-        }
-        if( cfg.getVlanId() != null ) {
-            parameters.put("SubnetId", cfg.getVlanId());
-        }
-        if( provider.getEC2Provider().isAWS() ) {
-            parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
-        }
-        final ArrayList<VMLaunchOptions.VolumeAttachment> existingVolumes = new ArrayList<VMLaunchOptions.VolumeAttachment>();
-        TreeSet<String> deviceIds = new TreeSet<String>();
-        
-        if( cfg.getVolumes().length > 0 ) {
-            Iterable<String> possibles = provider.getComputeServices().getVolumeSupport().listPossibleDeviceIds(img.getPlatform());
-            int i=1;
+            String[] ids = cfg.getFirewallIds();
 
-            for( VMLaunchOptions.VolumeAttachment a : cfg.getVolumes() ) {
-                if( a.deviceId != null ) {
-                    deviceIds.add(a.deviceId);
-                }
-                else if( a.volumeToCreate != null && a.volumeToCreate.getDeviceId() != null ) {
-                    deviceIds.add(a.volumeToCreate.getDeviceId());
-                    a.deviceId = a.volumeToCreate.getDeviceId();
+            if( ids.length > 0 ) {
+                int i = 1;
+
+                for( String id : ids ) {
+                    parameters.put("SecurityGroupId." + (i++), id);
                 }
             }
-            for( VMLaunchOptions.VolumeAttachment a : cfg.getVolumes() ) {
-                if( a.deviceId == null ) {
-                    for( String id : possibles ) {
-                        if( !deviceIds.contains(id) ) {
-                            a.deviceId = id;
-                            deviceIds.add(id);
+            if( cfg.getDataCenterId() != null ) {
+                parameters.put("Placement.AvailabilityZone", cfg.getDataCenterId());
+            }
+            else if( cfg.getVolumes().length > 0 ) {
+                String dc = null;
+
+                for( VMLaunchOptions.VolumeAttachment a : cfg.getVolumes() ) {
+                    if( a.volumeToCreate != null ) {
+                        dc = a.volumeToCreate.getDataCenterId();
+                        if( dc != null ) {
+                            break;
                         }
                     }
-                    if( a.deviceId == null ) {
-                        throw new InternalException("Unable to identify a device ID for volume");
+                }
+                if( dc != null ) {
+                    cfg.inDataCenter(dc);
+                }
+            }
+            if( cfg.getBootstrapKey() != null ) {
+                parameters.put("KeyName", cfg.getBootstrapKey());
+            }
+            if( cfg.getVlanId() != null ) {
+                parameters.put("SubnetId", cfg.getVlanId());
+            }
+            if( provider.getEC2Provider().isAWS() ) {
+                parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
+            }
+            final ArrayList<VMLaunchOptions.VolumeAttachment> existingVolumes = new ArrayList<VMLaunchOptions.VolumeAttachment>();
+            TreeSet<String> deviceIds = new TreeSet<String>();
+
+            if( cfg.getVolumes().length > 0 ) {
+                Iterable<String> possibles = provider.getComputeServices().getVolumeSupport().listPossibleDeviceIds(img.getPlatform());
+                int i=1;
+
+                for( VMLaunchOptions.VolumeAttachment a : cfg.getVolumes() ) {
+                    if( a.deviceId != null ) {
+                        deviceIds.add(a.deviceId);
+                    }
+                    else if( a.volumeToCreate != null && a.volumeToCreate.getDeviceId() != null ) {
+                        deviceIds.add(a.volumeToCreate.getDeviceId());
+                        a.deviceId = a.volumeToCreate.getDeviceId();
                     }
                 }
-                if( a.existingVolumeId == null ) {
-                    parameters.put("BlockDeviceMapping." + i + ".DeviceName", a.deviceId);
-                    if( a.volumeToCreate.getSnapshotId() != null ) {
-                        parameters.put("BlockDeviceMapping." + i + ".Ebs.SnapshotId", a.volumeToCreate.getSnapshotId());
+                for( VMLaunchOptions.VolumeAttachment a : cfg.getVolumes() ) {
+                    if( a.deviceId == null ) {
+                        for( String id : possibles ) {
+                            if( !deviceIds.contains(id) ) {
+                                a.deviceId = id;
+                                deviceIds.add(id);
+                            }
+                        }
+                        if( a.deviceId == null ) {
+                            throw new InternalException("Unable to identify a device ID for volume");
+                        }
+                    }
+                    if( a.existingVolumeId == null ) {
+                        parameters.put("BlockDeviceMapping." + i + ".DeviceName", a.deviceId);
+                        if( a.volumeToCreate.getSnapshotId() != null ) {
+                            parameters.put("BlockDeviceMapping." + i + ".Ebs.SnapshotId", a.volumeToCreate.getSnapshotId());
+                        }
+                        else {
+                            parameters.put("BlockDeviceMapping." + i + ".Ebs.VolumeSize", String.valueOf(a.volumeToCreate.getVolumeSize().getQuantity().intValue()));
+                        }
+                        i++;
                     }
                     else {
-                        parameters.put("BlockDeviceMapping." + i + ".Ebs.VolumeSize", String.valueOf(a.volumeToCreate.getVolumeSize().getQuantity().intValue()));
+                        existingVolumes.add(a);
+                    }
+                }
+            }
+            VMLaunchOptions.NICConfig[] nics = cfg.getNetworkInterfaces();
+
+            if( nics != null && nics.length > 0 ) {
+                int i=1;
+
+                for( VMLaunchOptions.NICConfig c : nics ) {
+                    parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
+                    if( c.nicId == null ) {
+                        parameters.put("NetworkInterface." + i + ".SubnetId", c.nicToCreate.getSubnetId());
+                        parameters.put("NetworkInterface." + i + ".Description", c.nicToCreate.getDescription());
+                        if( c.nicToCreate.getIpAddress() != null ) {
+                            parameters.put("NetworkInterface." + i + ".PrivateIpAddress", c.nicToCreate.getIpAddress());
+                        }
+                        if( c.nicToCreate.getFirewallIds().length > 0 ) {
+                            int j=1;
+
+                            for( String id : c.nicToCreate.getFirewallIds() ) {
+                                parameters.put("NetworkInterface." + i + ".SecurityGroupId." + j, id);
+                                j++;
+                            }
+                        }
+                    }
+                    else {
+                        parameters.put("NetworkInterface." + i + ".NetworkInterfaceId", c.nicId);
                     }
                     i++;
                 }
-                else {
-                    existingVolumes.add(a);
-                }
             }
-        }
-        VMLaunchOptions.NICConfig[] nics = cfg.getNetworkInterfaces();
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
 
-        if( nics != null && nics.length > 0 ) {
-            int i=1;
-            
-            for( VMLaunchOptions.NICConfig c : nics ) {
-                parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
-                if( c.nicId == null ) {
-                    parameters.put("NetworkInterface." + i + ".SubnetId", c.nicToCreate.getSubnetId());
-                    parameters.put("NetworkInterface." + i + ".Description", c.nicToCreate.getDescription());
-                    if( c.nicToCreate.getIpAddress() != null ) {
-                        parameters.put("NetworkInterface." + i + ".PrivateIpAddress", c.nicToCreate.getIpAddress());
-                    }
-                    if( c.nicToCreate.getFirewallIds().length > 0 ) {
-                        int j=1;
+                if( code != null && code.equals("InsufficientInstanceCapacity") ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("instancesSet");
+            VirtualMachine server = null;
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList instances = blocks.item(i).getChildNodes();
 
-                        for( String id : c.nicToCreate.getFirewallIds() ) {
-                            parameters.put("NetworkInterface." + i + ".SecurityGroupId." + j, id);
-                            j++;
+                for( int j=0; j<instances.getLength(); j++ ) {
+                    Node instance = instances.item(j);
+
+                    if( instance.getNodeName().equals("item") ) {
+                        server = toVirtualMachine(ctx, instance, new ArrayList<IpAddress>() /* can't be an elastic IP */);
+                        if( server != null ) {
+                            break;
                         }
                     }
                 }
-                else {
-                    parameters.put("NetworkInterface." + i + ".NetworkInterfaceId", c.nicId);
-                }
-                i++;
             }
-        }
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            String code = e.getCode();
+            if( server != null && cfg.getBootstrapKey() != null ) {
+                try {
+                    final String sid = server.getProviderVirtualMachineId();
 
-            if( code != null && code.equals("InsufficientInstanceCapacity") ) {
-                return null;
-            }
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("instancesSet");
-        VirtualMachine server = null;
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            NodeList instances = blocks.item(i).getChildNodes();
+                    Callable<String> pwMethod = new Callable<String>() {
+                        public String call() throws CloudException {
+                            try {
+                                Map<String,String> params = provider.getStandardParameters(provider.getContext(), EC2Method.GET_PASSWORD_DATA);
+                                EC2Method m;
 
-            for( int j=0; j<instances.getLength(); j++ ) {
-                Node instance = instances.item(j);
+                                params.put("InstanceId", sid);
+                                m = new EC2Method(provider, provider.getEc2Url(), params);
 
-                if( instance.getNodeName().equals("item") ) {
-                    server = toVirtualMachine(ctx, instance, new ArrayList<IpAddress>() /* can't be an elastic IP */);
-                    if( server != null ) {
-                        break;
-                    }
-                }
-            }
-        }
-        if( server != null && cfg.getBootstrapKey() != null ) {
-            try {
-                final String sid = server.getProviderVirtualMachineId();
+                                Document doc = m.invoke();
+                                NodeList blocks = doc.getElementsByTagName("passwordData");
 
-                Callable<String> pwMethod = new Callable<String>() {
-                    public String call() throws CloudException {
-                        try {
-                            Map<String,String> params = provider.getStandardParameters(provider.getContext(), EC2Method.GET_PASSWORD_DATA);
-                            EC2Method m;
+                                if( blocks.getLength() > 0 ) {
+                                    Node pw = blocks.item(0);
 
-                            params.put("InstanceId", sid);
-                            m = new EC2Method(provider, provider.getEc2Url(), params);
+                                    if( pw.hasChildNodes() ) {
+                                        String password = pw.getFirstChild().getNodeValue();
 
-                            Document doc = m.invoke();
-                            NodeList blocks = doc.getElementsByTagName("passwordData");
-
-                            if( blocks.getLength() > 0 ) {
-                                Node pw = blocks.item(0);
-
-                                if( pw.hasChildNodes() ) {
-                                    String password = pw.getFirstChild().getNodeValue();
-
-                                    provider.release();
-                                    return password;
+                                        provider.release();
+                                        return password;
+                                    }
+                                    return null;
                                 }
                                 return null;
                             }
-                            return null;
+                            catch( Throwable t ) {
+                                throw new CloudException("Unable to retrieve password for " + sid + ", Let's hope it's Unix: " + t.getMessage());
+                            }
                         }
-                        catch( Throwable t ) {
-                            throw new CloudException("Unable to retrieve password for " + sid + ", Let's hope it's Unix: " + t.getMessage());
+                    };
+
+                    provider.hold();
+                    try {
+                        String password = pwMethod.call();
+
+                        if( password == null ) {
+                            server.setRootPassword(null);
+                            server.setPasswordCallback(pwMethod);
+                        }
+                        else {
+                            server.setRootPassword(password);
+                        }
+                        server.setPlatform(Platform.WINDOWS);
+                    }
+                    catch( CloudException e ) {
+                        logger.warn(e.getMessage());
+                    }
+                }
+                catch( Throwable t ) {
+                    logger.warn("Unable to retrieve password for " + server.getProviderVirtualMachineId() + ", Let's hope it's Unix: " + t.getMessage());
+                }
+            }
+            Map<String,Object> meta = cfg.getMetaData();
+            Tag[] toCreate;
+            int i = 0;
+
+            if( meta.isEmpty() ) {
+                toCreate = new Tag[2];
+            }
+            else {
+                int count = 0;
+
+                for( Map.Entry<String,Object> entry : meta.entrySet() ) {
+                    if( entry.getKey().equalsIgnoreCase("name") || entry.getKey().equalsIgnoreCase("description") ) {
+                        continue;
+                    }
+                    count++;
+                }
+                toCreate = new Tag[count + 2];
+                for( Map.Entry<String,Object> entry : meta.entrySet() ) {
+                    if( entry.getKey().equalsIgnoreCase("name") || entry.getKey().equalsIgnoreCase("description") ) {
+                        continue;
+                    }
+                    toCreate[i++] = new Tag(entry.getKey(), entry.getValue().toString());
+                }
+            }
+            Tag t = new Tag();
+
+            t.setKey("Name");
+            t.setValue(cfg.getFriendlyName());
+            toCreate[i++] = t;
+            t = new Tag();
+            t.setKey("Description");
+            t.setValue(cfg.getDescription());
+            toCreate[i] = t;
+            provider.createTags(server.getProviderVirtualMachineId(), toCreate);
+            if( !existingVolumes.isEmpty() ) {
+                final VirtualMachine vm = server;
+
+                provider.hold();
+                Thread thread = new Thread() {
+                    public void run() {
+                        try {
+                            for( VMLaunchOptions.VolumeAttachment a : existingVolumes ) {
+                                try {
+                                    provider.getComputeServices().getVolumeSupport().attach(a.existingVolumeId, vm.getProviderMachineImageId(), a.deviceId);
+                                }
+                                catch( Throwable t ) {
+                                    t.printStackTrace();
+                                }
+                            }
+                        }
+                        finally {
+                            provider.release();
                         }
                     }
                 };
 
-                provider.hold();
-                try {
-                    String password = pwMethod.call();
-
-                    if( password == null ) {
-                        server.setRootPassword(null);
-                        server.setPasswordCallback(pwMethod);
-                    }
-                    else {
-                        server.setRootPassword(password);
-                    }
-                    server.setPlatform(Platform.WINDOWS);
-                }
-                catch( CloudException e ) {
-                    logger.warn(e.getMessage());
-                }
+                thread.setName("Volume Mounter for " + server);
+                thread.start();
             }
-            catch( Throwable t ) {
-                logger.warn("Unable to retrieve password for " + server.getProviderVirtualMachineId() + ", Let's hope it's Unix: " + t.getMessage());
-            }
+            return server;
         }
-        Map<String,Object> meta = cfg.getMetaData();
-        Tag[] toCreate;
-        int i = 0;
-
-        if( meta.isEmpty() ) {
-            toCreate = new Tag[2];
+        finally {
+            APITrace.end();
         }
-        else {
-            int count = 0;
-
-            for( Map.Entry<String,Object> entry : meta.entrySet() ) {
-                if( entry.getKey().equalsIgnoreCase("name") || entry.getKey().equalsIgnoreCase("description") ) {
-                    continue;
-                }
-                count++;
-            }
-            toCreate = new Tag[count + 2];
-            for( Map.Entry<String,Object> entry : meta.entrySet() ) {
-                if( entry.getKey().equalsIgnoreCase("name") || entry.getKey().equalsIgnoreCase("description") ) {
-                    continue;
-                }
-                toCreate[i++] = new Tag(entry.getKey(), entry.getValue().toString());
-            }
-        }
-        Tag t = new Tag();
-
-        t.setKey("Name");
-        t.setValue(cfg.getFriendlyName());
-        toCreate[i++] = t;
-        t = new Tag();
-        t.setKey("Description");
-        t.setValue(cfg.getDescription());
-        toCreate[i] = t;
-        provider.createTags(server.getProviderVirtualMachineId(), toCreate);
-        if( !existingVolumes.isEmpty() ) {
-            final VirtualMachine vm = server;
-
-            provider.hold();
-            Thread thread = new Thread() {
-                public void run() {
-                    try {
-                        for( VMLaunchOptions.VolumeAttachment a : existingVolumes ) {
-                            try {
-                                provider.getComputeServices().getVolumeSupport().attach(a.existingVolumeId, vm.getProviderMachineImageId(), a.deviceId);
-                            }
-                            catch( Throwable t ) {
-                                t.printStackTrace();
-                            }
-                        }
-                    }
-                    finally {
-                        provider.release();
-                    }
-                }
-            };
-            
-            thread.setName("Volume Mounter for " + server);
-            thread.start();
-        }
-        return server;        
     }
     
 	@Override
@@ -1444,88 +1505,100 @@ public class EC2Instance implements VirtualMachineSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listVirtualMachineStatus() throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was established for this request");
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
-        EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
-        NodeList blocks;
-        Document doc;
-
+        APITrace.begin(provider, "listVirtualMachineStatus");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("instancesSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            NodeList instances = blocks.item(i).getChildNodes();
+            ProviderContext ctx = provider.getContext();
 
-            for( int j=0; j<instances.getLength(); j++ ) {
-                Node instance = instances.item(j);
+            if( ctx == null ) {
+                throw new CloudException("No context was established for this request");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
+            EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+            NodeList blocks;
+            Document doc;
 
-                if( instance.getNodeName().equals("item") ) {
-                    ResourceStatus status = toStatus(instance);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("instancesSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList instances = blocks.item(i).getChildNodes();
 
-                    if( status != null ) {
-                        list.add(status);
+                for( int j=0; j<instances.getLength(); j++ ) {
+                    Node instance = instances.item(j);
+
+                    if( instance.getNodeName().equals("item") ) {
+                        ResourceStatus status = toStatus(instance);
+
+                        if( status != null ) {
+                            list.add(status);
+                        }
                     }
                 }
             }
+            return list;
         }
-        return list;
+        finally {
+            APITrace.end();
+        }
     }
 
 	@Override
 	public @Nonnull Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
+        APITrace.begin(provider, "listVirtualMachines");
+        try {
+            ProviderContext ctx = provider.getContext();
 
-        if( ctx == null ) {
-            throw new CloudException("No context was established for this request");
-        }
-        Iterable<IpAddress> addresses = Collections.emptyList();
-        NetworkServices services = provider.getNetworkServices();
+            if( ctx == null ) {
+                throw new CloudException("No context was established for this request");
+            }
+            Iterable<IpAddress> addresses = Collections.emptyList();
+            NetworkServices services = provider.getNetworkServices();
 
-        if( services != null ) {
-            if( services.hasIpAddressSupport() ) {
-                IpAddressSupport support = services.getIpAddressSupport();
+            if( services != null ) {
+                if( services.hasIpAddressSupport() ) {
+                    IpAddressSupport support = services.getIpAddressSupport();
 
-                if( support != null ) {
-                    addresses = support.listIpPool(IPVersion.IPV4, false);
+                    if( support != null ) {
+                        addresses = support.listIpPool(IPVersion.IPV4, false);
+                    }
                 }
             }
-        }
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
-		EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
-		ArrayList<VirtualMachine> list = new ArrayList<VirtualMachine>();
-        NodeList blocks;
-		Document doc;
-        
-        try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("instancesSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList instances = blocks.item(i).getChildNodes();
-        	
-            for( int j=0; j<instances.getLength(); j++ ) {
-            	Node instance = instances.item(j);
-            	
-            	if( instance.getNodeName().equals("item") ) {
-            		list.add(toVirtualMachine(ctx, instance, addresses));
-            	}
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
+            EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            ArrayList<VirtualMachine> list = new ArrayList<VirtualMachine>();
+            NodeList blocks;
+            Document doc;
+
+            try {
+                doc = method.invoke();
             }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("instancesSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList instances = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<instances.getLength(); j++ ) {
+                    Node instance = instances.item(j);
+
+                    if( instance.getNodeName().equals("item") ) {
+                        list.add(toVirtualMachine(ctx, instance, addresses));
+                    }
+                }
+            }
+            return list;
         }
-        return list;
+        finally {
+            APITrace.end();
+        }
 	}
 
     @Override
@@ -1573,41 +1646,53 @@ public class EC2Instance implements VirtualMachineSupport {
     
 	@Override
 	public void stop(@Nonnull String instanceId) throws InternalException, CloudException {
-        VirtualMachine vm = getVirtualMachine(instanceId);
-
-        if( vm == null ) {
-            throw new CloudException("No such instance: " + instanceId);
-        }
-        if( !vm.isPersistent() ) {
-            throw new OperationNotSupportedException("Instances backed by ephemeral drives are not start/stop capable");
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.STOP_INSTANCES);
-        EC2Method method;
-        
-        parameters.put("InstanceId.1", instanceId);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "stop");
         try {
-            method.invoke();
+            VirtualMachine vm = getVirtualMachine(instanceId);
+
+            if( vm == null ) {
+                throw new CloudException("No such instance: " + instanceId);
+            }
+            if( !vm.isPersistent() ) {
+                throw new OperationNotSupportedException("Instances backed by ephemeral drives are not start/stop capable");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.STOP_INSTANCES);
+            EC2Method method;
+
+            parameters.put("InstanceId.1", instanceId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }	    
+        finally {
+            APITrace.end();
+        }
 	}
 
 	@Override
 	public void reboot(@Nonnull String instanceId) throws CloudException, InternalException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.REBOOT_INSTANCES);
-		EC2Method method;
-        
-        parameters.put("InstanceId.1", instanceId);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "reboot");
         try {
-        	method.invoke();
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.REBOOT_INSTANCES);
+            EC2Method method;
+
+            parameters.put("InstanceId.1", instanceId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+        finally {
+            APITrace.end();
         }
 	}
 
@@ -1665,17 +1750,23 @@ public class EC2Instance implements VirtualMachineSupport {
 
     @Override
 	public void terminate(@Nonnull String instanceId) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.TERMINATE_INSTANCES);
-		EC2Method method;
-        
-        parameters.put("InstanceId.1", instanceId);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "terminate");
         try {
-        	method.invoke();
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.TERMINATE_INSTANCES);
+            EC2Method method;
+
+            parameters.put("InstanceId.1", instanceId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+        finally {
+            APITrace.end();
         }
 	}
 
@@ -1949,19 +2040,25 @@ public class EC2Instance implements VirtualMachineSupport {
 	
 	@Override
 	public void disableAnalytics(String instanceId) throws InternalException, CloudException {
-        if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.UNMONITOR_INSTANCES);
-            EC2Method method;
+        APITrace.begin(provider, "disableAnalytics");
+        try {
+            if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
+                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.UNMONITOR_INSTANCES);
+                EC2Method method;
 
-            parameters.put("InstanceId.1", instanceId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                method.invoke();
+                parameters.put("InstanceId.1", instanceId);
+                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                try {
+                    method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
             }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+        }
+        finally {
+            APITrace.end();
         }
 	}
 }

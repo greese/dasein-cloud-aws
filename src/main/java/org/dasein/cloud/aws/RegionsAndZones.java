@@ -28,11 +28,15 @@ import java.util.Map;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.dc.DataCenterServices;
 import org.dasein.cloud.dc.Region;
+import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -76,65 +80,71 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public @Nullable DataCenter getDataCenter(@Nonnull String zoneId) throws InternalException, CloudException {
-        if( provider.getEC2Provider().isStorage() ) {
-            return (zoneId.equals(oneZoneId) ? getZone() : null);
-        }
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
-        
-		parameters.put("ZoneName", zoneId);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "getDataCenter");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	String code = e.getCode();
-        	
-        	if( code != null && code.startsWith("InvalidZone") ) {
-        		return null;
-        	}
-            if( code != null && code.equals("InvalidParameterValue") ) {
-                String message = e.getMessage();
-                
-                if( message != null && message.startsWith("Invalid availability") ) {
+            if( provider.getEC2Provider().isStorage() ) {
+                return (zoneId.equals(oneZoneId) ? getZone() : null);
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("ZoneName", zoneId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.startsWith("InvalidZone") ) {
                     return null;
                 }
-            }        	
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("availabilityZoneInfo");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList zones = blocks.item(i).getChildNodes();
-        	
-            for( int j=0; j<zones.getLength(); j++ ) {
-            	Node region = zones.item(j);
-            	
-            	if( region.getNodeName().equals("item") ) {
-            		DataCenter dc = toDataCenter(null, zones.item(j));
-            		
-            		if( dc != null && dc.getProviderDataCenterId().equals(zoneId) ) {
-                        if( dc.getRegionId() == null ) {
-                            for( Region r : listRegions() ) {
-                                for( DataCenter d : listDataCenters(r.getProviderRegionId()) ) {
-                                    if( d.getProviderDataCenterId().equals(dc.getProviderDataCenterId()) ) {
-                                        dc.setRegionId(r.getProviderRegionId());
+                if( code != null && code.equals("InvalidParameterValue") ) {
+                    String message = e.getMessage();
+
+                    if( message != null && message.startsWith("Invalid availability") ) {
+                        return null;
+                    }
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("availabilityZoneInfo");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList zones = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<zones.getLength(); j++ ) {
+                    Node region = zones.item(j);
+
+                    if( region.getNodeName().equals("item") ) {
+                        DataCenter dc = toDataCenter(null, zones.item(j));
+
+                        if( dc != null && dc.getProviderDataCenterId().equals(zoneId) ) {
+                            if( dc.getRegionId() == null ) {
+                                for( Region r : listRegions() ) {
+                                    for( DataCenter d : listDataCenters(r.getProviderRegionId()) ) {
+                                        if( d.getProviderDataCenterId().equals(dc.getProviderDataCenterId()) ) {
+                                            dc.setRegionId(r.getProviderRegionId());
+                                            break;
+                                        }
+                                    }
+                                    if( dc.getRegionId() != null ) {
                                         break;
                                     }
                                 }
-                                if( dc.getRegionId() != null ) {
-                                    break;
-                                }
                             }
+                            return dc;
                         }
-            			return dc;
-            		}
-            	}
+                    }
+                }
             }
+            return null;
         }
-        return null;
+        finally {
+            APITrace.end();
+        }
 	}
 
 	@Override
@@ -160,175 +170,228 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Region getRegion(String regionId) throws InternalException, CloudException {
-        if( provider.getEC2Provider().isStorage() ) {
-            return (regionId.equals(oneRegionId) ? getRegion() : null);
-        }
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
-        NodeList blocks, regions;
-		EC2Method method;
-		Document doc;
-
-		parameters.put("RegionName.1", regionId);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "getRegion");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	String code = e.getCode();
-        	
-        	if( code != null && code.startsWith("InvalidRegion") ) {
-        		return null;
-        	}
-        	if( code != null && code.equals("InvalidParameterValue") ) {
-        	    String message = e.getMessage();
-        	    
-        	    if( message != null && message.startsWith("Invalid region") ) {
-        	        return null;
-        	    }
-        	}
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("regionInfo");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	regions = blocks.item(i).getChildNodes();
-            for( int j=0; j<regions.getLength(); j++ ) {
-            	Node region = regions.item(j);
-            	
-            	if( region.getNodeName().equals("item") ) {
-                	Region r = toRegion(region);
-                	
-                	if( r != null ) {
-                		return r;
-                	}            		
-            	}
+            if( provider.getEC2Provider().isStorage() ) {
+                return (regionId.equals(oneRegionId) ? getRegion() : null);
             }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
+            NodeList blocks, regions;
+            EC2Method method;
+            Document doc;
+
+            parameters.put("RegionName.1", regionId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.startsWith("InvalidRegion") ) {
+                    return null;
+                }
+                if( code != null && code.equals("InvalidParameterValue") ) {
+                    String message = e.getMessage();
+
+                    if( message != null && message.startsWith("Invalid region") ) {
+                        return null;
+                    }
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("regionInfo");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                regions = blocks.item(i).getChildNodes();
+                for( int j=0; j<regions.getLength(); j++ ) {
+                    Node region = regions.item(j);
+
+                    if( region.getNodeName().equals("item") ) {
+                        Region r = toRegion(region);
+
+                        if( r != null ) {
+                            return r;
+                        }
+                    }
+                }
+            }
+            return null;
         }
-        return null;
+        finally {
+            APITrace.end();
+        }
 	}
 
 	@Override
 	public Collection<DataCenter> listDataCenters(String regionId) throws InternalException, CloudException {
-        if( provider.getEC2Provider().isStorage() ) {
-            if( regionId.equals(oneRegionId) ) {
-                return Collections.singletonList(getZone());
-            }
-            throw new CloudException("No such region: " + regionId);
-        }
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
-		EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
-		ArrayList<DataCenter> list = new ArrayList<DataCenter>();
-        NodeList blocks;
-		Document doc;
-        
+        APITrace.begin(provider, "listDataCenters");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("availabilityZoneInfo");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList zones = blocks.item(i).getChildNodes();
-        	
-            for( int j=0; j<zones.getLength(); j++ ) {
-            	Node region = zones.item(j);
-            	
-            	if( region.getNodeName().equals("item") ) {
-            		list.add(toDataCenter(regionId, zones.item(j)));
-            	}
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was set for this request");
             }
+            Cache<DataCenter> cache = null;
+            Collection<DataCenter> dataCenters;
+
+            if( regionId.equals(ctx.getRegionId()) ) {
+                cache = Cache.getInstance(provider, "dataCenters", DataCenter.class, CacheLevel.REGION_ACCOUNT);
+                dataCenters = (Collection<DataCenter>)cache.get(ctx);
+                if( dataCenters != null ) {
+                    return dataCenters;
+                }
+            }
+            if( provider.getEC2Provider().isStorage() ) {
+                if( regionId.equals(oneRegionId) ) {
+                    return Collections.singletonList(getZone());
+                }
+                throw new CloudException("No such region: " + regionId);
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
+            EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            NodeList blocks;
+            Document doc;
+
+            dataCenters = new ArrayList<DataCenter>();
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("availabilityZoneInfo");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList zones = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<zones.getLength(); j++ ) {
+                    Node region = zones.item(j);
+
+                    if( region.getNodeName().equals("item") ) {
+                        dataCenters.add(toDataCenter(regionId, zones.item(j)));
+                    }
+                }
+            }
+            if( cache != null ) {
+                cache.put(ctx, dataCenters);
+            }
+            return dataCenters;
         }
-        return list;
+        finally {
+            APITrace.end();
+        }
 	}
 
 	@Override
 	public Collection<Region> listRegions() throws InternalException, CloudException {
-        if( provider.getEC2Provider().isStorage() ) {
-            return Collections.singletonList(getRegion());
-        }
-        ArrayList<Region> list = new ArrayList<Region>();
-        
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
-		EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        NodeList blocks, regions;
-		Document doc;
-        
+        APITrace.begin(provider, "listRegions");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            e.printStackTrace();
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("regionInfo");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	regions = blocks.item(i).getChildNodes();
-            for( int j=0; j<regions.getLength(); j++ ) {
-            	Node region = regions.item(j);
-            	
-            	if( region.getNodeName().equals("item") ) {
-            	    Region r = toRegion(regions.item(j));
+            ProviderContext ctx = provider.getContext();
 
-            	    if( provider.getEC2Provider().isEucalyptus() ) {
-            	        if( r.getProviderRegionId().equalsIgnoreCase("eucalyptus") ) {
-            	            list.add(r);
-            	        }
-            	    }
-            	    else {
-            	        list.add(r);
-            	    }
-            	}
+            if( ctx == null ) {
+                throw new CloudException("No context was set for this request");
             }
-        }
+            Cache<Region> cache = Cache.getInstance(provider, "regions", Region.class, CacheLevel.CLOUD_ACCOUNT);
+            Collection<Region> regions = (Collection<Region>)cache.get(ctx);
 
-        return list;
+            if( regions != null ) {
+                return regions;
+            }
+            if( provider.getEC2Provider().isStorage() ) {
+                return Collections.singletonList(getRegion());
+            }
+            regions = new ArrayList<Region>();
+
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
+            EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            NodeList blocks, nodes;
+            Document doc;
+
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                e.printStackTrace();
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("regionInfo");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                nodes = blocks.item(i).getChildNodes();
+                for( int j=0; j<nodes.getLength(); j++ ) {
+                    Node region = nodes.item(j);
+
+                    if( region.getNodeName().equals("item") ) {
+                        Region r = toRegion(nodes.item(j));
+
+                        if( provider.getEC2Provider().isEucalyptus() ) {
+                            if( r.getProviderRegionId().equalsIgnoreCase("eucalyptus") ) {
+                                regions.add(r);
+                            }
+                        }
+                        else {
+                            regions.add(r);
+                        }
+                    }
+                }
+            }
+            cache.put(ctx, regions);
+            return regions;
+        }
+        finally {
+            APITrace.end();
+        }
 	}
 
 	Map<String,String> mapRegions(String url) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
-		HashMap<String,String> results = new HashMap<String,String>();
-		EC2Method method = new EC2Method(provider, url, parameters);
-        NodeList blocks, regions;
-		Document doc;
-       
+        APITrace.begin(provider, "mapRegions");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("regionInfo");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	regions = blocks.item(i).getChildNodes();
-            for( int j=0; j<regions.getLength(); j++ ) {
-            	Node region = regions.item(j);
-            	
-            	if( region.getNodeName().equals("item") ) {
-                	NodeList data = region.getChildNodes();
-                	String name = null, endpoint = null;
-                	
-	            	for( int k=0; k<data.getLength(); k++ ) {
-	            		Node item = data.item(k);
-	            		
-	            		if( item.getNodeName().equals("regionName") ) {
-	            			name = item.getFirstChild().getNodeValue();
-	            		}
-	            		else if( item.getNodeName().equals("regionEndpoint") ) {
-	            			endpoint = item.getFirstChild().getNodeValue();
-	            		}
-	            	}
-	            	if( name != null && endpoint != null ) {
-	            		logger.debug(name + "=" + endpoint);
-	            		results.put(name, endpoint);
-	            	}
-            	}
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
+            HashMap<String,String> results = new HashMap<String,String>();
+            EC2Method method = new EC2Method(provider, url, parameters);
+            NodeList blocks, regions;
+            Document doc;
+
+            try {
+                doc = method.invoke();
             }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("regionInfo");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                regions = blocks.item(i).getChildNodes();
+                for( int j=0; j<regions.getLength(); j++ ) {
+                    Node region = regions.item(j);
+
+                    if( region.getNodeName().equals("item") ) {
+                        NodeList data = region.getChildNodes();
+                        String name = null, endpoint = null;
+
+                        for( int k=0; k<data.getLength(); k++ ) {
+                            Node item = data.item(k);
+
+                            if( item.getNodeName().equals("regionName") ) {
+                                name = item.getFirstChild().getNodeValue();
+                            }
+                            else if( item.getNodeName().equals("regionEndpoint") ) {
+                                endpoint = item.getFirstChild().getNodeValue();
+                            }
+                        }
+                        if( name != null && endpoint != null ) {
+                            logger.debug(name + "=" + endpoint);
+                            results.put(name, endpoint);
+                        }
+                    }
+                }
+            }
+            return results;
         }
-		return results;
+        finally {
+            APITrace.end();
+        }
 	}
 	
 	private DataCenter toDataCenter(String regionId, Node zone) throws CloudException {
@@ -404,8 +467,16 @@ public class RegionsAndZones implements DataCenterServices {
 		    r.setJurisdiction("JP");
 		}
 		else if( name.startsWith("ap-southeast") ) {
-		    r.setJurisdiction("SG");
+            if( name.equals("ap-southeast-1") ) {
+                r.setJurisdiction("SG");
+            }
+            else {
+                r.setJurisdiction("AU");
+            }
 		}
+        else if( name.startsWith("sa-east") ) {
+            r.setJurisdiction("BR");
+        }
 		else {
 		    r.setJurisdiction("US");
 		}

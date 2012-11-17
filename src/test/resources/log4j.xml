@@ -22,6 +22,16 @@
         </layout>
     </appender>
 
+    <appender name="API" class="org.apache.log4j.DailyRollingFileAppender">
+        <param name="File" value="target/test-data/api.log" />
+        <param name="Append" value="true" />
+        <param name="DatePattern" value="'.'yyyy-MM-dd" />
+        <param name="Threshold" value="TRACE" />
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%d %m%n" />
+        </layout>
+    </appender>
+
     <appender name="WIRE" class="org.apache.log4j.DailyRollingFileAppender">
         <param name="File" value="target/test-data/wire.log" />
         <param name="Append" value="true" />
@@ -50,6 +60,10 @@
         <appender-ref ref="DASEIN" />
     </appender>
 
+    <appender name="ASYNCAPI" class="org.apache.log4j.AsyncAppender">
+        <appender-ref ref="API" />
+    </appender>
+
     <appender name="ASYNCWIRE" class="org.apache.log4j.AsyncAppender">
         <appender-ref ref="WIRE" />
     </appender>
@@ -61,6 +75,11 @@
     <category name="org.dasein">
         <priority value="DEBUG" />
         <appender-ref ref="ASYNCDASEIN" />
+    </category>
+
+    <category name="org.dasein.cloud.util.APITrace">
+        <priority value="TRACE" />
+        <appender-ref ref="ASYNCAPI" />
     </category>
 
     <category name="org.dasein.cloud.test">
