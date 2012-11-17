@@ -1056,6 +1056,9 @@ public class AMI implements MachineImageSupport {
             if( !MachineImageFormat.AWS.equals(options.getBundleFormat()) ) {
                 throw new CloudException("Unsupported bundle format: " + options.getBundleFormat());
             }
+            if( options.getBundleLocation() == null ) {
+                throw new OperationNotSupportedException("A valid bundle location in object storage was not provided");
+            }
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.REGISTER_IMAGE);
             NodeList blocks;
             EC2Method method;
@@ -1459,6 +1462,11 @@ public class AMI implements MachineImageSupport {
     @Override
     public boolean supportsCustomImages() {
         return true;
+    }
+
+    @Override
+    public boolean supportsDirectImageUpload() throws CloudException, InternalException {
+        return false;
     }
 
     @Override
