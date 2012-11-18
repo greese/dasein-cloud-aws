@@ -29,6 +29,7 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
@@ -276,6 +277,11 @@ public class ElasticIP implements IpAddressSupport {
 	public @Nonnull String getProviderTermForIpAddress(@Nonnull Locale locale) {
 		return "elastic IP";
 	}
+
+    @Override
+    public @Nonnull Requirement identifyVlanForVlanIPRequirement() {
+        return Requirement.NONE;
+    }
 
 	@Override
 	public boolean isAssigned(@Nonnull AddressType type) {
@@ -576,7 +582,7 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     @Override
-    public @Nonnull String requestForVLAN(IPVersion forVersion) throws InternalException, CloudException {
+    public @Nonnull String requestForVLAN(@Nonnull IPVersion forVersion) throws InternalException, CloudException {
         APITrace.begin(provider, "requestAddressForVLAN");
         try {
             if( !forVersion.equals(IPVersion.IPV4) ) {
@@ -605,6 +611,11 @@ public class ElasticIP implements IpAddressSupport {
         finally {
             APITrace.end();
         }
+    }
+
+    @Override
+    public @Nonnull String requestForVLAN(@Nonnull IPVersion version, @Nonnull String vlanId) throws CloudException, InternalException {
+        throw new OperationNotSupportedException("AWS IP addresses may not be assigned to a specific VLAN");
     }
 
     @Override
