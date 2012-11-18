@@ -27,12 +27,14 @@ import java.util.Locale;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.DayOfWeek;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.TimeWindow;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
@@ -47,6 +49,7 @@ import org.dasein.cloud.platform.DatabaseSnapshot;
 import org.dasein.cloud.platform.DatabaseSnapshotState;
 import org.dasein.cloud.platform.DatabaseState;
 import org.dasein.cloud.platform.RelationalDatabaseSupport;
+import org.dasein.cloud.util.APITrace;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
 import org.dasein.util.PopulatorThread;
@@ -93,34 +96,40 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void addAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
-        Iterator<String> securityGroups = getSecurityGroups(providerDatabaseId).iterator();
-        String id;
-        
-        if( !securityGroups.hasNext() ) {
-            id = createSecurityGroup(providerDatabaseId);
-            setSecurityGroup(providerDatabaseId, id);
-        }
-        else {
-            id = securityGroups.next();
-        }
-        
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), AUTHORIZE_DB_SECURITY_GROUP_INGRESS);
-        EC2Method method;
-        
-        parameters.put("DBSecurityGroupName", id);
-        parameters.put("CIDRIP", sourceCidr);
-        method = new EC2Method(provider, getRDSUrl(), parameters);
+        APITrace.begin(provider, "addDatabaseAccessRule");
         try {
-            method.invoke();
-        }
-        catch( EC2Exception e ) {
-            String code = e.getCode();
-            
-            if( code != null && code.equals("AuthorizationAlreadyExists") ) {
-                return;
+            Iterator<String> securityGroups = getSecurityGroups(providerDatabaseId).iterator();
+            String id;
+
+            if( !securityGroups.hasNext() ) {
+                id = createSecurityGroup(providerDatabaseId);
+                setSecurityGroup(providerDatabaseId, id);
             }
-            throw new CloudException(e);
-        };
+            else {
+                id = securityGroups.next();
+            }
+
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), AUTHORIZE_DB_SECURITY_GROUP_INGRESS);
+            EC2Method method;
+
+            parameters.put("DBSecurityGroupName", id);
+            parameters.put("CIDRIP", sourceCidr);
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.equals("AuthorizationAlreadyExists") ) {
+                    return;
+                }
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
     }
     
     private String getWindowString(TimeWindow window) {
@@ -152,219 +161,255 @@ public class RDS implements RelationalDatabaseSupport {
     
     @Override
     public void alterDatabase(String providerDatabaseId, boolean applyImmediately, String productSize, int storageInGigabytes, String configurationId, String newAdminUser, String newAdminPassword, int newPort, int snapshotRetentionInDays, TimeWindow preferredMaintenanceWindow, TimeWindow preferredBackupWindow) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), MODIFY_DB_INSTANCE);
-        EC2Method method;
-        
-        parameters.put("DBInstanceIdentifier", providerDatabaseId);
-        parameters.put("ApplyImmediately", String.valueOf(applyImmediately));
-        if( configurationId != null ) {
-            parameters.put("DBParameterGroupName", configurationId);
-        }
-        if( preferredMaintenanceWindow != null ) {
-            String window = getWindowString(preferredMaintenanceWindow);
-            
-            parameters.put("PreferredMaintenanceWindow", window);
-        }
-        if( preferredBackupWindow != null ) {
-            String window = getWindowString(preferredBackupWindow);
-            
-            parameters.put("PreferredBackupWindow", window);
-        }
-        if( newAdminPassword != null ) {
-            parameters.put("MasterUserPassword", newAdminPassword);
-        }
-        if( storageInGigabytes > 0 ) {
-            parameters.put("AllocatedStorage", String.valueOf(storageInGigabytes));
-        }
-        if( productSize != null ) {
-            parameters.put("DBInstanceClass", productSize);
-        }
-        if( snapshotRetentionInDays > -1 ) {
-            parameters.put("BackupRetentionPeriod", String.valueOf(snapshotRetentionInDays));
-        }
-        method = new EC2Method(provider, getRDSUrl(), parameters);
+        APITrace.begin(provider, "alterDatabase");
         try {
-            method.invoke();
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), MODIFY_DB_INSTANCE);
+            EC2Method method;
+
+            parameters.put("DBInstanceIdentifier", providerDatabaseId);
+            parameters.put("ApplyImmediately", String.valueOf(applyImmediately));
+            if( configurationId != null ) {
+                parameters.put("DBParameterGroupName", configurationId);
+            }
+            if( preferredMaintenanceWindow != null ) {
+                String window = getWindowString(preferredMaintenanceWindow);
+
+                parameters.put("PreferredMaintenanceWindow", window);
+            }
+            if( preferredBackupWindow != null ) {
+                String window = getWindowString(preferredBackupWindow);
+
+                parameters.put("PreferredBackupWindow", window);
+            }
+            if( newAdminPassword != null ) {
+                parameters.put("MasterUserPassword", newAdminPassword);
+            }
+            if( storageInGigabytes > 0 ) {
+                parameters.put("AllocatedStorage", String.valueOf(storageInGigabytes));
+            }
+            if( productSize != null ) {
+                parameters.put("DBInstanceClass", productSize);
+            }
+            if( snapshotRetentionInDays > -1 ) {
+                parameters.put("BackupRetentionPeriod", String.valueOf(snapshotRetentionInDays));
+            }
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
+        finally {
+            APITrace.end();
+        }
     }
     
     private String createSecurityGroup(String id) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_SECURITY_GROUP);
-        EC2Method method;
-        
-        parameters.put("DBSecurityGroupName", id);
-        parameters.put("DBSecurityGroupDescription", "Auto-generated DB security group for " + id);
-        method = new EC2Method(provider, getRDSUrl(), parameters);
+        APITrace.begin(provider, "createDatabaseSecurityGroup");
         try {
-            method.invoke();
-        }
-        catch( EC2Exception e ) {
-            String code = e.getCode();
-            
-            if( code != null && code.equals("DBSecurityGroupAlreadyExists") ) {
-                return id;
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_SECURITY_GROUP);
+            EC2Method method;
+
+            parameters.put("DBSecurityGroupName", id);
+            parameters.put("DBSecurityGroupDescription", "Auto-generated DB security group for " + id);
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                method.invoke();
             }
-            throw new CloudException(e);
-        };
-        return id;
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.equals("DBSecurityGroupAlreadyExists") ) {
+                    return id;
+                }
+                throw new CloudException(e);
+            }
+            return id;
+        }
+        finally {
+            APITrace.end();
+        }
     }
     
     @Override
     public String createFromScratch(String databaseName, DatabaseProduct product, String engineVersion, String withAdminUser, String withAdminPassword, int hostPort) throws CloudException, InternalException {
-        Map<String,String> parameters;
-        String id = toIdentifier(databaseName);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        if( engineVersion == null ) {
-            engineVersion = getDefaultVersion(product.getEngine());
-        }
-        int size = product.getStorageInGigabytes();
-
-        if( size < 5 ) {
-            size = 5;
-        }
-        parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_INSTANCE);
-        parameters.put("DBInstanceIdentifier", id);
-        parameters.put("AllocatedStorage", String.valueOf(size));
-        parameters.put("DBInstanceClass", product.getProductSize());
-        parameters.put("Engine", getEngineString(product.getEngine()));
-        parameters.put("EngineVersion", engineVersion);
-        parameters.put("MasterUsername", withAdminUser);
-        parameters.put("MasterUserPassword", withAdminPassword);
-        parameters.put("Port", String.valueOf(hostPort));
-        if( product.getEngine().isMySQL() ) {
-            parameters.put("LicenseModel", "general-public-license");
-        }
-        else if( product.getEngine().equals(DatabaseEngine.ORACLE11G) ) {
-            parameters.put("LicenseModel", "license-included");            
-        }
-        else {
-            parameters.put("LicenseModel", "bring-your-own-license");            
-        }
-        if( product.isHighAvailability() || product.getProviderDataCenterId() == null ) {
-            parameters.put("MultiAZ", "true");
-        }
-        else {
-            parameters.put("AvailabilityZone", product.getProviderDataCenterId());
-        }
-        method = new EC2Method(provider, getRDSUrl(), parameters);
+        APITrace.begin(provider, "createDatabaseFromScratch");
         try {
-            doc = method.invoke();
+            Map<String,String> parameters;
+            String id = toIdentifier(databaseName);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            if( engineVersion == null ) {
+                engineVersion = getDefaultVersion(product.getEngine());
+            }
+            int size = product.getStorageInGigabytes();
+
+            if( size < 5 ) {
+                size = 5;
+            }
+            parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_INSTANCE);
+            parameters.put("DBInstanceIdentifier", id);
+            parameters.put("AllocatedStorage", String.valueOf(size));
+            parameters.put("DBInstanceClass", product.getProductSize());
+            parameters.put("Engine", getEngineString(product.getEngine()));
+            parameters.put("EngineVersion", engineVersion);
+            parameters.put("MasterUsername", withAdminUser);
+            parameters.put("MasterUserPassword", withAdminPassword);
+            parameters.put("Port", String.valueOf(hostPort));
+            if( product.getEngine().isMySQL() ) {
+                parameters.put("LicenseModel", "general-public-license");
+            }
+            else if( product.getEngine().equals(DatabaseEngine.ORACLE11G) ) {
+                parameters.put("LicenseModel", "license-included");
+            }
+            else {
+                parameters.put("LicenseModel", "bring-your-own-license");
+            }
+            if( product.isHighAvailability() || product.getProviderDataCenterId() == null ) {
+                parameters.put("MultiAZ", "true");
+            }
+            else {
+                parameters.put("AvailabilityZone", product.getProviderDataCenterId());
+            }
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("DBInstanceIdentifier");
+            if( blocks.getLength() > 0 ) {
+                return blocks.item(0).getFirstChild().getNodeValue().trim();
+            }
+            return null;
         }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
-        blocks = doc.getElementsByTagName("DBInstanceIdentifier");
-        if( blocks.getLength() > 0 ) {
-            return blocks.item(0).getFirstChild().getNodeValue().trim();
+        finally {
+            APITrace.end();
         }
-        return null;
     }
     
     public String createFromLatest(String databaseName, String providerDatabaseId, String productSize, String providerDataCenterId, int hostPort) throws InternalException, CloudException {
-        Map<String,String> parameters;
-        String id = toIdentifier(databaseName);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        parameters = provider.getStandardRdsParameters(provider.getContext(), RESTORE_DB_INSTANCE_TO_TIME);
-        parameters.put("SourceDBInstanceIdentifier", providerDatabaseId);
-        parameters.put("UseLatestRestorableTime", "True");
-        parameters.put("TargetDBInstanceIdentifier", id);
-        parameters.put("DBInstanceClass", productSize);
-        parameters.put("Port", String.valueOf(hostPort));
-        if( providerDataCenterId == null ) {
-            parameters.put("MultiAZ", "true");
-        }
-        else {
-            parameters.put("AvailabilityZone", providerDataCenterId);
-            parameters.put("MultiAZ", "false");
-        }
-        method = new EC2Method(provider, getRDSUrl(), parameters);
+        APITrace.begin(provider, "createDatabaseFromLatest");
         try {
-            doc = method.invoke();
+            Map<String,String> parameters;
+            String id = toIdentifier(databaseName);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters = provider.getStandardRdsParameters(provider.getContext(), RESTORE_DB_INSTANCE_TO_TIME);
+            parameters.put("SourceDBInstanceIdentifier", providerDatabaseId);
+            parameters.put("UseLatestRestorableTime", "True");
+            parameters.put("TargetDBInstanceIdentifier", id);
+            parameters.put("DBInstanceClass", productSize);
+            parameters.put("Port", String.valueOf(hostPort));
+            if( providerDataCenterId == null ) {
+                parameters.put("MultiAZ", "true");
+            }
+            else {
+                parameters.put("AvailabilityZone", providerDataCenterId);
+                parameters.put("MultiAZ", "false");
+            }
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("DBInstanceIdentifier");
+            if( blocks.getLength() > 0 ) {
+                return id;
+            }
+            return null;
         }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
-        blocks = doc.getElementsByTagName("DBInstanceIdentifier");
-        if( blocks.getLength() > 0 ) {
-            return id;
+        finally {
+            APITrace.end();
         }
-        return null;
     }
 
     public String createFromSnapshot(String databaseName, String providerDatabaseId, String providerDbSnapshotId, String productSize, String providerDataCenterId, int hostPort) throws CloudException, InternalException {
-        Map<String,String> parameters;
-        String id = toIdentifier(databaseName);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        parameters = provider.getStandardRdsParameters(provider.getContext(), RESTORE_DB_INSTANCE_FROM_SNAPSHOT);
-        parameters.put("DBSnapshotIdentifier", providerDbSnapshotId);
-        parameters.put("DBInstanceIdentifier", id);
-        parameters.put("DBInstanceClass", productSize);
-        parameters.put("Port", String.valueOf(hostPort));
-        if( providerDataCenterId == null ) {
-            parameters.put("MultiAZ", "true");
-        }
-        else {
-            parameters.put("AvailabilityZone", providerDataCenterId);
-            parameters.put("MultiAZ", "false");
-        }
-        method = new EC2Method(provider, getRDSUrl(), parameters);
+        APITrace.begin(provider, "createDatabaseFromSnapshot");
         try {
-            doc = method.invoke();
+            Map<String,String> parameters;
+            String id = toIdentifier(databaseName);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters = provider.getStandardRdsParameters(provider.getContext(), RESTORE_DB_INSTANCE_FROM_SNAPSHOT);
+            parameters.put("DBSnapshotIdentifier", providerDbSnapshotId);
+            parameters.put("DBInstanceIdentifier", id);
+            parameters.put("DBInstanceClass", productSize);
+            parameters.put("Port", String.valueOf(hostPort));
+            if( providerDataCenterId == null ) {
+                parameters.put("MultiAZ", "true");
+            }
+            else {
+                parameters.put("AvailabilityZone", providerDataCenterId);
+                parameters.put("MultiAZ", "false");
+            }
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("DBInstanceIdentifier");
+            if( blocks.getLength() > 0 ) {
+                return id;
+            }
+            return null;
         }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
-        blocks = doc.getElementsByTagName("DBInstanceIdentifier");
-        if( blocks.getLength() > 0 ) {
-            return id;
+        finally {
+            APITrace.end();
         }
-        return null;
     }
 
     public String createFromTimestamp(String databaseName, String providerDatabaseId, long beforeTimestamp, String productSize, String providerDataCenterId, int hostPort) throws InternalException, CloudException {
-        Map<String,String> parameters;
-        String id = toIdentifier(databaseName);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        parameters = provider.getStandardRdsParameters(provider.getContext(), RESTORE_DB_INSTANCE_TO_TIME);
-        parameters.put("SourceDBInstanceIdentifier", providerDatabaseId);
-        parameters.put("RestoreTime", provider.getTimestamp(beforeTimestamp, false));
-        parameters.put("TargetDBInstanceIdentifier", id);
-        parameters.put("DBInstanceClass", productSize);
-        parameters.put("Port", String.valueOf(hostPort));
-        if( providerDataCenterId == null ) {
-            parameters.put("MultiAZ", "true");
-        }
-        else {
-            parameters.put("AvailabilityZone", providerDataCenterId);
-            parameters.put("MultiAZ", "false");
-        }
-        method = new EC2Method(provider, getRDSUrl(), parameters);
+        APITrace.begin(provider, "createDatabaseFromTimestamp");
         try {
-            doc = method.invoke();
+            Map<String,String> parameters;
+            String id = toIdentifier(databaseName);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters = provider.getStandardRdsParameters(provider.getContext(), RESTORE_DB_INSTANCE_TO_TIME);
+            parameters.put("SourceDBInstanceIdentifier", providerDatabaseId);
+            parameters.put("RestoreTime", provider.getTimestamp(beforeTimestamp, false));
+            parameters.put("TargetDBInstanceIdentifier", id);
+            parameters.put("DBInstanceClass", productSize);
+            parameters.put("Port", String.valueOf(hostPort));
+            if( providerDataCenterId == null ) {
+                parameters.put("MultiAZ", "true");
+            }
+            else {
+                parameters.put("AvailabilityZone", providerDataCenterId);
+                parameters.put("MultiAZ", "false");
+            }
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("DBInstanceIdentifier");
+            if( blocks.getLength() > 0 ) {
+                return id;
+            }
+            return null;
         }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
-        blocks = doc.getElementsByTagName("DBInstanceIdentifier");
-        if( blocks.getLength() > 0 ) {
-            return id;
+        finally {
+            APITrace.end();
         }
-        return null;
     }
 
     public DatabaseConfiguration getConfiguration(String providerConfigurationId) throws CloudException, InternalException {
@@ -389,15 +434,21 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     public Database getDatabase(String providerDatabaseId) throws CloudException, InternalException {
-        if( providerDatabaseId == null ) {
+        APITrace.begin(provider, "getDatabase");
+        try {
+            if( providerDatabaseId == null ) {
+                return null;
+            }
+            for( Database database : listDatabases(providerDatabaseId) ) {
+                if( database.getProviderDatabaseId().equals(providerDatabaseId) ) {
+                    return database;
+                }
+            }
             return null;
         }
-        for( Database database : listDatabases(providerDatabaseId) ) {
-            if( database.getProviderDatabaseId().equals(providerDatabaseId) ) {
-                return database;
-            }
+        finally {
+            APITrace.end();
         }
-        return null;
     }
 
     static private volatile ArrayList<DatabaseEngine> engines = null;
@@ -422,67 +473,17 @@ public class RDS implements RelationalDatabaseSupport {
     
     @Override
     public String getDefaultVersion(DatabaseEngine forEngine) throws CloudException, InternalException {
-        String version = defaultVersions.get(forEngine);
-        
-        if( version == null ) {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_ENGINE_VERSIONS);
-            EC2Method method;
-            Document doc;
+        APITrace.begin(provider, "getDefaultVersion");
+        try {
+            String version = defaultVersions.get(forEngine);
 
-            parameters.put("Engine", getEngineString(forEngine));
-            parameters.put("DefaultOnly", "true");
-            method = new EC2Method(provider, getRDSUrl(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                throw new CloudException(e);
-            };
-            NodeList blocks = doc.getElementsByTagName("DBEngineVersions");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
-                
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
-                    
-                    if( item.getNodeName().equals("DBEngineVersion") ) {
-                        NodeList attrs = item.getChildNodes();
-                        
-                        for( int k=0; k<attrs.getLength(); k++ ) {
-                            Node attr = attrs.item(k);
-                            
-                            if( attr.getNodeName().equals("EngineVersion") ) {
-                                version = attr.getFirstChild().getNodeValue().trim();
-                                defaultVersions.put(forEngine, version);
-                                return version;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if( version == null ) {
-            for( String v : getSupportedVersions(forEngine) ) {
-                return v;
-            }
-        }
-        return version;
-    }
-    
-    @Override
-    public Iterable<String> getSupportedVersions(DatabaseEngine forEngine) throws CloudException, InternalException {
-        Collection<String> versions = engineVersions.get(forEngine);
-        
-        if( versions == null ) {
-            ArrayList<String> list = new ArrayList<String>();
-            String marker = null;
-            
-            do {
+            if( version == null ) {
                 Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_ENGINE_VERSIONS);
                 EC2Method method;
                 Document doc;
 
                 parameters.put("Engine", getEngineString(forEngine));
+                parameters.put("DefaultOnly", "true");
                 method = new EC2Method(provider, getRDSUrl(), parameters);
                 try {
                     doc = method.invoke();
@@ -490,49 +491,111 @@ public class RDS implements RelationalDatabaseSupport {
                 catch( EC2Exception e ) {
                     throw new CloudException(e);
                 };
-                marker = null;
-                NodeList blocks;
-                blocks = doc.getElementsByTagName("Marker");
-                if( blocks.getLength() > 0 ) {
-                    for( int i=0; i<blocks.getLength(); i++ ) {
-                        Node item = blocks.item(i);
-                        
-                        if( item.hasChildNodes() ) {
-                            marker = item.getFirstChild().getNodeValue().trim();
-                        }
-                    }
-                    if( marker != null ) {
-                        break;
-                    }
-                }
-                blocks = doc.getElementsByTagName("DBEngineVersions");
+                NodeList blocks = doc.getElementsByTagName("DBEngineVersions");
                 for( int i=0; i<blocks.getLength(); i++ ) {
                     NodeList items = blocks.item(i).getChildNodes();
-                    
+
                     for( int j=0; j<items.getLength(); j++ ) {
                         Node item = items.item(j);
-                        
+
                         if( item.getNodeName().equals("DBEngineVersion") ) {
                             NodeList attrs = item.getChildNodes();
-                            
+
                             for( int k=0; k<attrs.getLength(); k++ ) {
                                 Node attr = attrs.item(k);
-                                
+
                                 if( attr.getNodeName().equals("EngineVersion") ) {
-                                    list.add(attr.getFirstChild().getNodeValue().trim());
+                                    version = attr.getFirstChild().getNodeValue().trim();
+                                    defaultVersions.put(forEngine, version);
+                                    return version;
                                 }
                             }
                         }
                     }
                 }
-            } while( marker != null );      
-            if( list.isEmpty() ) {
-                return Collections.emptyList();
             }
-            versions = list;
-            engineVersions.put(forEngine, versions);
+            if( version == null ) {
+                for( String v : getSupportedVersions(forEngine) ) {
+                    return v;
+                }
+            }
+            return version;
         }
-        return versions;
+        finally {
+            APITrace.end();
+        }
+    }
+    
+    @Override
+    public Iterable<String> getSupportedVersions(DatabaseEngine forEngine) throws CloudException, InternalException {
+        APITrace.begin(provider, "getSupportedVersions");
+        try {
+            Collection<String> versions = engineVersions.get(forEngine);
+
+            if( versions == null ) {
+                ArrayList<String> list = new ArrayList<String>();
+                String marker = null;
+
+                do {
+                    Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_ENGINE_VERSIONS);
+                    EC2Method method;
+                    Document doc;
+
+                    parameters.put("Engine", getEngineString(forEngine));
+                    method = new EC2Method(provider, getRDSUrl(), parameters);
+                    try {
+                        doc = method.invoke();
+                    }
+                    catch( EC2Exception e ) {
+                        throw new CloudException(e);
+                    }
+                    marker = null;
+                    NodeList blocks;
+                    blocks = doc.getElementsByTagName("Marker");
+                    if( blocks.getLength() > 0 ) {
+                        for( int i=0; i<blocks.getLength(); i++ ) {
+                            Node item = blocks.item(i);
+
+                            if( item.hasChildNodes() ) {
+                                marker = item.getFirstChild().getNodeValue().trim();
+                            }
+                        }
+                        if( marker != null ) {
+                            break;
+                        }
+                    }
+                    blocks = doc.getElementsByTagName("DBEngineVersions");
+                    for( int i=0; i<blocks.getLength(); i++ ) {
+                        NodeList items = blocks.item(i).getChildNodes();
+
+                        for( int j=0; j<items.getLength(); j++ ) {
+                            Node item = items.item(j);
+
+                            if( item.getNodeName().equals("DBEngineVersion") ) {
+                                NodeList attrs = item.getChildNodes();
+
+                                for( int k=0; k<attrs.getLength(); k++ ) {
+                                    Node attr = attrs.item(k);
+
+                                    if( attr.getNodeName().equals("EngineVersion") ) {
+                                        list.add(attr.getFirstChild().getNodeValue().trim());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } while( marker != null );
+                if( list.isEmpty() ) {
+                    return Collections.emptyList();
+                }
+                versions = list;
+                engineVersions.put(forEngine, versions);
+            }
+            return versions;
+        }
+        finally {
+            APITrace.end();
+        }
     }
     
     private volatile ArrayList<DatabaseProduct> databaseProducts = null;
@@ -935,27 +998,33 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public boolean isSubscribed() throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
-        EC2Method method = new EC2Method(provider, getRDSUrl(), parameters);
-        
+        APITrace.begin(provider, "isSubscribedRDS");
         try {
-            method.invoke();
-            return true;
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
+            EC2Method method = new EC2Method(provider, getRDSUrl(), parameters);
+
+            try {
+                method.invoke();
+                return true;
+            }
+            catch( EC2Exception e ) {
+                if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    return false;
+                }
+                String code = e.getCode();
+
+                if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
+                    return false;
+                }
+                logger.warn(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-            if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
-                return false;
-            }
-            String code = e.getCode();
-            
-            if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
-                return false;
-            }
-            logger.warn(e.getSummary());
-            if( logger.isDebugEnabled() ) {
-                e.printStackTrace();
-            }
-            throw new CloudException(e);
+        finally {
+            APITrace.end();
         }
     }
     
@@ -1013,73 +1082,140 @@ public class RDS implements RelationalDatabaseSupport {
         populator.populate();
         return populator.getResult(); 
     }
-    
+
+    @Override
+    public @Nonnull Iterable<ResourceStatus> listDatabaseStatus() throws CloudException, InternalException {
+        APITrace.begin(provider, "listDatabaseStatus");
+        try {
+            ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+            String marker = null;
+
+            do {
+                Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
+                EC2Method method;
+                NodeList blocks;
+                Document doc;
+
+                if( marker != null ) {
+                    parameters.put("Marker", marker);
+                }
+                method = new EC2Method(provider, getRDSUrl(), parameters);
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    throw new CloudException(e);
+                }
+                marker = null;
+                blocks = doc.getElementsByTagName("Marker");
+                if( blocks.getLength() > 0 ) {
+                    for( int i=0; i<blocks.getLength(); i++ ) {
+                        Node item = blocks.item(i);
+
+                        if( item.hasChildNodes() ) {
+                            marker = item.getFirstChild().getNodeValue().trim();
+                        }
+                    }
+                    if( marker != null ) {
+                        break;
+                    }
+                }
+                blocks = doc.getElementsByTagName("DBInstances");
+                for( int i=0; i<blocks.getLength(); i++ ) {
+                    NodeList items = blocks.item(i).getChildNodes();
+
+                    for( int j=0; j<items.getLength(); j++ ) {
+                        Node item = items.item(j);
+
+                        if( item.getNodeName().equals("DBInstance") ) {
+                            ResourceStatus status = toDatabaseStatus(item);
+
+                            if( status != null ) {
+                                list.add(status);
+                            }
+                        }
+                    }
+                }
+            } while( marker != null );
+            return list;
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
     public Iterable<Database> listDatabases() throws CloudException, InternalException {
         return listDatabases(null);
     }
     
     private Iterable<Database> listDatabases(String targetId) throws CloudException, InternalException {
-        ArrayList<Database> list = new ArrayList<Database>();
-        String marker = null;
+        APITrace.begin(provider, "listDatabases");
+        try {
+            ArrayList<Database> list = new ArrayList<Database>();
+            String marker = null;
 
-        do {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-            
-            if( marker != null ) {
-                parameters.put("Marker", marker);
-            }
-            if( targetId != null ) {
-                parameters.put("DBInstanceIdentifier", targetId);
-            }
-            method = new EC2Method(provider, getRDSUrl(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                if( targetId != null ) {
-                    String code = e.getCode();
-                    
-                    if( code != null && code.equals("DBInstanceNotFound") ) {
-                        return list;
-                    }
-                }
-                throw new CloudException(e);
-            }
-            marker = null;
-            blocks = doc.getElementsByTagName("Marker");
-            if( blocks.getLength() > 0 ) {
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    Node item = blocks.item(i);
-                    
-                    if( item.hasChildNodes() ) {
-                        marker = item.getFirstChild().getNodeValue().trim();
-                    }
-                }
+            do {
+                Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
+                EC2Method method;
+                NodeList blocks;
+                Document doc;
+
                 if( marker != null ) {
-                    break;
+                    parameters.put("Marker", marker);
                 }
-            }
-            blocks = doc.getElementsByTagName("DBInstances");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
+                if( targetId != null ) {
+                    parameters.put("DBInstanceIdentifier", targetId);
+                }
+                method = new EC2Method(provider, getRDSUrl(), parameters);
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    if( targetId != null ) {
+                        String code = e.getCode();
 
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
-                    
-                    if( item.getNodeName().equals("DBInstance") ) {
-                        Database db = toDatabase(item);
-                        
-                        if( db != null ) {
-                            list.add(db);
+                        if( code != null && code.equals("DBInstanceNotFound") ) {
+                            return list;
+                        }
+                    }
+                    throw new CloudException(e);
+                }
+                marker = null;
+                blocks = doc.getElementsByTagName("Marker");
+                if( blocks.getLength() > 0 ) {
+                    for( int i=0; i<blocks.getLength(); i++ ) {
+                        Node item = blocks.item(i);
+
+                        if( item.hasChildNodes() ) {
+                            marker = item.getFirstChild().getNodeValue().trim();
+                        }
+                    }
+                    if( marker != null ) {
+                        break;
+                    }
+                }
+                blocks = doc.getElementsByTagName("DBInstances");
+                for( int i=0; i<blocks.getLength(); i++ ) {
+                    NodeList items = blocks.item(i).getChildNodes();
+
+                    for( int j=0; j<items.getLength(); j++ ) {
+                        Node item = items.item(j);
+
+                        if( item.getNodeName().equals("DBInstance") ) {
+                            Database db = toDatabase(item);
+
+                            if( db != null ) {
+                                list.add(db);
+                            }
                         }
                     }
                 }
-            }
-        } while( marker != null );
-        return list;
+            } while( marker != null );
+            return list;
+        }
+        finally {
+            APITrace.end();
+        }
     }
     
     public Collection<ConfigurationParameter> listParameters(String forProviderConfigurationId) throws CloudException, InternalException {
@@ -1133,58 +1269,61 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     private void populateAccess(String securityGroupId, Jiterator<String> iterator) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_SECURITY_GROUPS);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-        
-        parameters.put("DBSecurityGroupName", securityGroupId);
-        method = new EC2Method(provider, getRDSUrl(), parameters);
+        APITrace.begin(provider, "populateDBSGAccess");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
-        blocks = doc.getElementsByTagName("DBSecurityGroups");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            NodeList items = blocks.item(i).getChildNodes();
-            
-            for( int j=0; j<items.getLength(); j++ ) {
-                Node item = items.item(j);
-                
-                if( item.getNodeName().equals("DBSecurityGroup") ) {
-                    NodeList attrs = item.getChildNodes();
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_SECURITY_GROUPS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-                    for( int k=0; k<attrs.getLength(); k++ ) {
-                        Node attr = attrs.item(k);
-                        String name;
-                        
-                        name = attr.getNodeName();
-                        if( name.equalsIgnoreCase("IPRanges") ) {
-                            if( attr.hasChildNodes() ) {
-                                NodeList ranges = attr.getChildNodes();
-                            
-                                for( int l=0; l<ranges.getLength(); l++ ) {
-                                    Node range = ranges.item(l);
-                                    
-                                    if( range.hasChildNodes() ) {
-                                        NodeList rangeAttrs = range.getChildNodes();
-                                        String cidr = null;
-                                        boolean authorized = false;
-                                        
-                                        for( int m=0; m<rangeAttrs.getLength(); m++ ) {
-                                            Node ra = rangeAttrs.item(m);
-                                            
-                                            if( ra.getNodeName().equalsIgnoreCase("Status") ) {
-                                                authorized = ra.getFirstChild().getNodeValue().trim().equalsIgnoreCase("authorized");
+            parameters.put("DBSecurityGroupName", securityGroupId);
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            };
+            blocks = doc.getElementsByTagName("DBSecurityGroups");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("DBSecurityGroup") ) {
+                        NodeList attrs = item.getChildNodes();
+
+                        for( int k=0; k<attrs.getLength(); k++ ) {
+                            Node attr = attrs.item(k);
+                            String name;
+
+                            name = attr.getNodeName();
+                            if( name.equalsIgnoreCase("IPRanges") ) {
+                                if( attr.hasChildNodes() ) {
+                                    NodeList ranges = attr.getChildNodes();
+
+                                    for( int l=0; l<ranges.getLength(); l++ ) {
+                                        Node range = ranges.item(l);
+
+                                        if( range.hasChildNodes() ) {
+                                            NodeList rangeAttrs = range.getChildNodes();
+                                            String cidr = null;
+                                            boolean authorized = false;
+
+                                            for( int m=0; m<rangeAttrs.getLength(); m++ ) {
+                                                Node ra = rangeAttrs.item(m);
+
+                                                if( ra.getNodeName().equalsIgnoreCase("Status") ) {
+                                                    authorized = ra.getFirstChild().getNodeValue().trim().equalsIgnoreCase("authorized");
+                                                }
+                                                else if( ra.getNodeName().equalsIgnoreCase("CIDRIP") ) {
+                                                    cidr = ra.getFirstChild().getNodeValue().trim();
+                                                }
                                             }
-                                            else if( ra.getNodeName().equalsIgnoreCase("CIDRIP") ) {
-                                                cidr = ra.getFirstChild().getNodeValue().trim();
+                                            if( cidr != null && authorized ) {
+                                                iterator.push(cidr);
                                             }
-                                        }
-                                        if( cidr != null && authorized ) {
-                                            iterator.push(cidr);
                                         }
                                     }
                                 }
@@ -1193,84 +1332,148 @@ public class RDS implements RelationalDatabaseSupport {
                     }
                 }
             }
-        }        
+        }
+        finally {
+            APITrace.end();
+        }
     }
     
     private void populateConfigurationList(String targetId, Jiterator<DatabaseConfiguration> iterator) throws CloudException, InternalException {
-        String marker = null;
+        APITrace.begin(provider, "populateConfigurationList");
+        try {
+            String marker = null;
 
-        do {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_PARAMETER_GROUPS);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-            
-            if( marker != null ) {
-                parameters.put("Marker", marker);
-            }
-            if( targetId != null ) {
-                parameters.put("DBParameterGroupName", targetId);
-            }
-            method = new EC2Method(provider, getRDSUrl(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                throw new CloudException(e);
-            };
-            marker = null;
-            blocks = doc.getElementsByTagName("Marker");
-            if( blocks.getLength() > 0 ) {
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    Node item = blocks.item(i);
-                    
-                    if( item.hasChildNodes() ) {
-                        marker = item.getFirstChild().getNodeValue().trim();
+            do {
+                Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_PARAMETER_GROUPS);
+                EC2Method method;
+                NodeList blocks;
+                Document doc;
+
+                if( marker != null ) {
+                    parameters.put("Marker", marker);
+                }
+                if( targetId != null ) {
+                    parameters.put("DBParameterGroupName", targetId);
+                }
+                method = new EC2Method(provider, getRDSUrl(), parameters);
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    throw new CloudException(e);
+                };
+                marker = null;
+                blocks = doc.getElementsByTagName("Marker");
+                if( blocks.getLength() > 0 ) {
+                    for( int i=0; i<blocks.getLength(); i++ ) {
+                        Node item = blocks.item(i);
+
+                        if( item.hasChildNodes() ) {
+                            marker = item.getFirstChild().getNodeValue().trim();
+                        }
+                    }
+                    if( marker != null ) {
+                        break;
                     }
                 }
-                if( marker != null ) {
-                    break;
-                }
-            }
-            blocks = doc.getElementsByTagName("DBParameterGroups");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
-                
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
-                    
-                    if( item.getNodeName().equals("DBParameterGroup") ) {
-                        DatabaseConfiguration cfg = toConfiguration(item);
-                        
-                        if( cfg != null ) {
-                            iterator.push(cfg);
+                blocks = doc.getElementsByTagName("DBParameterGroups");
+                for( int i=0; i<blocks.getLength(); i++ ) {
+                    NodeList items = blocks.item(i).getChildNodes();
+
+                    for( int j=0; j<items.getLength(); j++ ) {
+                        Node item = items.item(j);
+
+                        if( item.getNodeName().equals("DBParameterGroup") ) {
+                            DatabaseConfiguration cfg = toConfiguration(item);
+
+                            if( cfg != null ) {
+                                iterator.push(cfg);
+                            }
                         }
                     }
                 }
-            }
-        } while( marker != null );
+            } while( marker != null );
+        }
+        finally {
+            APITrace.end();
+        }
     }
     
     private void populateParameterList(String cfgId, DatabaseEngine engine, Jiterator<ConfigurationParameter> iterator) throws CloudException, InternalException {
-        String marker = null;
+        APITrace.begin(provider, "populateParameterList");
+        try {
+            String marker = null;
 
-        do {
-            Map<String,String> parameters;
+            do {
+                Map<String,String> parameters;
+                EC2Method method;
+                NodeList blocks;
+                Document doc;
+
+                if( cfgId != null ) {
+                    parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_PARAMETERS);
+                    parameters.put("DBParameterGroupName", cfgId);
+                }
+                else {
+                    parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_ENGINE_DEFAULT_PARAMETERS);
+                    parameters.put("Engine", getEngineString(engine));
+                }
+                if( marker != null ) {
+                    parameters.put("Marker", marker);
+                }
+                method = new EC2Method(provider, getRDSUrl(), parameters);
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    throw new CloudException(e);
+                };
+                marker = null;
+                blocks = doc.getElementsByTagName("Marker");
+                if( blocks.getLength() > 0 ) {
+                    for( int i=0; i<blocks.getLength(); i++ ) {
+                        Node item = blocks.item(i);
+
+                        if( item.hasChildNodes() ) {
+                            marker = item.getFirstChild().getNodeValue().trim();
+                        }
+                    }
+                    if( marker != null ) {
+                        break;
+                    }
+                }
+                blocks = doc.getElementsByTagName("Parameters");
+                for( int i=0; i<blocks.getLength(); i++ ) {
+                    NodeList items = blocks.item(i).getChildNodes();
+
+                    for( int j=0; j<items.getLength(); j++ ) {
+                        Node item = items.item(j);
+
+                        if( item.getNodeName().equals("Parameter") ) {
+                            ConfigurationParameter param = toParameter(item);
+
+                            if( param != null ) {
+                                iterator.push(param);
+                            }
+                        }
+                    }
+                }
+            } while( marker != null );
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+    
+    private void populateSecurityGroupIds(String providerDatabaseId, Jiterator<String> iterator) throws CloudException, InternalException {
+        APITrace.begin(provider, "populateDBSecurityGroups");
+        try {
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
             EC2Method method;
             NodeList blocks;
             Document doc;
-            
-            if( cfgId != null ) {
-                parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_PARAMETERS);
-                parameters.put("DBParameterGroupName", cfgId);
-            }
-            else {
-                parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_ENGINE_DEFAULT_PARAMETERS);
-                parameters.put("Engine", getEngineString(engine));                
-            }
-            if( marker != null ) {
-                parameters.put("Marker", marker);
-            }
+
+            parameters.put("DBInstanceIdentifier", providerDatabaseId);
             method = new EC2Method(provider, getRDSUrl(), parameters);
             try {
                 doc = method.invoke();
@@ -1278,92 +1481,46 @@ public class RDS implements RelationalDatabaseSupport {
             catch( EC2Exception e ) {
                 throw new CloudException(e);
             };
-            marker = null;
-            blocks = doc.getElementsByTagName("Marker");
-            if( blocks.getLength() > 0 ) {
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    Node item = blocks.item(i);
-                    
-                    if( item.hasChildNodes() ) {
-                        marker = item.getFirstChild().getNodeValue().trim();
-                    }
-                }
-                if( marker != null ) {
-                    break;
-                }
-            }
-            blocks = doc.getElementsByTagName("Parameters");
+            blocks = doc.getElementsByTagName("DBInstances");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 NodeList items = blocks.item(i).getChildNodes();
-                
+
                 for( int j=0; j<items.getLength(); j++ ) {
                     Node item = items.item(j);
-                    
-                    if( item.getNodeName().equals("Parameter") ) {
-                        ConfigurationParameter param = toParameter(item);
-                        
-                        if( param != null ) {
-                            iterator.push(param);
-                        }
-                    }
-                }
-            }
-        } while( marker != null );
-    }
-    
-    private void populateSecurityGroupIds(String providerDatabaseId, Jiterator<String> iterator) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-        
-        parameters.put("DBInstanceIdentifier", providerDatabaseId);
-        method = new EC2Method(provider, getRDSUrl(), parameters);
-        try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
-        blocks = doc.getElementsByTagName("DBInstances");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            NodeList items = blocks.item(i).getChildNodes();
-            
-            for( int j=0; j<items.getLength(); j++ ) {
-                Node item = items.item(j);
-                
-                if( item.getNodeName().equals("DBInstance") ) {
-                    NodeList attrs = item.getChildNodes();
 
-                    for( int k=0; k<attrs.getLength(); k++ ) {
-                        Node attr = attrs.item(k);
-                        String name;
-                        
-                        name = attr.getNodeName();
-                        if( name.equalsIgnoreCase("DBSecurityGroups") ) {
-                            if( attr.hasChildNodes() ) {
-                                NodeList groups = attr.getChildNodes();
-                            
-                                for( int l=0; l<groups.getLength(); l++ ) {
-                                    Node group = groups.item(l);
-                                    
-                                    if( group.hasChildNodes() ) {
-                                        NodeList groupAttrs = group.getChildNodes();
-                                        String groupName = null;
-                                        boolean active = false;
-                                        
-                                        for( int m=0; m<groupAttrs.getLength(); m++ ) {
-                                            Node ga = groupAttrs.item(m);
-                                            
-                                            if( ga.getNodeName().equalsIgnoreCase("Status") ) {
-                                                active = ga.getFirstChild().getNodeValue().trim().equalsIgnoreCase("active");
+                    if( item.getNodeName().equals("DBInstance") ) {
+                        NodeList attrs = item.getChildNodes();
+
+                        for( int k=0; k<attrs.getLength(); k++ ) {
+                            Node attr = attrs.item(k);
+                            String name;
+
+                            name = attr.getNodeName();
+                            if( name.equalsIgnoreCase("DBSecurityGroups") ) {
+                                if( attr.hasChildNodes() ) {
+                                    NodeList groups = attr.getChildNodes();
+
+                                    for( int l=0; l<groups.getLength(); l++ ) {
+                                        Node group = groups.item(l);
+
+                                        if( group.hasChildNodes() ) {
+                                            NodeList groupAttrs = group.getChildNodes();
+                                            String groupName = null;
+                                            boolean active = false;
+
+                                            for( int m=0; m<groupAttrs.getLength(); m++ ) {
+                                                Node ga = groupAttrs.item(m);
+
+                                                if( ga.getNodeName().equalsIgnoreCase("Status") ) {
+                                                    active = ga.getFirstChild().getNodeValue().trim().equalsIgnoreCase("active");
+                                                }
+                                                else if( ga.getNodeName().equalsIgnoreCase("DBSecurityGroupName") ) {
+                                                    groupName = ga.getFirstChild().getNodeValue().trim();
+                                                }
                                             }
-                                            else if( ga.getNodeName().equalsIgnoreCase("DBSecurityGroupName") ) {
-                                                groupName = ga.getFirstChild().getNodeValue().trim();
+                                            if( groupName != null && active ) {
+                                                iterator.push(groupName);
                                             }
-                                        }
-                                        if( groupName != null && active ) {
-                                            iterator.push(groupName);
                                         }
                                     }
                                 }
@@ -1372,282 +1529,351 @@ public class RDS implements RelationalDatabaseSupport {
                     }
                 }
             }
+        }
+        finally {
+            APITrace.end();
         }
     }
     
     private void populateSnapshotList(String snapshotId, String databaseId, Jiterator<DatabaseSnapshot> iterator) throws CloudException, InternalException {
-        String marker = null;
+        APITrace.begin(provider, "populateDBSnapshotList");
+        try {
+            String marker = null;
 
-        do {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_SNAPSHOTS);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-            
-            if( marker != null ) {
-                parameters.put("Marker", marker);
-            }
-            if( snapshotId != null ) {
-                parameters.put("DBSnapshotIdentifier", snapshotId);                
-            }
-            if( databaseId != null ) {
-                parameters.put("DBInstanceIdentifier", databaseId);
-            }
-            method = new EC2Method(provider, getRDSUrl(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                String code = e.getCode();
-                
-                if( code != null && code.equals("DBSnapshotNotFound") ) {
-                    return;
+            do {
+                Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_SNAPSHOTS);
+                EC2Method method;
+                NodeList blocks;
+                Document doc;
+
+                if( marker != null ) {
+                    parameters.put("Marker", marker);
                 }
-                throw new CloudException(e);
-            };
-            marker = null;
-            blocks = doc.getElementsByTagName("Marker");
-            if( blocks.getLength() > 0 ) {
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    Node item = blocks.item(i);
-                    
-                    if( item.hasChildNodes() ) {
-                        marker = item.getFirstChild().getNodeValue().trim();
+                if( snapshotId != null ) {
+                    parameters.put("DBSnapshotIdentifier", snapshotId);
+                }
+                if( databaseId != null ) {
+                    parameters.put("DBInstanceIdentifier", databaseId);
+                }
+                method = new EC2Method(provider, getRDSUrl(), parameters);
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    String code = e.getCode();
+
+                    if( code != null && code.equals("DBSnapshotNotFound") ) {
+                        return;
+                    }
+                    throw new CloudException(e);
+                };
+                marker = null;
+                blocks = doc.getElementsByTagName("Marker");
+                if( blocks.getLength() > 0 ) {
+                    for( int i=0; i<blocks.getLength(); i++ ) {
+                        Node item = blocks.item(i);
+
+                        if( item.hasChildNodes() ) {
+                            marker = item.getFirstChild().getNodeValue().trim();
+                        }
+                    }
+                    if( marker != null ) {
+                        break;
                     }
                 }
-                if( marker != null ) {
-                    break;
+                blocks = doc.getElementsByTagName("DBSnapshots");
+                for( int i=0; i<blocks.getLength(); i++ ) {
+                    NodeList items = blocks.item(i).getChildNodes();
+
+                    for( int j=0; j<items.getLength(); j++ ) {
+                        Node item = items.item(j);
+
+                        if( item.getNodeName().equals("DBSnapshot") ) {
+                            DatabaseSnapshot snapshot = toSnapshot(item);
+
+                            if( snapshot != null ) {
+                                iterator.push(snapshot);
+                            }
+                        }
+                    }
+                }
+            } while( marker != null );
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+    
+    public void removeConfiguration(String providerConfigurationId) throws CloudException, InternalException {
+        APITrace.begin(provider, "removeDatabaseConfiguration");
+        try {
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_PARAMETER_GROUP);
+            EC2Method method;
+
+            parameters.put("DBParameterGroupName", providerConfigurationId);
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+    
+    private void removeSecurityGroup(String securityGroupId) throws CloudException, InternalException {
+        APITrace.begin(provider, "removeDatabaseSecurityGroup");
+        try {
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_SECURITY_GROUP);
+            EC2Method method;
+
+            parameters.put("DBSecurityGroupName", securityGroupId);
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+    
+    public void removeDatabase(String providerDatabaseId) throws CloudException, InternalException {
+        APITrace.begin(provider, "removeDatabase");
+        try {
+            Iterable<String> securityGroups = getSecurityGroups(providerDatabaseId);
+
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_INSTANCE);
+            EC2Method method;
+
+            parameters.put("DBInstanceIdentifier", providerDatabaseId);
+            parameters.put("FinalDBSnapshotIdentifier", providerDatabaseId + "-FINAL-" + System.currentTimeMillis());
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_INSTANCE);
+                parameters.put("DBInstanceIdentifier", providerDatabaseId);
+                parameters.put("SkipFinalSnapshot", "true");
+                method = new EC2Method(provider, getRDSUrl(), parameters);
+                try {
+                    method.invoke();
+                }
+                catch( EC2Exception again ) {
+                    throw new CloudException(e);
                 }
             }
-            blocks = doc.getElementsByTagName("DBSnapshots");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
-                
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
-                    
-                    if( item.getNodeName().equals("DBSnapshot") ) {
-                        DatabaseSnapshot snapshot = toSnapshot(item);
-                        
-                        if( snapshot != null ) {
-                            iterator.push(snapshot);
+            try {
+                for( String securityGroupId : securityGroups ) {
+                    if( securityGroupId.equals(providerDatabaseId) ) {
+                        try {
+                            removeSecurityGroup(securityGroupId);
+                        }
+                        catch( CloudException ignore ) {
+                            // ignore this because it means it is a shared security group
                         }
                     }
                 }
             }
-        } while( marker != null );
-    }
-    
-    public void removeConfiguration(String providerConfigurationId) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_PARAMETER_GROUP);
-        EC2Method method;
-        
-        parameters.put("DBParameterGroupName", providerConfigurationId);
-        method = new EC2Method(provider, getRDSUrl(), parameters);
-        try {
-            method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };       
-    }
-    
-    private void removeSecurityGroup(String securityGroupId) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_SECURITY_GROUP);
-        EC2Method method;
-        
-        parameters.put("DBSecurityGroupName", securityGroupId);
-        method = new EC2Method(provider, getRDSUrl(), parameters);
-        try {
-            method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };       
-    }
-    
-    public void removeDatabase(String providerDatabaseId) throws CloudException, InternalException {
-        Iterable<String> securityGroups = getSecurityGroups(providerDatabaseId);
-
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_INSTANCE);
-        EC2Method method;
-        
-        parameters.put("DBInstanceIdentifier", providerDatabaseId);
-        parameters.put("FinalDBSnapshotIdentifier", providerDatabaseId + "-FINAL-" + System.currentTimeMillis());
-        method = new EC2Method(provider, getRDSUrl(), parameters);
-        try {
-            method.invoke();
-        }
-        catch( EC2Exception e ) {
-            parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_INSTANCE);
-            parameters.put("DBInstanceIdentifier", providerDatabaseId);
-            parameters.put("SkipFinalSnapshot", "true");
-            method = new EC2Method(provider, getRDSUrl(), parameters);
-            try {
-                method.invoke();
-            }
-            catch( EC2Exception again ) {
-                throw new CloudException(e);
-            }
-        };
-        try {
-            for( String securityGroupId : securityGroups ) {
-                if( securityGroupId.equals(providerDatabaseId) ) {
-                    try {
-                        removeSecurityGroup(securityGroupId);
-                    }
-                    catch( CloudException ignore ) {
-                        // ignore this because it means it is a shared security group
-                    }
-                }
+            catch( Throwable t ) {
+                t.printStackTrace();
             }
         }
-        catch( Throwable t ) {
-            t.printStackTrace();
+        finally {
+            APITrace.end();
         }
     }
     
     public void removeSnapshot(String providerSnapshotId) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_SNAPSHOT);
-        EC2Method method;
-        
-        parameters.put("DBSnapshotIdentifier", providerSnapshotId);
-        method = new EC2Method(provider, getRDSUrl(), parameters);
+        APITrace.begin(provider, "removeSnapshot");
         try {
-            method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };              
-    }
-    
-    public void resetConfiguration(String providerConfigurationId, String ... params) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), RESET_DB_PARAMETER_GROUP);
-        EC2Method method;
-        
-        parameters.put("DBParameterGroupName", providerConfigurationId);
-        if( params == null || params.length < 1 ) {
-            parameters.put("ResetAllParameters", "True");
-        }
-        else {
-            int i = 0;
-            
-            parameters.put("ResetAllParameters", "False");
-            for( String param : params ) {
-                i++;
-                parameters.put("Parameters.member." + i + ".ParameterName", param);
-                parameters.put("Parameters.member." + i + ".ApplyMethod", "pending-reboot");                
-            }
-        }
-        method = new EC2Method(provider, getRDSUrl(), parameters);
-        try {
-            method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };                     
-    }
-    
-    public void restart(String providerDatabaseId, boolean blockUntilDone) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), REBOOT_DB_INSTANCE);
-        EC2Method method;
-        
-        parameters.put("DBInstanceIdentifier", providerDatabaseId);
-        method = new EC2Method(provider, getRDSUrl(), parameters);
-        try {
-            method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };               
-    }
-    
-    public void revokeAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
-        EC2Exception error = null;
-        
-        for( String securityGroupId : getSecurityGroups(providerDatabaseId) ) {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), REVOKE_DB_SECURITY_GROUP_INGRESS);
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_SNAPSHOT);
             EC2Method method;
-            
-            parameters.put("DBSecurityGroupName", securityGroupId);
-            parameters.put("CIDRIP", sourceCidr);
+
+            parameters.put("DBSnapshotIdentifier", providerSnapshotId);
             method = new EC2Method(provider, getRDSUrl(), parameters);
             try {
                 method.invoke();
             }
             catch( EC2Exception e ) {
-                error = e;
-            };             
+                throw new CloudException(e);
+            }
         }
-        if( error != null ) {
-            throw new CloudException(error);
+        finally {
+            APITrace.end();
+        }
+    }
+    
+    public void resetConfiguration(String providerConfigurationId, String ... params) throws CloudException, InternalException {
+        APITrace.begin(provider, "resetDatabaseConfiguration");
+        try {
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), RESET_DB_PARAMETER_GROUP);
+            EC2Method method;
+
+            parameters.put("DBParameterGroupName", providerConfigurationId);
+            if( params == null || params.length < 1 ) {
+                parameters.put("ResetAllParameters", "True");
+            }
+            else {
+                int i = 0;
+
+                parameters.put("ResetAllParameters", "False");
+                for( String param : params ) {
+                    i++;
+                    parameters.put("Parameters.member." + i + ".ParameterName", param);
+                    parameters.put("Parameters.member." + i + ".ApplyMethod", "pending-reboot");
+                }
+            }
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+    
+    public void restart(String providerDatabaseId, boolean blockUntilDone) throws CloudException, InternalException {
+        APITrace.begin(provider, "restartDatabase");
+        try {
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), REBOOT_DB_INSTANCE);
+            EC2Method method;
+
+            parameters.put("DBInstanceIdentifier", providerDatabaseId);
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+    
+    public void revokeAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
+        APITrace.begin(provider, "revokeDatabaseAccess");
+        try {
+            EC2Exception error = null;
+
+            for( String securityGroupId : getSecurityGroups(providerDatabaseId) ) {
+                Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), REVOKE_DB_SECURITY_GROUP_INGRESS);
+                EC2Method method;
+
+                parameters.put("DBSecurityGroupName", securityGroupId);
+                parameters.put("CIDRIP", sourceCidr);
+                method = new EC2Method(provider, getRDSUrl(), parameters);
+                try {
+                    method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    error = e;
+                }
+            }
+            if( error != null ) {
+                throw new CloudException(error);
+            }
+        }
+        finally {
+            APITrace.end();
         }
     }
     
     public void updateConfiguration(String providerConfigurationId, ConfigurationParameter ... params) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), MODIFY_DB_PARAMETER_GROUP);
-        EC2Method method;
-        
-        parameters.put("DBParameterGroupName", providerConfigurationId);
-        int i = 0;
-        for( ConfigurationParameter param : params ) {
-            i++;
-            parameters.put("Parameters.member." + i + ".ParameterName", param.getKey());
-            parameters.put("Parameters.member." + i + ".ParameterValue", param.getParameter().toString());
-            parameters.put("Parameters.member." + i + ".ApplyMethod", param.isApplyImmediately() ? "immediate" : "pending-reboot");
-            if( i >= 20 ) {
-                break;
-            }
-        }
-        method = new EC2Method(provider, getRDSUrl(), parameters);
+        APITrace.begin(provider, "updateDatabaseconfiguration");
         try {
-            method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };                       
-        if( params.length > 20 ) {
-            ConfigurationParameter[] repeat = new ConfigurationParameter[params.length-20];
-            
-            i = 0;
-            for( ; i<repeat.length; i++ ) {
-                repeat[i] = params[i+20];
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), MODIFY_DB_PARAMETER_GROUP);
+            EC2Method method;
+
+            parameters.put("DBParameterGroupName", providerConfigurationId);
+            int i = 0;
+            for( ConfigurationParameter param : params ) {
+                i++;
+                parameters.put("Parameters.member." + i + ".ParameterName", param.getKey());
+                parameters.put("Parameters.member." + i + ".ParameterValue", param.getParameter().toString());
+                parameters.put("Parameters.member." + i + ".ApplyMethod", param.isApplyImmediately() ? "immediate" : "pending-reboot");
+                if( i >= 20 ) {
+                    break;
+                }
             }
-            updateConfiguration(providerConfigurationId, params);
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            if( params.length > 20 ) {
+                ConfigurationParameter[] repeat = new ConfigurationParameter[params.length-20];
+
+                i = 0;
+                for( ; i<repeat.length; i++ ) {
+                    repeat[i] = params[i+20];
+                }
+                updateConfiguration(providerConfigurationId, params);
+            }
+        }
+        finally {
+            APITrace.end();
         }
     }
     
     private void setSecurityGroup(String id, String securityGroupId) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), MODIFY_DB_INSTANCE);
-        EC2Method method;
-            
-        parameters.put("DBInstanceIdentifier", id);
-        parameters.put("ApplyImmediately", "true");
-        parameters.put("DBSecurityGroups.member.1", securityGroupId);
-        method = new EC2Method(provider, getRDSUrl(), parameters);
+        APITrace.begin(provider, "setDatabaseSecurityGroup");
         try {
-            method.invoke();
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), MODIFY_DB_INSTANCE);
+            EC2Method method;
+
+            parameters.put("DBInstanceIdentifier", id);
+            parameters.put("ApplyImmediately", "true");
+            parameters.put("DBSecurityGroups.member.1", securityGroupId);
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
+        finally {
+            APITrace.end();
+        }
     }
     
     public DatabaseSnapshot snapshot(String providerDatabaseId, String name) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_SNAPSHOT);
-        String id = toIdentifier(name);
-        EC2Method method;
-        
-        parameters.put("DBSnapshotIdentifier", id);
-        parameters.put("DBInstanceIdentifier", providerDatabaseId);
-        method = new EC2Method(provider, getRDSUrl(), parameters);
+        APITrace.begin(provider, "snapshotDatabase");
         try {
-            method.invoke();
+            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_SNAPSHOT);
+            String id = toIdentifier(name);
+            EC2Method method;
+
+            parameters.put("DBSnapshotIdentifier", id);
+            parameters.put("DBInstanceIdentifier", providerDatabaseId);
+            method = new EC2Method(provider, getRDSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            return getSnapshot(id);
         }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
-        return getSnapshot(id);
+        finally {
+            APITrace.end();
+        }
     }
     
     private DatabaseConfiguration toConfiguration(Node cfgNode) throws CloudException {
@@ -1881,7 +2107,30 @@ public class RDS implements RelationalDatabaseSupport {
         }
         return db;
     }
-    
+
+    private @Nullable ResourceStatus toDatabaseStatus(@Nullable Node dbNode) throws CloudException {
+        NodeList attrs = dbNode.getChildNodes();
+        DatabaseState state = DatabaseState.PENDING;
+        String dbId = null;
+
+        for( int i=0; i<attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String name;
+
+            name = attr.getNodeName();
+            if(name.equalsIgnoreCase("DBInstanceIdentifier") ) {
+                dbId = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if( name.equalsIgnoreCase("DBInstanceStatus") ) {
+                state = toDatabaseState(attr.getFirstChild().getNodeValue().trim());
+            }
+        }
+        if( dbId == null ) {
+            return null;
+        }
+        return new ResourceStatus(dbId, state);
+    }
+
     private DatabaseState toDatabaseState(String value) throws CloudException {
         if( value == null ) {
             System.out.println("DEBUG: Null state value");

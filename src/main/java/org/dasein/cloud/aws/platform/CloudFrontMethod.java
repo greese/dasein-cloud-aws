@@ -57,6 +57,7 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.CDNSupport;
+import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -197,6 +198,7 @@ public class CloudFrontMethod {
         int status;
 
         try {
+            APITrace.trace(provider, action.toString());
             httpResponse = client.execute(method);
             status = httpResponse.getStatusLine().getStatusCode();
 

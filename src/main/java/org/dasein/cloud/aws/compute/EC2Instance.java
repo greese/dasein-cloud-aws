@@ -257,7 +257,7 @@ public class EC2Instance implements VirtualMachineSupport {
 
 	@Override
 	public void start(@Nonnull String instanceId) throws InternalException, CloudException {
-        APITrace.begin(provider, "start");
+        APITrace.begin(provider, "startVM");
         try {
             VirtualMachine vm = getVirtualMachine(instanceId);
 
@@ -301,7 +301,7 @@ public class EC2Instance implements VirtualMachineSupport {
 	}
 	
 	private Set<Metric> calculate(String metric, String unit, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
-        APITrace.begin(provider, "calculate");
+        APITrace.begin(provider, "calculateVMAnalytics");
         try {
             if( !provider.getEC2Provider().isAWS() ) {
                 return new TreeSet<Metric>();
@@ -535,7 +535,7 @@ public class EC2Instance implements VirtualMachineSupport {
 
     @Override
     public void enableAnalytics(String instanceId) throws InternalException, CloudException {
-        APITrace.begin(provider, "enableAnalytics");
+        APITrace.begin(provider, "enableVMAnalytics");
         try {
             if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
                 Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.MONITOR_INSTANCES);
@@ -647,7 +647,7 @@ public class EC2Instance implements VirtualMachineSupport {
 
     @Override
 	public @Nonnull Iterable<String> listFirewalls(@Nonnull String instanceId) throws InternalException, CloudException {
-        APITrace.begin(provider, "listFirewalls");
+        APITrace.begin(provider, "listFirewallsForVM");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
             ArrayList<String> firewalls = new ArrayList<String>();
@@ -1031,7 +1031,7 @@ public class EC2Instance implements VirtualMachineSupport {
 
     @Override
     public boolean isSubscribed() throws InternalException, CloudException {
-        APITrace.begin(provider, "isSubscribed");
+        APITrace.begin(provider, "isSubscribedVirtualMachine");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
             EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
@@ -1115,7 +1115,7 @@ public class EC2Instance implements VirtualMachineSupport {
 	
     @Override
     public @Nonnull VirtualMachine launch(@Nonnull VMLaunchOptions cfg) throws CloudException, InternalException {
-        APITrace.begin(provider, "launch");
+        APITrace.begin(provider, "launchVM");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -1646,7 +1646,7 @@ public class EC2Instance implements VirtualMachineSupport {
     
 	@Override
 	public void stop(@Nonnull String instanceId) throws InternalException, CloudException {
-        APITrace.begin(provider, "stop");
+        APITrace.begin(provider, "stopVM");
         try {
             VirtualMachine vm = getVirtualMachine(instanceId);
 
@@ -1676,7 +1676,7 @@ public class EC2Instance implements VirtualMachineSupport {
 
 	@Override
 	public void reboot(@Nonnull String instanceId) throws CloudException, InternalException {
-        APITrace.begin(provider, "reboot");
+        APITrace.begin(provider, "rebootVM");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.REBOOT_INSTANCES);
             EC2Method method;
@@ -1750,7 +1750,7 @@ public class EC2Instance implements VirtualMachineSupport {
 
     @Override
 	public void terminate(@Nonnull String instanceId) throws InternalException, CloudException {
-        APITrace.begin(provider, "terminate");
+        APITrace.begin(provider, "terminateVM");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.TERMINATE_INSTANCES);
             EC2Method method;
@@ -2040,7 +2040,7 @@ public class EC2Instance implements VirtualMachineSupport {
 	
 	@Override
 	public void disableAnalytics(String instanceId) throws InternalException, CloudException {
-        APITrace.begin(provider, "disableAnalytics");
+        APITrace.begin(provider, "disableVMAnalytics");
         try {
             if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
                 Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.UNMONITOR_INSTANCES);

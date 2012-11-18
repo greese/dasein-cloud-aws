@@ -59,6 +59,7 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.DNSSupport;
+import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -106,6 +107,7 @@ public class Route53Method {
     private int                attempts    = 0;
 	private String             dateString  = null;
 	private String             method      = null;
+    private String             operation   = null;
 	private AWSCloud           provider    = null;
 	private String             signature   = null;
 	private String             url         = null;
@@ -113,6 +115,7 @@ public class Route53Method {
 	public Route53Method(String operation, AWSCloud provider, String url) throws InternalException {
 		this.url = url;
 		this.provider = provider;
+        this.operation = operation;
 		this.method = translateMethod(operation);
 		dateString = getTimestamp(System.currentTimeMillis());
 
@@ -233,6 +236,7 @@ public class Route53Method {
     		method.addHeader("Date", dateString);
     		method.addHeader("X-Amzn-Authorization", signature);
     		try {
+                APITrace.trace(provider, operation);
     			response = client.execute(method);
                 status = response.getStatusLine().getStatusCode();
     		} 

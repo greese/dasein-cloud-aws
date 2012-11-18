@@ -24,12 +24,14 @@ import java.util.Locale;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.DataFormat;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
@@ -38,6 +40,7 @@ import org.dasein.cloud.platform.EndpointType;
 import org.dasein.cloud.platform.PushNotificationSupport;
 import org.dasein.cloud.platform.Subscription;
 import org.dasein.cloud.platform.Topic;
+import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -81,67 +84,79 @@ public class SNS implements PushNotificationSupport {
     
     @Override
     public String confirmSubscription(String providerTopicId, String token, boolean authenticateUnsubscribe) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), CONFIRM_SUBSCRIPTION);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        parameters.put("TopicArn", providerTopicId);
-        parameters.put("Token", token);
-        if( authenticateUnsubscribe ) {
-            parameters.put("AuthenticateOnUnsubscribe", "true");            
-        }
-        method = new EC2Method(provider, getSNSUrl(), parameters);
+        APITrace.begin(provider, "confirmSubscription");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
-        blocks = doc.getElementsByTagName("ConfirmSubscriptionResult");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            Node item = blocks.item(i);
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), CONFIRM_SUBSCRIPTION);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-            for( int j=0; j<item.getChildNodes().getLength(); j++ ) {
-                Node attr = item.getChildNodes().item(j);
-                String name;
-                
-                name = attr.getNodeName();
-                if( name.equals("SubscriptionArn") ) {
-                    return attr.getFirstChild().getNodeValue().trim();
+            parameters.put("TopicArn", providerTopicId);
+            parameters.put("Token", token);
+            if( authenticateUnsubscribe ) {
+                parameters.put("AuthenticateOnUnsubscribe", "true");
+            }
+            method = new EC2Method(provider, getSNSUrl(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("ConfirmSubscriptionResult");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+
+                for( int j=0; j<item.getChildNodes().getLength(); j++ ) {
+                    Node attr = item.getChildNodes().item(j);
+                    String name;
+
+                    name = attr.getNodeName();
+                    if( name.equals("SubscriptionArn") ) {
+                        return attr.getFirstChild().getNodeValue().trim();
+                    }
                 }
             }
+            return null;
         }
-        return null;
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public Topic createTopic(String name) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), CREATE_TOPIC);
-        Topic topic = null;
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        parameters.put("Name", name);
-        method = new EC2Method(provider, getSNSUrl(), parameters);
+        APITrace.begin(provider, "createTopic");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
-        blocks = doc.getElementsByTagName("CreateTopicResult");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            Node item = blocks.item(i);
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), CREATE_TOPIC);
+            Topic topic = null;
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-            topic = toTopic(item);
-            if( topic != null ) {
-                topic.setName(name);
-                return topic;
+            parameters.put("Name", name);
+            method = new EC2Method(provider, getSNSUrl(), parameters);
+            try {
+                doc = method.invoke();
             }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("CreateTopicResult");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+
+                topic = toTopic(item);
+                if( topic != null ) {
+                    topic.setName(name);
+                    return topic;
+                }
+            }
+            return topic;
         }
-        return topic;        
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
@@ -160,100 +175,158 @@ public class SNS implements PushNotificationSupport {
     
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), LIST_TOPICS);
-        EC2Method method;
-
-        method = new EC2Method(provider, getSNSUrl(), parameters);
+        APITrace.begin(provider, "isSubscribedSNS");
         try {
-            method.invoke();
-            return true;
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), LIST_TOPICS);
+            EC2Method method;
+
+            method = new EC2Method(provider, getSNSUrl(), parameters);
+            try {
+                method.invoke();
+                return true;
+            }
+            catch( EC2Exception e ) {
+                if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    return false;
+                }
+                String code = e.getCode();
+
+                if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
+                    return false;
+                }
+                logger.warn(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-            if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
-                return false;
-            }
-            String code = e.getCode();
-            
-            if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
-                return false;
-            }
-            logger.warn(e.getSummary());
-            if( logger.isDebugEnabled() ) {
-                e.printStackTrace();
-            }
-            throw new CloudException(e);
+        finally {
+            APITrace.end();
         }
     }
     
     @Override
     public Collection<Subscription> listSubscriptions(String optionalTopicId) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), optionalTopicId == null ? LIST_SUBSCRIPTIONS : LIST_SUBSCRIPTIONS_BY_TOPIC);
-        ArrayList<Subscription> list = new ArrayList<Subscription>();
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        if( optionalTopicId != null ) {
-            parameters.put("TopicArn", optionalTopicId);
-        }
-        method = new EC2Method(provider, getSNSUrl(), parameters);
+        APITrace.begin(provider, "listSubscriptions");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
-        blocks = doc.getElementsByTagName("Subscriptions");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            NodeList items = blocks.item(i).getChildNodes();
-            
-            for( int j=0; j<items.getLength(); j++ ) {
-                Node item = items.item(j);
-                
-                if( item.getNodeName().equals("member") ) {
-                    Subscription subscription = toSubscription(item);
-                    
-                    if( subscription != null ) {
-                        list.add(subscription);
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), optionalTopicId == null ? LIST_SUBSCRIPTIONS : LIST_SUBSCRIPTIONS_BY_TOPIC);
+            ArrayList<Subscription> list = new ArrayList<Subscription>();
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            if( optionalTopicId != null ) {
+                parameters.put("TopicArn", optionalTopicId);
+            }
+            method = new EC2Method(provider, getSNSUrl(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("Subscriptions");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("member") ) {
+                        Subscription subscription = toSubscription(item);
+
+                        if( subscription != null ) {
+                            list.add(subscription);
+                        }
                     }
                 }
             }
+            return list;
         }
-        return list;
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<ResourceStatus> listTopicStatus() throws CloudException, InternalException {
+        APITrace.begin(provider, "listTopicStatus");
+        try {
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), LIST_TOPICS);
+            ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            method = new EC2Method(provider, getSNSUrl(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("Topics");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("member") ) {
+                        ResourceStatus status = toStatus(item);
+
+                        if( status != null ) {
+                            list.add(status);
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public Collection<Topic> listTopics() throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), LIST_TOPICS);
-        ArrayList<Topic> list = new ArrayList<Topic>();
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        method = new EC2Method(provider, getSNSUrl(), parameters);
+        APITrace.begin(provider, "listTopics");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
-        blocks = doc.getElementsByTagName("Topics");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            NodeList items = blocks.item(i).getChildNodes();
-            
-            for( int j=0; j<items.getLength(); j++ ) {
-                Node item = items.item(j);
-                
-                if( item.getNodeName().equals("member") ) {
-                    Topic topic = toTopic(item);
-                    
-                    if( topic != null ) {
-                        list.add(topic);
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), LIST_TOPICS);
+            ArrayList<Topic> list = new ArrayList<Topic>();
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            method = new EC2Method(provider, getSNSUrl(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("Topics");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("member") ) {
+                        Topic topic = toTopic(item);
+
+                        if( topic != null ) {
+                            list.add(topic);
+                        }
                     }
                 }
             }
+            return list;
         }
-        return list;
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
@@ -263,142 +336,185 @@ public class SNS implements PushNotificationSupport {
 
     @Override
     public String publish(String providerTopicId, String subject, String message) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), PUBLISH);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-        
-        parameters.put("TopicArn", providerTopicId);
-        parameters.put("Subject", subject);
-        parameters.put("Message", message);
-        method = new EC2Method(provider, getSNSUrl(), parameters);
+        APITrace.begin(provider, "publishSNSMessage");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
-        blocks = doc.getElementsByTagName("PublishResult");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            Node item = blocks.item(i);
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), PUBLISH);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-            for( int j=0; j<item.getChildNodes().getLength(); j++ ) {
-                Node attr = item.getChildNodes().item(j);
-                String name;
-                
-                name = attr.getNodeName();
-                if( name.equals("MessageId") ) {
-                    return attr.getFirstChild().getNodeValue().trim();
+            parameters.put("TopicArn", providerTopicId);
+            parameters.put("Subject", subject);
+            parameters.put("Message", message);
+            method = new EC2Method(provider, getSNSUrl(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            };
+            blocks = doc.getElementsByTagName("PublishResult");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+
+                for( int j=0; j<item.getChildNodes().getLength(); j++ ) {
+                    Node attr = item.getChildNodes().item(j);
+                    String name;
+
+                    name = attr.getNodeName();
+                    if( name.equals("MessageId") ) {
+                        return attr.getFirstChild().getNodeValue().trim();
+                    }
                 }
             }
+            return null;
         }
-        return null; 
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public void removeTopic(String providerTopicId) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), DELETE_TOPIC);
-        EC2Method method;
-
-        parameters.put("TopicArn", providerTopicId);
-        method = new EC2Method(provider, getSNSUrl(), parameters);
+        APITrace.begin(provider, "removeTopic");
         try {
-            method.invoke();
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), DELETE_TOPIC);
+            EC2Method method;
+
+            parameters.put("TopicArn", providerTopicId);
+            method = new EC2Method(provider, getSNSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
+        finally {
+            APITrace.end();
+        }
     }
 
     private void setTopicAttributes(Topic topic) throws InternalException, CloudException {
-        Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), GET_TOPIC_ATTRIBUTES);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        parameters.put("TopicArn", topic.getProviderTopicId());
-        method = new EC2Method(provider, getSNSUrl(), parameters);
+        APITrace.begin(provider, "setTopicAttributes");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
-        blocks = doc.getElementsByTagName("Attributes");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            NodeList items = blocks.item(i).getChildNodes();
-            
-            for( int j=0; j<items.getLength(); j++ ) {
-                Node item = items.item(j);
-                
-                if( item.getNodeName().equals("entry") ) {
-                    NodeList parts = item.getChildNodes();
-                    String name = null;
-                    String value = null;
-                    
-                    if( parts != null ) {
-                        for( int k=0; k<parts.getLength(); k++ ) {
-                            Node node = parts.item(k);
-                            
-                            if( node != null ) {
-                                if( node.getNodeName().equals("key") ) {
-                                    name = node.getFirstChild().getNodeValue().trim();
-                                }
-                                else if( node.getNodeName().equals("value") ) {
-                                    value = node.getFirstChild().getNodeValue().trim();                                        
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), GET_TOPIC_ATTRIBUTES);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("TopicArn", topic.getProviderTopicId());
+            method = new EC2Method(provider, getSNSUrl(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            };
+            blocks = doc.getElementsByTagName("Attributes");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("entry") ) {
+                        NodeList parts = item.getChildNodes();
+                        String name = null;
+                        String value = null;
+
+                        if( parts != null ) {
+                            for( int k=0; k<parts.getLength(); k++ ) {
+                                Node node = parts.item(k);
+
+                                if( node != null ) {
+                                    if( node.getNodeName().equals("key") ) {
+                                        name = node.getFirstChild().getNodeValue().trim();
+                                    }
+                                    else if( node.getNodeName().equals("value") ) {
+                                        value = node.getFirstChild().getNodeValue().trim();
+                                    }
                                 }
                             }
                         }
-                    }
-                    if( name != null ) {
-                        if( name.equals("DisplayName") ) {
-                            if( value != null) {
-                                topic.setName(value);
-                                topic.setDescription(value + " (" + topic.getProviderTopicId() + ")");
+                        if( name != null ) {
+                            if( name.equals("DisplayName") ) {
+                                if( value != null) {
+                                    topic.setName(value);
+                                    topic.setDescription(value + " (" + topic.getProviderTopicId() + ")");
+                                }
                             }
-                        }
-                        else if( name.equals("Owner") && value != null ) {
-                            topic.setProviderOwnerId(value);
+                            else if( name.equals("Owner") && value != null ) {
+                                topic.setProviderOwnerId(value);
+                            }
                         }
                     }
                 }
             }
+        }
+        finally {
+            APITrace.end();
         }
     }
     
     @Override
     public void subscribe(String providerTopicId, EndpointType endpointType, DataFormat dataFormat, String endpoint) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), SUBSCRIBE);
-        EC2Method method;
-
-        parameters.put("TopicArn", providerTopicId);
-        switch( endpointType ) {
-            case HTTP:
-                parameters.put("Protocol", "http");
-                break;
-            case HTTPS:
-                parameters.put("Protocol", "https");
-                break;
-            case EMAIL:
-                if( dataFormat.equals(DataFormat.JSON) ) {
-                    parameters.put("Protocol", "email-json");
-                }
-                else {
-                    parameters.put("Protocol", "email");
-                }
-                break;
-            case AWS_SQS:
-                parameters.put("Protocol", "sqs");
-                break;
-        }
-        parameters.put("Endpoint", endpoint);
-        method = new EC2Method(provider, getSNSUrl(), parameters);
+        APITrace.begin(provider, "subscribeSNS");
         try {
-            method.invoke();
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), SUBSCRIBE);
+            EC2Method method;
+
+            parameters.put("TopicArn", providerTopicId);
+            switch( endpointType ) {
+                case HTTP:
+                    parameters.put("Protocol", "http");
+                    break;
+                case HTTPS:
+                    parameters.put("Protocol", "https");
+                    break;
+                case EMAIL:
+                    if( dataFormat.equals(DataFormat.JSON) ) {
+                        parameters.put("Protocol", "email-json");
+                    }
+                    else {
+                        parameters.put("Protocol", "email");
+                    }
+                    break;
+                case AWS_SQS:
+                    parameters.put("Protocol", "sqs");
+                    break;
+            }
+            parameters.put("Endpoint", endpoint);
+            method = new EC2Method(provider, getSNSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        };
+        finally {
+            APITrace.end();
+        }
+    }
+
+    private @Nullable ResourceStatus toStatus(@Nullable Node fromAws) throws InternalException, CloudException {
+        if( fromAws == null ) {
+            return null;
+        }
+        NodeList attrs = fromAws.getChildNodes();
+        String topicId = null;
+
+        for( int i=0; i<attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String name;
+
+            name = attr.getNodeName();
+            if( name.equals("TopicArn") ) {
+                topicId = attr.getFirstChild().getNodeValue().trim();
+            }
+        }
+        return new ResourceStatus(topicId, true);
     }
 
     private Subscription toSubscription(Node fromAws) throws InternalException, CloudException {

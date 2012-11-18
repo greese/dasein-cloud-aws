@@ -78,6 +78,7 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.storage.BlobStoreSupport;
+import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -441,6 +442,7 @@ public class S3Method {
             HttpResponse httpResponse;
             
             try {
+                APITrace.trace(provider, action.toString());
                 httpResponse = client.execute(method);
                 if( wire.isDebugEnabled() ) {
                     wire.debug(httpResponse.getStatusLine().toString());
