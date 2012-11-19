@@ -18,8 +18,10 @@
 
 package org.dasein.cloud.aws.compute;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -30,7 +32,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -41,9 +42,6 @@ import java.util.concurrent.Callable;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
@@ -60,6 +58,8 @@ import org.dasein.cloud.compute.ImageClass;
 import org.dasein.cloud.compute.MachineImage;
 import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.VMLaunchOptions;
+import org.dasein.cloud.compute.VMScalingCapabilities;
+import org.dasein.cloud.compute.VMScalingOptions;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.compute.VirtualMachineProduct;
 import org.dasein.cloud.compute.VirtualMachineSupport;
@@ -73,187 +73,34 @@ import org.dasein.cloud.network.NetworkServices;
 import org.dasein.cloud.network.Subnet;
 import org.dasein.cloud.network.VLANSupport;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.CalendarWrapper;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Megabyte;
 import org.dasein.util.uom.storage.Storage;
+import org.dasein.util.uom.time.Day;
+import org.dasein.util.uom.time.TimePeriod;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
 
 public class EC2Instance implements VirtualMachineSupport {
 	static private final Logger logger = Logger.getLogger(EC2Instance.class);
-	
-    static private List<VirtualMachineProduct> sixtyFours;
-    static private List<VirtualMachineProduct> thirtyTwos;
 
-    static {
-        InputStream input = EC2Instance.class.getResourceAsStream("/dasein-cloud/products/aws-vm.xml");
-        ArrayList<VirtualMachineProduct> thirtyTwoSizes = null;
-        ArrayList<VirtualMachineProduct> sixtyFourSizes = null;
-        VirtualMachineProduct product;
-        
-        if( input != null ) {
-            try {
-                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-                DocumentBuilder parser = factory.newDocumentBuilder();
-                Document doc = parser.parse(input);
-
-                NodeList products = doc.getElementsByTagName("product");
-
-                thirtyTwoSizes = new ArrayList<VirtualMachineProduct>();
-                sixtyFourSizes = new ArrayList<VirtualMachineProduct>();
-                for( int i=0; i<products.getLength(); i++ ) {
-                    Node node = products.item(i);
-                    
-                    Architecture a = Architecture.valueOf(node.getAttributes().getNamedItem("architecture").getNodeValue());
-                    
-                    product = new VirtualMachineProduct();
-                    product.setProviderProductId(node.getAttributes().getNamedItem("productId").getNodeValue());
-                    product.setName(node.getAttributes().getNamedItem("name").getNodeValue());
-                    product.setDescription(node.getAttributes().getNamedItem("name").getNodeValue());
-                    product.setCpuCount(Integer.parseInt(node.getAttributes().getNamedItem("cpuCount").getNodeValue()));
-                    product.setRootVolumeSize(Storage.valueOf(node.getAttributes().getNamedItem("rootVolumeSize").getNodeValue()));
-                    product.setRamSize(Storage.valueOf(node.getAttributes().getNamedItem("ramSize").getNodeValue()));
-                    product.setStandardHourlyRate(Float.parseFloat(node.getAttributes().getNamedItem("standardHourlyRate").getNodeValue()));
-                    if( a.equals(Architecture.I64) ) {
-                        sixtyFourSizes.add(product);
-                    }
-                    else if( a.equals(Architecture.I32) ) {
-                        thirtyTwoSizes.add(product);
-                    }
-                }
-            }
-            catch( IOException e ) {
-                logger.error("Unable to read product configuration file: " + e.getMessage());
-            }
-            catch( ParserConfigurationException e ) {
-                logger.error("Unable to read product configuration file: " + e.getMessage());
-            }
-            catch( SAXException e ) {
-                logger.error("Unable to read product configuration file: " + e.getMessage());
-            }
-        }
-        if( thirtyTwoSizes == null ) {
-            thirtyTwoSizes = new ArrayList<VirtualMachineProduct>();
-
-            product = new VirtualMachineProduct();
-            product.setProviderProductId("t1.micro");
-            product.setName("Micro Instance/(t1.micro)");
-            product.setDescription("Micro Instance/(t1.micro)");
-            product.setCpuCount(2);
-            product.setRootVolumeSize(new Storage<Gigabyte>(1, Storage.GIGABYTE));
-            product.setRamSize(new Storage<Megabyte>(613, Storage.MEGABYTE));
-            thirtyTwoSizes.add(product);
-            
-            product = new VirtualMachineProduct();
-            product.setProviderProductId("m1.small");
-            product.setName("Small Instance (m1.small)");
-            product.setDescription("Small Instance (m1.small)");
-            product.setCpuCount(1);
-            product.setRootVolumeSize(new Storage<Gigabyte>(160, Storage.GIGABYTE));
-            product.setRamSize(new Storage<Megabyte>(1700, Storage.MEGABYTE));
-            thirtyTwoSizes.add(product);
-            
-            //AWS support medium
-            product = new VirtualMachineProduct();
-            product.setProviderProductId("m1.medium");
-            product.setName("Medium Instance (m1.medium)");
-            product.setDescription("Medium Instance (m1.medium)");
-            product.setCpuCount(2);
-            product.setRootVolumeSize(new Storage<Gigabyte>(410, Storage.GIGABYTE));
-            product.setRamSize(new Storage<Megabyte>(3750, Storage.MEGABYTE));
-            thirtyTwoSizes.add(product);
-            
-            product = new VirtualMachineProduct();
-            product.setProviderProductId("c1.medium");
-            product.setName("High-CPU Medium Instance (c1.medium)");
-            product.setDescription("High-CPU Medium Instance (c1.medium)");
-            product.setCpuCount(5);
-            product.setRootVolumeSize(new Storage<Gigabyte>(350, Storage.GIGABYTE));
-            product.setRamSize(new Storage<Megabyte>(1700, Storage.MEGABYTE));
-            thirtyTwoSizes.add(product);
-    
-        }
-        if( sixtyFourSizes == null ) {
-            sixtyFourSizes = new ArrayList<VirtualMachineProduct>();
-           
-            // EC2's m1.small, m1.medium  and c1.medium have 64bit platform
-            sixtyFourSizes.addAll(thirtyTwoSizes);
-                
-            product = new VirtualMachineProduct();
-            product.setProviderProductId("m1.large");
-            product.setName("Large Instance (m1.large)");
-            product.setDescription("Large Instance (m1.large)");
-            product.setCpuCount(4);
-            product.setRootVolumeSize(new Storage<Gigabyte>(850, Storage.GIGABYTE));
-            product.setRamSize(new Storage<Megabyte>(7500, Storage.MEGABYTE));
-            sixtyFourSizes.add(product);
-            
-            product = new VirtualMachineProduct();
-            product.setProviderProductId("m1.xlarge");
-            product.setName("Extra Large Instance (m1.xlarge)");
-            product.setDescription("Extra Large Instance (m1.xlarge)");
-            product.setCpuCount(8);
-            product.setRootVolumeSize(new Storage<Gigabyte>(1690, Storage.GIGABYTE));
-            product.setRamSize(new Storage<Megabyte>(15000, Storage.MEGABYTE));
-            sixtyFourSizes.add(product);
-            
-            product = new VirtualMachineProduct();
-            product.setProviderProductId("c1.xlarge");
-            product.setName("High-CPU Extra Large Instance (c1.xlarge)");
-            product.setDescription("High-CPU Extra Large Instance (c1.xlarge)");
-            product.setCpuCount(20);
-            product.setRootVolumeSize(new Storage<Gigabyte>(1690, Storage.GIGABYTE));
-            product.setRamSize(new Storage<Megabyte>(7000, Storage.MEGABYTE));
-            sixtyFourSizes.add(product);
-            
-            product = new VirtualMachineProduct();
-            product.setProviderProductId("m2.xlarge");
-            product.setName("High-Memory Extra Large Instance (m2.xlarge)");
-            product.setDescription("High-Memory Extra Large Instance (m2.xlarge)");
-            product.setCpuCount(7);
-            product.setRootVolumeSize(new Storage<Gigabyte>(420, Storage.GIGABYTE));
-            product.setRamSize(new Storage<Megabyte>(17100, Storage.MEGABYTE));
-            sixtyFourSizes.add(product);
-            
-            product = new VirtualMachineProduct();
-            product.setProviderProductId("m2.2xlarge");
-            product.setName("High-Memory Double Extra Large Instance (m2.2xlarge)");
-            product.setDescription("High-Memory Double Extra Large Instance (m2.2xlarge)");
-            product.setCpuCount(13);
-            product.setRootVolumeSize(new Storage<Gigabyte>(850, Storage.GIGABYTE));
-            product.setRamSize(new Storage<Megabyte>(34200, Storage.MEGABYTE));
-            sixtyFourSizes.add(product);
-            
-            product = new VirtualMachineProduct();
-            product.setProviderProductId("m2.4xlarge");
-            product.setName("High-Memory Quadruple Extra Large Instance (m2.4xlarge)");
-            product.setDescription("High-Memory Quadruple Extra Large Instance (m2.4xlarge)");
-            product.setCpuCount(26);
-            product.setRootVolumeSize(new Storage<Gigabyte>(1690, Storage.GIGABYTE));
-            product.setRamSize(new Storage<Megabyte>(68400, Storage.MEGABYTE));
-            sixtyFourSizes.add(product);
-            
-            product = new VirtualMachineProduct();
-            product.setProviderProductId("cc1.4xlarge");
-            product.setName("Cluster Compute Quadruple Extra Large (cc1.4xlarge)");
-            product.setDescription("33.5 EC2 Compute Units (2 x Intel Xeon X5570, quad-core \"Nehalem\" architecture)");
-            product.setCpuCount(34);
-            product.setRootVolumeSize(new Storage<Gigabyte>(1690, Storage.GIGABYTE));
-            product.setRamSize(new Storage<Megabyte>(23000, Storage.MEGABYTE));
-            sixtyFourSizes.add(product);
-        }
-        thirtyTwos = Collections.unmodifiableList(thirtyTwoSizes);
-        sixtyFours = Collections.unmodifiableList(sixtyFourSizes);
-    }
-    
 	private AWSCloud provider = null;
 	
 	EC2Instance(AWSCloud provider) {
 		this.provider = provider;
 	}
+
+    @Override
+    public VirtualMachine alterVirtualMachine(@Nonnull String vmId, @Nonnull VMScalingOptions options) throws InternalException, CloudException {
+        throw new OperationNotSupportedException("AWS does not support vertical scaling of instances");
+    }
 
 	@Override
 	public void start(@Nonnull String instanceId) throws InternalException, CloudException {
@@ -495,43 +342,13 @@ public class EC2Instance implements VirtualMachineSupport {
 
     @Override
     public @Nonnull VirtualMachine clone(@Nonnull String vmId, @Nonnull String intoDcId, @Nonnull String name, @Nonnull String description, boolean powerOn, @Nullable String... firewallIds) throws InternalException, CloudException {
-        /*
-        final ArrayList<Volume> oldVolumes = new ArrayList<Volume>();
-        final ArrayList<Volume> newVolumes = new ArrayList<Volume>();
-        final String id = serverId;
-        final String zoneId = inZoneId;
-
-        for( Volume volume : provider.getVolumeServices().list() ) {
-            String svr = volume.getServerId();
-            
-            if( svr == null || !svr.equals(serverId)) {
-                continue;
-            }
-            oldVolumes.add(volume);
-        }
-        Callable<ServerImage> imageTask = new Callable<ServerImage>() {
-            @Override
-            public ServerImage call() throws Exception {
-                provider.getImageServices().create(id);
-            }
-            
-        };
-        Callable<Boolean> snapshotTask = new Callable<Boolean>() {
-            @Override
-            public Boolean call() throws Exception {
-                for( Volume volume : oldVolumes ) {
-                    String snapshotId = provider.getSnapshotServices().create(volume.getProviderVolumeId(), "Clone of " + volume.getName());
-                    String volumeId = provider.getVolumeServices().create(snapshotId, volume.getSizeInGigabytes(), zoneId);
-                    
-                    newVolumes.add(provider.getVolumeServices().getVolume(volumeId));
-                }
-                return true;
-            }
-        };
-        */
         throw new OperationNotSupportedException("AWS instances cannot be cloned.");
     }
 
+    @Override
+    public @Nullable VMScalingCapabilities describeVerticalScalingCapabilities() throws CloudException, InternalException {
+        return null;
+    }
 
     @Override
     public void enableAnalytics(String instanceId) throws InternalException, CloudException {
@@ -768,15 +585,12 @@ public class EC2Instance implements VirtualMachineSupport {
 	}
 	
 	@Override
-	public @Nullable VirtualMachineProduct getProduct(@Nonnull String sizeId) {
-        for( VirtualMachineProduct product : get64s() ) {
-            if( product.getProviderProductId().equals(sizeId) ) {
-                return product;
-            }
-        }
-        for( VirtualMachineProduct product : get32s() ) {
-            if( product.getProviderProductId().equals(sizeId) ) {
-                return product;
+	public @Nullable VirtualMachineProduct getProduct(@Nonnull String sizeId) throws CloudException, InternalException {
+        for( Architecture a : listSupportedArchitectures() ) {
+            for( VirtualMachineProduct prd : listProducts(a) ) {
+                if( prd.getProviderProductId().equals(sizeId) ) {
+                    return prd;
+                }
             }
         }
         return null;
@@ -1063,26 +877,236 @@ public class EC2Instance implements VirtualMachineSupport {
         return true;
     }
 
-    private List<VirtualMachineProduct> get64s() {
-        return sixtyFours;
-    }
-    
-    
-    private List<VirtualMachineProduct> get32s() {
-        return thirtyTwos;
-    }
-
-
     @Override
     public Iterable<VirtualMachineProduct> listProducts(Architecture architecture) throws InternalException, CloudException {
-        if( architecture == null ) {
-            return Collections.emptyList();
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was set for this request");
         }
-        switch( architecture ) {
-            case I32: return get32s();
-            case I64: return get64s();
-            default: return Collections.emptyList();
+        Cache<VirtualMachineProduct> cache = Cache.getInstance(provider, "products" + architecture.name(), VirtualMachineProduct.class, CacheLevel.REGION, new TimePeriod<Day>(1, TimePeriod.DAY));
+        Iterable<VirtualMachineProduct> products = cache.get(ctx);
+
+        if( products == null ) {
+            ArrayList<VirtualMachineProduct> list = new ArrayList<VirtualMachineProduct>();
+
+            try {
+                InputStream input = EC2Instance.class.getResourceAsStream("/org/dasein/cloud/aws/vmproducts.json");
+
+                if( input != null ) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(input));
+                    StringBuilder json = new StringBuilder();
+                    String line;
+
+                    while( (line = reader.readLine()) != null ) {
+                        json.append(line);
+                        json.append("\n");
+                    }
+                    JSONArray arr = new JSONArray(json.toString());
+                    JSONObject toCache = null;
+
+                    for( int i=0; i<arr.length(); i++ ) {
+                        JSONObject productSet = arr.getJSONObject(i);
+                        String cloud, provider;
+
+                        if( productSet.has("cloud") ) {
+                            cloud = productSet.getString("cloud");
+                        }
+                        else {
+                            continue;
+                        }
+                        if( productSet.has("provider") ) {
+                            provider = productSet.getString("provider");
+                        }
+                        else {
+                            continue;
+                        }
+                        if( !productSet.has("products") ) {
+                            continue;
+                        }
+                        if( toCache == null || (provider.equals("AWS") && cloud.equals("AWS")) ) {
+                            toCache = productSet;
+                        }
+                        if( provider.equalsIgnoreCase(this.provider.getProviderName()) && cloud.equalsIgnoreCase(this.provider.getCloudName()) ) {
+                            toCache = productSet;
+                            break;
+                        }
+                    }
+                    if( toCache == null ) {
+                        logger.warn("No products were defined");
+                        return Collections.emptyList();
+                    }
+                    JSONArray plist = toCache.getJSONArray("products");
+
+                    for( int i=0; i<plist.length(); i++ ) {
+                        JSONObject product = plist.getJSONObject(i);
+                        boolean supported = false;
+
+                        if( product.has("architectures") ) {
+                            JSONArray architectures = product.getJSONArray("architectures");
+
+                            for( int j=0; j<architectures.length(); j++ ) {
+                                String a = architectures.getString(j);
+
+                                if( architecture.name().equals(a) ) {
+                                    supported = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if( !supported ) {
+                            continue;
+                        }
+                        if( product.has("excludesRegions") ) {
+                            JSONArray regions = product.getJSONArray("excludesRegions");
+
+                            for( int j=0; j<regions.length(); j++ ) {
+                                String r = regions.getString(j);
+
+                                if( r.equals(ctx.getRegionId()) ) {
+                                    supported = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if( !supported ) {
+                            continue;
+                        }
+                        VirtualMachineProduct prd = toProduct(product);
+
+                        if( prd != null ) {
+                            list.add(prd);
+                        }
+                    }
+
+                }
+                else {
+                    logger.warn("No standard products resource exists for /org/dasein/cloud/aws/vmproducts.json");
+                }
+                input = EC2Instance.class.getResourceAsStream("/org/dasein/cloud/aws/vmproducts-custom.json");
+                if( input != null ) {
+                    ArrayList<VirtualMachineProduct> customList = new ArrayList<VirtualMachineProduct>();
+                    TreeSet<String> discard = new TreeSet<String>();
+                    boolean discardAll = false;
+
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(input));
+                    StringBuilder json = new StringBuilder();
+                    String line;
+
+                    while( (line = reader.readLine()) != null ) {
+                        json.append(line);
+                        json.append("\n");
+                    }
+                    JSONArray arr = new JSONArray(json.toString());
+                    JSONObject toCache = null;
+
+                    for( int i=0; i<arr.length(); i++ ) {
+                        JSONObject listing = arr.getJSONObject(i);
+                        String cloud, provider, endpoint = null;
+
+                        if( listing.has("cloud") ) {
+                            cloud = listing.getString("cloud");
+                        }
+                        else {
+                            continue;
+                        }
+                        if( listing.has("provider") ) {
+                            provider = listing.getString("provider");
+                        }
+                        else {
+                            continue;
+                        }
+                        if( listing.has("endpoint") ) {
+                            endpoint = listing.getString("endpoint");
+                        }
+                        if( !cloud.equals(this.provider.getCloudName()) || !provider.equals(this.provider.getProviderName()) ) {
+                            continue;
+                        }
+                        if( endpoint != null && endpoint.equals(ctx.getEndpoint()) ) {
+                            toCache = listing;
+                            break;
+                        }
+                        if( endpoint == null && toCache == null ) {
+                            toCache = listing;
+                        }
+                    }
+                    if( toCache != null ) {
+                        if( toCache.has("discardDefaults") ) {
+                            discardAll = toCache.getBoolean("discardDefaults");
+                        }
+                        if( toCache.has("discard") ) {
+                            JSONArray dlist = toCache.getJSONArray("discard");
+
+                            for( int i=0; i<dlist.length(); i++ ) {
+                                discard.add(dlist.getString(i));
+                            }
+                        }
+                        if( toCache.has("products") ) {
+                            JSONArray plist = toCache.getJSONArray("products");
+
+                            for( int i=0; i<plist.length(); i++ ) {
+                                JSONObject product = plist.getJSONObject(i);
+                                boolean supported = false;
+
+                                if( product.has("architectures") ) {
+                                    JSONArray architectures = product.getJSONArray("architectures");
+
+                                    for( int j=0; j<architectures.length(); j++ ) {
+                                        String a = architectures.getString(j);
+
+                                        if( architecture.name().equals(a) ) {
+                                            supported = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if( !supported ) {
+                                    continue;
+                                }
+                                if( product.has("excludesRegions") ) {
+                                    JSONArray regions = product.getJSONArray("excludesRegions");
+
+                                    for( int j=0; j<regions.length(); j++ ) {
+                                        String r = regions.getString(j);
+
+                                        if( r.equals(ctx.getRegionId()) ) {
+                                            supported = false;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if( !supported ) {
+                                    continue;
+                                }
+                                VirtualMachineProduct prd = toProduct(product);
+
+                                if( prd != null ) {
+                                    customList.add(prd);
+                                }
+                            }
+                        }
+                        if( !discardAll ) {
+                            for( VirtualMachineProduct product : list ) {
+                                if( !discard.contains(product.getProviderProductId()) ) {
+                                    customList.add(product);
+                                }
+                            }
+                        }
+                        list = customList;
+                    }
+                }
+                products = list;
+                cache.put(ctx, products);
+
+            }
+            catch( IOException e ) {
+                throw new InternalException(e);
+            }
+            catch( JSONException e ) {
+                throw new InternalException(e);
+            }
         }
+        return products;
     }
     
     static private volatile Collection<Architecture> architectures;
@@ -2061,4 +2085,73 @@ public class EC2Instance implements VirtualMachineSupport {
             APITrace.end();
         }
 	}
+
+    private @Nullable VirtualMachineProduct toProduct(@Nonnull JSONObject json) throws InternalException {
+        /*
+                    {
+                "architectures":["I32"],
+                "id":"m1.small",
+                "name":"Small Instance (m1.small)",
+                "description":"Small Instance (m1.small)",
+                "cpuCount":1,
+                "rootVolumeSizeInGb":160,
+                "ramSizeInMb": 1700
+            },
+         */
+        VirtualMachineProduct prd = new VirtualMachineProduct();
+
+        try {
+            if( json.has("id") ) {
+                prd.setProviderProductId(json.getString("id"));
+            }
+            else {
+                return null;
+            }
+            if( json.has("name") ) {
+                prd.setName(json.getString("name"));
+            }
+            else {
+                prd.setName(prd.getProviderProductId());
+            }
+            if( json.has("description") ) {
+                prd.setDescription(json.getString("description"));
+            }
+            else {
+                prd.setDescription(prd.getName());
+            }
+            if( json.has("cpuCount") ) {
+                prd.setCpuCount(json.getInt("cpuCount"));
+            }
+            else {
+                prd.setCpuCount(1);
+            }
+            if( json.has("rootVolumeSizeInGb") ) {
+                prd.setRootVolumeSize(new Storage<Gigabyte>(json.getInt("rootVolumeSizeInGb"), Storage.GIGABYTE));
+            }
+            else {
+                prd.setRootVolumeSize(new Storage<Gigabyte>(1, Storage.GIGABYTE));
+            }
+            if( json.has("ramSizeInMb") ) {
+                prd.setRamSize(new Storage<Megabyte>(json.getInt("ramSizeInMb"), Storage.MEGABYTE));
+            }
+            else {
+                prd.setRamSize(new Storage<Megabyte>(512, Storage.MEGABYTE));
+            }
+            if( json.has("standardHourlyRates") ) {
+                JSONArray rates = json.getJSONArray("standardHourlyRates");
+
+                for( int i=0; i<rates.length(); i++ ) {
+                    JSONObject rate = rates.getJSONObject(i);
+
+                    if( rate.has("rate") ) {
+                        prd.setStandardHourlyRate((float)rate.getDouble("rate"));
+                    }
+                }
+            }
+        }
+        catch( JSONException e ) {
+            throw new InternalException(e);
+        }
+        return prd;
+    }
 }
