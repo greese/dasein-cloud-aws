@@ -27,6 +27,7 @@ import java.util.Map;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
@@ -101,10 +102,18 @@ public class SecurityGroup implements FirewallSupport {
         APITrace.begin(provider, "authorizeSecurityGroupRule");
         try {
             if( Permission.DENY.equals(permission) ) {
-                throw new CloudException("AWS does not support DENY rules");
+                throw new OperationNotSupportedException("AWS does not support DENY rules");
             }
             if( !destination.getDestinationType().equals(DestinationType.GLOBAL) ) {
-                throw new CloudException("AWS does not support discreet routing of rules");
+                throw new OperationNotSupportedException("AWS does not support discreet routing of rules");
+            }
+            Firewall fw = getFirewall(firewallId);
+
+            if( fw == null ) {
+                throw new CloudException("No such firewall: " + firewallId);
+            }
+            if( direction.equals(Direction.EGRESS) && fw.getProviderVlanId() == null ) {
+                throw new OperationNotSupportedException("AWS does not support EGRESS rules for non-VPC security groups");
             }
             String action = (direction.equals(Direction.INGRESS) ? EC2Method.AUTHORIZE_SECURITY_GROUP_INGRESS : EC2Method.AUTHORIZE_SECURITY_GROUP_EGRESS);
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), action);
