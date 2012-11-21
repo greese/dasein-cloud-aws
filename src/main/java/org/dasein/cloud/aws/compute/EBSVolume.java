@@ -21,6 +21,7 @@ package org.dasein.cloud.aws.compute;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 
@@ -34,6 +35,7 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.Volume;
 import org.dasein.cloud.compute.VolumeCreateOptions;
+import org.dasein.cloud.compute.VolumeFormat;
 import org.dasein.cloud.compute.VolumeProduct;
 import org.dasein.cloud.compute.VolumeState;
 import org.dasein.cloud.compute.VolumeSupport;
@@ -227,6 +229,11 @@ public class EBSVolume implements VolumeSupport {
             list.add("/dev/sdj");
         }
         return list;
+    }
+
+    @Override
+    public @Nonnull Iterable<VolumeFormat> listSupportedFormats() throws InternalException, CloudException {
+        return Collections.singletonList(VolumeFormat.BLOCK);
     }
 
     @Override
@@ -483,6 +490,7 @@ public class EBSVolume implements VolumeSupport {
 
         volume.setProviderProductId("standard");
         volume.setType(VolumeType.HDD);
+        volume.setFormat(VolumeFormat.BLOCK);
 		for( int i=0; i<attrs.getLength(); i++ ) {
 			Node attr = attrs.item(i);
 			String name;
