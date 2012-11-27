@@ -28,6 +28,7 @@ import java.net.UnknownHostException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -35,6 +36,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.SimpleTimeZone;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
@@ -90,6 +92,7 @@ import org.w3c.dom.NodeList;
 
 public class EC2Instance implements VirtualMachineSupport {
 	static private final Logger logger = Logger.getLogger(EC2Instance.class);
+	static private final Calendar UTC_CALENDAR = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
 
 	private AWSCloud provider = null;
 	
@@ -155,6 +158,7 @@ public class EC2Instance implements VirtualMachineSupport {
             }
             Map<String,String> parameters = provider.getStandardCloudWatchParameters(provider.getContext(), EC2Method.GET_METRIC_STATISTICS);
             SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");
+            fmt.setCalendar(UTC_CALENDAR);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -180,6 +184,7 @@ public class EC2Instance implements VirtualMachineSupport {
             }
             TreeSet<Metric> metrics = new TreeSet<Metric>();
             fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+            fmt.setCalendar(UTC_CALENDAR);
             blocks = doc.getElementsByTagName("member");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 NodeList items = blocks.item(i).getChildNodes();
@@ -414,6 +419,7 @@ public class EC2Instance implements VirtualMachineSupport {
             blocks = doc.getElementsByTagName("timestamp");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+                fmt.setCalendar(UTC_CALENDAR);
                 String ts = blocks.item(i).getFirstChild().getNodeValue();
                 long timestamp;
 
@@ -2005,6 +2011,7 @@ public class EC2Instance implements VirtualMachineSupport {
 			}
 			else if( name.equals("launchTime") ) {
 				SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+				fmt.setCalendar(UTC_CALENDAR);
 				String value = attr.getFirstChild().getNodeValue().trim();
 
 				try {
