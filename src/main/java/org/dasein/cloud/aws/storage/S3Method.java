@@ -393,6 +393,9 @@ public class S3Method {
                 contentType = "application/xml";
                 method.addHeader("Content-Type", contentType);
             }
+            else if( contentType != null ) {
+                method.addHeader("Content-Type", contentType);
+            }
             try {
                 String hash = null;
                 String signature;
