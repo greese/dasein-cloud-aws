@@ -556,38 +556,9 @@ public class AMI implements MachineImageSupport {
         EC2Method method;
         NodeList blocks;
 		Document doc;
-
-		if( accountNumber == null ) {
-			accountNumber = provider.getContext().getAccountNumber();
-		}
-		if( provider.getEC2Provider().isAWS() ) {
-		    parameters.put("Owner", accountNumber);
-		}
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("imagesSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList instances = blocks.item(i).getChildNodes();
-        	
-            for( int j=0; j<instances.getLength(); j++ ) {
-            	Node instance = instances.item(j);
-            	
-            	if( instance.getNodeName().equals("item") ) {
-            		MachineImage image = toMachineImage(instance);
-            		
-            		if( image != null ) {
-            		    iterator.push(image);
-            		}
-            	}
-            }
-        }
-        if( provider.getEC2Provider().isAWS() ) {
+		
+		// List all (public & private) images
+        if( provider.getEC2Provider().isAWS() && accountNumber == null) {
             parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
             parameters.put("ExecutableBy", accountNumber);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
@@ -612,6 +583,38 @@ public class AMI implements MachineImageSupport {
                             iterator.push(image);
                         }
                     }
+                }
+            }
+        }
+        else { // List images owned by the account number
+    		if( accountNumber == null ) {
+    			accountNumber = provider.getContext().getAccountNumber();
+    		}
+    		if( provider.getEC2Provider().isAWS() ) {
+    		    parameters.put("Owner", accountNumber);
+    		}
+    		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+            	doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+            	logger.error(e.getSummary());
+            	throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("imagesSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+            	NodeList instances = blocks.item(i).getChildNodes();
+            	
+                for( int j=0; j<instances.getLength(); j++ ) {
+                	Node instance = instances.item(j);
+                	
+                	if( instance.getNodeName().equals("item") ) {
+                		MachineImage image = toMachineImage(instance);
+                		
+                		if( image != null ) {
+                		    iterator.push(image);
+                		}
+                	}
                 }
             }
         }
