@@ -464,6 +464,11 @@ public class EC2Instance implements VirtualMachineSupport {
 	}
 
     @Override
+    public int getCostFactor(@Nonnull VmState vmState) throws InternalException, CloudException {
+        return (vmState.equals(VmState.STOPPED) ? 0 : 100);
+    }
+
+    @Override
     public int getMaximumVirtualMachineCount() throws CloudException, InternalException {
         return -2;
     }
@@ -1676,6 +1681,29 @@ public class EC2Instance implements VirtualMachineSupport {
     
 	@Override
 	public void stop(@Nonnull String instanceId) throws InternalException, CloudException {
+        stop(instanceId, false);
+
+        long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 10L);
+
+        while( timeout > System.currentTimeMillis() ) {
+            try { Thread.sleep(15000L); }
+            catch( InterruptedException ignore ) { }
+            try {
+                VirtualMachine vm = getVirtualMachine(instanceId);
+
+                if( vm == null || VmState.TERMINATED.equals(vm.getCurrentState()) || VmState.STOPPED.equals(vm.getCurrentState()) ) {
+                    return;
+                }
+            }
+            catch( Throwable ignore ) {
+                // ignore
+            }
+        }
+        stop(instanceId, true);
+	}
+
+    @Override
+    public void stop(@Nonnull String instanceId, boolean force) throws InternalException, CloudException {
         APITrace.begin(provider, "stopVM");
         try {
             VirtualMachine vm = getVirtualMachine(instanceId);
@@ -1690,6 +1718,9 @@ public class EC2Instance implements VirtualMachineSupport {
             EC2Method method;
 
             parameters.put("InstanceId.1", instanceId);
+            if( force ) {
+                parameters.put("Force", "true");
+            }
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 method.invoke();
@@ -1702,9 +1733,9 @@ public class EC2Instance implements VirtualMachineSupport {
         finally {
             APITrace.end();
         }
-	}
+    }
 
-	@Override
+    @Override
 	public void reboot(@Nonnull String instanceId) throws CloudException, InternalException {
         APITrace.begin(provider, "rebootVM");
         try {
@@ -2160,5 +2191,10 @@ public class EC2Instance implements VirtualMachineSupport {
             throw new InternalException(e);
         }
         return prd;
+    }
+
+    @Override
+    public void updateTags(@Nonnull String vmId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.createTags(vmId, tags);
     }
 }

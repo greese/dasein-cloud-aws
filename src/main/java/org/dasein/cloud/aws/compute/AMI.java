@@ -36,6 +36,7 @@ import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.storage.S3Method;
 import org.dasein.cloud.compute.Architecture;
@@ -1781,7 +1782,12 @@ public class AMI implements MachineImageSupport {
 		}
 		return image;
 	}
-    
+
+    @Override
+    public void updateTags(@Nonnull String imageId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.createTags(imageId, tags);
+    }
+
 	private void waitForBundle(@Nonnull String bundleId, @Nonnull String manifest, @Nonnull Platform platform, @Nonnull String name, @Nonnull String description, AsynchronousTask<MachineImage> task) {
 		try {
 			long failurePoint = -1L;
