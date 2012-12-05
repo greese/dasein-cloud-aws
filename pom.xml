@@ -59,20 +59,14 @@
   </parent>
         
   <dependencies>
+      <!-- Compile -->
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-cloud-core</artifactId>
-        <version>2013.01-SNAPSHOT</version>
+        <version>2013.01</version>
         <scope>compile</scope>
         <optional>false</optional>
-    </dependency>   
-    <dependency>
-        <groupId>org.dasein</groupId>
-        <artifactId>dasein-cloud-test</artifactId>
-        <version>2013.01-SNAPSHOT</version>
-        <scope>test</scope>
-        <optional>false</optional>
-    </dependency>      
+    </dependency>
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-util</artifactId>
@@ -84,12 +78,6 @@
         <groupId>org.apache.httpcomponents</groupId>
         <artifactId>httpclient</artifactId>
         <version>4.2</version>
-    </dependency>
-    <dependency>
-        <groupId>junit</groupId>
-        <artifactId>junit</artifactId>
-        <version>4.9</version>
-        <scope>test</scope>
     </dependency>
     <dependency>
         <groupId>log4j</groupId>
@@ -110,6 +98,21 @@
         <version>20090211</version>
         <scope>compile</scope>
     </dependency>
+
+      <!-- Test -->
+      <dependency>
+          <groupId>org.dasein</groupId>
+          <artifactId>dasein-cloud-test</artifactId>
+          <version>2013.01</version>
+          <scope>test</scope>
+          <optional>false</optional>
+      </dependency>
+      <dependency>
+          <groupId>junit</groupId>
+          <artifactId>junit</artifactId>
+          <version>4.9</version>
+          <scope>test</scope>
+      </dependency>
   </dependencies>
   
   <build>

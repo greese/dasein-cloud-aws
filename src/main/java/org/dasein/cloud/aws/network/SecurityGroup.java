@@ -36,14 +36,14 @@ import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.compute.ComputeServices;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.DestinationType;
+import org.dasein.cloud.network.RuleTargetType;
 import org.dasein.cloud.network.Direction;
 import org.dasein.cloud.network.Firewall;
 import org.dasein.cloud.network.FirewallRule;
 import org.dasein.cloud.network.FirewallSupport;
 import org.dasein.cloud.network.Permission;
 import org.dasein.cloud.network.Protocol;
-import org.dasein.cloud.network.RuleDestination;
+import org.dasein.cloud.network.RuleTarget;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -89,22 +89,22 @@ public class SecurityGroup implements FirewallSupport {
 
     @Override
     public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull String cidr, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        return authorize(firewallId, direction, Permission.ALLOW, cidr, protocol, RuleDestination.getGlobal(), beginPort, endPort);
+        return authorize(firewallId, direction, Permission.ALLOW, cidr, protocol, RuleTarget.getGlobal(), beginPort, endPort);
     }
 
     @Override
     public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        return authorize(firewallId, direction, permission, cidr, protocol, RuleDestination.getGlobal(), beginPort, endPort);
+        return authorize(firewallId, direction, permission, cidr, protocol, RuleTarget.getGlobal(), beginPort, endPort);
     }
 
     @Override
-    public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, @Nonnull RuleDestination destination, int beginPort, int endPort) throws CloudException, InternalException {
+    public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, @Nonnull RuleTarget destination, int beginPort, int endPort) throws CloudException, InternalException {
         APITrace.begin(provider, "authorizeSecurityGroupRule");
         try {
             if( Permission.DENY.equals(permission) ) {
                 throw new OperationNotSupportedException("AWS does not support DENY rules");
             }
-            if( !destination.getDestinationType().equals(DestinationType.GLOBAL) ) {
+            if( !destination.getRuleTargetType().equals(RuleTargetType.GLOBAL) ) {
                 throw new OperationNotSupportedException("AWS does not support discreet routing of rules");
             }
             Firewall fw = getFirewall(firewallId);
@@ -169,7 +169,7 @@ public class SecurityGroup implements FirewallSupport {
                 String code = e.getCode();
 
                 if( code != null && code.equals("InvalidPermission.Duplicate") ) {
-                    return FirewallRule.getInstance(null, firewallId, cidr, direction, protocol, Permission.ALLOW, RuleDestination.getGlobal(), beginPort, endPort).getProviderRuleId();
+                    return FirewallRule.getInstance(null, firewallId, cidr, direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(), beginPort, endPort).getProviderRuleId();
                 }
                 logger.error(e.getSummary());
                 throw new CloudException(e);
@@ -180,7 +180,7 @@ public class SecurityGroup implements FirewallSupport {
                     throw new CloudException("Failed to authorize security group rule without explanation.");
                 }
             }
-            return FirewallRule.getInstance(null, firewallId, cidr, direction, protocol, Permission.ALLOW, RuleDestination.getGlobal(), beginPort, endPort).getProviderRuleId();
+            return FirewallRule.getInstance(null, firewallId, cidr, direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(), beginPort, endPort).getProviderRuleId();
         }
         finally {
             APITrace.end();
@@ -602,8 +602,8 @@ public class SecurityGroup implements FirewallSupport {
     }
 
     @Override
-    public @Nonnull Iterable<DestinationType> listSupportedDestinationTypes(boolean inVlan) throws InternalException, CloudException {
-        return Collections.singletonList(DestinationType.GLOBAL);
+    public @Nonnull Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan) throws InternalException, CloudException {
+        return Collections.singletonList(RuleTargetType.GLOBAL);
     }
 
     @Override
@@ -636,29 +636,29 @@ public class SecurityGroup implements FirewallSupport {
         if( rule == null ) {
             throw new CloudException("Unable to parse rule ID: " + providerFirewallRuleId);
         }
-        revoke(rule.getFirewallId(), rule.getDirection(), rule.getPermission(), rule.getSource(), rule.getProtocol(), rule.getDestination(), rule.getStartPort(), rule.getEndPort());
+        revoke(rule.getFirewallId(), rule.getDirection(), rule.getPermission(), rule.getSource(), rule.getProtocol(), rule.getTarget(), rule.getStartPort(), rule.getEndPort());
     }
 
 	@Override
 	public void revoke(@Nonnull String securityGroupId, @Nonnull String cidr, @Nonnull Protocol protocol, int startPort, int endPort) throws CloudException, InternalException {
-        revoke(securityGroupId, Direction.INGRESS, Permission.ALLOW, cidr, protocol, RuleDestination.getGlobal(), startPort, endPort);
+        revoke(securityGroupId, Direction.INGRESS, Permission.ALLOW, cidr, protocol, RuleTarget.getGlobal(), startPort, endPort);
     }
 
     @Override
     public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull String cidr, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        revoke(firewallId, direction, Permission.ALLOW, cidr, protocol, RuleDestination.getGlobal(), beginPort, endPort);
+        revoke(firewallId, direction, Permission.ALLOW, cidr, protocol, RuleTarget.getGlobal(), beginPort, endPort);
     }
 
     @Override
     public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        revoke(firewallId, direction, permission, cidr, protocol, RuleDestination.getGlobal(), beginPort, endPort);
+        revoke(firewallId, direction, permission, cidr, protocol, RuleTarget.getGlobal(), beginPort, endPort);
     }
 
     @Override
-    public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, @Nonnull RuleDestination destination, int beginPort, int endPort) throws CloudException, InternalException {
+    public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, @Nonnull RuleTarget destination, int beginPort, int endPort) throws CloudException, InternalException {
         APITrace.begin(provider, "revokeSecurityGroupRule");
         try {
-            if( Permission.DENY.equals(permission) || !destination.getDestinationType().equals(DestinationType.GLOBAL) ) {
+            if( Permission.DENY.equals(permission) || !destination.getRuleTargetType().equals(RuleTargetType.GLOBAL) ) {
                 return;
             }
             String action = (direction.equals(Direction.INGRESS) ? EC2Method.REVOKE_SECURITY_GROUP_INGRESS : EC2Method.REVOKE_SECURITY_GROUP_EGRESS);
@@ -874,7 +874,7 @@ public class SecurityGroup implements FirewallSupport {
 			}
 		}
 		for( String cidr : cidrs ) {
-		    rules.add(FirewallRule.getInstance(null, securityGroupId, cidr, direction, protocol, Permission.ALLOW, RuleDestination.getGlobal(), startPort, endPort));
+		    rules.add(FirewallRule.getInstance(null, securityGroupId, cidr, direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(), startPort, endPort));
 		}
 		return rules;		
 	}
