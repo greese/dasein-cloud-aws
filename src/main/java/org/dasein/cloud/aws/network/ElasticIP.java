@@ -333,7 +333,7 @@ public class ElasticIP implements IpAddressSupport {
         APITrace.begin(provider, "listIpPool");
         try {
             if( !version.equals(IPVersion.IPV4) ) {
-                throw new OperationNotSupportedException(version + " is not supported in " + provider.getCloudName());
+                return Collections.emptyList();
             }
             ProviderContext ctx = provider.getContext();
 
