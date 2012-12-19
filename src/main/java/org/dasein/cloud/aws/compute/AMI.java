@@ -1091,57 +1091,64 @@ public class AMI implements MachineImageSupport {
             APITrace.end();
         }
     }
-    
-    @Override
-    public void remove(@Nonnull String imageId) throws InternalException, CloudException {
-        APITrace.begin(provider, "remove");
-        try {
-            long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
 
-            while( timeout > System.currentTimeMillis() ) {
-                try {
-                    MachineImage img = getMachineImage(imageId);
+  @Override
+  public void remove( @Nonnull String providerImageId ) throws CloudException, InternalException {
+    APITrace.begin( provider, "remove" );
+    try {
+      Map<String, String> parameters = provider.getStandardParameters( provider.getContext(), EC2Method.DEREGISTER_IMAGE );
+      NodeList blocks;
+      EC2Method method;
+      Document doc;
 
-                    if( img == null || MachineImageState.DELETED.equals(img.getCurrentState()) ) {
-                        return;
-                    }
-                    if( MachineImageState.ACTIVE.equals(img.getCurrentState()) ) {
-                        break;
-                    }
-                }
-                catch( Throwable ignore ) {
-                    // ignore
-                }
-                try { Thread.sleep(15000L); }
-                catch( InterruptedException ignore ) { }
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DEREGISTER_IMAGE);
-            NodeList blocks;
-            EC2Method method;
-            Document doc;
+      parameters.put( "ImageId", providerImageId );
+      method = new EC2Method( provider, provider.getEc2Url(), parameters );
+      try {
+        doc = method.invoke();
+      } catch ( EC2Exception e ) {
+        logger.error( e.getSummary() );
+        throw new CloudException( e );
+      }
+      blocks = doc.getElementsByTagName( "return" );
+      if ( blocks.getLength() > 0 ) {
+        Node imageIdNode = blocks.item( 0 );
 
-            parameters.put("ImageId", imageId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("return");
-            if( blocks.getLength() > 0 ) {
-                Node imageIdNode = blocks.item(0);
-
-                if( !imageIdNode.getFirstChild().getNodeValue().trim().equals("true") ) {
-                    throw new CloudException("Failed to de-register image " + imageId);
-                }
-            }
+        if ( !imageIdNode.getFirstChild().getNodeValue().trim().equals( "true" ) ) {
+          throw new CloudException( "Failed to de-register image " + providerImageId );
         }
-        finally {
-            APITrace.end();
-        }
+      }
+    } finally {
+      APITrace.end();
     }
+  }
+
+  @Override
+  public void remove( @Nonnull String providerImageId, boolean checkState ) throws CloudException, InternalException {
+    if ( checkState ) {
+      long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
+
+      while ( timeout > System.currentTimeMillis() ) {
+        try {
+          MachineImage img = getMachineImage( providerImageId );
+
+          if ( img == null || MachineImageState.DELETED.equals( img.getCurrentState() ) ) {
+            return;
+          }
+          if ( MachineImageState.ACTIVE.equals( img.getCurrentState() ) ) {
+            break;
+          }
+        } catch ( Throwable ignore ) {
+          // ignore
+        }
+        try {
+          Thread.sleep( 15000L );
+        } catch ( InterruptedException ignore ) {
+        }
+      }
+    }
+
+    remove( providerImageId );
+  }
 
     @Override
     public void removeAllImageShares(@Nonnull String providerImageId) throws CloudException, InternalException {
