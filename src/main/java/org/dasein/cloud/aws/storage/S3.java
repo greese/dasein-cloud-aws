@@ -637,7 +637,7 @@ public class S3 extends AbstractBlobStoreSupport {
 					name = attr.getFirstChild().getNodeValue().trim();
 				}
 				else if( attr.getNodeName().equals("CreationDate") ) {
-                    provider.parseTime(attr.getFirstChild().getNodeValue().trim());
+                    ts = provider.parseTime(attr.getFirstChild().getNodeValue().trim());
 				}
 			}
 			if( name == null ) {
