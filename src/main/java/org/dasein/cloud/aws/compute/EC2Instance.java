@@ -2080,8 +2080,43 @@ public class EC2Instance implements VirtualMachineSupport {
 					}
 				}
 			}
-		}
-		if( server.getPlatform() == null ) {
+      else if (name.equals( "keyName") ) {
+        String value = attr.getFirstChild().getNodeValue().trim();
+        server.setProviderKeypairId(value);
+      }
+      else if ( name.equals( "groupSet" ) ) {
+        ArrayList<String> firewalls = new ArrayList<String>();
+        if ( attr.hasChildNodes() ) {
+          NodeList tags = attr.getChildNodes();
+
+          for ( int j = 0; j < tags.getLength(); j++ ) {
+            Node tag = tags.item( j );
+
+            if ( tag.getNodeName().equals( "item" ) && tag.hasChildNodes() ) {
+              NodeList parts = tag.getChildNodes();
+              String groupId = null;
+
+              for ( int k = 0; k < parts.getLength(); k++ ) {
+                Node part = parts.item( k );
+
+                if ( part.getNodeName().equalsIgnoreCase( "groupId" ) ) {
+                  if ( part.hasChildNodes() ) {
+                    groupId = part.getFirstChild().getNodeValue().trim();
+                  }
+                }
+              }
+              if ( groupId != null ) {
+                firewalls.add( groupId );
+              }
+            }
+          }
+        }
+        if ( firewalls.size() > 0 ) {
+          server.setProviderFirewallIds( firewalls.toArray( new String[]{} ) );
+        }
+      }
+    }
+      if( server.getPlatform() == null ) {
 		    server.setPlatform(Platform.UNKNOWN);
 		}
         server.setProviderRegionId(ctx.getRegionId());
