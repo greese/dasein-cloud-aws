@@ -103,7 +103,7 @@
       <dependency>
           <groupId>org.dasein</groupId>
           <artifactId>dasein-cloud-test</artifactId>
-          <version>2013.01</version>
+          <version>2013.01.2</version>
           <scope>test</scope>
           <optional>false</optional>
       </dependency>
@@ -256,7 +256,7 @@
                 </property>
             </systemProperties>
           <includes>
-            <include>**/AWSTestSuite.java</include>
+            <!-- <include>**/AWSTestSuite.java</include> -->
           </includes>
         </configuration>
       </plugin>     
