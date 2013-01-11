@@ -63,6 +63,9 @@ import org.w3c.dom.NodeList;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+/**
+ * @version 2013.01.1 Fixed a data consistency issue with AWS (issue #21)
+ */
 public class AMI implements MachineImageSupport {
 	static private final Logger logger = Logger.getLogger(AMI.class);
 	
@@ -183,7 +186,17 @@ public class AMI implements MachineImageSupport {
                         MachineImage img = getImage(id);
 
                         if( img == null ) {
-                            throw new CloudException("No image exists for " + id + " as created during the capture process");
+                            for( int i=0; i<5; i++ ) {
+                                try { Thread.sleep(5000L * i); }
+                                catch( InterruptedException ignore ) { }
+                                img = getImage(id);
+                                if( img != null ) {
+                                    break;
+                                }
+                            }
+                            if( img == null ) {
+                                throw new CloudException("No image exists for " + id + " as created during the capture process");
+                            }
                         }
                         if( MachineImageState.DELETED.equals(img.getCurrentState()) ) {
                             String errorMessage = (String)img.getTag("stateReason");
