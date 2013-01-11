@@ -183,7 +183,17 @@ public class AMI implements MachineImageSupport {
                         MachineImage img = getImage(id);
 
                         if( img == null ) {
-                            throw new CloudException("No image exists for " + id + " as created during the capture process");
+                            for( int i=0; i<5; i++ ) {
+                                try { Thread.sleep(5000L * i); }
+                                catch( InterruptedException ignore ) { }
+                                img = getImage(id);
+                                if( img != null ) {
+                                    break;
+                                }
+                            }
+                            if( img == null ) {
+                                throw new CloudException("No image exists for " + id + " as created during the capture process");
+                            }
                         }
                         if( MachineImageState.DELETED.equals(img.getCurrentState()) ) {
                             String errorMessage = (String)img.getTag("stateReason");
