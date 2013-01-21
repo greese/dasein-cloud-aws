@@ -38,14 +38,7 @@ import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.IPVersion;
-import org.dasein.cloud.network.LbAlgorithm;
-import org.dasein.cloud.network.LbListener;
-import org.dasein.cloud.network.LbProtocol;
-import org.dasein.cloud.network.LoadBalancer;
-import org.dasein.cloud.network.LoadBalancerAddressType;
-import org.dasein.cloud.network.LoadBalancerState;
-import org.dasein.cloud.network.LoadBalancerSupport;
+import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -501,6 +494,68 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
     }
 
     @Override
+    public Iterable<LoadBalancerServer> getLoadBalancerServerHealth(String loadBalancerId) throws CloudException, InternalException {
+        return getLoadBalancerServerHealth(loadBalancerId, null);
+    }
+
+    @Override
+    public Iterable<LoadBalancerServer> getLoadBalancerServerHealth( String loadBalancerId, String... serverIdsToCheck ) throws CloudException, InternalException {
+        APITrace.begin(provider, "getLoadBalancerServerHealth");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No valid context is established for this request");
+            }
+
+            ArrayList<LoadBalancerServer> list = new ArrayList<LoadBalancerServer>();
+            Map<String,String> parameters = getELBParameters(provider.getContext(), ELBMethod.DESCRIBE_INSTANCE_HEALTH);
+            ELBMethod method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put( "LoadBalancerName", loadBalancerId );
+            if ( serverIdsToCheck != null && serverIdsToCheck.length > 0 ) {
+                for ( int i = 0; i < serverIdsToCheck.length; i++ ) {
+                    parameters.put( "Instances.member." + (i + 1) + ".InstanceId", serverIdsToCheck[i] );
+                }
+            }
+            method = new ELBMethod( provider, ctx, parameters );
+            try {
+                doc = method.invoke();
+            }
+            catch ( EC2Exception e ) {
+                String code = e.getCode();
+
+                if ( code != null && code.equals( "LoadBalancerNotFound" ) ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("InstanceStates");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("member") ) {
+                        LoadBalancerServer loadBalancerServer = toLoadBalancerServer( ctx, loadBalancerId, item );
+                        if( loadBalancerServer != null ) {
+                            list.add(loadBalancerServer);
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
     public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
         if( action.equals(LoadBalancerSupport.ANY) ) {
              return new String[] { ELBMethod.ELB_PREFIX + "*" };
@@ -510,13 +565,15 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
         }
         else if( action.equals(LoadBalancerSupport.ADD_VMS) ) {
             return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.REGISTER_INSTANCES };
-            
         }
         else if( action.equals(LoadBalancerSupport.CREATE_LOAD_BALANCER) ) {
             return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.CREATE_LOAD_BALANCER };
         }
         else if( action.equals(LoadBalancerSupport.GET_LOAD_BALANCER) || action.equals(LoadBalancerSupport.LIST_LOAD_BALANCER) ) {
             return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.DESCRIBE_LOAD_BALANCERS };
+        }
+        else if( action.equals(LoadBalancerSupport.GET_LOAD_BALANCER_SERVER_HEALTH) ) {
+            return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.DESCRIBE_INSTANCE_HEALTH };
         }
         else if( action.equals(LoadBalancerSupport.REMOVE_DATA_CENTERS) ) {
             return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.DISABLE_AVAILABILITY_ZONES };
@@ -786,6 +843,54 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
         }
         else {
             return LbProtocol.RAW_TCP;
+        }
+    }
+
+    private @Nullable LoadBalancerServer toLoadBalancerServer( @Nonnull ProviderContext ctx, @Nullable String loadBalancerId, @Nullable Node node ) {
+        if ( node == null ) {
+            return null;
+        }
+        LoadBalancerServer loadBalancerServer = new LoadBalancerServer();
+        NodeList attrs = node.getChildNodes();
+
+        loadBalancerServer.setProviderOwnerId( ctx.getAccountNumber() );
+        loadBalancerServer.setProviderRegionId( ctx.getRegionId() );
+        loadBalancerServer.setProviderLoadBalancerId( loadBalancerId );
+
+        for ( int i = 0; i < attrs.getLength(); i++ ) {
+            Node attr = attrs.item( i );
+            String name;
+
+            name = attr.getNodeName().toLowerCase();
+            if ( name.equals( "instanceid" ) ) {
+                loadBalancerServer.setProviderServerId( attr.getFirstChild().getNodeValue() );
+            }
+            else if ( name.equals( "state" ) ) {
+                loadBalancerServer.setCurrentState( toServerState( attr.getFirstChild().getNodeValue() ) );
+            }
+            else if ( name.equals( "description" ) ) {
+                String value = attr.getFirstChild().getNodeValue();
+                if ( !"N/A".equals( value ) ) {
+                    loadBalancerServer.setCurrentStateDescription( value );
+                }
+            }
+            else if ( name.equals( "reasoncode" ) ) {
+                String value = attr.getFirstChild().getNodeValue();
+                if ( !"N/A".equals( value ) ) {
+                    loadBalancerServer.setCurrentStateReason( attr.getFirstChild().getNodeValue() );
+                }
+            }
+        }
+
+        return loadBalancerServer;
+    }
+
+    private LoadBalancerServerState toServerState( String txt ) {
+        if ( txt.equals( "InService" ) ) {
+            return LoadBalancerServerState.ACTIVE;
+        }
+        else {
+            return LoadBalancerServerState.INACTIVE;
         }
     }
 
