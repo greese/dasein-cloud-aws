@@ -294,6 +294,11 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     @Override
+    public boolean isAssignablePostLaunch(@Nonnull IPVersion version) throws CloudException, InternalException {
+        return version.equals(IPVersion.IPV4);
+    }
+
+    @Override
 	public boolean isForwarding() {
 		return false;
 	}

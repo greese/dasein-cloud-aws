@@ -29,6 +29,7 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
@@ -49,6 +50,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -84,29 +86,49 @@ public class SecurityGroup implements FirewallSupport {
 	
 	@Override
 	public @Nonnull String authorize(@Nonnull String securityGroupId, @Nonnull String cidr, @Nonnull Protocol protocol, int startPort, int endPort) throws CloudException, InternalException {
-        return authorize(securityGroupId, Direction.INGRESS, cidr, protocol, startPort, endPort);
+        return authorize(securityGroupId, Direction.INGRESS, Permission.ALLOW, RuleTarget.getCIDR(cidr), protocol, RuleTarget.getGlobal(securityGroupId), startPort, endPort, 0);
     }
 
     @Override
     public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull String cidr, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        return authorize(firewallId, direction, Permission.ALLOW, cidr, protocol, RuleTarget.getGlobal(), beginPort, endPort);
+        if( direction.equals(Direction.INGRESS) ) {
+            return authorize(firewallId, direction, Permission.ALLOW, RuleTarget.getCIDR(cidr), protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
+        }
+        else {
+            return authorize(firewallId, direction, Permission.ALLOW, RuleTarget.getGlobal(firewallId), protocol, RuleTarget.getCIDR(cidr), beginPort, endPort, 0);
+        }
     }
 
     @Override
     public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        return authorize(firewallId, direction, permission, cidr, protocol, RuleTarget.getGlobal(), beginPort, endPort);
+        if( direction.equals(Direction.INGRESS) ) {
+            return authorize(firewallId, direction, permission, RuleTarget.getCIDR(cidr), protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
+        }
+        else {
+            return authorize(firewallId, direction, permission, RuleTarget.getGlobal(firewallId), protocol, RuleTarget.getCIDR(cidr), beginPort, endPort, 0);
+        }
     }
 
     @Override
     public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, @Nonnull RuleTarget destination, int beginPort, int endPort) throws CloudException, InternalException {
+        if( direction.equals(Direction.INGRESS) ) {
+            return authorize(firewallId, direction, permission, RuleTarget.getCIDR(cidr), protocol, destination, beginPort, endPort, 0);
+        }
+        else {
+            return authorize(firewallId, direction, permission, destination, protocol, RuleTarget.getCIDR(cidr), beginPort, endPort, 0);
+        }
+    }
+
+    @Override
+    public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull RuleTarget sourceEndpoint, @Nonnull Protocol protocol, @Nonnull RuleTarget destinationEndpoint, int beginPort, int endPort, @Nonnegative int precedence) throws CloudException, InternalException {
         APITrace.begin(provider, "authorizeSecurityGroupRule");
         try {
             if( Permission.DENY.equals(permission) ) {
                 throw new OperationNotSupportedException("AWS does not support DENY rules");
             }
-            if( !destination.getRuleTargetType().equals(RuleTargetType.GLOBAL) ) {
-                throw new OperationNotSupportedException("AWS does not support discreet routing of rules");
-            }
+            //if( !destinationEndpoint.getRuleTargetType().equals(RuleTargetType.GLOBAL) ) {
+            //    throw new OperationNotSupportedException("AWS does not support discreet routing of rules");
+            //}
             Firewall fw = getFirewall(firewallId);
 
             if( fw == null ) {
@@ -117,32 +139,22 @@ public class SecurityGroup implements FirewallSupport {
             }
             String action = (direction.equals(Direction.INGRESS) ? EC2Method.AUTHORIZE_SECURITY_GROUP_INGRESS : EC2Method.AUTHORIZE_SECURITY_GROUP_EGRESS);
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), action);
-            boolean group = false;
+            boolean group = sourceEndpoint.getRuleTargetType().equals(RuleTargetType.GLOBAL);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            if( cidr.indexOf('/') == -1 ) {
-                // might be a security group
-                if( isIP(cidr) ) {
-                    cidr = cidr + "/32";
-                }
-                else {
-                    group = true;
-                }
-            }
             if( provider.getEC2Provider().isEucalyptus() ) {
                 parameters.put("GroupName", firewallId);
                 parameters.put("IpProtocol", protocol.name().toLowerCase());
                 parameters.put("FromPort", String.valueOf(beginPort));
                 parameters.put("ToPort", endPort == -1 ? String.valueOf(beginPort) : String.valueOf(endPort));
                 if( group ) {
-                    parameters.put("GroupName", cidr);
+                    parameters.put("GroupName", sourceEndpoint.getProviderFirewallId());
                 }
                 else {
-                    parameters.put("CidrIp", cidr);
+                    parameters.put("CidrIp", sourceEndpoint.getCidr());
                 }
-
             }
             else {
                 parameters.put("GroupId", firewallId);
@@ -150,15 +162,17 @@ public class SecurityGroup implements FirewallSupport {
                 parameters.put("IpPermissions.1.FromPort", String.valueOf(beginPort));
                 parameters.put("IpPermissions.1.ToPort", endPort == -1 ? String.valueOf(beginPort) : String.valueOf(endPort));
                 if( group ) {
-                    if( cidr.startsWith("sg-") ) {
-                        parameters.put("IpPermissions.1.Groups.1.GroupId", cidr);
+                    String gid = sourceEndpoint.getProviderFirewallId();
+
+                    if( gid.startsWith("sg-") ) {
+                        parameters.put("IpPermissions.1.Groups.1.GroupId", gid);
                     }
                     else {
-                        parameters.put("IpPermissions.1.Groups.1.GroupName", cidr);
+                        parameters.put("IpPermissions.1.Groups.1.GroupName", gid);
                     }
                 }
                 else {
-                    parameters.put("IpPermissions.1.IpRanges.1.CidrIp", cidr);
+                    parameters.put("IpPermissions.1.IpRanges.1.CidrIp", sourceEndpoint.getCidr());
                 }
             }
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
@@ -169,7 +183,13 @@ public class SecurityGroup implements FirewallSupport {
                 String code = e.getCode();
 
                 if( code != null && code.equals("InvalidPermission.Duplicate") ) {
-                    return FirewallRule.getInstance(null, firewallId, cidr, direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(), beginPort, endPort).getProviderRuleId();
+                    if( direction.equals(Direction.INGRESS) ) {
+                        //return FirewallRule.getInstance(null, firewallId, source, direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(firewallId), beginPort, endPort).getProviderRuleId();
+                    }
+                    else {
+
+                    }
+                    // TODO: fix me
                 }
                 logger.error(e.getSummary());
                 throw new CloudException(e);
@@ -180,7 +200,7 @@ public class SecurityGroup implements FirewallSupport {
                     throw new CloudException("Failed to authorize security group rule without explanation.");
                 }
             }
-            return FirewallRule.getInstance(null, firewallId, cidr, direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(), beginPort, endPort).getProviderRuleId();
+            return FirewallRule.getInstance(null, firewallId, sourceEndpoint, direction, protocol, permission, destinationEndpoint, beginPort, endPort).getProviderRuleId();
         }
         finally {
             APITrace.end();
@@ -426,7 +446,12 @@ public class SecurityGroup implements FirewallSupport {
         }
 	}
 
-	private @Nonnull String getUniqueName(@Nonnull String name) throws InternalException, CloudException {
+    @Override
+    public @Nonnull Requirement identifyPrecedenceRequirement(boolean inVlan) throws InternalException, CloudException {
+        return Requirement.NONE;
+    }
+
+    private @Nonnull String getUniqueName(@Nonnull String name) throws InternalException, CloudException {
         StringBuilder str = new StringBuilder();
         
         for( int i=0; i<name.length(); i++ ) {
@@ -509,7 +534,12 @@ public class SecurityGroup implements FirewallSupport {
         }
     }
 
-	@Override
+    @Override
+    public boolean isZeroPrecedenceHighest() throws InternalException, CloudException {
+        return true; // nonsense
+    }
+
+    @Override
 	public @Nonnull Collection<Firewall> list() throws InternalException, CloudException {
         APITrace.begin(provider, "listSecurityGroups");
         try {
@@ -607,6 +637,34 @@ public class SecurityGroup implements FirewallSupport {
     }
 
     @Override
+    public @Nonnull Iterable<Direction> listSupportedDirections(boolean inVlan) throws InternalException, CloudException {
+        if( inVlan ) {
+            ArrayList<Direction>  list = new ArrayList<Direction>();
+
+            list.add(Direction.EGRESS);
+            list.add(Direction.INGRESS);
+            return list;
+        }
+        else {
+            return Collections.singletonList(Direction.INGRESS);
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<Permission> listSupportedPermissions(boolean inVlan) throws InternalException, CloudException {
+        return Collections.singletonList(Permission.ALLOW);
+    }
+
+    @Override
+    public @Nonnull Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan) throws InternalException, CloudException {
+        ArrayList<RuleTargetType>  types = new ArrayList<RuleTargetType>();
+
+        types.add(RuleTargetType.CIDR);
+        types.add(RuleTargetType.GLOBAL);
+        return types;
+    }
+
+    @Override
     public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
         if( action.equals(FirewallSupport.ANY) ) {
             return new String[] { EC2Method.EC2_PREFIX + "*" };
@@ -636,22 +694,23 @@ public class SecurityGroup implements FirewallSupport {
         if( rule == null ) {
             throw new CloudException("Unable to parse rule ID: " + providerFirewallRuleId);
         }
+        //noinspection deprecation
         revoke(rule.getFirewallId(), rule.getDirection(), rule.getPermission(), rule.getSource(), rule.getProtocol(), rule.getTarget(), rule.getStartPort(), rule.getEndPort());
     }
 
 	@Override
 	public void revoke(@Nonnull String securityGroupId, @Nonnull String cidr, @Nonnull Protocol protocol, int startPort, int endPort) throws CloudException, InternalException {
-        revoke(securityGroupId, Direction.INGRESS, Permission.ALLOW, cidr, protocol, RuleTarget.getGlobal(), startPort, endPort);
+        revoke(securityGroupId, Direction.INGRESS, Permission.ALLOW, cidr, protocol, RuleTarget.getGlobal(securityGroupId), startPort, endPort);
     }
 
     @Override
     public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull String cidr, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        revoke(firewallId, direction, Permission.ALLOW, cidr, protocol, RuleTarget.getGlobal(), beginPort, endPort);
+        revoke(firewallId, direction, Permission.ALLOW, cidr, protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort);
     }
 
     @Override
     public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        revoke(firewallId, direction, permission, cidr, protocol, RuleTarget.getGlobal(), beginPort, endPort);
+        revoke(firewallId, direction, permission, cidr, protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort);
     }
 
     @Override
@@ -792,8 +851,9 @@ public class SecurityGroup implements FirewallSupport {
         if( node == null ) {
             return rules;
         }
-	    ArrayList<String> cidrs = new ArrayList<String>();
-		NodeList attrs = node.getChildNodes();
+        ArrayList<String> cidrs = new ArrayList<String>();
+        ArrayList<String> groups = new ArrayList<String>();
+        NodeList attrs = node.getChildNodes();
         int startPort = -2, endPort = -2;
 		Protocol protocol = Protocol.TCP;
 		
@@ -840,10 +900,10 @@ public class SecurityGroup implements FirewallSupport {
                                 }
                             }
                             if( groupId != null ) {
-                                cidrs.add(groupId);
+                                groups.add(groupId);
                             }
                             else if( groupName != null ) {
-                                cidrs.add(groupName);
+                                groups.add(groupName);
                             }
                         }
                     }
@@ -873,9 +933,12 @@ public class SecurityGroup implements FirewallSupport {
 				}
 			}
 		}
+        for( String gid : groups ) {
+            rules.add(FirewallRule.getInstance(null, securityGroupId, RuleTarget.getGlobal(gid), direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), startPort, endPort));
+        }
 		for( String cidr : cidrs ) {
-		    rules.add(FirewallRule.getInstance(null, securityGroupId, cidr, direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(), startPort, endPort));
-		}
+            rules.add(FirewallRule.getInstance(null, securityGroupId, RuleTarget.getCIDR(cidr), direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), startPort, endPort));
+        }
 		return rules;		
 	}
 
