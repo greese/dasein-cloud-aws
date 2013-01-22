@@ -41,11 +41,20 @@ import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
+import org.dasein.cloud.compute.ComputeServices;
+import org.dasein.cloud.compute.VirtualMachine;
+import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.network.Firewall;
+import org.dasein.cloud.network.FirewallSupport;
 import org.dasein.cloud.network.IPVersion;
+import org.dasein.cloud.network.IpAddress;
+import org.dasein.cloud.network.IpAddressSupport;
 import org.dasein.cloud.network.NICCreateOptions;
 import org.dasein.cloud.network.NICState;
 import org.dasein.cloud.network.NetworkInterface;
+import org.dasein.cloud.network.NetworkServices;
+import org.dasein.cloud.network.Networkable;
 import org.dasein.cloud.network.Route;
 import org.dasein.cloud.network.RoutingTable;
 import org.dasein.cloud.network.Subnet;
@@ -1497,6 +1506,59 @@ public class VPC implements VLANSupport {
         finally {
             APITrace.end();
         }
+    }
+
+    @Override
+    public @Nonnull Iterable<Networkable> listResources(@Nonnull String inVlanId) throws CloudException, InternalException {
+        ArrayList<Networkable> resources = new ArrayList<Networkable>();
+        NetworkServices network = provider.getNetworkServices();
+
+        if( network != null ) {
+            FirewallSupport fwSupport = network.getFirewallSupport();
+
+            if( fwSupport != null ) {
+                for( Firewall fw : fwSupport.list() ) {
+                    if( inVlanId.equals(fw.getProviderVlanId()) ) {
+                        resources.add(fw);
+                    }
+                }
+            }
+
+            IpAddressSupport ipSupport = network.getIpAddressSupport();
+
+            if( ipSupport != null ) {
+                for( IPVersion version : ipSupport.listSupportedIPVersions() ) {
+                    for( IpAddress addr : ipSupport.listIpPool(version, false) ) {
+                        if( inVlanId.equals(addr.getProviderVlanId()) ) {
+                            resources.add(addr);
+                        }
+                    }
+
+                }
+            }
+            for( RoutingTable table : listRoutingTables(inVlanId) ) {
+                resources.add(table);
+            }
+            ComputeServices compute = provider.getComputeServices();
+            VirtualMachineSupport vmSupport = compute == null ? null : compute.getVirtualMachineSupport();
+            Iterable<VirtualMachine> vms;
+
+            if( vmSupport == null ) {
+                vms = Collections.emptyList();
+            }
+            else {
+                vms = vmSupport.listVirtualMachines();
+            }
+            for( Subnet subnet : listSubnets(inVlanId) ) {
+                resources.add(subnet);
+                for( VirtualMachine vm : vms ) {
+                    if( subnet.getProviderSubnetId().equals(vm.getProviderVlanId()) ) {
+                        resources.add(vm);
+                    }
+                }
+            }
+        }
+        return resources;
     }
 
     @Override

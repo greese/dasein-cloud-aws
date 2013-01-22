@@ -595,6 +595,11 @@ public class AMI implements MachineImageSupport {
     }
 
     @Override
+    public @Nonnull String getProviderTermForCustomImage(@Nonnull Locale locale, @Nonnull ImageClass cls) {
+        return getProviderTermForImage(locale, cls);
+    }
+
+    @Override
     public boolean hasPublicLibrary() {
         return true;
     }
