@@ -525,11 +525,6 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
                 doc = method.invoke();
             }
             catch ( EC2Exception e ) {
-                String code = e.getCode();
-
-                if ( code != null && code.equals( "LoadBalancerNotFound" ) ) {
-                    return null;
-                }
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
