@@ -201,9 +201,11 @@ public class AWSCloud extends AbstractCloud {
             for( int i=0; i<keyValuePairs.length; i++ ) {
                 String key = keyValuePairs[i].getKey();
                 String value = keyValuePairs[i].getValue();
-                
-                parameters.put("Tag." + i + ".Key", key);
-                parameters.put("Tag." + i + ".Value", value);
+
+                if ( value != null ) {
+                    parameters.put("Tag." + i + ".Key", key);
+                    parameters.put("Tag." + i + ".Value", value);
+                }
             }
             method = new EC2Method(this, getEc2Url(), parameters);
             try {
@@ -239,6 +241,7 @@ public class AWSCloud extends AbstractCloud {
             return true;
         }
         catch( Throwable ignore ) {
+            logger.error("Error while creating tags for " + resourceId + ".", ignore);
             return false;
         }
     }
