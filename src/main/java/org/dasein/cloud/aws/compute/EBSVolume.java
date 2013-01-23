@@ -21,6 +21,7 @@ package org.dasein.cloud.aws.compute;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 
@@ -29,10 +30,12 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
+import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.Volume;
 import org.dasein.cloud.compute.VolumeCreateOptions;
+import org.dasein.cloud.compute.VolumeFormat;
 import org.dasein.cloud.compute.VolumeProduct;
 import org.dasein.cloud.compute.VolumeState;
 import org.dasein.cloud.compute.VolumeSupport;
@@ -152,27 +155,35 @@ public class EBSVolume implements VolumeSupport {
 
 	@Override
 	public void detach(@Nonnull String volumeId) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DETACH_VOLUME);
-		EC2Method method;
-		NodeList blocks;
-		Document doc;
-		
-		parameters.put("VolumeId", volumeId);
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        detach(volumeId, false);
+	}
+
+    @Override
+    public void detach(@Nonnull String volumeId, boolean force) throws InternalException, CloudException {
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DETACH_VOLUME);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("VolumeId", volumeId);
+        if( force ) {
+            parameters.put("Force", "true");
+        }
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
-        	doc = method.invoke();
+            doc = method.invoke();
         }
         catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         blocks = doc.getElementsByTagName("return");
         if( blocks.getLength() > 0 ) {
-        	if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
-        		throw new CloudException("Detach of volume denied.");
-        	}
+            if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                throw new CloudException("Detach of volume denied.");
+            }
         }
-	}
+    }
 
     @Override
     public int getMaximumVolumeCount() throws InternalException, CloudException {
@@ -218,6 +229,11 @@ public class EBSVolume implements VolumeSupport {
             list.add("/dev/sdj");
         }
         return list;
+    }
+
+    @Override
+    public @Nonnull Iterable<VolumeFormat> listSupportedFormats() throws InternalException, CloudException {
+        return Collections.singletonList(VolumeFormat.BLOCK);
     }
 
     @Override
@@ -300,6 +316,46 @@ public class EBSVolume implements VolumeSupport {
     @Override
     public boolean isVolumeSizeDeterminedByProduct() throws InternalException, CloudException {
         return false;
+    }
+
+    @Override
+    public @Nonnull Iterable<ResourceStatus> listVolumeStatus() throws InternalException, CloudException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context exists for this request.");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_VOLUMES);
+        ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("volumeSet");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            NodeList items = blocks.item(i).getChildNodes();
+
+            for( int j=0; j<items.getLength(); j++ ) {
+                Node item = items.item(j);
+
+                if( item.getNodeName().equals("item") ) {
+                    ResourceStatus status = toStatus(item);
+
+                    if( status != null ) {
+                        list.add(status);
+                    }
+                }
+            }
+        }
+        return list;
     }
 
     @Override
@@ -388,7 +444,43 @@ public class EBSVolume implements VolumeSupport {
             }
         }
     }
-    
+
+    private @Nullable ResourceStatus toStatus(@Nullable Node node) throws CloudException {
+        if( node == null ) {
+            return null;
+        }
+        NodeList attrs = node.getChildNodes();
+        VolumeState state = VolumeState.PENDING;
+        String volumeId = null;
+
+        for( int i=0; i<attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String name;
+
+            name = attr.getNodeName();
+            if( name.equals("volumeId") ) {
+                volumeId = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if( name.equals("status") ) {
+                String s = attr.getFirstChild().getNodeValue().trim();
+
+                if( s.equals("creating") || s.equals("attaching") || s.equals("attached") || s.equals("detaching") || s.equals("detached") ) {
+                    state = VolumeState.PENDING;
+                }
+                else if( s.equals("available") || s.equals("in-use") ) {
+                    state = VolumeState.AVAILABLE;
+                }
+                else {
+                    state = VolumeState.DELETED;
+                }
+            }
+        }
+        if( volumeId == null ) {
+            return null;
+        }
+        return new ResourceStatus(volumeId, state);
+    }
+
 	private @Nullable Volume toVolume(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException {
         if( node == null ) {
             return null;
@@ -398,6 +490,7 @@ public class EBSVolume implements VolumeSupport {
 
         volume.setProviderProductId("standard");
         volume.setType(VolumeType.HDD);
+        volume.setFormat(VolumeFormat.BLOCK);
 		for( int i=0; i<attrs.getLength(); i++ ) {
 			Node attr = attrs.item(i);
 			String name;

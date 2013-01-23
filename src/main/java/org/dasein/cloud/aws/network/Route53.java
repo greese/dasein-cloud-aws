@@ -31,6 +31,7 @@ import javax.servlet.http.HttpServletResponse;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.identity.ServiceAction;
@@ -38,6 +39,7 @@ import org.dasein.cloud.network.DNSRecord;
 import org.dasein.cloud.network.DNSRecordType;
 import org.dasein.cloud.network.DNSSupport;
 import org.dasein.cloud.network.DNSZone;
+import org.dasein.cloud.util.APITrace;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
 import org.dasein.util.PopulatorThread;
@@ -57,161 +59,47 @@ public class Route53 implements DNSSupport {
 
     @Override
     public @Nonnull DNSRecord addDnsRecord(@Nonnull String providerDnsZoneId, @Nonnull DNSRecordType recordType, @Nonnull String name, @Nonnegative int ttl, @Nonnull String... values) throws CloudException, InternalException {
-        Route53Method method;
-
-        for( DNSRecord record : listDnsRecords(providerDnsZoneId, recordType, name) ) {
-            if( record != null ) {
-                deleteDnsRecords(record);
-            }
-        }
-        method = new Route53Method(Route53Method.CHANGE_RESOURCE_RECORD_SETS, provider, getResourceUrl(providerDnsZoneId));
-        StringBuilder xml = new StringBuilder();
-        
-        xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
-        xml.append("<ChangeResourceRecordSetsRequest xmlns=\"https://route53.amazonaws.com/doc/2010-10-01/\">");
-        xml.append("<ChangeBatch>");
-        xml.append("<Changes>");
-        xml.append("<Change>");
-        xml.append("<Action>CREATE</Action>");
-        xml.append("<ResourceRecordSet>");
-        xml.append("<Name>");
-        xml.append(name);
-        xml.append("</Name>");
-        xml.append("<Type>");
-        xml.append(recordType.toString());
-        xml.append("</Type>");
-        xml.append("<TTL>");
-        xml.append(String.valueOf(ttl));
-        xml.append("</TTL>");
-        xml.append("<ResourceRecords>");
-        if( values.length > 0 ) {
-            for( String value : values ) {
-                xml.append("<ResourceRecord>");
-                xml.append("<Value>");
-                xml.append(AWSCloud.escapeXml(value));
-                xml.append("</Value>");
-                xml.append("</ResourceRecord>");
-            }
-        }
-        xml.append("</ResourceRecords>");
-        xml.append("</ResourceRecordSet>");
-        xml.append("</Change>");
-        xml.append("</Changes>");
-        xml.append("</ChangeBatch>");
-        xml.append("</ChangeResourceRecordSetsRequest>");
+        APITrace.begin(provider, "addDnsRecord");
         try {
-            method.invoke(xml.toString(), false);
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        }
-        for( DNSRecord record : listDnsRecords(providerDnsZoneId, recordType, name) ) {
-            if( record != null ) { return record; }
-        }
-        throw new CloudException("Unable to identified newly added record");
-    }
-    
-    @Override
-    public @Nonnull String createDnsZone(@Nonnull String domainName, @Nonnull String name, @Nonnull String description) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
+            Route53Method method;
 
-        if( ctx == null ) {
-            throw new CloudException("No context was configured for this request");
-        }
-        Route53Method method;
-        NodeList blocks;
-        Document doc;
-
-        method = new Route53Method(Route53Method.CREATE_HOSTED_ZONE, provider, getHostedZoneUrl(null));
-        StringBuilder xml = new StringBuilder();
-        
-        xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
-        xml.append("<CreateHostedZoneRequest xmlns=\"https://route53.amazonaws.com/doc/2010-10-01/\">");
-        xml.append("<Name>");
-        xml.append(domainName);
-        xml.append("</Name>");
-        xml.append("<CallerReference>");
-        xml.append(generateCallerReference());
-        xml.append("</CallerReference>");
-        xml.append("<HostedZoneConfig><Comment>");
-        xml.append(AWSCloud.escapeXml(description));
-        xml.append("</Comment></HostedZoneConfig>");
-        xml.append("</CreateHostedZoneRequest>");
-        try {
-            doc = method.invoke(xml.toString(), false);
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        }
-        ArrayList<String> ns = new ArrayList<String>();
-        blocks = doc.getElementsByTagName("NameServer");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            Node item = blocks.item(i);
-            
-            ns.add(item.getFirstChild().getNodeValue().trim());
-        }
-        String[] nameservers = new String[ns.size()];
-        
-        ns.toArray(nameservers);
-        blocks = doc.getElementsByTagName("HostedZone");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            Node item = blocks.item(i);
-            DNSZone zone = toDnsZone(ctx, item, nameservers);
-            
-            if( zone != null ) {
-                return zone.getProviderDnsZoneId();
+            for( DNSRecord record : listDnsRecords(providerDnsZoneId, recordType, name) ) {
+                if( record != null ) {
+                    deleteDnsRecords(record);
+                }
             }
-        }
-        throw new CloudException("Unable to identify newly created zone");
-    }
-
-    @Override
-    public void deleteDnsRecords(@Nonnull DNSRecord... dnsRecords) throws CloudException, InternalException {
-        if( dnsRecords.length < 1 ) {
-            return;
-        }
-        TreeSet<String> zones = new TreeSet<String>();
-        for( DNSRecord record : dnsRecords ) {
-            zones.add(record.getProviderZoneId());
-        }
-        for( String zoneId : zones ) {
-            Route53Method method = new Route53Method(Route53Method.CHANGE_RESOURCE_RECORD_SETS, provider, getResourceUrl(zoneId));
+            method = new Route53Method(Route53Method.CHANGE_RESOURCE_RECORD_SETS, provider, getResourceUrl(providerDnsZoneId));
             StringBuilder xml = new StringBuilder();
-            
+
             xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
             xml.append("<ChangeResourceRecordSetsRequest xmlns=\"https://route53.amazonaws.com/doc/2010-10-01/\">");
             xml.append("<ChangeBatch>");
             xml.append("<Changes>");
-            for( DNSRecord record : dnsRecords ) {
-                if( record.getProviderZoneId().equals(zoneId) ) {
-                    xml.append("<Change>");
-                    xml.append("<Action>DELETE</Action>");
-                    xml.append("<ResourceRecordSet>");
-                    xml.append("<Name>");
-                    xml.append(record.getName());
-                    xml.append("</Name>");
-                    xml.append("<Type>");
-                    xml.append(record.getType().toString());
-                    xml.append("</Type>");
-                    xml.append("<TTL>");
-                    xml.append(String.valueOf(record.getTtl()));
-                    xml.append("</TTL>");
-                    xml.append("<ResourceRecords>");
-                    String[] values = record.getValues();
-                    if( values != null && values.length > 0 ) {
-                        for( String value : values ) {
-                            xml.append("<ResourceRecord>");
-                            xml.append("<Value>");
-                            xml.append(AWSCloud.escapeXml(value));
-                            xml.append("</Value>");
-                            xml.append("</ResourceRecord>");
-                        }
-                    }
-                    xml.append("</ResourceRecords>");
-                    xml.append("</ResourceRecordSet>");
-                    xml.append("</Change>");
+            xml.append("<Change>");
+            xml.append("<Action>CREATE</Action>");
+            xml.append("<ResourceRecordSet>");
+            xml.append("<Name>");
+            xml.append(name);
+            xml.append("</Name>");
+            xml.append("<Type>");
+            xml.append(recordType.toString());
+            xml.append("</Type>");
+            xml.append("<TTL>");
+            xml.append(String.valueOf(ttl));
+            xml.append("</TTL>");
+            xml.append("<ResourceRecords>");
+            if( values.length > 0 ) {
+                for( String value : values ) {
+                    xml.append("<ResourceRecord>");
+                    xml.append("<Value>");
+                    xml.append(AWSCloud.escapeXml(value));
+                    xml.append("</Value>");
+                    xml.append("</ResourceRecord>");
                 }
             }
+            xml.append("</ResourceRecords>");
+            xml.append("</ResourceRecordSet>");
+            xml.append("</Change>");
             xml.append("</Changes>");
             xml.append("</ChangeBatch>");
             xml.append("</ChangeResourceRecordSetsRequest>");
@@ -221,70 +109,214 @@ public class Route53 implements DNSSupport {
             catch( EC2Exception e ) {
                 throw new CloudException(e);
             }
+            for( DNSRecord record : listDnsRecords(providerDnsZoneId, recordType, name) ) {
+                if( record != null ) { return record; }
+            }
+            throw new CloudException("Unable to identified newly added record");
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+    
+    @Override
+    public @Nonnull String createDnsZone(@Nonnull String domainName, @Nonnull String name, @Nonnull String description) throws CloudException, InternalException {
+        APITrace.begin(provider, "createDnsZone");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured for this request");
+            }
+            Route53Method method;
+            NodeList blocks;
+            Document doc;
+
+            method = new Route53Method(Route53Method.CREATE_HOSTED_ZONE, provider, getHostedZoneUrl(null));
+            StringBuilder xml = new StringBuilder();
+
+            xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
+            xml.append("<CreateHostedZoneRequest xmlns=\"https://route53.amazonaws.com/doc/2010-10-01/\">");
+            xml.append("<Name>");
+            xml.append(domainName);
+            xml.append("</Name>");
+            xml.append("<CallerReference>");
+            xml.append(generateCallerReference());
+            xml.append("</CallerReference>");
+            xml.append("<HostedZoneConfig><Comment>");
+            xml.append(AWSCloud.escapeXml(description));
+            xml.append("</Comment></HostedZoneConfig>");
+            xml.append("</CreateHostedZoneRequest>");
+            try {
+                doc = method.invoke(xml.toString(), false);
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            ArrayList<String> ns = new ArrayList<String>();
+            blocks = doc.getElementsByTagName("NameServer");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+
+                ns.add(item.getFirstChild().getNodeValue().trim());
+            }
+            String[] nameservers = new String[ns.size()];
+
+            ns.toArray(nameservers);
+            blocks = doc.getElementsByTagName("HostedZone");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                DNSZone zone = toDnsZone(ctx, item, nameservers);
+
+                if( zone != null ) {
+                    return zone.getProviderDnsZoneId();
+                }
+            }
+            throw new CloudException("Unable to identify newly created zone");
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void deleteDnsRecords(@Nonnull DNSRecord... dnsRecords) throws CloudException, InternalException {
+        APITrace.begin(provider, "deleteDnsRecords");
+        try {
+            if( dnsRecords.length < 1 ) {
+                return;
+            }
+            TreeSet<String> zones = new TreeSet<String>();
+            for( DNSRecord record : dnsRecords ) {
+                zones.add(record.getProviderZoneId());
+            }
+            for( String zoneId : zones ) {
+                Route53Method method = new Route53Method(Route53Method.CHANGE_RESOURCE_RECORD_SETS, provider, getResourceUrl(zoneId));
+                StringBuilder xml = new StringBuilder();
+
+                xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
+                xml.append("<ChangeResourceRecordSetsRequest xmlns=\"https://route53.amazonaws.com/doc/2010-10-01/\">");
+                xml.append("<ChangeBatch>");
+                xml.append("<Changes>");
+                for( DNSRecord record : dnsRecords ) {
+                    if( record.getProviderZoneId().equals(zoneId) ) {
+                        xml.append("<Change>");
+                        xml.append("<Action>DELETE</Action>");
+                        xml.append("<ResourceRecordSet>");
+                        xml.append("<Name>");
+                        xml.append(record.getName());
+                        xml.append("</Name>");
+                        xml.append("<Type>");
+                        xml.append(record.getType().toString());
+                        xml.append("</Type>");
+                        xml.append("<TTL>");
+                        xml.append(String.valueOf(record.getTtl()));
+                        xml.append("</TTL>");
+                        xml.append("<ResourceRecords>");
+                        String[] values = record.getValues();
+                        if( values != null && values.length > 0 ) {
+                            for( String value : values ) {
+                                xml.append("<ResourceRecord>");
+                                xml.append("<Value>");
+                                xml.append(AWSCloud.escapeXml(value));
+                                xml.append("</Value>");
+                                xml.append("</ResourceRecord>");
+                            }
+                        }
+                        xml.append("</ResourceRecords>");
+                        xml.append("</ResourceRecordSet>");
+                        xml.append("</Change>");
+                    }
+                }
+                xml.append("</Changes>");
+                xml.append("</ChangeBatch>");
+                xml.append("</ChangeResourceRecordSetsRequest>");
+                try {
+                    method.invoke(xml.toString(), false);
+                }
+                catch( EC2Exception e ) {
+                    throw new CloudException(e);
+                }
+            }
+        }
+        finally {
+            APITrace.end();
         }
     }
 
     @Override
     public void deleteDnsZone(@Nonnull String providerDnsZoneId) throws CloudException, InternalException {
-        Route53Method method;
-
-        method = new Route53Method(Route53Method.DELETE_HOSTED_ZONE, provider, getHostedZoneUrl(providerDnsZoneId));
+        APITrace.begin(provider, "deleteDnsZone");
         try {
-            method.invoke(false);
+            Route53Method method;
+
+            method = new Route53Method(Route53Method.DELETE_HOSTED_ZONE, provider, getHostedZoneUrl(providerDnsZoneId));
+            try {
+                method.invoke(false);
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
+        finally {
+            APITrace.end();
         }
     }
 
     @Override
     public @Nullable DNSZone getDnsZone(@Nonnull String providerDnsZoneId) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was configured for this request");
-        }
-        Route53Method method;
-        NodeList blocks;
-        Document doc;
-
-        method = new Route53Method(Route53Method.GET_HOSTED_ZONE, provider, getHostedZoneUrl(providerDnsZoneId));
+        APITrace.begin(provider, "getDnsZone");
         try {
-            doc = method.invoke(false);
-        }
-        catch( EC2Exception e ) {
-            String code = e.getCode();
-            
-            if( code != null && code.equals("AccessDenied") ) {
-                for( DNSZone zone : listDnsZones() ) {
-                    if( zone.getProviderDnsZoneId().equals(providerDnsZoneId) ) {
-                        return zone;
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured for this request");
+            }
+            Route53Method method;
+            NodeList blocks;
+            Document doc;
+
+            method = new Route53Method(Route53Method.GET_HOSTED_ZONE, provider, getHostedZoneUrl(providerDnsZoneId));
+            try {
+                doc = method.invoke(false);
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.equals("AccessDenied") ) {
+                    for( DNSZone zone : listDnsZones() ) {
+                        if( zone.getProviderDnsZoneId().equals(providerDnsZoneId) ) {
+                            return zone;
+                        }
                     }
+                    return null;
                 }
-                return null;
+                throw new CloudException(e);
             }
-            throw new CloudException(e);
-        }
-        ArrayList<String> ns = new ArrayList<String>();
-        blocks = doc.getElementsByTagName("NameServer");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            Node item = blocks.item(i);
-            
-            ns.add(item.getFirstChild().getNodeValue().trim());
-        }
-        String[] nameservers = new String[ns.size()];
-        
-        ns.toArray(nameservers);
-        blocks = doc.getElementsByTagName("HostedZone");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            Node item = blocks.item(i);
-            DNSZone zone = toDnsZone(ctx, item, nameservers);
-            
-            if( zone != null ) {
-                return zone;
+            ArrayList<String> ns = new ArrayList<String>();
+            blocks = doc.getElementsByTagName("NameServer");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+
+                ns.add(item.getFirstChild().getNodeValue().trim());
             }
+            String[] nameservers = new String[ns.size()];
+
+            ns.toArray(nameservers);
+            blocks = doc.getElementsByTagName("HostedZone");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                DNSZone zone = toDnsZone(ctx, item, nameservers);
+
+                if( zone != null ) {
+                    return zone;
+                }
+            }
+            return null;
         }
-        return null;
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
@@ -321,68 +353,94 @@ public class Route53 implements DNSSupport {
         final String zoneId = providerDnsZoneId;
         final DNSRecordType type = forType;
         final String nom = name;
-        
+
         provider.hold();
         populator = new PopulatorThread<DNSRecord>(new JiteratorPopulator<DNSRecord>() {
-            public void populate(Jiterator<DNSRecord> iterator) throws CloudException, InternalException {
+            public void populate(@Nonnull Jiterator<DNSRecord> iterator) throws CloudException, InternalException {
                 populateRecords(iterator, zoneId, type, nom);
                 provider.release();
             }
-        });        
+        });
         populator.populate();
         return populator.getResult();
     }
     
     private void populateRecords(@Nonnull Jiterator<DNSRecord> iterator, @Nonnull String providerDnsZoneId, @Nullable DNSRecordType forType, @Nullable String name) throws CloudException, InternalException {
-        String url = getResourceUrl(providerDnsZoneId);
-        Route53Method method;
-        NodeList blocks;
-        Document doc;
-        
-        if( forType == null ) {
-            if( name != null ) {
-                url = url + "?name=" + name;
-            }
-        }
-        else {
-            url = url + "?type=" + forType.toString();
-            if( name != null ) {
-                url = url + "&name=" + name;
-            }
-        }
-        method = new Route53Method(Route53Method.LIST_RESOURCE_RECORD_SETS, provider, url);
+        APITrace.begin(provider, "populateRecords");
         try {
-            doc = method.invoke(false);
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("ResourceRecordSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            Node item = blocks.item(i);
-            DNSRecord record = toDnsRecord(providerDnsZoneId, item);
-            
-            if( record != null ) {
-                iterator.push(record);
+            String url = getResourceUrl(providerDnsZoneId);
+            Route53Method method;
+            NodeList blocks;
+            Document doc;
+
+            if( forType == null ) {
+                if( name != null ) {
+                    url = url + "?name=" + name;
+                }
+            }
+            else {
+                url = url + "?type=" + forType.toString();
+                if( name != null ) {
+                    url = url + "&name=" + name;
+                }
+            }
+            method = new Route53Method(Route53Method.LIST_RESOURCE_RECORD_SETS, provider, url);
+            try {
+                doc = method.invoke(false);
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("ResourceRecordSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                DNSRecord record = toDnsRecord(providerDnsZoneId, item);
+
+                if( record != null ) {
+                    iterator.push(record);
+                }
+            }
+            blocks = doc.getElementsByTagName("IsTruncated");
+            if( blocks != null && blocks.getLength() == 1 && blocks.item(0).hasChildNodes() && blocks.item(0).getFirstChild().getNodeValue().trim().equalsIgnoreCase("true") ) {
+                DNSRecordType nextType = null;
+                String nextName = null;
+
+                blocks = doc.getElementsByTagName("NextRecordName");
+                if( blocks != null && blocks.getLength() == 1 && blocks.item(0).hasChildNodes() ) {
+                    nextName = blocks.item(0).getFirstChild().getNodeValue().trim();
+                }
+                blocks = doc.getElementsByTagName("NextRecordType");
+                if( blocks != null && blocks.getLength() == 1 && blocks.item(0).hasChildNodes() ) {
+                    nextType = DNSRecordType.valueOf(blocks.item(0).getFirstChild().getNodeValue().trim());
+                }
+                if( nextName != null && nextType != null ) {
+                    populateRecords(iterator, providerDnsZoneId, nextType, nextName);
+                }
             }
         }
-        blocks = doc.getElementsByTagName("IsTruncated");
-        if( blocks != null && blocks.getLength() == 1 && blocks.item(0).hasChildNodes() && blocks.item(0).getFirstChild().getNodeValue().trim().equalsIgnoreCase("true") ) {
-            DNSRecordType nextType = null;
-            String nextName = null;
-            
-            blocks = doc.getElementsByTagName("NextRecordName");
-            if( blocks != null && blocks.getLength() == 1 && blocks.item(0).hasChildNodes() ) {
-                nextName = blocks.item(0).getFirstChild().getNodeValue().trim(); 
-            }
-            blocks = doc.getElementsByTagName("NextRecordType");
-            if( blocks != null && blocks.getLength() == 1 && blocks.item(0).hasChildNodes() ) {
-                nextType = DNSRecordType.valueOf(blocks.item(0).getFirstChild().getNodeValue().trim()); 
-            }
-            if( nextName != null && nextType != null ) {
-                populateRecords(iterator, providerDnsZoneId, nextType, nextName);
-            }
+        finally {
+            APITrace.end();
         }
+    }
+
+    @Override
+    public @Nonnull Iterable<ResourceStatus> listDnsZoneStatus() throws CloudException, InternalException {
+        final ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was configured for this request");
+        }
+        PopulatorThread<ResourceStatus> populator;
+
+        provider.hold();
+        populator = new PopulatorThread<ResourceStatus>(new JiteratorPopulator<ResourceStatus>() {
+            public void populate(@Nonnull Jiterator<ResourceStatus> iterator) throws CloudException, InternalException {
+                populateZoneStatus(iterator, null);
+                provider.release();
+            }
+        });
+        populator.populate();
+        return populator.getResult();
     }
 
     @Override
@@ -396,7 +454,7 @@ public class Route53 implements DNSSupport {
         
         provider.hold();
         populator = new PopulatorThread<DNSZone>(new JiteratorPopulator<DNSZone>() {
-            public void populate(Jiterator<DNSZone> iterator) throws CloudException, InternalException {
+            public void populate(@Nonnull Jiterator<DNSZone> iterator) throws CloudException, InternalException {
                 populateZones(ctx, iterator, null);
                 provider.release();
             }
@@ -434,60 +492,111 @@ public class Route53 implements DNSSupport {
         return new String[0];
     }
 
-    private void populateZones(@Nonnull ProviderContext ctx, @Nonnull Jiterator<DNSZone> iterator, @Nullable String marker) throws CloudException, InternalException {
-        String url = getHostedZoneUrl(null);
-        Route53Method method;
-        NodeList blocks;
-        Document doc;
-
-        if( marker != null ) {
-            url = url + "?marker=" + marker;
-        }
-        method = new Route53Method(Route53Method.LIST_HOSTED_ZONES, provider, url);
+    private void populateZoneStatus(@Nonnull Jiterator<ResourceStatus> iterator, @Nullable String marker) throws CloudException, InternalException {
+        APITrace.begin(provider, "populateZoneStatus");
         try {
-            doc = method.invoke(false);
-        }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("HostedZone");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            Node item = blocks.item(i);
-            DNSZone zone = toDnsZone(ctx, item, new String[0]);
-            
-            if( zone != null ) {
-                iterator.push(zone);
+            String url = getHostedZoneUrl(null);
+            Route53Method method;
+            NodeList blocks;
+            Document doc;
+
+            if( marker != null ) {
+                url = url + "?marker=" + marker;
+            }
+            method = new Route53Method(Route53Method.LIST_HOSTED_ZONES, provider, url);
+            try {
+                doc = method.invoke(false);
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("HostedZone");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                ResourceStatus status = toStatus(blocks.item(i));
+
+                if( status != null ) {
+                    iterator.push(status);
+                }
+            }
+            blocks = doc.getElementsByTagName("IsTruncated");
+            if( blocks != null && blocks.getLength() == 1 && blocks.item(0).hasChildNodes() && blocks.item(0).getFirstChild().getNodeValue().trim().equalsIgnoreCase("true") ) {
+                blocks = doc.getElementsByTagName("NextMarker");
+                if( blocks != null && blocks.getLength() == 1 && blocks.item(0).hasChildNodes() ) {
+                    populateZoneStatus(iterator, blocks.item(0).getFirstChild().getNodeValue().trim());
+                }
             }
         }
-        blocks = doc.getElementsByTagName("IsTruncated");
-        if( blocks != null && blocks.getLength() == 1 && blocks.item(0).hasChildNodes() && blocks.item(0).getFirstChild().getNodeValue().trim().equalsIgnoreCase("true") ) {
-            blocks = doc.getElementsByTagName("NextMarker");
-            if( blocks != null && blocks.getLength() == 1 && blocks.item(0).hasChildNodes() ) {
-                populateZones(ctx, iterator, blocks.item(0).getFirstChild().getNodeValue().trim());
+        finally {
+            APITrace.end();
+        }
+    }
+
+    private void populateZones(@Nonnull ProviderContext ctx, @Nonnull Jiterator<DNSZone> iterator, @Nullable String marker) throws CloudException, InternalException {
+        APITrace.begin(provider, "populateZones");
+        try {
+            String url = getHostedZoneUrl(null);
+            Route53Method method;
+            NodeList blocks;
+            Document doc;
+
+            if( marker != null ) {
+                url = url + "?marker=" + marker;
             }
+            method = new Route53Method(Route53Method.LIST_HOSTED_ZONES, provider, url);
+            try {
+                doc = method.invoke(false);
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("HostedZone");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                DNSZone zone = toDnsZone(ctx, item, new String[0]);
+
+                if( zone != null ) {
+                    iterator.push(zone);
+                }
+            }
+            blocks = doc.getElementsByTagName("IsTruncated");
+            if( blocks != null && blocks.getLength() == 1 && blocks.item(0).hasChildNodes() && blocks.item(0).getFirstChild().getNodeValue().trim().equalsIgnoreCase("true") ) {
+                blocks = doc.getElementsByTagName("NextMarker");
+                if( blocks != null && blocks.getLength() == 1 && blocks.item(0).hasChildNodes() ) {
+                    populateZones(ctx, iterator, blocks.item(0).getFirstChild().getNodeValue().trim());
+                }
+            }
+        }
+        finally {
+            APITrace.end();
         }
     }
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        Route53Method method;
-
-        method = new Route53Method(Route53Method.LIST_HOSTED_ZONES, provider, getHostedZoneUrl(null));
+        APITrace.begin(provider, "isSubscribedRoute53");
         try {
-            method.invoke(false);
-        }
-        catch( EC2Exception e ) {
-            if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
-                return false;
+            Route53Method method;
+
+            method = new Route53Method(Route53Method.LIST_HOSTED_ZONES, provider, getHostedZoneUrl(null));
+            try {
+                method.invoke(false);
             }
-            String code = e.getCode();
-            
-            if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
-                return false;
+            catch( EC2Exception e ) {
+                if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    return false;
+                }
+                String code = e.getCode();
+
+                if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
+                    return false;
+                }
+                throw new CloudException(e);
             }
-            throw new CloudException(e);
+            return true;
         }
-        return true;
+        finally {
+            APITrace.end();
+        }
     }
 
     private @Nullable DNSRecord toDnsRecord(@Nonnull String providerDnsZoneId, @Nullable Node xmlRecord) {
@@ -603,5 +712,36 @@ public class Route53 implements DNSSupport {
         zone.setProviderOwnerId(ctx.getAccountNumber());
         zone.setNameservers(nameservers);
         return zone;
+    }
+
+    private @Nullable ResourceStatus toStatus(@Nullable Node xmlZone) {
+        if( xmlZone == null ) {
+            return null;
+        }
+        NodeList attrs = xmlZone.getChildNodes();
+        String zoneId = null;
+
+        for( int i=0; i<attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String name;
+
+            name = attr.getNodeName();
+            if( name.equalsIgnoreCase("id") ) {
+                String value = attr.getFirstChild().getNodeValue().trim();
+
+                if( value == null ) {
+                    return null;
+                }
+                int idx = value.lastIndexOf('/');
+
+                value = value.substring(idx+1);
+                zoneId = value;
+                break;
+            }
+        }
+        if( zoneId == null ) {
+            return null;
+        }
+        return new ResourceStatus(zoneId, true);
     }
 }

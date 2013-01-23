@@ -31,12 +31,14 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.platform.CloudFrontMethod.CloudFrontResponse;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.CDNSupport;
 import org.dasein.cloud.platform.Distribution;
 import org.dasein.cloud.storage.Blob;
+import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
@@ -51,141 +53,165 @@ public class CloudFront implements CDNSupport {
 	
 	@Override
 	public @Nonnull String create(@Nonnull String bucket, @Nonnull String name, boolean active, @Nullable String ... cnames) throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was established for this request");
-        }
-        CloudFrontResponse response;
-		CloudFrontMethod method;
-        NodeList blocks;
-
-        provider.getStorageServices().getBlobStoreSupport().makePublic(bucket);
-        for( Blob file : provider.getStorageServices().getBlobStoreSupport().list(bucket) ) {
-        	if( !file.isContainer() ) {
-        		provider.getStorageServices().getBlobStoreSupport().makePublic(file.getBucketName(), file.getObjectName());
-        	}
-        }
-        method = new CloudFrontMethod(provider, CloudFrontAction.CREATE_DISTRIBUTION, null, toConfigXml(bucket, name, null, null, null, active, cnames));
+        APITrace.begin(provider, "createDistribution");
         try {
-        	response = method.invoke();
-        }
-        catch( CloudFrontException e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = response.document.getElementsByTagName("Distribution");
-		for( int i=0; i<blocks.getLength(); i++ ) {
-			Distribution dist = toDistributionFromInfo(ctx, blocks.item(i));
-			
-			if( dist != null ) {
-				String id =  dist.getProviderDistributionId();
-                
-                if( id != null ) {
-                    return id;
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was established for this request");
+            }
+            CloudFrontResponse response;
+            CloudFrontMethod method;
+            NodeList blocks;
+
+            provider.getStorageServices().getBlobStoreSupport().makePublic(bucket);
+            for( Blob file : provider.getStorageServices().getBlobStoreSupport().list(bucket) ) {
+                if( !file.isContainer() ) {
+                    provider.getStorageServices().getBlobStoreSupport().makePublic(file.getBucketName(), file.getObjectName());
                 }
-			}
-		}
-        throw new CloudException("No CDN distribution was created and no error was reported");
+            }
+            method = new CloudFrontMethod(provider, CloudFrontAction.CREATE_DISTRIBUTION, null, toConfigXml(bucket, name, null, null, null, active, cnames));
+            try {
+                response = method.invoke();
+            }
+            catch( CloudFrontException e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = response.document.getElementsByTagName("Distribution");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Distribution dist = toDistributionFromInfo(ctx, blocks.item(i));
+
+                if( dist != null ) {
+                    String id =  dist.getProviderDistributionId();
+
+                    if( id != null ) {
+                        return id;
+                    }
+                }
+            }
+            throw new CloudException("No CDN distribution was created and no error was reported");
+        }
+        finally {
+            APITrace.end();
+        }
 	}
 
 	@Override
 	public void delete(@Nonnull String distributionId) throws InternalException, CloudException {
-		Distribution distribution = getDistribution(distributionId);
-		
-        if( distribution == null ) {
-            throw new CloudException("No such distribution: " + distributionId);
+        APITrace.begin(provider, "deleteDistribution");
+        try {
+            Distribution distribution = getDistribution(distributionId);
+
+            if( distribution == null ) {
+                throw new CloudException("No such distribution: " + distributionId);
+            }
+            if( distribution.isActive() ) {
+                String name = distribution.getName();
+
+                if( name == null ) {
+                    name = distributionId;
+                }
+                update(distributionId, name, false, distribution.getAliases());
+            }
+            while( true ) {
+                try { Thread.sleep(10000L); }
+                catch( InterruptedException e ) { /* ignore */ }
+                distribution = getDistribution(distributionId);
+                if( distribution == null || !distribution.isActive() ) {
+                    break;
+                }
+            }
+            while( true ) {
+                HashMap<String,String> headers = new HashMap<String,String>();
+                CloudFrontMethod method;
+                String etag;
+
+                etag = (String)getDistributionWithEtag(distributionId)[1];
+                headers.put("If-Match", etag);
+                method = new CloudFrontMethod(provider, CloudFrontAction.DELETE_DISTRIBUTION, headers, null);
+                try {
+                    method.invoke(distributionId);
+                    return;
+                }
+                catch( CloudFrontException e ) {
+                    String code = e.getCode();
+
+                    if( code != null && code.equals("DistributionNotDisabled") ) {
+                        try { Thread.sleep(10000L); }
+                        catch( InterruptedException interrupt ) { /* ignore */ }
+                    }
+                    else {
+                        logger.error(e.getSummary());
+                        throw new CloudException(e);
+                    }
+                }
+            }
         }
-		if( distribution.isActive() ) {
-            String name = distribution.getName();
-            
-            if( name == null ) {
-                name = distributionId;
-            }
-	        update(distributionId, name, false, distribution.getAliases());
-		}
-		while( true ) {
-		    try { Thread.sleep(10000L); }
-		    catch( InterruptedException e ) { /* ignore */ }
-		    distribution = getDistribution(distributionId);
-		    if( distribution == null || !distribution.isActive() ) {
-		        break;
-		    }
-		}
-		while( true ) {
-	        HashMap<String,String> headers = new HashMap<String,String>();
-	        CloudFrontMethod method;
-	        String etag;
-	        
-	        etag = (String)getDistributionWithEtag(distributionId)[1];
-	        headers.put("If-Match", etag);
-    		method = new CloudFrontMethod(provider, CloudFrontAction.DELETE_DISTRIBUTION, headers, null);
-            try {
-            	method.invoke(distributionId);
-            	return;
-            }
-            catch( CloudFrontException e ) {
-                String code = e.getCode();
-                
-                if( code != null && code.equals("DistributionNotDisabled") ) {
-                    try { Thread.sleep(10000L); }
-                    catch( InterruptedException interrupt ) { /* ignore */ }
-                }
-                else {
-                    logger.error(e.getSummary());
-                    throw new CloudException(e);
-                }
-            }
-		}
+        finally {
+            APITrace.end();
+        }
 	}
 
 	@Override
 	public @Nullable Distribution getDistribution(@Nonnull String distributionId) throws InternalException, CloudException {
-		Object[] parts = getDistributionWithEtag(distributionId);
+        APITrace.begin(provider, "getDistribution");
+        try {
+            Object[] parts = getDistributionWithEtag(distributionId);
         
-        if( parts.length < 1 ) {
-            return null;
+            if( parts.length < 1 ) {
+                return null;
+            }
+            return (Distribution)parts[0];
         }
-        return (Distribution)parts[0];
+        finally {
+            APITrace.end();
+        }
 	}
 	
 	private @Nonnull Object[] getDistributionWithEtag(@Nonnull String distributionId) throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was established for this request");
-        }
-		CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.GET_DISTRIBUTION, null, null);
-		CloudFrontResponse response;
-        NodeList blocks;
-        
+        APITrace.begin(provider, "getDistributionWithEtag");
         try {
-        	response = method.invoke(distributionId);
-        }
-        catch( CloudFrontException e ) {
-            String code = e.getCode();
-            
-            if( code != null && code.equals("NoSuchDistribution") ) {
-                return new Object[] { null, null, null };
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was established for this request");
             }
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+            CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.GET_DISTRIBUTION, null, null);
+            CloudFrontResponse response;
+            NodeList blocks;
+
+            try {
+                response = method.invoke(distributionId);
+            }
+            catch( CloudFrontException e ) {
+                String code = e.getCode();
+
+                if( code != null && code.equals("NoSuchDistribution") ) {
+                    return new Object[] { null, null, null };
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = response.document.getElementsByTagName("Distribution");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Distribution dist = toDistributionFromInfo(ctx, blocks.item(i));
+
+                if( dist != null && distributionId.equals(dist.getProviderDistributionId()) ) {
+                    String callerReference = null;
+
+                    blocks = response.document.getElementsByTagName("CallerReference");
+                    if( blocks.getLength() > 0 ) {
+                        callerReference = blocks.item(0).getFirstChild().getNodeValue();
+                    }
+                    return new Object[] { dist, response.etag, callerReference };
+                }
+            }
+            return new Object[0];
         }
-        blocks = response.document.getElementsByTagName("Distribution");
-		for( int i=0; i<blocks.getLength(); i++ ) {
-			Distribution dist = toDistributionFromInfo(ctx, blocks.item(i));
-			
-			if( dist != null && distributionId.equals(dist.getProviderDistributionId()) ) {
-			    String callerReference = null;
-			    
-			    blocks = response.document.getElementsByTagName("CallerReference");
-			    if( blocks.getLength() > 0 ) {
-			        callerReference = blocks.item(0).getFirstChild().getNodeValue();
-			    }
-				return new Object[] { dist, response.etag, callerReference };
-			}
-		}
-		return new Object[0];
+        finally {
+            APITrace.end();
+        }
 	}
 
 	@Override
@@ -195,53 +221,96 @@ public class CloudFront implements CDNSupport {
 
 	@Override
 	public boolean isSubscribed() throws InternalException, CloudException {
-        CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null);
-        
+        APITrace.begin(provider, "isSubscribedCDN");
         try {
-            method.invoke();
-            return true;
+            CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null);
+
+            try {
+                method.invoke();
+                return true;
+            }
+            catch( CloudFrontException e ) {
+                if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    return false;
+                }
+                String code = e.getCode();
+
+                if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
+                    return false;
+                }
+                logger.warn(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
         }
-        catch( CloudFrontException e ) {
-            if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
-                return false;
-            }
-            String code = e.getCode();
-            
-            if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
-                return false;
-            }
-            logger.warn(e.getSummary());
-            if( logger.isDebugEnabled() ) {
-                e.printStackTrace();
-            }
-            throw new CloudException(e);
-        }	    
+        finally {
+            APITrace.end();
+        }
 	}
 	
 	@Override
 	public @Nonnull Collection<Distribution> list() throws InternalException, CloudException {
-		CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null);
-		ArrayList<Distribution> list = new ArrayList<Distribution>();
-		CloudFrontResponse response;
-        NodeList blocks;
-        
+        APITrace.begin(provider, "listDistributions");
         try {
-        	response = method.invoke();
+            CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null);
+            ArrayList<Distribution> list = new ArrayList<Distribution>();
+            CloudFrontResponse response;
+            NodeList blocks;
+
+            try {
+                response = method.invoke();
+            }
+            catch( CloudFrontException e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = response.document.getElementsByTagName("DistributionSummary");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Distribution dist = toDistributionFromSummary(blocks.item(i));
+
+                if( dist != null ) {
+                    list.add(dist);
+                }
+            }
+            return list;
         }
-        catch( CloudFrontException e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+        finally {
+            APITrace.end();
         }
-        blocks = response.document.getElementsByTagName("DistributionSummary");
-		for( int i=0; i<blocks.getLength(); i++ ) {
-			Distribution dist = toDistributionFromSummary(blocks.item(i));
-			
-			if( dist != null ) {
-				list.add(dist);
-			}
-		}
-		return list;
 	}
+
+    @Override
+    public @Nonnull Collection<ResourceStatus> listDistributionStatus() throws InternalException, CloudException {
+        APITrace.begin(provider, "listDistributionStatus");
+        try {
+            CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null);
+            ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+            CloudFrontResponse response;
+            NodeList blocks;
+
+            try {
+                response = method.invoke();
+            }
+            catch( CloudFrontException e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = response.document.getElementsByTagName("DistributionSummary");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                ResourceStatus status = toStatus(blocks.item(i));
+
+                if( status != null ) {
+                    list.add(status);
+                }
+            }
+            return list;
+        }
+        finally {
+            APITrace.end();
+        }
+    }
 
     @Override
     public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
@@ -269,42 +338,48 @@ public class CloudFront implements CDNSupport {
 	}
 
 	private String updateWithReturn(@Nonnull String distributionId, @Nonnull String name, boolean active, @Nullable String ... cnames) throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was established for this request");
-        }
-		HashMap<String,String> headers = new HashMap<String,String>();
-		Object[] distData = getDistributionWithEtag(distributionId);
-		Distribution distribution = (Distribution)distData[0];
-        String location = (distribution == null ? null : distribution.getLocation());
-		String[] parts = (location == null ? new String[0] : location.split("\\."));
-		CloudFrontResponse response;
-		String bucket = parts[0];
-		CloudFrontMethod method;
-        NodeList blocks;
-
-		headers.put("If-Match", (String)distData[1]);
-        String logDirectory = (distribution == null ? null : distribution.getLogDirectory());
-        String logName = (distribution == null ? null : distribution.getLogName());
-        
-		method = new CloudFrontMethod(provider, CloudFrontAction.UPDATE_DISTRIBUTION, headers, toConfigXml(bucket, name, (String)distData[2], logDirectory, logName, active, cnames));
+        APITrace.begin(provider, "updateDistribution");
         try {
-        	response = method.invoke(distributionId, "config");
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was established for this request");
+            }
+            HashMap<String,String> headers = new HashMap<String,String>();
+            Object[] distData = getDistributionWithEtag(distributionId);
+            Distribution distribution = (Distribution)distData[0];
+            String location = (distribution == null ? null : distribution.getLocation());
+            String[] parts = (location == null ? new String[0] : location.split("\\."));
+            CloudFrontResponse response;
+            String bucket = parts[0];
+            CloudFrontMethod method;
+            NodeList blocks;
+
+            headers.put("If-Match", (String)distData[1]);
+            String logDirectory = (distribution == null ? null : distribution.getLogDirectory());
+            String logName = (distribution == null ? null : distribution.getLogName());
+
+            method = new CloudFrontMethod(provider, CloudFrontAction.UPDATE_DISTRIBUTION, headers, toConfigXml(bucket, name, (String)distData[2], logDirectory, logName, active, cnames));
+            try {
+                response = method.invoke(distributionId, "config");
+            }
+            catch( CloudFrontException e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = response.document.getElementsByTagName("Distribution");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Distribution dist = toDistributionFromInfo(ctx, blocks.item(i));
+
+                if( dist != null ) {
+                    return response.etag;
+                }
+            }
+            return null;
         }
-        catch( CloudFrontException e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+        finally {
+            APITrace.end();
         }
-        blocks = response.document.getElementsByTagName("Distribution");
-		for( int i=0; i<blocks.getLength(); i++ ) {
-			Distribution dist = toDistributionFromInfo(ctx, blocks.item(i));
-			
-			if( dist != null ) {
-				return response.etag;
-			}
-		}
-		return null;
 	}
 	
 	private @Nonnull String toConfigXml(@Nonnull String bucket, @Nonnull String name, @Nullable String callerReference, @Nullable String logDirectory, @Nullable String logName, boolean active, @Nullable String ... cnames) {
@@ -505,7 +580,36 @@ public class CloudFront implements CDNSupport {
 		distribution.setAliases(aliases);
 		return distribution;
 	}
-	
+
+    private @Nullable ResourceStatus toStatus(@Nullable Node node) {
+        if( node == null ) {
+            return null;
+        }
+        NodeList attrs = node.getChildNodes();
+
+        String distributionId = null;
+        boolean deployed = false;
+
+        for( int i=0; i<attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String name;
+
+            name = attr.getNodeName();
+            if( name.equals("Id") ) {
+                distributionId = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if( name.equals("Status") ) {
+                String s = attr.getFirstChild().getNodeValue();
+
+                deployed = (s != null && s.trim().equalsIgnoreCase("deployed"));
+            }
+        }
+        if( distributionId == null ) {
+            return null;
+        }
+        return new ResourceStatus(distributionId, deployed);
+    }
+
 	private String toXml(String value) {
 		return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;").replaceAll("'", "&apos;");
 	}

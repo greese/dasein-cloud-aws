@@ -15,12 +15,12 @@
     See the License for the specific language governing permissions and
     limitations under the License.
     ====================================================================
--->  
+-->
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>org.dasein</groupId>
   <artifactId>dasein-cloud-aws</artifactId>
-  <version>2012.09.6-SNAPSHOT</version>
+  <version>2013.02.1-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>dasein-cloud-aws</name>
@@ -40,7 +40,7 @@
         <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
     </license>
   </licenses>
-  
+
   <organization>
     <name>enStratus Networks Inc</name>
     <url>http://www.enstratus.com</url>
@@ -51,28 +51,22 @@
     <developerConnection>scm:git:ssh://git@github.com/greese/dasein-cloud-aws.git</developerConnection>
     <url>http://github.com/greese/dasein-cloud-aws</url>
   </scm>
-    
+
   <parent>
     <groupId>org.sonatype.oss</groupId>
     <artifactId>oss-parent</artifactId>
     <version>5</version>
   </parent>
-        
+
   <dependencies>
+      <!-- Compile -->
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-cloud-core</artifactId>
-        <version>2012.09</version>
+        <version>2013.02.1</version>
         <scope>compile</scope>
         <optional>false</optional>
-    </dependency>   
-    <dependency>
-        <groupId>org.dasein</groupId>
-        <artifactId>dasein-cloud-test</artifactId>
-        <version>2012.09.8</version>
-        <scope>test</scope>
-        <optional>false</optional>
-    </dependency>      
+    </dependency>
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-util</artifactId>
@@ -83,13 +77,7 @@
     <dependency>
         <groupId>org.apache.httpcomponents</groupId>
         <artifactId>httpclient</artifactId>
-        <version>4.2</version>
-    </dependency>
-    <dependency>
-        <groupId>junit</groupId>
-        <artifactId>junit</artifactId>
-        <version>4.9</version>
-        <scope>test</scope>
+        <version>4.2.1</version>
     </dependency>
     <dependency>
         <groupId>log4j</groupId>
@@ -110,8 +98,23 @@
         <version>20090211</version>
         <scope>compile</scope>
     </dependency>
+
+      <!-- Test -->
+      <dependency>
+          <groupId>org.dasein</groupId>
+          <artifactId>dasein-cloud-test</artifactId>
+          <version>2013.02.3</version>
+          <scope>test</scope>
+          <optional>false</optional>
+      </dependency>
+      <dependency>
+          <groupId>junit</groupId>
+          <artifactId>junit</artifactId>
+          <version>4.9</version>
+          <scope>test</scope>
+      </dependency>
   </dependencies>
-  
+
   <build>
     <plugins>
       <plugin>
@@ -122,7 +125,7 @@
           <source>1.6</source>
           <target>1.6</target>
         </configuration>
-      </plugin>  
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-javadoc-plugin</artifactId>
@@ -135,7 +138,7 @@
                       <goal>jar</goal>
                   </goals>
               </execution>
-          </executions>                
+          </executions>
           <configuration>
               <encoding>utf-8</encoding>
               <quiet>true</quiet>
@@ -182,8 +185,8 @@
                           <goal>jar-no-fork</goal>
                       </goals>
                   </execution>
-              </executions> 
-        </plugin>     
+              </executions>
+        </plugin>
         <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-release-plugin</artifactId>
@@ -256,7 +259,7 @@
             <!-- <include>**/AWSTestSuite.java</include> -->
           </includes>
         </configuration>
-      </plugin>     
+      </plugin>
       <plugin>
         <artifactId>maven-dependency-plugin</artifactId>
         <executions>
@@ -270,10 +273,10 @@
             </configuration>
           </execution>
         </executions>
-      </plugin>       
+      </plugin>
     </plugins>
   </build>
-  
+
   <distributionManagement>
     <repository>
         <id>sonatype-nexus-staging</id>
@@ -283,9 +286,9 @@
     <snapshotRepository>
         <id>sonatype-nexus-snapshots</id>
         <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-    </snapshotRepository>    
+    </snapshotRepository>
   </distributionManagement>
-  
+
   <developers>
     <developer>
         <name>George Reese</name>
@@ -298,7 +301,7 @@
         </roles>
         <url>http://www.enstratus.com</url>
         <timezone>-6</timezone>
-    </developer>  
+    </developer>
     <developer>
         <name>Morgan Catlin</name>
         <id>sylistron</id>
@@ -309,7 +312,7 @@
         </roles>
         <url>http://www.valtira.com</url>
         <timezone>-6</timezone>
-    </developer>    
+    </developer>
     <developer>
         <name>Adrian Cole</name>
         <id>ferncam1</id>
