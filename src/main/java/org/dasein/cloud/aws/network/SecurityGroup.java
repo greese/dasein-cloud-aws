@@ -310,15 +310,18 @@ public class SecurityGroup implements FirewallSupport {
         
         for( int i=0; i<name.length(); i++ ) {
             char c = name.charAt(i);
-            
-            if( i == 0 && Character.isDigit(c) ) {
+
+            if( c == '-' || c == '_'  ) {
+                str.append(c);
+            }
+            else if( i == 0 && Character.isDigit(c) ) {
                 str.append("e-");
                 str.append(c);
             }
             else if( i == 0 && Character.isLetter(c) ) {
                 str.append(c);
             }
-            else if( i > 0 && (Character.isLetterOrDigit(c) || c == '-' || c == '_') ) {
+            else if( i > 0 && Character.isLetterOrDigit(c) ) {
                 str.append(c);
             }
         }
