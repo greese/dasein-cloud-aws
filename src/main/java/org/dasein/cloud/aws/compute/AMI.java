@@ -1767,6 +1767,9 @@ public class AMI implements MachineImageSupport {
                     }
                 }
             }
+            else if ( name.equals("tagSet")) {
+                provider.setTags( attribute, image );
+            }
 		}
 		if( image.getPlatform() == null ) {
 		    if( location != null ) {
