@@ -1813,10 +1813,25 @@ public class AMI implements MachineImageSupport {
 
     @Override
     public void updateTags(@Nonnull String imageId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        provider.createTags(imageId, tags);
+        updateTags(new String[]{imageId}, tags);
     }
 
-	private void waitForBundle(@Nonnull String bundleId, @Nonnull String manifest, @Nonnull Platform platform, @Nonnull String name, @Nonnull String description, AsynchronousTask<MachineImage> task) {
+    @Override
+    public void updateTags(@Nonnull String[] imageIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.createTags(imageIds, tags);
+    }
+
+    @Override
+    public void removeTags(@Nonnull String imageId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        removeTags(new String[]{imageId}, tags);
+    }
+
+    @Override
+    public void removeTags(@Nonnull String[] imageIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.removeTags(imageIds, tags);
+    }
+
+    private void waitForBundle(@Nonnull String bundleId, @Nonnull String manifest, @Nonnull Platform platform, @Nonnull String name, @Nonnull String description, AsynchronousTask<MachineImage> task) {
 		try {
 			long failurePoint = -1L;
 			
