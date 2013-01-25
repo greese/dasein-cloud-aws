@@ -2242,4 +2242,20 @@ public class EC2Instance implements VirtualMachineSupport {
     public void updateTags(@Nonnull String vmId, @Nonnull Tag... tags) throws CloudException, InternalException {
         provider.createTags(vmId, tags);
     }
+
+    @Override
+    public void updateTags(@Nonnull String[] vmIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.createTags(vmIds, tags);
+    }
+
+    @Override
+    public void removeTags(@Nonnull String vmId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.removeTags(vmId, tags);
+    }
+
+    @Override
+    public void removeTags(@Nonnull String[] vmIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.removeTags(vmIds, tags);
+    }
+
 }

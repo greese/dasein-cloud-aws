@@ -191,20 +191,28 @@ public class AWSCloud extends AbstractCloud {
 		}
 		return authString.toString();
     }
-    
-    public boolean createTags(String resourceId, Tag ... keyValuePairs) {
+
+
+    public boolean createTags(String resourceId, Tag... keyValuePairs) {
+        return createTags(new String[]{resourceId}, keyValuePairs);
+    }
+
+    public boolean createTags(String[] resourceIds, Tag... keyValuePairs) {
         try {
             Map<String,String> parameters = getStandardParameters(getContext(), "CreateTags");
             EC2Method method;
-            
-            parameters.put("ResourceId.1", resourceId);
+
+            for (int i = 0; i < resourceIds.length; i++) {
+                parameters.put("ResourceId." + (i + 1), resourceIds[i]);
+            }
+
             for( int i=0; i<keyValuePairs.length; i++ ) {
                 String key = keyValuePairs[i].getKey();
                 String value = keyValuePairs[i].getValue();
 
                 if ( value != null ) {
-                    parameters.put("Tag." + i + ".Key", key);
-                    parameters.put("Tag." + i + ".Value", value);
+                    parameters.put("Tag." + (i + 1) + ".Key", key);
+                    parameters.put("Tag." + (i + 1) + ".Value", value);
                 }
             }
             method = new EC2Method(this, getEc2Url(), parameters);
@@ -213,18 +221,22 @@ public class AWSCloud extends AbstractCloud {
             }
             catch( EC2Exception e ) {
                 String code = e.getCode();
-                
+
                 if( code != null && code.equals("InvalidInstanceID.NotFound") ) {
                     try { Thread.sleep(5000L); }
                     catch( InterruptedException ignore ) { }
                     parameters = getStandardParameters(getContext(), "CreateTags");
-                    parameters.put("ResourceId.1", resourceId);
+
+                    for (int i = 0; i < resourceIds.length; i++) {
+                        parameters.put("ResourceId." + (i + 1), resourceIds[i]);
+                    }
+
                     for( int i=0; i<keyValuePairs.length; i++ ) {
                         String key = keyValuePairs[i].getKey();
                         String value = keyValuePairs[i].getValue();
-                        
-                        parameters.put("Tag." + i + ".Key", key);
-                        parameters.put("Tag." + i + ".Value", value);
+
+                        parameters.put("Tag." + (i + 1) + ".Key", key);
+                        parameters.put("Tag." + (i + 1) + ".Value", value);
                     }
                     method = new EC2Method(this, getEc2Url(), parameters);
                     try {
@@ -235,17 +247,49 @@ public class AWSCloud extends AbstractCloud {
                         // ignore me
                     }
                 }
-                logger.error("EC2 error settings tags for " + resourceId + ": " + e.getSummary());
+                logger.error("EC2 error settings tags for " + resourceIds + ": " + e.getSummary());
                 return false;
-            }   
+            }
             return true;
         }
         catch( Throwable ignore ) {
-            logger.error("Error while creating tags for " + resourceId + ".", ignore);
+            logger.error("Error while creating tags for " + resourceIds + ".", ignore);
             return false;
         }
     }
-    
+
+    public boolean removeTags(String resourceId, Tag... keyValuePairs) {
+        return removeTags(new String[]{resourceId}, keyValuePairs);
+    }
+
+    public boolean removeTags(String[] resourceIds, Tag... keyValuePairs) {
+        try {
+            Map<String, String> parameters = getStandardParameters(getContext(), "DeleteTags");
+            EC2Method method;
+
+            for (int i = 0; i < resourceIds.length; i++) {
+                parameters.put("ResourceId." + (i + 1), resourceIds[i]);
+            }
+
+            for (int i = 0; i < keyValuePairs.length; i++) {
+                String key = keyValuePairs[i].getKey();
+                String value = keyValuePairs[i].getValue();
+
+                parameters.put("Tag." + (i + 1) + ".Key", key);
+                if (value != null) {
+                    parameters.put("Tag." + (i + 1) + ".Value", value);
+                }
+            }
+            method = new EC2Method(this, getEc2Url(), parameters);
+            method.invoke();
+            return true;
+        }
+        catch (Throwable ignore) {
+            logger.error("Error while removing tags for " + resourceIds + ".", ignore);
+            return false;
+        }
+    }
+
     @Override
     public AWSAdminServices getAdminServices() {
         EC2Provider p = getEC2Provider();
