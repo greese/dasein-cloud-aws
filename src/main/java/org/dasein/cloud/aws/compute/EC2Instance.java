@@ -55,18 +55,7 @@ import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.compute.Architecture;
-import org.dasein.cloud.compute.ImageClass;
-import org.dasein.cloud.compute.MachineImage;
-import org.dasein.cloud.compute.Platform;
-import org.dasein.cloud.compute.VMLaunchOptions;
-import org.dasein.cloud.compute.VMScalingCapabilities;
-import org.dasein.cloud.compute.VMScalingOptions;
-import org.dasein.cloud.compute.VirtualMachine;
-import org.dasein.cloud.compute.VirtualMachineProduct;
-import org.dasein.cloud.compute.VirtualMachineSupport;
-import org.dasein.cloud.compute.VmState;
-import org.dasein.cloud.compute.VmStatistics;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.IPVersion;
 import org.dasein.cloud.network.IpAddress;
@@ -1595,6 +1584,28 @@ public class EC2Instance implements VirtualMachineSupport {
 
 	@Override
 	public @Nonnull Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
+        return listVirtualMachinesWithParams(null);
+	}
+
+    @Override
+    public @Nonnull Iterable<VirtualMachine> listVirtualMachines(VMFilterOptions options) throws InternalException, CloudException {
+        Map<String, String> extraParameters = new HashMap<String, String>();
+        int i = 1;
+        Map<String, String> tags = options.getTags();
+        if ( tags != null && tags.size() > 0 ) {
+            for ( Map.Entry<String, String> parameter : tags.entrySet() ) {
+                String key = parameter.getKey();
+                String value = parameter.getValue();
+                extraParameters.put( "Filter." + i + ".Name", "tag:" + key );
+                extraParameters.put( "Filter." + i + ".Value.1", value );
+                i++;
+            }
+        }
+
+        return listVirtualMachinesWithParams( extraParameters );
+    }
+
+    private @Nonnull Iterable<VirtualMachine> listVirtualMachinesWithParams(Map<String,String> extraParameters) throws InternalException, CloudException {
         APITrace.begin(provider, "listVirtualMachines");
         try {
             ProviderContext ctx = provider.getContext();
@@ -1614,7 +1625,15 @@ public class EC2Instance implements VirtualMachineSupport {
                     }
                 }
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INSTANCES);
+
+            Map<String, String> parameters = provider.getStandardParameters( provider.getContext(), EC2Method.DESCRIBE_INSTANCES );
+
+            if ( extraParameters != null && extraParameters.size() > 0 ) {
+                for ( Map.Entry<String, String> parameter : extraParameters.entrySet() ) {
+                    parameters.put( parameter.getKey(), parameter.getValue() );
+                }
+            }
+
             EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
             ArrayList<VirtualMachine> list = new ArrayList<VirtualMachine>();
             NodeList blocks;
@@ -1644,9 +1663,9 @@ public class EC2Instance implements VirtualMachineSupport {
         finally {
             APITrace.end();
         }
-	}
+    }
 
-    @Override
+        @Override
     public void pause(@Nonnull String vmId) throws InternalException, CloudException {
         throw new OperationNotSupportedException("Pause/unpause not supported by the EC2 API");
     }
