@@ -1596,10 +1596,6 @@ public class EC2Instance implements VirtualMachineSupport {
             for ( Map.Entry<String, String> parameter : tags.entrySet() ) {
                 String key = parameter.getKey();
                 String value = parameter.getValue();
-
-//                String filterName = "Filter." + i + ".Name=" + AWSCloud.encode( "tag:" + key, true );
-//                String filterValue = "Filter." + i + ".Value.1=" + AWSCloud.encode( value, true );
-
                 extraParameters.put( "Filter." + i + ".Name", "tag:" + key );
                 extraParameters.put( "Filter." + i + ".Value.1", value );
                 i++;
