@@ -56,6 +56,7 @@ import org.dasein.cloud.network.NICState;
 import org.dasein.cloud.network.NetworkInterface;
 import org.dasein.cloud.network.NetworkServices;
 import org.dasein.cloud.network.Networkable;
+import org.dasein.cloud.network.RawAddress;
 import org.dasein.cloud.network.Route;
 import org.dasein.cloud.network.RoutingTable;
 import org.dasein.cloud.network.Subnet;
@@ -2186,7 +2187,7 @@ public class VPC extends AbstractVLANSupport {
                 nic.setDescription(child.getFirstChild().getNodeValue().trim());
             }
             else if( nodeName.equalsIgnoreCase("privateIpAddress") && child.hasChildNodes() ) {
-                nic.setIpAddress(child.getFirstChild().getNodeValue().trim());
+                nic.setIpAddresses(new RawAddress(child.getFirstChild().getNodeValue().trim()));
             }
             else if( nodeName.equalsIgnoreCase("status") && child.hasChildNodes() ) {
                 nic.setCurrentState(toNICState(child.getFirstChild().getNodeValue().trim()));
