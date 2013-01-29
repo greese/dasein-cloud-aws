@@ -45,6 +45,7 @@ import org.dasein.cloud.compute.ComputeServices;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.network.AbstractVLANSupport;
 import org.dasein.cloud.network.Firewall;
 import org.dasein.cloud.network.FirewallSupport;
 import org.dasein.cloud.network.IPVersion;
@@ -58,6 +59,7 @@ import org.dasein.cloud.network.Networkable;
 import org.dasein.cloud.network.Route;
 import org.dasein.cloud.network.RoutingTable;
 import org.dasein.cloud.network.Subnet;
+import org.dasein.cloud.network.SubnetCreateOptions;
 import org.dasein.cloud.network.SubnetState;
 import org.dasein.cloud.network.VLAN;
 import org.dasein.cloud.network.VLANState;
@@ -67,7 +69,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-public class VPC implements VLANSupport {
+public class VPC extends AbstractVLANSupport {
     static private final Logger logger = Logger.getLogger(VPC.class);
     
     private AWSCloud provider;
@@ -693,7 +695,7 @@ public class VPC implements VLANSupport {
     }
 
     @Override
-    public @Nonnull Subnet createSubnet(@Nonnull String cidr, @Nonnull String inProviderVlanId, @Nonnull String name, @Nonnull String description) throws CloudException, InternalException {
+    public @Nonnull Subnet createSubnet(@Nonnull SubnetCreateOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "createSubnet");
         try {
             ProviderContext ctx = provider.getContext();
@@ -706,8 +708,14 @@ public class VPC implements VLANSupport {
             NodeList blocks;
             Document doc;
 
-            parameters.put("CidrBlock", cidr);
-            parameters.put("VpcId", inProviderVlanId);
+            parameters.put("CidrBlock", options.getCidr());
+            parameters.put("VpcId", options.getProviderVlanId());
+
+            String dc = options.getProviderDataCenterId();
+
+            if( dc != null ) {
+                parameters.put("AvailabilityZone", dc);
+            }
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -726,19 +734,23 @@ public class VPC implements VLANSupport {
                 Subnet subnet = toSubnet(ctx, item);
 
                 if( subnet != null ) {
-                    Tag[] tags = new Tag[2];
-                    Tag t = new Tag();
+                    Map<String,Object> metaData = new HashMap<String, Object>();
 
-                    t.setKey("Name");
-                    t.setValue(name);
-                    tags[0] = t;
-                    t = new Tag();
-                    t.setKey("Description");
-                    t.setValue(description);
-                    tags[1] = t;
+                    metaData.put("Name", options.getName());
+                    metaData.put("Description", options.getDescription());
+                    Tag[] tags = new Tag[metaData.size()];
+                    int j = 0;
+
+                    for( Map.Entry<String,Object> entry : metaData.entrySet() ) {
+                        Tag t = new Tag();
+
+                        t.setKey(entry.getKey());
+                        t.setValue(entry.getValue().toString());
+                        tags[j++] = t;
+                    }
                     provider.createTags(subnet.getProviderSubnetId(), tags);
-                    subnet.setName(name);
-                    subnet.setDescription(description);
+                    subnet.setName(options.getDescription());
+                    subnet.setDescription(options.getDescription());
                     return subnet;
                 }
             }
@@ -2395,15 +2407,22 @@ public class VPC implements VLANSupport {
             else if( nodeName.equalsIgnoreCase("availabilityZone") ) {
                 subnet.setProviderDataCenterId(child.getFirstChild().getNodeValue().trim());
             }
+            else if ( nodeName.equalsIgnoreCase("tagSet")) {
+                provider.setTags( child, subnet );
+            }
         }
         if( subnet.getProviderSubnetId() == null ) {
             return null;
         }
         if( subnet.getName() == null ) {
-            subnet.setName(subnet.getProviderSubnetId());
+            String name = subnet.getTags().get("Name");
+
+            subnet.setName((name == null || name.length() < 1) ? subnet.getProviderSubnetId() : name);
         }
         if( subnet.getDescription() == null ) {
-            subnet.setDescription(subnet.getName());
+            String desc = subnet.getTags().get("Description");
+
+            subnet.setDescription((desc == null || desc.length() < 1) ? subnet.getName() : desc);
         }
         return subnet;
     }
