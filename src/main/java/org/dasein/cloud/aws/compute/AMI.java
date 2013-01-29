@@ -33,7 +33,19 @@ import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.storage.S3Method;
-import org.dasein.cloud.compute.*;
+import org.dasein.cloud.compute.AbstractImageSupport;
+import org.dasein.cloud.compute.Architecture;
+import org.dasein.cloud.compute.ImageClass;
+import org.dasein.cloud.compute.ImageCreateOptions;
+import org.dasein.cloud.compute.ImageFilterOptions;
+import org.dasein.cloud.compute.MachineImage;
+import org.dasein.cloud.compute.MachineImageFormat;
+import org.dasein.cloud.compute.MachineImageState;
+import org.dasein.cloud.compute.MachineImageSupport;
+import org.dasein.cloud.compute.MachineImageType;
+import org.dasein.cloud.compute.Platform;
+import org.dasein.cloud.compute.VirtualMachine;
+import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.CalendarWrapper;
@@ -50,13 +62,14 @@ import javax.annotation.Nullable;
 /**
  * @version 2013.01.1 Fixed a data consistency issue with AWS (issue #21)
  */
-public class AMI implements MachineImageSupport {
+public class AMI extends AbstractImageSupport {
 	static private final Logger logger = Logger.getLogger(AMI.class);
 	
 	private AWSCloud provider = null;
 	
 	AMI(AWSCloud provider) {
-		this.provider = provider;
+		super(provider);
+        this.provider = provider;
 	}
 
     @Override
@@ -79,26 +92,6 @@ public class AMI implements MachineImageSupport {
         finally {
             APITrace.end();
         }
-    }
-
-    @Override
-    public @Nonnull String bundleVirtualMachine(@Nonnull String virtualMachineId, @Nonnull MachineImageFormat format, @Nonnull String bucket, @Nonnull String name) throws CloudException, InternalException {
-        throw new OperationNotSupportedException("Not yet implemented");
-    }
-
-    @Override
-    public void bundleVirtualMachineAsync(@Nonnull String virtualMachineId, @Nonnull MachineImageFormat format, @Nonnull String bucket, @Nonnull String name, @Nonnull AsynchronousTask<String> trackingTask) throws CloudException, InternalException {
-        throw new OperationNotSupportedException("Not yet implemented");
-    }
-
-    @Override
-    public @Nonnull MachineImage captureImage(@Nonnull ImageCreateOptions options) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was set for this request");
-        }
-        return captureImage(ctx, options, null);
     }
 
     private @Nonnull MachineImage captureImage(@Nonnull ProviderContext ctx, @Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
@@ -212,57 +205,13 @@ public class AMI implements MachineImageSupport {
     }
 
     @Override
-    public void captureImageAsync(final @Nonnull ImageCreateOptions options, final @Nonnull AsynchronousTask<MachineImage> taskTracker) throws CloudException, InternalException {
-        final ProviderContext ctx = provider.getContext();
-        VirtualMachine vm = null;
-
-        long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
-
-        while( timeout > System.currentTimeMillis() ) {
-            try {
-                //noinspection ConstantConditions
-                vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(options.getVirtualMachineId());
-                if( vm == null ) {
-                    break;
-                }
-                if( !vm.isPersistent() ) {
-                    throw new OperationNotSupportedException("You cannot capture instance-backed virtual machines");
-                }
-                if( VmState.RUNNING.equals(vm.getCurrentState()) || VmState.STOPPED.equals(vm.getCurrentState()) ) {
-                    break;
-                }
-            }
-            catch( Throwable ignore ) {
-                // ignore
-            }
-            try { Thread.sleep(15000L); }
-            catch( InterruptedException ignore ) { }
-        }
-        if( vm == null ) {
-            throw new CloudException("No such virtual machine: " + options.getVirtualMachineId());
-        }
+    protected MachineImage capture(@Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
         }
-        Thread t = new Thread() {
-            public void run() {
-                try {
-                    taskTracker.completeWithResult(captureImage(ctx, options, taskTracker));
-                }
-                catch( Throwable t ) {
-                    taskTracker.complete(t);
-                }
-                finally {
-                    provider.release();
-                }
-            }
-        };
-
-        provider.hold();
-        t.setName("Imaging " + options.getVirtualMachineId() + " as " + options.getName());
-        t.setDaemon(true);
-        t.start();
+        return captureImage(ctx, options, task);
     }
 
     private MachineImage captureWindows(@Nonnull ProviderContext ctx, @Nonnull ImageCreateOptions options, @Nonnull String bucket, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
@@ -409,7 +358,7 @@ public class AMI implements MachineImageSupport {
                         MachineImage image = toMachineImage(instance);
 
                         if( image != null ) {
-                            if( matches(image, ownerId, keyword, platform) ) {
+                            if( matches(image, keyword, platform, architecture, cls) && ownerId == null || ownerId.equals(image.getProviderOwnerId()) ) {
                                 list.add(image);
                             }
                         }
@@ -473,7 +422,7 @@ public class AMI implements MachineImageSupport {
                         MachineImage image = toMachineImage(instance);
 
                         if( image != null ) {
-                            if( matches(image, null, keyword, platform) ) {
+                            if( matches(image, keyword, platform, architecture, cls) ) {
                                 list.add(image);
                             }
                         }
@@ -593,54 +542,6 @@ public class AMI implements MachineImageSupport {
         return Requirement.REQUIRED;
     }
 
-    @Override
-    @Deprecated
-    public @Nonnull AsynchronousTask<String> imageVirtualMachine(@Nonnull String vmId, @Nonnull String name, @Nonnull String description) throws CloudException, InternalException {
-        @SuppressWarnings("ConstantConditions") VirtualMachine vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(vmId);
-
-        if( vm == null ) {
-            throw new CloudException("No such virtual machine: " + vmId);
-        }
-        final AsynchronousTask<MachineImage> task = new AsynchronousTask<MachineImage>();
-        final AsynchronousTask<String> oldTask = new AsynchronousTask<String>();
-
-        captureImageAsync(ImageCreateOptions.getInstance(vm,  name, description), task);
-
-        final long timeout = System.currentTimeMillis() + (CalendarWrapper.HOUR * 2);
-
-        Thread t = new Thread() {
-            public void run() {
-                while( timeout > System.currentTimeMillis() ) {
-                    try { Thread.sleep(15000L); }
-                    catch( InterruptedException ignore ) { }
-                    oldTask.setPercentComplete(task.getPercentComplete());
-
-                    Throwable error = task.getTaskError();
-                    MachineImage img = task.getResult();
-
-                    if( error != null ) {
-                        oldTask.complete(error);
-                        return;
-                    }
-                    else if( img != null ) {
-                        oldTask.completeWithResult(img.getProviderMachineImageId());
-                        return;
-                    }
-                    else if( task.isComplete() ) {
-                        oldTask.complete(new CloudException("Task completed without info"));
-                        return;
-                    }
-                }
-                oldTask.complete(new CloudException("Image creation task timed out"));
-            }
-        };
-
-        t.setDaemon(true);
-        t.start();
-
-        return oldTask;
-    }
-    
     @Override
     public boolean isImageSharedWithPublic(@Nonnull String machineImageId) throws CloudException, InternalException {
         APITrace.begin(provider, "isImageSharedWithPublic");
@@ -787,18 +688,19 @@ public class AMI implements MachineImageSupport {
         }
     }
 
-    private Map<String,String> getMachineImageFilterParamers(MachineImageFilterOptions options ) {
+    private @Nullable Map<String,String> getMachineImageFilterParamers(@Nullable ImageFilterOptions options ) {
 
         if ( options == null ) {
             return null;
         }
 
         Map<String, String> extraParameters = new HashMap<String, String>();
+        ImageClass cls = options.getImageClass();
         int i = 1;
 
-        if ( options.getImageClass() != null ) {
+        if ( cls != null ) {
             String t = "machine";
-            switch( options.getImageClass() ) {
+            switch( cls ) {
                 case MACHINE: t = "machine"; break;
                 case KERNEL: t = "kernel"; break;
                 case RAMDISK: t = "ramdisk"; break;
@@ -821,9 +723,8 @@ public class AMI implements MachineImageSupport {
         return extraParameters;
     }
 
-
     @Override
-    public @Nonnull Iterable<MachineImage> listImages(final @Nonnull MachineImageFilterOptions options) throws CloudException, InternalException {
+    public @Nonnull Iterable<MachineImage> listImages(final @Nullable ImageFilterOptions options) throws CloudException, InternalException {
         final ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
@@ -838,7 +739,7 @@ public class AMI implements MachineImageSupport {
         populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
             public void populate(@Nonnull Jiterator<MachineImage> iterator) throws CloudException, InternalException {
                 try {
-                    populateImages(ctx, options.getAccountNumber(), iterator, filterParameters);
+                    populateImages(ctx, options == null ? null : options.getAccountNumber(), iterator, filterParameters);
                 }
                 finally {
                     provider.release();
@@ -847,37 +748,6 @@ public class AMI implements MachineImageSupport {
         });
         populator.populate();
         return populator.getResult();
-    }
-
-    @Override
-    @Deprecated
-    public @Nonnull Iterable<MachineImage> listImages(final @Nonnull ImageClass cls) throws CloudException, InternalException {
-        MachineImageFilterOptions options = MachineImageFilterOptions.getInstance()
-                .withImageClass( cls );
-
-        return listImages( options );
-    }
-
-    @Override
-    @Deprecated
-    public @Nonnull Iterable<MachineImage> listImages(final @Nonnull ImageClass cls, final @Nonnull String ownedBy) throws CloudException, InternalException {
-        MachineImageFilterOptions options = MachineImageFilterOptions.getInstance()
-                .withAccountNumber( ownedBy )
-                .withImageClass( cls );
-
-        return listImages( options );
-    }
-
-    @Override
-    @Deprecated
-    public @Nonnull Collection<MachineImage> listMachineImages() throws InternalException, CloudException {
-        return (Collection<MachineImage>)listImages(ImageClass.MACHINE);
-    }
-	
-	@Override
-    @Deprecated
-    public @Nonnull Collection<MachineImage> listMachineImagesOwnedBy(@Nonnull String owner) throws InternalException, CloudException {
-        return (Collection<MachineImage>)listImages(ImageClass.MACHINE, owner);
     }
 
     @Override
@@ -957,47 +827,6 @@ public class AMI implements MachineImageSupport {
             return new String[0];
         }
         return new String[0];
-    }
-    
-    private boolean matches(@Nonnull MachineImage image, @Nullable String ownerId, @Nullable String keyword, @Nullable Platform platform) {
-        if( ownerId != null && !ownerId.equals(image.getProviderOwnerId()) ) {
-            return false;
-        }
-        if( platform != null && !platform.equals(Platform.UNKNOWN) ) {
-            Platform mine = image.getPlatform();
-            
-            if( platform.isWindows() && !mine.isWindows() ) {
-                return false;
-            }
-            if( platform.isUnix() && !mine.isUnix() ) {
-                return false;
-            }
-            if( platform.isBsd() && !mine.isBsd() ) {
-                return false;
-            }
-            if( platform.isLinux() && !mine.isLinux() ) {
-                return false;
-            }
-            if( platform.equals(Platform.UNIX) ) {
-                if( !mine.isUnix() ) {
-                    return false;
-                }
-            }
-            else if( !platform.equals(mine) ) {
-                return false;
-            }
-        }
-        if( keyword != null ) {
-            keyword = keyword.toLowerCase();
-            if( !image.getDescription().toLowerCase().contains(keyword) ) {
-                if( !image.getName().toLowerCase().contains(keyword) ) {
-                    if( !image.getProviderMachineImageId().toLowerCase().contains(keyword) ) {
-                        return false;
-                    }
-                }
-            }
-        }
-        return true;
     }
     
 	private void populateImages(@Nonnull ProviderContext ctx, @Nullable String accountNumber, @Nonnull Jiterator<MachineImage> iterator, Map<String,String> extraParameters) throws CloudException, InternalException {
@@ -1441,17 +1270,6 @@ public class AMI implements MachineImageSupport {
         }
     }
 
-    @Override
-    @Deprecated
-    public void shareMachineImage(@Nonnull String machineImageId, @Nullable String withAccountId, boolean allowShare) throws CloudException, InternalException {
-        if( withAccountId == null ) {
-            setPublicShare(machineImageId, allowShare);
-        }
-        else {
-            setPrivateShare(machineImageId, allowShare, withAccountId);
-        }
-	}
-
     private @Nonnull List<String> sharesAsList(@Nonnull String forMachineImageId) throws CloudException, InternalException {
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGE_ATTRIBUTE);
         ArrayList<String> list = new ArrayList<String>();
@@ -1507,11 +1325,6 @@ public class AMI implements MachineImageSupport {
     @Override
     public boolean supportsCustomImages() {
         return true;
-    }
-
-    @Override
-    public boolean supportsDirectImageUpload() throws CloudException, InternalException {
-        return false;
     }
 
     @Override
