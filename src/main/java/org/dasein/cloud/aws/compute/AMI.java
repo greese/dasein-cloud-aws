@@ -20,13 +20,7 @@ package org.dasein.cloud.aws.compute;
 
 import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.log4j.Logger;
 import org.dasein.cloud.AsynchronousTask;
@@ -39,17 +33,7 @@ import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.storage.S3Method;
-import org.dasein.cloud.compute.Architecture;
-import org.dasein.cloud.compute.ImageClass;
-import org.dasein.cloud.compute.ImageCreateOptions;
-import org.dasein.cloud.compute.MachineImage;
-import org.dasein.cloud.compute.MachineImageFormat;
-import org.dasein.cloud.compute.MachineImageState;
-import org.dasein.cloud.compute.MachineImageSupport;
-import org.dasein.cloud.compute.MachineImageType;
-import org.dasein.cloud.compute.Platform;
-import org.dasein.cloud.compute.VirtualMachine;
-import org.dasein.cloud.compute.VmState;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.CalendarWrapper;
@@ -803,13 +787,50 @@ public class AMI implements MachineImageSupport {
         }
     }
 
+    private Map<String,String> getMachineImageFilterParamers(MachineImageFilterOptions options ) {
+
+        if ( options == null ) {
+            return null;
+        }
+
+        Map<String, String> extraParameters = new HashMap<String, String>();
+        int i = 1;
+
+        if ( options.getImageClass() != null ) {
+            String t = "machine";
+            switch( options.getImageClass() ) {
+                case MACHINE: t = "machine"; break;
+                case KERNEL: t = "kernel"; break;
+                case RAMDISK: t = "ramdisk"; break;
+            }
+            extraParameters.put("Filter." + i + ".Name", "image-type");
+            extraParameters.put("Filter." + i + ".Value", t);
+            i++;
+        }
+
+        Map<String, String> tags = options.getTags();
+        if ( tags != null && tags.size() > 0 ) {
+            for ( Map.Entry<String, String> parameter : tags.entrySet() ) {
+                String key = parameter.getKey();
+                String value = parameter.getValue();
+                extraParameters.put( "Filter." + i + ".Name", "tag:" + key );
+                extraParameters.put( "Filter." + i + ".Value.1", value );
+                i++;
+            }
+        }
+        return extraParameters;
+    }
+
+
     @Override
-    public @Nonnull Iterable<MachineImage> listImages(final @Nonnull ImageClass cls) throws CloudException, InternalException {
+    public @Nonnull Iterable<MachineImage> listImages(final @Nonnull MachineImageFilterOptions options) throws CloudException, InternalException {
         final ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
         }
+
+        final Map<String, String> filterParameters = getMachineImageFilterParamers( options );
 
         PopulatorThread<MachineImage> populator;
 
@@ -817,7 +838,7 @@ public class AMI implements MachineImageSupport {
         populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
             public void populate(@Nonnull Jiterator<MachineImage> iterator) throws CloudException, InternalException {
                 try {
-                    populateImages(ctx, null, iterator, cls);
+                    populateImages(ctx, options.getAccountNumber(), iterator, filterParameters);
                 }
                 finally {
                     provider.release();
@@ -829,28 +850,22 @@ public class AMI implements MachineImageSupport {
     }
 
     @Override
+    @Deprecated
+    public @Nonnull Iterable<MachineImage> listImages(final @Nonnull ImageClass cls) throws CloudException, InternalException {
+        MachineImageFilterOptions options = MachineImageFilterOptions.getInstance()
+                .withImageClass( cls );
+
+        return listImages( options );
+    }
+
+    @Override
+    @Deprecated
     public @Nonnull Iterable<MachineImage> listImages(final @Nonnull ImageClass cls, final @Nonnull String ownedBy) throws CloudException, InternalException {
-        final ProviderContext ctx = provider.getContext();
+        MachineImageFilterOptions options = MachineImageFilterOptions.getInstance()
+                .withAccountNumber( ownedBy )
+                .withImageClass( cls );
 
-        if( ctx == null ) {
-            throw new CloudException("No context was set for this request");
-        }
-
-        PopulatorThread<MachineImage> populator;
-
-        provider.hold();
-        populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
-            public void populate(@Nonnull Jiterator<MachineImage> iterator) throws CloudException, InternalException {
-                try {
-                    populateImages(ctx, ownedBy, iterator, cls);
-                }
-                finally {
-                    provider.release();
-                }
-            }
-        });
-        populator.populate();
-        return populator.getResult();
+        return listImages( options );
     }
 
     @Override
@@ -985,7 +1000,7 @@ public class AMI implements MachineImageSupport {
         return true;
     }
     
-	private void populateImages(@Nonnull ProviderContext ctx, @Nullable String accountNumber, @Nonnull Jiterator<MachineImage> iterator, @Nonnull ImageClass cls) throws CloudException, InternalException {
+	private void populateImages(@Nonnull ProviderContext ctx, @Nullable String accountNumber, @Nonnull Jiterator<MachineImage> iterator, Map<String,String> extraParameters) throws CloudException, InternalException {
         APITrace.begin(provider, "populateImages");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
@@ -999,15 +1014,9 @@ public class AMI implements MachineImageSupport {
             if( provider.getEC2Provider().isAWS() ) {
                 parameters.put("Owner", accountNumber);
             }
-            String t = "machine";
 
-            switch( cls ) {
-                case MACHINE: t = "machine"; break;
-                case KERNEL: t = "kernel"; break;
-                case RAMDISK: t = "ramdisk"; break;
-            }
-            parameters.put("Filter.1.Name", "image-type");
-            parameters.put("Filter.1.Value", t);
+            putExtraParameters( parameters, extraParameters );
+
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -1035,8 +1044,7 @@ public class AMI implements MachineImageSupport {
             if( provider.getEC2Provider().isAWS() ) {
                 parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
                 parameters.put("ExecutableBy", accountNumber);
-                parameters.put("Filter.1.Name", "image-type");
-                parameters.put("Filter.1.Value", t);
+                putExtraParameters( parameters, extraParameters );
                 method = new EC2Method(provider, provider.getEc2Url(), parameters);
                 try {
                     doc = method.invoke();
@@ -1067,6 +1075,17 @@ public class AMI implements MachineImageSupport {
             APITrace.end();
         }
 	}
+
+    private void putExtraParameters(Map<String, String> parameters, Map<String, String> extraParameters) {
+        if ( parameters == null ) {
+            parameters = new HashMap<String,String>();
+        }
+        if ( extraParameters != null && extraParameters.size() > 0 ) {
+            for ( Map.Entry<String, String> parameter : extraParameters.entrySet() ) {
+                parameters.put( parameter.getKey(), parameter.getValue() );
+            }
+        }
+    }
 
     @Override
     public @Nonnull MachineImage registerImageBundle(@Nonnull ImageCreateOptions options) throws CloudException, InternalException {
