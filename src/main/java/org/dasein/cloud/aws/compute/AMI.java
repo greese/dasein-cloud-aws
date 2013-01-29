@@ -506,11 +506,6 @@ public class AMI extends AbstractImageSupport {
             APITrace.end();
         }
     }
-
-    @Override
-    public @Nullable MachineImage getMachineImage(@Nonnull String imageId) throws InternalException, CloudException {
-        return getImage(imageId);
-    }
 	
 	@Override
 	public @Nonnull String getProviderTermForImage(@Nonnull Locale locale) {
