@@ -1489,9 +1489,10 @@ public class EC2Instance extends AbstractVMSupport {
 
     @Override
     public @Nonnull Iterable<VirtualMachine> listVirtualMachines(@Nullable VMFilterOptions options) throws InternalException, CloudException {
-        Map<String, String> tags = (options == null ? null : options.getTags());
+        Map<String, String> tags = ((options == null || options.isMatchesAny()) ? null : options.getTags());
 
         if( tags != null ) {
+            // tag advantage of EC2-based filtering if we can...
             Map<String, String> extraParameters = new HashMap<String, String>();
             int i = 1;
 
@@ -1504,7 +1505,16 @@ public class EC2Instance extends AbstractVMSupport {
                     i++;
                 }
             }
+            String regex = options.getRegex();
 
+            if( regex != null ) {
+                // still have to match on regex
+                options = VMFilterOptions.getInstance(false, regex);
+            }
+            else {
+                // nothing else to match on
+                options = null;
+            }
             return listVirtualMachinesWithParams( extraParameters, options );
         }
         else {
