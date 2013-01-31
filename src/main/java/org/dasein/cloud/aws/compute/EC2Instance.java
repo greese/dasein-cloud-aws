@@ -41,6 +41,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
 
+import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
@@ -61,8 +62,7 @@ import org.dasein.cloud.network.IPVersion;
 import org.dasein.cloud.network.IpAddress;
 import org.dasein.cloud.network.IpAddressSupport;
 import org.dasein.cloud.network.NetworkServices;
-import org.dasein.cloud.network.Subnet;
-import org.dasein.cloud.network.VLANSupport;
+import org.dasein.cloud.network.RawAddress;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
@@ -79,13 +79,14 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-public class EC2Instance implements VirtualMachineSupport {
+public class EC2Instance extends AbstractVMSupport {
 	static private final Logger logger = Logger.getLogger(EC2Instance.class);
 	static private final Calendar UTC_CALENDAR = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
 
 	private AWSCloud provider = null;
 	
 	EC2Instance(AWSCloud provider) {
+        super(provider);
 		this.provider = provider;
 	}
 
@@ -345,7 +346,7 @@ public class EC2Instance implements VirtualMachineSupport {
     }
 
     @Override
-    public void enableAnalytics(String instanceId) throws InternalException, CloudException {
+    public void enableAnalytics(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(provider, "enableVMAnalytics");
         try {
             if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
@@ -623,7 +624,7 @@ public class EC2Instance implements VirtualMachineSupport {
 	}
 
 	@Override
-	public VmStatistics getVMStatistics(String instanceId, long startTimestamp, long endTimestamp) throws InternalException, CloudException {
+	public @Nonnull VmStatistics getVMStatistics(@Nonnull String instanceId, @Nonnegative long startTimestamp, @Nonnegative long endTimestamp) throws InternalException, CloudException {
         APITrace.begin(provider, "getVMStatistics");
         try {
             VmStatistics statistics = new VmStatistics();
@@ -804,11 +805,6 @@ public class EC2Instance implements VirtualMachineSupport {
     }
 
     @Override
-    public @Nonnull Requirement identifyPasswordRequirement() {
-        return Requirement.NONE;
-    }
-
-    @Override
     public @Nonnull Requirement identifyPasswordRequirement(Platform platform) throws CloudException, InternalException {
         return Requirement.NONE;
     }
@@ -816,11 +812,6 @@ public class EC2Instance implements VirtualMachineSupport {
     @Override
     public @Nonnull Requirement identifyRootVolumeRequirement() {
         return Requirement.NONE;
-    }
-
-    @Override
-    public @Nonnull Requirement identifyShellKeyRequirement() {
-        return Requirement.OPTIONAL;
     }
 
     @Override
@@ -1445,97 +1436,6 @@ public class EC2Instance implements VirtualMachineSupport {
             APITrace.end();
         }
     }
-    
-	@Override
-    public @Nonnull VirtualMachine launch(@Nonnull String imageId, @Nonnull VirtualMachineProduct size, @Nullable String inZoneId, @Nonnull String name, @Nullable String description, @Nullable String keypair, @Nullable String inVlanId, boolean withMonitoring, boolean asImageSandbox, @Nullable String ... protectedByFirewalls) throws CloudException, InternalException {
-        VMLaunchOptions cfg = VMLaunchOptions.getInstance(size.getProviderProductId(), imageId, name, description == null ? name : description);
-
-        if( keypair != null ) {
-            cfg.withBoostrapKey(keypair);
-        }
-        if( inVlanId != null ) {
-            if( inZoneId == null ) {
-                NetworkServices svc = provider.getNetworkServices();
-
-                if( svc != null ) {
-                    VLANSupport support = svc.getVlanSupport();
-
-                    if( support != null ) {
-                        Subnet subnet = support.getSubnet(inVlanId);
-
-                        if( subnet == null ) {
-                            throw new CloudException("No such VPC subnet: " + inVlanId);
-                        }
-                        inZoneId = subnet.getProviderDataCenterId();
-                    }
-                }
-            }
-            if( inZoneId == null ) {
-                throw new CloudException("Unable to match zone to subnet");
-            }
-            cfg.inVlan(null, inZoneId, inVlanId);
-        }
-        else if( inZoneId != null ) {
-            cfg.inDataCenter(inZoneId);
-        }
-        if( withMonitoring ) {
-            cfg.withExtendedAnalytics();
-        }
-        if( protectedByFirewalls != null && protectedByFirewalls.length > 0 ) {
-            cfg.behindFirewalls(protectedByFirewalls);
-        }
-        return launch(cfg);
-    }
-
-	@Override
-    @Deprecated
-	public @Nonnull VirtualMachine launch(@Nonnull String imageId, @Nonnull VirtualMachineProduct size, @Nullable String inZoneId, @Nonnull String name, @Nullable String description, @Nullable String keypair, @Nullable String inVlanId, boolean withMonitoring, boolean asImageSandbox, @Nullable String[] protectedByFirewalls, @Nullable Tag ... tags) throws CloudException, InternalException {
-        VMLaunchOptions cfg = VMLaunchOptions.getInstance(size.getProviderProductId(), imageId, name, description == null ? name : description);
-
-        if( keypair != null ) {
-            cfg.withBoostrapKey(keypair);
-        }
-        if( inVlanId != null ) {
-            if( inZoneId == null ) {
-                NetworkServices svc = provider.getNetworkServices();
-                
-                if( svc != null ) {
-                    VLANSupport support = svc.getVlanSupport();
-                    
-                    if( support != null ) {
-                        Subnet subnet = support.getSubnet(inVlanId);
-                    
-                        if( subnet == null ) {
-                            throw new CloudException("No such VPC subnet: " + inVlanId);
-                        }
-                        inZoneId = subnet.getProviderDataCenterId();
-                    }
-                }
-            }
-            if( inZoneId == null ) {
-                throw new CloudException("Unable to match zone to subnet");
-            }
-            cfg.inVlan(null, inZoneId, inVlanId);
-        }
-        else if( inZoneId != null ) {
-            cfg.inDataCenter(inZoneId);
-        }
-        if( withMonitoring ) {
-            cfg.withExtendedAnalytics();
-        }
-        if( protectedByFirewalls != null && protectedByFirewalls.length > 0 ) {
-            cfg.behindFirewalls(protectedByFirewalls);
-        }
-        if( tags != null && tags.length > 0 ) {
-            HashMap<String,Object> meta = new HashMap<String, Object>();
-            
-            for( Tag t : tags ) {
-                meta.put(t.getKey(), t.getValue());
-            }
-            cfg.withMetaData(meta);
-        }
-        return launch(cfg);
-	}
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listVirtualMachineStatus() throws InternalException, CloudException {
@@ -1584,28 +1484,35 @@ public class EC2Instance implements VirtualMachineSupport {
 
 	@Override
 	public @Nonnull Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
-        return listVirtualMachinesWithParams(null);
+        return listVirtualMachinesWithParams(null, null);
 	}
 
     @Override
-    public @Nonnull Iterable<VirtualMachine> listVirtualMachines(VMFilterOptions options) throws InternalException, CloudException {
-        Map<String, String> extraParameters = new HashMap<String, String>();
-        int i = 1;
-        Map<String, String> tags = options.getTags();
-        if ( tags != null && tags.size() > 0 ) {
-            for ( Map.Entry<String, String> parameter : tags.entrySet() ) {
-                String key = parameter.getKey();
-                String value = parameter.getValue();
-                extraParameters.put( "Filter." + i + ".Name", "tag:" + key );
-                extraParameters.put( "Filter." + i + ".Value.1", value );
-                i++;
-            }
-        }
+    public @Nonnull Iterable<VirtualMachine> listVirtualMachines(@Nullable VMFilterOptions options) throws InternalException, CloudException {
+        Map<String, String> tags = (options == null ? null : options.getTags());
 
-        return listVirtualMachinesWithParams( extraParameters );
+        if( tags != null ) {
+            Map<String, String> extraParameters = new HashMap<String, String>();
+            int i = 1;
+
+            if ( tags.size() > 0 ) {
+                for ( Map.Entry<String, String> parameter : tags.entrySet() ) {
+                    String key = parameter.getKey();
+                    String value = parameter.getValue();
+                    extraParameters.put( "Filter." + i + ".Name", "tag:" + key );
+                    extraParameters.put( "Filter." + i + ".Value.1", value );
+                    i++;
+                }
+            }
+
+            return listVirtualMachinesWithParams( extraParameters, options );
+        }
+        else {
+            return listVirtualMachinesWithParams(null, options);
+        }
     }
 
-    private @Nonnull Iterable<VirtualMachine> listVirtualMachinesWithParams(Map<String,String> extraParameters) throws InternalException, CloudException {
+    private @Nonnull Iterable<VirtualMachine> listVirtualMachinesWithParams(Map<String,String> extraParameters, @Nullable VMFilterOptions options) throws InternalException, CloudException {
         APITrace.begin(provider, "listVirtualMachines");
         try {
             ProviderContext ctx = provider.getContext();
@@ -1654,7 +1561,11 @@ public class EC2Instance implements VirtualMachineSupport {
                     Node instance = instances.item(j);
 
                     if( instance.getNodeName().equals("item") ) {
-                        list.add(toVirtualMachine(ctx, instance, addresses));
+                        VirtualMachine vm = toVirtualMachine(ctx, instance, addresses);
+
+                        if( options == null || options.matches(vm) ) {
+                            list.add(vm);
+                        }
                     }
                 }
             }
@@ -1707,29 +1618,6 @@ public class EC2Instance implements VirtualMachineSupport {
         }
         return new String[0];
     }
-    
-	@Override
-	public void stop(@Nonnull String instanceId) throws InternalException, CloudException {
-        stop(instanceId, false);
-
-        long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 10L);
-
-        while( timeout > System.currentTimeMillis() ) {
-            try { Thread.sleep(15000L); }
-            catch( InterruptedException ignore ) { }
-            try {
-                VirtualMachine vm = getVirtualMachine(instanceId);
-
-                if( vm == null || VmState.TERMINATED.equals(vm.getCurrentState()) || VmState.STOPPED.equals(vm.getCurrentState()) ) {
-                    return;
-                }
-            }
-            catch( Throwable ignore ) {
-                // ignore
-            }
-        }
-        stop(instanceId, true);
-	}
 
     @Override
     public void stop(@Nonnull String instanceId, boolean force) throws InternalException, CloudException {
@@ -1812,11 +1700,6 @@ public class EC2Instance implements VirtualMachineSupport {
         }        
         return dnsName;
 	}
-
-    @Override
-    public boolean supportsAnalytics() throws CloudException, InternalException {
-        return true;
-    }
 
     @Override
     public boolean supportsPauseUnpause(@Nonnull VirtualMachine vm) {
@@ -1976,15 +1859,13 @@ public class EC2Instance implements VirtualMachineSupport {
 			else if( name.equals("privateDnsName") ) {
 				if( attr.hasChildNodes() ) {
 					String value = attr.getFirstChild().getNodeValue();
-				
+				    RawAddress[] addrs = server.getPrivateAddresses();
+
 					server.setPrivateDnsAddress(value);
-                    if( server.getPrivateIpAddresses() == null || server.getPrivateIpAddresses().length < 1 ) {
+                    if( addrs == null || addrs.length < 1 ) {
 					    value = guess(value);
 					    if( value != null ) {
-					        server.setPrivateIpAddresses(new String[] { value });
-					    }
-					    else {
-					        server.setPrivateIpAddresses(new String[0]);
+					        server.setPrivateAddresses(new RawAddress(value));
 					    }
 					}
 				}
@@ -1992,10 +1873,11 @@ public class EC2Instance implements VirtualMachineSupport {
 			else if( name.equals("dnsName") ) {
                 if( attr.hasChildNodes() ) {
                     String value = attr.getFirstChild().getNodeValue();
+                    RawAddress[] addrs = server.getPublicAddresses();
 
                     server.setPublicDnsAddress(value);
-					if( server.getPublicIpAddresses() == null || server.getPublicIpAddresses().length < 1 ) {
-					    server.setPublicIpAddresses(new String[] { resolve(value) });
+					if( addrs == null || addrs.length < 1 ) {
+					    server.setPublicAddresses(new RawAddress(resolve(value)));
 					}
 				}
 			}
@@ -2003,16 +1885,16 @@ public class EC2Instance implements VirtualMachineSupport {
                 if( attr.hasChildNodes() ) {
                     String value = attr.getFirstChild().getNodeValue();
 
-                    server.setPrivateIpAddresses(new String[] { value });
+                    server.setPrivateAddresses(new RawAddress(value));
                 }
             }
             else if( name.equals("ipAddress") ) {
                 if( attr.hasChildNodes() ) {
                     String value = attr.getFirstChild().getNodeValue();
 
-                    server.setPublicIpAddresses(new String[] { value });
+                    server.setPublicAddresses(new RawAddress(value));
                     for( IpAddress addr : addresses ) {
-                        if( value.equals(addr.getAddress()) ) {
+                        if( value.equals(addr.getRawAddress().getIpAddress()) ) {
                             server.setProviderAssignedIpAddressId(addr.getProviderIpAddressId());
                             break;
                         }
@@ -2141,7 +2023,7 @@ public class EC2Instance implements VirtualMachineSupport {
           }
         }
         if ( firewalls.size() > 0 ) {
-          server.setProviderFirewallIds( firewalls.toArray( new String[]{} ) );
+          server.setProviderFirewallIds( firewalls.toArray(new String[firewalls.size()]) );
         }
       }
     }
@@ -2165,7 +2047,7 @@ public class EC2Instance implements VirtualMachineSupport {
 	}
 	
 	@Override
-	public void disableAnalytics(String instanceId) throws InternalException, CloudException {
+	public void disableAnalytics(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(provider, "disableVMAnalytics");
         try {
             if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
