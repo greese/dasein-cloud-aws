@@ -32,6 +32,7 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.compute.AbstractVolumeSupport;
 import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.Volume;
 import org.dasein.cloud.compute.VolumeCreateOptions;
@@ -52,12 +53,13 @@ import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-public class EBSVolume implements VolumeSupport {
+public class EBSVolume extends AbstractVolumeSupport {
 	static private final Logger logger = Logger.getLogger(EBSVolume.class);
 	
 	private AWSCloud provider = null;
 	
 	EBSVolume(AWSCloud provider) {
+        super(provider);
 		this.provider = provider;
 	}
 	
@@ -76,16 +78,6 @@ public class EBSVolume implements VolumeSupport {
         catch( EC2Exception e ) {
         	logger.error(e.getSummary());
         	throw new CloudException(e);
-        }
-	}
-    
-	@Override
-	public @Nonnull String create(@Nullable String fromSnapshot, @Nonnegative int sizeInGb, @Nonnull String inZone) throws InternalException, CloudException {
-        if( fromSnapshot != null ) {
-            return createVolume(VolumeCreateOptions.getInstanceForSnapshot(fromSnapshot, new Storage<Gigabyte>(sizeInGb, Storage.GIGABYTE), "dsn-auto-volume", "dsn-auto-volume").inDataCenter(inZone));
-        }
-        else {
-            return createVolume(VolumeCreateOptions.getInstance(new Storage<Gigabyte>(sizeInGb, Storage.GIGABYTE), "dsn-auto-volume", "dsn-auto-volume").inDataCenter(inZone));
         }
 	}
 
@@ -152,11 +144,6 @@ public class EBSVolume implements VolumeSupport {
         }
         throw new CloudException("Successful POST, but no volume information was provided");
     }
-
-	@Override
-	public void detach(@Nonnull String volumeId) throws InternalException, CloudException {
-        detach(volumeId, false);
-	}
 
     @Override
     public void detach(@Nonnull String volumeId, boolean force) throws InternalException, CloudException {
