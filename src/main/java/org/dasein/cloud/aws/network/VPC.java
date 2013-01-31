@@ -75,7 +75,10 @@ public class VPC extends AbstractVLANSupport {
     
     private AWSCloud provider;
     
-    VPC(AWSCloud provider) { this.provider = provider; }
+    VPC(AWSCloud provider) {
+        super(provider);
+        this.provider = provider;
+    }
     
     @Override
     public boolean allowsNewSubnetCreation() throws CloudException, InternalException {
