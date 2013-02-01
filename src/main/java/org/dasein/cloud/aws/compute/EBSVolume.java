@@ -31,6 +31,7 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.AbstractVolumeSupport;
 import org.dasein.cloud.compute.Platform;
@@ -49,7 +50,6 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -140,7 +140,24 @@ public class EBSVolume extends AbstractVolumeSupport {
         }
         blocks = doc.getElementsByTagName("volumeId");
         if( blocks.getLength() > 0 ) {
-            return blocks.item(0).getFirstChild().getNodeValue().trim();
+            String id = blocks.item(0).getFirstChild().getNodeValue().trim();
+            Map<String,Object> meta = options.getMetaData();
+
+            if( !meta.isEmpty() ) {
+                ArrayList<Tag> tags = new ArrayList<Tag>();
+
+                for( Map.Entry<String,Object> entry : meta.entrySet() ) {
+                    Object value = entry.getValue();
+
+                    if( value != null ) {
+                        tags.add(new Tag(entry.getKey(), value.toString()));
+                    }
+                }
+                if( !tags.isEmpty() ) {
+                    provider.createTags(id, tags.toArray(new Tag[tags.size()]));
+                }
+            }
+            return id;
         }
         throw new CloudException("Successful POST, but no volume information was provided");
     }
@@ -430,6 +447,26 @@ public class EBSVolume extends AbstractVolumeSupport {
                 throw new CloudException("Deletion of volume denied.");
             }
         }
+    }
+
+    @Override
+    public void removeTags(@Nonnull String volumeId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.removeTags(volumeId, tags);
+    }
+
+    @Override
+    public void removeTags(@Nonnull String[] volumeIds, @Nonnull Tag ... tags) throws CloudException, InternalException {
+        provider.removeTags(volumeIds, tags);
+    }
+
+    @Override
+    public void updateTags(@Nonnull String volumeId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.createTags(volumeId, tags);
+    }
+
+    @Override
+    public void updateTags(@Nonnull String[] volumeIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.createTags(volumeIds, tags);
     }
 
     private @Nullable ResourceStatus toStatus(@Nullable Node node) throws CloudException {
