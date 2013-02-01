@@ -31,12 +31,14 @@ import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.compute.ComputeServices;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.network.AbstractFirewallSupport;
 import org.dasein.cloud.network.RuleTargetType;
 import org.dasein.cloud.network.Direction;
 import org.dasein.cloud.network.Firewall;
@@ -54,7 +56,7 @@ import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-public class SecurityGroup implements FirewallSupport {
+public class SecurityGroup extends AbstractFirewallSupport {
 	static private final Logger logger = AWSCloud.getLogger(SecurityGroup.class);
 
     static private boolean isIP(@Nonnull String test) {
@@ -81,43 +83,9 @@ public class SecurityGroup implements FirewallSupport {
 	private AWSCloud provider = null;
 	
 	SecurityGroup(AWSCloud provider) {
+        super(provider);
 		this.provider = provider;
 	}
-	
-	@Override
-	public @Nonnull String authorize(@Nonnull String securityGroupId, @Nonnull String cidr, @Nonnull Protocol protocol, int startPort, int endPort) throws CloudException, InternalException {
-        return authorize(securityGroupId, Direction.INGRESS, Permission.ALLOW, RuleTarget.getCIDR(cidr), protocol, RuleTarget.getGlobal(securityGroupId), startPort, endPort, 0);
-    }
-
-    @Override
-    public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull String cidr, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        if( direction.equals(Direction.INGRESS) ) {
-            return authorize(firewallId, direction, Permission.ALLOW, RuleTarget.getCIDR(cidr), protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
-        }
-        else {
-            return authorize(firewallId, direction, Permission.ALLOW, RuleTarget.getGlobal(firewallId), protocol, RuleTarget.getCIDR(cidr), beginPort, endPort, 0);
-        }
-    }
-
-    @Override
-    public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        if( direction.equals(Direction.INGRESS) ) {
-            return authorize(firewallId, direction, permission, RuleTarget.getCIDR(cidr), protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
-        }
-        else {
-            return authorize(firewallId, direction, permission, RuleTarget.getGlobal(firewallId), protocol, RuleTarget.getCIDR(cidr), beginPort, endPort, 0);
-        }
-    }
-
-    @Override
-    public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, @Nonnull RuleTarget destination, int beginPort, int endPort) throws CloudException, InternalException {
-        if( direction.equals(Direction.INGRESS) ) {
-            return authorize(firewallId, direction, permission, RuleTarget.getCIDR(cidr), protocol, destination, beginPort, endPort, 0);
-        }
-        else {
-            return authorize(firewallId, direction, permission, destination, protocol, RuleTarget.getCIDR(cidr), beginPort, endPort, 0);
-        }
-    }
 
     @Override
     public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull RuleTarget sourceEndpoint, @Nonnull Protocol protocol, @Nonnull RuleTarget destinationEndpoint, int beginPort, int endPort, @Nonnegative int precedence) throws CloudException, InternalException {
@@ -690,6 +658,27 @@ public class SecurityGroup implements FirewallSupport {
         return new String[0];
     }
 
+
+    @Override
+    public void removeTags(@Nonnull String firewallId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.removeTags(firewallId, tags);
+    }
+
+    @Override
+    public void removeTags(@Nonnull String[] firewallIds, @Nonnull Tag ... tags) throws CloudException, InternalException {
+        provider.removeTags(firewallIds, tags);
+    }
+
+    @Override
+    public void updateTags(@Nonnull String firewallId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.createTags(firewallId, tags);
+    }
+
+    @Override
+    public void updateTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.createTags(firewallIds, tags);
+    }
+
     @Override
     public void revoke(@Nonnull String providerFirewallRuleId) throws InternalException, CloudException {
         FirewallRule rule = FirewallRule.parseId(providerFirewallRuleId);
@@ -699,21 +688,6 @@ public class SecurityGroup implements FirewallSupport {
         }
         //noinspection deprecation
         revoke(rule.getFirewallId(), rule.getDirection(), rule.getPermission(), rule.getSource(), rule.getProtocol(), rule.getTarget(), rule.getStartPort(), rule.getEndPort());
-    }
-
-	@Override
-	public void revoke(@Nonnull String securityGroupId, @Nonnull String cidr, @Nonnull Protocol protocol, int startPort, int endPort) throws CloudException, InternalException {
-        revoke(securityGroupId, Direction.INGRESS, Permission.ALLOW, cidr, protocol, RuleTarget.getGlobal(securityGroupId), startPort, endPort);
-    }
-
-    @Override
-    public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull String cidr, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        revoke(firewallId, direction, Permission.ALLOW, cidr, protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort);
-    }
-
-    @Override
-    public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        revoke(firewallId, direction, permission, cidr, protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort);
     }
 
     @Override
@@ -778,6 +752,11 @@ public class SecurityGroup implements FirewallSupport {
     }
 
     @Override
+    public boolean supportsFirewallCreation(boolean inVlan) throws CloudException, InternalException {
+        return true;
+    }
+
+    @Override
     public boolean supportsFirewallSources() throws CloudException, InternalException {
         return true;
     }
@@ -825,6 +804,44 @@ public class SecurityGroup implements FirewallSupport {
 			        }
 			    }
 			}
+            else if( name.equals("tagSet") ) {
+                if( attr.hasChildNodes() ) {
+                    NodeList tags = attr.getChildNodes();
+
+                    for( int j=0; j<tags.getLength(); j++ ) {
+                        Node tag = tags.item(j);
+
+                        if( tag.getNodeName().equals("item") && tag.hasChildNodes() ) {
+                            NodeList parts = tag.getChildNodes();
+                            String key = null, value = null;
+
+                            for( int k=0; k<parts.getLength(); k++ ) {
+                                Node part = parts.item(k);
+
+                                if( part.getNodeName().equalsIgnoreCase("key") ) {
+                                    if( part.hasChildNodes() ) {
+                                        key = part.getFirstChild().getNodeValue().trim();
+                                    }
+                                }
+                                else if( part.getNodeName().equalsIgnoreCase("value") ) {
+                                    if( part.hasChildNodes() ) {
+                                        value = part.getFirstChild().getNodeValue().trim();
+                                    }
+                                }
+                            }
+                            if( key != null && value != null ) {
+                                if( key.equalsIgnoreCase("name") && firewall.getName() == null ) {
+                                    firewall.setName(value);
+                                }
+                                else if( key.equalsIgnoreCase("description") && firewall.getDescription() == null ) {
+                                    firewall.setDescription(value);
+                                }
+                                firewall.setTag(key, value);
+                            }
+                        }
+                    }
+                }
+            }
 		}
         if( fwId == null ) {
             if( fwName == null ) {
