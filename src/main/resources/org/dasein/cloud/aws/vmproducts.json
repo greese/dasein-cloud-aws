@@ -141,7 +141,7 @@
             {
                 "architectures":["I64"],
                 "id":"hi1.4xlarge",
-                "name":"High I/O Instance(hi1.4xlarge)",
+                "name":"High I/O Instance (hi1.4xlarge)",
                 "description":"35 EC2 Compute Units (16 virtual cores)",
                 "cpuCount":35,
                 "rootVolumeSizeInGb":2048,
@@ -150,7 +150,7 @@
             {
                 "architectures":["I64"],
                 "id":"hs1.8xlarge",
-                "name":"High Storage Instance (hs1.4xlarge)",
+                "name":"High Storage Instance (hs1.8xlarge)",
                 "description":"35 EC2 Compute Units (16 virtual cores)",
                 "cpuCount":35,
                 "rootVolumeSizeInGb":49152,
