@@ -804,43 +804,8 @@ public class SecurityGroup extends AbstractFirewallSupport {
 			        }
 			    }
 			}
-            else if( name.equals("tagSet") ) {
-                if( attr.hasChildNodes() ) {
-                    NodeList tags = attr.getChildNodes();
-
-                    for( int j=0; j<tags.getLength(); j++ ) {
-                        Node tag = tags.item(j);
-
-                        if( tag.getNodeName().equals("item") && tag.hasChildNodes() ) {
-                            NodeList parts = tag.getChildNodes();
-                            String key = null, value = null;
-
-                            for( int k=0; k<parts.getLength(); k++ ) {
-                                Node part = parts.item(k);
-
-                                if( part.getNodeName().equalsIgnoreCase("key") ) {
-                                    if( part.hasChildNodes() ) {
-                                        key = part.getFirstChild().getNodeValue().trim();
-                                    }
-                                }
-                                else if( part.getNodeName().equalsIgnoreCase("value") ) {
-                                    if( part.hasChildNodes() ) {
-                                        value = part.getFirstChild().getNodeValue().trim();
-                                    }
-                                }
-                            }
-                            if( key != null && value != null ) {
-                                if( key.equalsIgnoreCase("name") && firewall.getName() == null ) {
-                                    firewall.setName(value);
-                                }
-                                else if( key.equalsIgnoreCase("description") && firewall.getDescription() == null ) {
-                                    firewall.setDescription(value);
-                                }
-                                firewall.setTag(key, value);
-                            }
-                        }
-                    }
-                }
+            else if ( name.equals("tagSet")) {
+                provider.setTags( attr, firewall );
             }
 		}
         if( fwId == null ) {
