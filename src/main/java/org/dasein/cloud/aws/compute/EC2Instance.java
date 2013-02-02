@@ -1319,7 +1319,7 @@ public class EC2Instance extends AbstractVMSupport {
                 try {
                     final String sid = server.getProviderVirtualMachineId();
 
-                    Callable<String> pwMethod = new Callable<String>() {
+                    final Callable<String> pwMethod = new Callable<String>() {
                         public String call() throws CloudException {
                             try {
                                 Map<String,String> params = provider.getStandardParameters(provider.getContext(), EC2Method.GET_PASSWORD_DATA);
@@ -1335,10 +1335,7 @@ public class EC2Instance extends AbstractVMSupport {
                                     Node pw = blocks.item(0);
 
                                     if( pw.hasChildNodes() ) {
-                                        String password = pw.getFirstChild().getNodeValue();
-
-                                        provider.release();
-                                        return password;
+                                        return pw.getFirstChild().getNodeValue();
                                     }
                                     return null;
                                 }
@@ -1350,13 +1347,29 @@ public class EC2Instance extends AbstractVMSupport {
                         }
                     };
 
-                    provider.hold();
                     try {
                         String password = pwMethod.call();
 
                         if( password == null ) {
                             server.setRootPassword(null);
                             server.setPasswordCallback(pwMethod);
+
+                            final VirtualMachine s = server;
+
+                            provider.hold();
+                            Thread t = new Thread() {
+                                public void run() {
+                                    try {
+                                        s.getRootPassword(CalendarWrapper.MINUTE * 20L);
+                                    }
+                                    catch( Throwable ignore ) {
+                                        // ignore
+                                    }
+                                    finally {
+                                        provider.release();
+                                    }
+                                }
+                            };
                         }
                         else {
                             server.setRootPassword(password);
