@@ -1961,9 +1961,7 @@ public class EC2Instance extends AbstractVMSupport {
                                 else if( key.equalsIgnoreCase("description") ) {
                                     server.setDescription(value);
                                 }
-                                else {
-                                    server.addTag(key, value);
-                                }
+                                server.addTag(key, value);
                             }
                         }
                     }
