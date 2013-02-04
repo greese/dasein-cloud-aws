@@ -1,0 +1,688 @@
+package org.dasein.cloud.aws.network;
+
+import org.apache.log4j.Logger;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
+import org.dasein.cloud.Tag;
+import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.aws.compute.EC2Exception;
+import org.dasein.cloud.aws.compute.EC2Method;
+import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.network.AbstractNetworkFirewallSupport;
+import org.dasein.cloud.network.Direction;
+import org.dasein.cloud.network.Firewall;
+import org.dasein.cloud.network.FirewallCreateOptions;
+import org.dasein.cloud.network.FirewallRule;
+import org.dasein.cloud.network.FirewallSupport;
+import org.dasein.cloud.network.NetworkFirewallSupport;
+import org.dasein.cloud.network.NetworkServices;
+import org.dasein.cloud.network.Permission;
+import org.dasein.cloud.network.Protocol;
+import org.dasein.cloud.network.RuleTarget;
+import org.dasein.cloud.network.RuleTargetType;
+import org.dasein.cloud.network.VLANSupport;
+import org.dasein.cloud.util.APITrace;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TreeSet;
+
+/**
+ * Implements support for AWS VPC network ACLs as Dasein Cloud network firewall support.
+ * <p>Created by George Reese: 2/4/13 9:52 AM</p>
+ * @author George Reese
+ * @since 2013.04
+ * @version 2013.04 initial version (issue #8)
+ */
+public class NetworkACL extends AbstractNetworkFirewallSupport {
+    static private final Logger logger = AWSCloud.getLogger(NetworkACL.class);
+
+    NetworkACL(AWSCloud cloud) {
+        super(cloud);
+    }
+
+    @Override
+    public void associateWithSubnet(@Nonnull String firewallId, @Nonnull String withSubnetId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "associateWithSubnet");
+        try {
+            String currentAssociation = getCurrentAssociation(withSubnetId);
+
+            if( currentAssociation == null ) {
+                throw new CloudException("Unable to identify subnet association for " + withSubnetId);
+            }
+            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.REPLACE_NETWORK_ACL_ASSOC);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("AssociationId", currentAssociation);
+            parameters.put("NetworkAclId", firewallId);
+            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            String id = null;
+
+            blocks = doc.getElementsByTagName("newAssociationId");
+            if( blocks.getLength() > 0 ) {
+                id = blocks.item(0).getFirstChild().getNodeValue().trim();
+            }
+            if( id == null ) {
+                throw new CloudException("Association failed without explanation");
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+
+    }
+
+    @Override
+    public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull RuleTarget sourceEndpoint, @Nonnull Protocol protocol, @Nonnull RuleTarget destinationEndpoint, int beginPort, int endPort, int precedence) throws CloudException, InternalException {
+        // TODO: implement me
+        return null;
+    }
+
+    @Override
+    public @Nonnull String createFirewall(@Nonnull FirewallCreateOptions options) throws InternalException, CloudException {
+        APITrace.begin(getProvider(), "createNetworkACL");
+        try {
+            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.CREATE_NETWORK_ACL);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            String vlanId = options.getProviderVlanId();
+
+            if( vlanId != null ) {
+                parameters.put("VpcId", vlanId);
+            }
+            else {
+                throw new CloudException("You must specify a VLAN with which to associate your network ACL");
+            }
+            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("groupId");
+            if( blocks.getLength() > 0 ) {
+                String id = blocks.item(0).getFirstChild().getNodeValue().trim();
+                Map<String,String> metaData = options.getMetaData();
+
+                metaData.put("Name", options.getName());
+                metaData.put("Description", options.getDescription());
+
+                ArrayList<Tag> tags = new ArrayList<Tag>();
+
+                for( Map.Entry<String,String> entry : metaData.entrySet() ) {
+                    String key = entry.getKey();
+                    String value = entry.getValue();
+
+                    if( value != null ) {
+                        tags.add(new Tag(key, value));
+                    }
+                }
+                ((AWSCloud)getProvider()).createTags(id, tags.toArray(new Tag[tags.size()]));
+                return id;
+            }
+            throw new CloudException("Failed to create network ACL without explanation.");
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    private @Nullable String getCurrentAssociation(@Nonnull String subnetId) throws InternalException, CloudException {
+        APITrace.begin(getProvider(), "getCurrentACLAssociation");
+        try {
+            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("Filter.1.Name", "association.subnet-id");
+            parameters.put("Filter.1.Value.1", subnetId);
+            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("associationSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        NodeList attributes = item.getChildNodes();
+                        String aid = null;
+                        String sid = null;
+
+                        for( int k=0; k<attributes.getLength(); k++ ) {
+                            Node attribute = attributes.item(k);
+
+                            if( attribute.getNodeName().equalsIgnoreCase("subnetId") && attribute.hasChildNodes() ) {
+                                sid = attribute.getFirstChild().getNodeValue().trim();
+                            }
+                            else if( attribute.getNodeName().equalsIgnoreCase("networkAclAssociationId") && attribute.hasChildNodes() ) {
+                                aid = attribute.getFirstChild().getNodeValue().trim();
+                            }
+                        }
+                        if( sid != null && sid.equals(subnetId) ) {
+                            if( aid != null ) {
+                                return aid;
+                            }
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nullable Firewall getFirewall(@Nonnull String firewallId) throws InternalException, CloudException {
+        APITrace.begin(getProvider(), "getNetworkACL");
+        try {
+            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("NetworkAclId.1", firewallId);
+            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("networkAclSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        Firewall firewall = toFirewall(item);
+
+                        if( firewall != null ) {
+                            return firewall;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull String getProviderTermForNetworkFirewall(@Nonnull Locale locale) {
+        return "network ACL";
+    }
+
+    @Override
+    public boolean isSubscribed() throws CloudException, InternalException {
+        NetworkServices services = getProvider().getNetworkServices();
+
+        if( services != null ) {
+            VLANSupport support = services.getVlanSupport();
+
+            return (support != null && support.isSubscribed());
+        }
+        return false;
+    }
+
+    @Override
+    public @Nonnull Collection<Firewall> listFirewalls() throws InternalException, CloudException {
+        APITrace.begin(getProvider(), "listNetworkACLs");
+        try {
+            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
+            ArrayList<Firewall> list = new ArrayList<Firewall>();
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("networkAclSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        Firewall firewall = toFirewall(item);
+
+                        if( firewall != null ) {
+                            list.add(firewall);
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<FirewallRule> listRules(@Nonnull String firewallId) throws InternalException, CloudException {
+        APITrace.begin(getProvider(), "listNetworkACLRules");
+        try {
+            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("NetworkAclId.1", firewallId);
+            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            ArrayList<FirewallRule> rules = new ArrayList<FirewallRule>();
+
+            blocks = doc.getElementsByTagName("networkAclSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        NodeList attributes = item.getChildNodes();
+
+                        for( int k=0; k<attributes.getLength(); k++ ) {
+                            Node attribute = attributes.item(k);
+
+                            if( attribute.getNodeName().equalsIgnoreCase("entrySet") && attribute.hasChildNodes() ) {
+                                NodeList entryItems = attribute.getChildNodes();
+
+                                for( int l=0; l<entryItems.getLength(); l++ ) {
+                                    FirewallRule rule = toRule(firewallId, entryItems.item(l));
+
+                                    if( rule != null ) {
+                                        rules.add(rule);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return rules;
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<RuleTargetType> listSupportedDestinationTypes() throws InternalException, CloudException {
+        return Collections.singletonList(RuleTargetType.GLOBAL);
+    }
+
+    @Override
+    public @Nonnull Iterable<Direction> listSupportedDirections() throws InternalException, CloudException {
+        ArrayList<Direction> directions = new ArrayList<Direction>();
+
+        directions.add(Direction.INGRESS);
+        directions.add(Direction.EGRESS);
+        return directions;
+    }
+
+    @Override
+    public @Nonnull Iterable<Permission> listSupportedPermissions() throws InternalException, CloudException {
+        ArrayList<Permission> permissions = new ArrayList<Permission>();
+
+        permissions.add(Permission.ALLOW);
+        permissions.add(Permission.DENY);
+        return permissions;
+    }
+
+    @Override
+    public @Nonnull Iterable<RuleTargetType> listSupportedSourceTypes() throws InternalException, CloudException {
+        return Collections.singletonList(RuleTargetType.CIDR);
+    }
+
+    @Override
+    public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
+        if( action.equals(FirewallSupport.ANY) ) {
+            return new String[] { EC2Method.EC2_PREFIX + "*" };
+        }
+        else if( action.equals(NetworkFirewallSupport.ASSOCIATE) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.REPLACE_NETWORK_ACL_ASSOC };
+        }
+        else if( action.equals(NetworkFirewallSupport.AUTHORIZE) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.CREATE_NETWORK_ACL_ENTRY, EC2Method.EC2_PREFIX + EC2Method.REPLACE_NETWORK_ACL_ENTRY };
+        }
+        else if( action.equals(NetworkFirewallSupport.CREATE_FIREWALL) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.CREATE_NETWORK_ACL };
+        }
+        else if( action.equals(NetworkFirewallSupport.GET_FIREWALL) || action.equals(FirewallSupport.LIST_FIREWALL) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_NETWORK_ACLS };
+        }
+        else if( action.equals(NetworkFirewallSupport.REMOVE_FIREWALL) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.DELETE_NETWORK_ACL };
+        }
+        else if( action.equals(NetworkFirewallSupport.REVOKE) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.DELETE_NETWORK_ACL_ENTRY };
+        }
+        return new String[0];
+    }
+
+    @Override
+    public void removeFirewall(@Nonnull String... firewallIds) throws InternalException, CloudException {
+        APITrace.begin(getProvider(), "removeNetworkACLs");
+        try {
+            for( String id : firewallIds ) {
+                Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DELETE_NETWORK_ACL);
+                EC2Method method;
+                NodeList blocks;
+                Document doc;
+
+                parameters.put("NetworkAclId", id);
+                method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                blocks = doc.getElementsByTagName("return");
+                if( blocks.getLength() > 0 ) {
+                    if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                        throw new CloudException("Failed to delete security group without explanation.");
+                    }
+                }
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void removeTags(@Nonnull String firewallId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).removeTags(firewallId, tags);
+    }
+
+    @Override
+    public void removeTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).removeTags(firewallIds, tags);
+    }
+
+    @Override
+    public void revoke(@Nonnull String providerFirewallRuleId) throws InternalException, CloudException {
+        APITrace.begin(getProvider(), "removeNetworkACLs");
+        try {
+            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DELETE_NETWORK_ACL_ENTRY);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            String[] parts = providerFirewallRuleId.split(":");
+            if( parts.length != 3 ) {
+                throw new CloudException("Invalid network ACL entry: " + providerFirewallRuleId);
+            }
+            parameters.put("NetworkAclId", parts[0]);
+            parameters.put("Egress", String.valueOf(parts[1].equalsIgnoreCase(Direction.EGRESS.name())));
+            parameters.put("RuleNumber", parts[2]);
+            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("return");
+            if( blocks.getLength() > 0 ) {
+                if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                    throw new CloudException("Failed to delete security group without explanation.");
+                }
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void updateTags(@Nonnull String firewallId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).createTags(firewallId, tags);
+    }
+
+    @Override
+    public void updateTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).createTags(firewallIds, tags);
+    }
+
+    private @Nullable Firewall toFirewall(@Nullable Node networkAcl) throws CloudException, InternalException {
+        if( networkAcl == null ) {
+            return null;
+        }
+        Firewall firewall = new Firewall();
+
+        firewall.setActive(true);
+        firewall.setAvailable(true);
+
+        String regionId = getContext().getRegionId();
+
+        if( regionId == null ) {
+            throw new CloudException("No region was specified for this context");
+        }
+        firewall.setRegionId(regionId);
+
+        NodeList attributes = networkAcl.getChildNodes();
+
+        for( int i=0; i<attributes.getLength(); i++ ) {
+            Node attribute = attributes.item(i);
+
+            if( attribute.getNodeName().equalsIgnoreCase("networkAclId") && attribute.hasChildNodes() ) {
+                firewall.setProviderFirewallId(attribute.getFirstChild().getNodeValue().trim());
+            }
+            else if( attribute.getNodeName().equalsIgnoreCase("vpcId") && attribute.hasChildNodes() ) {
+                firewall.setProviderVlanId(attribute.getFirstChild().getNodeValue().trim());
+            }
+            else if( attribute.getNodeName().equalsIgnoreCase("associationSet") && attribute.hasChildNodes() ) {
+                TreeSet<String> subnets = new TreeSet<String>();
+                NodeList items = attribute.getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.hasChildNodes() ) {
+                        NodeList iaList = item.getChildNodes();
+
+                        for( int k=0; k<iaList.getLength(); k++ ) {
+                            Node ia = iaList.item(k);
+
+                            if( ia.getNodeName().equalsIgnoreCase("subnetId") && ia.hasChildNodes() ) {
+                                subnets.add(ia.getFirstChild().getNodeValue().trim());
+                            }
+                        }
+                    }
+                }
+                firewall.setSubnetAssociations(subnets.toArray(new String[subnets.size()]));
+            }
+            else if ( attribute.getNodeName().equalsIgnoreCase("tagSet")) {
+                ((AWSCloud)getProvider()).setTags( attribute, firewall );
+            }
+        }
+
+        String id = firewall.getProviderFirewallId();
+
+        if( id == null ) {
+            return null;
+        }
+
+        String name = firewall.getName();
+
+        if( name == null ) {
+            name = firewall.getTags().get("Name");
+            if( name == null ) {
+                name = id;
+            }
+            firewall.setName(name);
+        }
+        String description = firewall.getDescription();
+
+        if( description == null ) {
+            description = firewall.getTags().get("Description");
+            if( description == null ) {
+                description = name;
+            }
+            firewall.setDescription(description);
+        }
+        return firewall;
+    }
+
+    private @Nullable FirewallRule toRule(@Nonnull String firewallId, @Nullable Node aclEntry) throws CloudException, InternalException {
+        if( aclEntry == null ) {
+            return null;
+        }
+        NodeList attributes = aclEntry.getChildNodes();
+        Permission permission = Permission.ALLOW;
+        Direction direction = null;
+        Protocol protocol = null;
+        int precedence = -1;
+        int startPort = -1;
+        int endPort = -1;
+        String cidr = null;
+
+        for( int i=0; i<attributes.getLength(); i++ ) {
+            Node attribute = attributes.item(i);
+
+            if( attribute.getNodeName().equalsIgnoreCase("ruleNumber") && attribute.hasChildNodes() ) {
+                precedence = Integer.parseInt(attribute.getFirstChild().getNodeValue().trim());
+            }
+            if( attribute.getNodeName().equalsIgnoreCase("protocol") && attribute.hasChildNodes() ) {
+                String proto = attribute.getFirstChild().getNodeValue().trim();
+
+                if( proto.equalsIgnoreCase("tcp") || proto.equals("6") ) {
+                    protocol = Protocol.TCP;
+                }
+                else if( proto.equalsIgnoreCase("udp") || proto.equals("17") ) {
+                    protocol = Protocol.UDP;
+                }
+                else if( proto.equalsIgnoreCase("icmp") || proto.equals("1") || proto.equals("58") ) {
+                    protocol = Protocol.ICMP;
+                }
+                else if( proto.equals("-1") || proto.equals("4") || proto.equals("41") ) {
+                    protocol = Protocol.ANY;
+                }
+                else {
+                    protocol = Protocol.ANY;
+                }
+            }
+            if( attribute.getNodeName().equalsIgnoreCase("ruleAction") && attribute.hasChildNodes() ) {
+                String action = attribute.getFirstChild().getNodeValue().trim();
+
+                if( action.equalsIgnoreCase("allow") ) {
+                    permission = Permission.ALLOW;
+                }
+                else {
+                    permission = Permission.DENY;
+                }
+            }
+            if( attribute.getNodeName().equalsIgnoreCase("egress") && attribute.hasChildNodes() ) {
+                boolean egress = attribute.getFirstChild().getNodeValue().trim().equalsIgnoreCase("true");
+
+                if( egress ) {
+                    direction = Direction.EGRESS;
+                }
+                else {
+                    direction = Direction.INGRESS;
+                }
+            }
+            if( attribute.getNodeName().equalsIgnoreCase("cidrBlock") && attribute.hasChildNodes() ) {
+                cidr = attribute.getFirstChild().getNodeValue().trim();
+            }
+            if( attribute.getNodeName().equalsIgnoreCase("portRange") && attribute.hasChildNodes() ) {
+                NodeList parts = attribute.getChildNodes();
+
+                for( int j=0; j<parts.getLength(); j++ ) {
+                    Node part = parts.item(j);
+
+                    if( part.getNodeName().equalsIgnoreCase("from") && part.hasChildNodes() ) {
+                        startPort = Integer.parseInt(part.getFirstChild().getNodeValue().trim());
+                    }
+                    else if( part.getNodeName().equalsIgnoreCase("to") && part.hasChildNodes() ) {
+                        endPort = Integer.parseInt(part.getFirstChild().getNodeValue().trim());
+                    }
+                }
+            }
+        }
+        if( direction == null || cidr == null ) {
+            return null;
+        }
+        RuleTarget sourceEndpoint, destinationEndpoint;
+
+        if( direction.equals(Direction.INGRESS) ) {
+            sourceEndpoint = RuleTarget.getCIDR(cidr);
+            destinationEndpoint = RuleTarget.getGlobal(firewallId);
+        }
+        else {
+            destinationEndpoint = RuleTarget.getCIDR(cidr);
+            sourceEndpoint = RuleTarget.getGlobal(firewallId);
+        }
+        if( startPort == -1 && endPort != -1 ) {
+            startPort = endPort;
+        }
+        else if( startPort != -1 && endPort == -1 ) {
+            endPort = startPort;
+        }
+        else if( startPort > endPort ) {
+            int x = startPort;
+
+            startPort = endPort;
+            endPort = startPort;
+        }
+        FirewallRule rule = FirewallRule.getInstance(firewallId + ":" + direction.name() + ":" + String.valueOf(precedence), firewallId, sourceEndpoint, direction, protocol, permission, destinationEndpoint, startPort, endPort);
+
+        rule.withPrecedence(precedence);
+        return rule;
+    }
+}

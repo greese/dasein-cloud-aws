@@ -218,6 +218,15 @@ public class EC2Method {
     static public final String DETACH_INTERNET_GATEWAY = "DetachInternetGateway";
     static public final String REPLACE_ROUTE_TABLE_ASSOCIATION = "ReplaceRouteTableAssociation";
 
+    // network ACL operations
+    static public final String CREATE_NETWORK_ACL        = "CreateNetworkAcl";
+    static public final String DESCRIBE_NETWORK_ACLS     = "DescribeNetworkAcls";
+    static public final String DELETE_NETWORK_ACL        = "DeleteNetworkAcl";
+    static public final String CREATE_NETWORK_ACL_ENTRY  = "CreateNetworkAclEntry";
+    static public final String DELETE_NETWORK_ACL_ENTRY  = "DeleteNetworkAclEntry";
+    static public final String REPLACE_NETWORK_ACL_ENTRY = "ReplaceNetworkAclEntry";
+    static public final String REPLACE_NETWORK_ACL_ASSOC = "ReplaceNetworkAclAssociation";
+
     // network interface operations
     static public final String ATTACH_NIC             = "AttachNetworkInterface";
     static public final String CREATE_NIC             = "CreateNetworkInterface";

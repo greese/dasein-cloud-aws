@@ -55,7 +55,15 @@ public class EC2NetworkServices extends AbstractNetworkServices {
         }
         return null;
     }
-    
+
+    @Override
+    public @Nullable NetworkACL getNetworkFirewallSupport() {
+        if( cloud.getEC2Provider().isAWS() ) {
+            return new NetworkACL(cloud);
+        }
+        return null;
+    }
+
     @Override
     public @Nullable VPC getVlanSupport() {
         if( cloud.getEC2Provider().isAWS() || cloud.getEC2Provider().isEnStratus() ) {
