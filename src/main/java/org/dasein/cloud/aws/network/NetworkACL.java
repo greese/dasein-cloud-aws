@@ -91,8 +91,67 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
 
     @Override
     public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull RuleTarget sourceEndpoint, @Nonnull Protocol protocol, @Nonnull RuleTarget destinationEndpoint, int beginPort, int endPort, int precedence) throws CloudException, InternalException {
-        // TODO: implement me
-        return null;
+        APITrace.begin(getProvider(), "authorizeNetworkACLEntry");
+        try {
+            FirewallRule currentRule = null;
+
+            for( FirewallRule rule : listRules(firewallId) ) {
+                if( rule.getDirection().equals(direction) && rule.getPrecedence() == precedence ) {
+                    currentRule = rule;
+                }
+            }
+
+            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), currentRule == null ? EC2Method.CREATE_NETWORK_ACL_ENTRY : EC2Method.REPLACE_NETWORK_ACL_ENTRY);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("NetworkAclId", firewallId);
+            parameters.put("Egress", String.valueOf(direction.equals(Direction.EGRESS)));
+            parameters.put("RuleNumber", String.valueOf(precedence));
+            parameters.put("Protocol", toProtocolNumber(protocol));
+            parameters.put("RuleAction", permission.name().toLowerCase());
+            String cidr;
+
+            if( direction.equals(Direction.INGRESS) ) {
+                cidr = sourceEndpoint.getCidr();
+            }
+            else {
+                cidr = destinationEndpoint.getCidr();
+            }
+            if( cidr == null ) {
+                throw new CloudException("No CIDR was specified for " + (direction.equals(Direction.INGRESS) ? "the source endpoint" : "the destination endpoint"));
+            }
+            parameters.put("CidrBlock", cidr);
+            if( !protocol.equals(Protocol.ICMP) ) {
+                parameters.put("PortRange.From", String.valueOf(beginPort));
+                parameters.put("PortRange.To", String.valueOf(endPort));
+            }
+            else {
+                parameters.put("Icmp.Code", "-1");
+                parameters.put("Icmp.Type", "-1");
+            }
+            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("return");
+            if( blocks.getLength() > 0 ) {
+                if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                    throw new CloudException("Failed to delete security group without explanation.");
+                }
+            }
+
+
+            return null;
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
@@ -579,6 +638,16 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
         return firewall;
     }
 
+    private @Nonnull String toProtocolNumber(@Nonnull Protocol protocol) {
+        switch( protocol ) {
+            case TCP: return "6";
+            case UDP: return "17";
+            case ANY: return "-1";
+            case ICMP: return "1";
+            default: return "-1";
+        }
+    }
+
     private @Nullable FirewallRule toRule(@Nonnull String firewallId, @Nullable Node aclEntry) throws CloudException, InternalException {
         if( aclEntry == null ) {
             return null;
@@ -678,7 +747,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
             int x = startPort;
 
             startPort = endPort;
-            endPort = startPort;
+            endPort = x;
         }
         FirewallRule rule = FirewallRule.getInstance(firewallId + ":" + direction.name() + ":" + String.valueOf(precedence), firewallId, sourceEndpoint, direction, protocol, permission, destinationEndpoint, startPort, endPort);
 
