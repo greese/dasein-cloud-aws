@@ -68,6 +68,7 @@ import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.identity.ShellKeySupport;
 import org.dasein.cloud.network.FirewallSupport;
 import org.dasein.cloud.network.IpAddressSupport;
+import org.dasein.cloud.network.NetworkFirewallSupport;
 import org.dasein.cloud.network.VLANSupport;
 import org.dasein.cloud.network.VPNSupport;
 import org.dasein.cloud.util.APITrace;
@@ -189,6 +190,7 @@ public class EC2Method {
     static public final String REVOKE_SECURITY_GROUP_INGRESS    = "RevokeSecurityGroupIngress";
 
     // Snapshot operations
+    static public final String COPY_SNAPSHOT               = "CopySnapshot";
     static public final String CREATE_SNAPSHOT             = "CreateSnapshot";
     static public final String DELETE_SNAPSHOT             = "DeleteSnapshot";
     static public final String DESCRIBE_SNAPSHOTS          = "DescribeSnapshots";
@@ -376,8 +378,32 @@ public class EC2Method {
         else if( action.equals(REVOKE_SECURITY_GROUP_EGRESS) ) {
             return new ServiceAction[] { FirewallSupport.REVOKE };
         }
+
+        // network ACL operations
+        if( action.equals(CREATE_NETWORK_ACL_ENTRY) || action.equals(REPLACE_NETWORK_ACL_ENTRY) ) {
+            return new ServiceAction[] { NetworkFirewallSupport.AUTHORIZE };
+        }
+        else if( action.equals(REPLACE_NETWORK_ACL_ASSOC) ) {
+            return new ServiceAction[] { NetworkFirewallSupport.ASSOCIATE };
+        }
+        else if( action.equals(CREATE_NETWORK_ACL) ) {
+            return new ServiceAction[] { NetworkFirewallSupport.CREATE_FIREWALL };
+        }
+        else if( action.equals(DELETE_NETWORK_ACL) ) {
+            return new ServiceAction[] { NetworkFirewallSupport.REMOVE_FIREWALL };
+        }
+        else if( action.equals(DESCRIBE_NETWORK_ACLS) ) {
+            return new ServiceAction[] { NetworkFirewallSupport.GET_FIREWALL, NetworkFirewallSupport.LIST_FIREWALL };
+        }
+        else if( action.equals(DELETE_NETWORK_ACL_ENTRY) ) {
+            return new ServiceAction[] { NetworkFirewallSupport.REVOKE };
+        }
+
         // snapshot operations
-        if( action.equals(CREATE_SNAPSHOT) ) {
+        if( action.equals(COPY_SNAPSHOT) ) {
+            return new ServiceAction[] { SnapshotSupport.CREATE_SNAPSHOT };
+        }
+        else if( action.equals(CREATE_SNAPSHOT) ) {
             return new ServiceAction[] { SnapshotSupport.CREATE_SNAPSHOT };
         }
         else if( action.equals(DELETE_SNAPSHOT) ) {
@@ -543,6 +569,7 @@ public class EC2Method {
         HttpParams params = new BasicHttpParams();
 
         HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
+        //noinspection deprecation
         HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
         HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
 
