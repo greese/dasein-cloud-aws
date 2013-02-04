@@ -527,6 +527,16 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
     }
 
     @Override
+    public void removeTags(@Nonnull String snapshotId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).removeTags(snapshotId, tags);
+    }
+
+    @Override
+    public void removeTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).removeTags(snapshotIds, tags);
+    }
+
+    @Override
     public @Nonnull Iterable<Snapshot> searchSnapshots(@Nullable String ownerId, @Nullable String keyword) throws InternalException, CloudException {
         APITrace.begin(provider, "searchSnapshots");
         try {
@@ -855,5 +865,15 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
             return null;
         }
         return new ResourceStatus(snapshotId, state);
+    }
+
+    @Override
+    public void updateTags(@Nonnull String snapshotId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).createTags(snapshotId, tags);
+    }
+
+    @Override
+    public void updateTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).createTags(snapshotIds, tags);
     }
 }
