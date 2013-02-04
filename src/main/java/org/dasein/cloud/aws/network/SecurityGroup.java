@@ -39,6 +39,7 @@ import org.dasein.cloud.compute.ComputeServices;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.AbstractFirewallSupport;
+import org.dasein.cloud.network.FirewallCreateOptions;
 import org.dasein.cloud.network.RuleTargetType;
 import org.dasein.cloud.network.Direction;
 import org.dasein.cloud.network.Firewall;
@@ -176,7 +177,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
     }
 
     @Override
-	public @Nonnull String create(@Nonnull String name, @Nonnull String description) throws InternalException, CloudException {
+	public @Nonnull String create(@Nonnull FirewallCreateOptions options) throws InternalException, CloudException {
         APITrace.begin(provider, "createSecurityGroup");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_SECURITY_GROUP);
@@ -184,9 +185,14 @@ public class SecurityGroup extends AbstractFirewallSupport {
             NodeList blocks;
             Document doc;
 
-            name = getUniqueName(name);
+            String name = getUniqueName(options.getName());
             parameters.put("GroupName", name);
-            parameters.put("GroupDescription", description);
+            parameters.put("GroupDescription", options.getDescription());
+            String vlanId = options.getProviderVlanId();
+
+            if( vlanId != null ) {
+                parameters.put("VpcId", vlanId);
+            }
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -201,7 +207,24 @@ public class SecurityGroup extends AbstractFirewallSupport {
             else {
                 blocks = doc.getElementsByTagName("groupId");
                 if( blocks.getLength() > 0 ) {
-                    return blocks.item(0).getFirstChild().getNodeValue().trim();
+                    Map<String,String> metaData = options.getMetaData();
+
+                    String id = blocks.item(0).getFirstChild().getNodeValue().trim();
+
+                    if( !metaData.isEmpty() ) {
+                        ArrayList<Tag> tags = new ArrayList<Tag>();
+
+                        for( Map.Entry<String,String> entry : metaData.entrySet() ) {
+                            String key = entry.getKey();
+                            String value = entry.getValue();
+
+                            if( value != null ) {
+                                tags.add(new Tag(key, value));
+                            }
+                        }
+                        provider.createTags(id, tags.toArray(new Tag[tags.size()]));
+                    }
+                    return id;
                 }
                 throw new CloudException("Failed to create security group without explanation.");
             }
@@ -210,39 +233,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
             APITrace.end();
         }
 	}
- 	
-   @Override
-   public @Nonnull String createInVLAN(@Nonnull String name, @Nonnull String description, @Nonnull String providerVlanId) throws InternalException, CloudException {
-       APITrace.begin(provider, "createSecurityGroupInVLAN");
-       try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_SECURITY_GROUP);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
 
-            name = getUniqueName(name);
-            parameters.put("GroupName", name);
-            parameters.put("GroupDescription", description);
-            parameters.put("VpcId", providerVlanId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("groupId");
-            if( blocks.getLength() > 0 ) {
-                return blocks.item(0).getFirstChild().getNodeValue().trim();
-            }
-            throw new CloudException("Failed to create security group without explanation.");
-       }
-       finally {
-           APITrace.end();
-       }
-   }
-	   
 	@Override
 	public void delete(@Nonnull String securityGroupId) throws InternalException, CloudException {
         APITrace.begin(provider, "deleteSecurityGroup");
