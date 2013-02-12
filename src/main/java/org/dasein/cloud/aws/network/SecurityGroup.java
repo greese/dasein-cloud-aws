@@ -457,7 +457,10 @@ public class SecurityGroup implements FirewallSupport {
         for( int i=0; i<name.length(); i++ ) {
             char c = name.charAt(i);
 
-            if( i == 0 && Character.isDigit(c) || c == '_' || c == '-' ) {
+            if( c == '_' || c == '-' ) {
+                str.append(c);
+            }
+            else if( i == 0 && Character.isDigit(c)  ) {
                 str.append("e-");
                 str.append(c);
             }
