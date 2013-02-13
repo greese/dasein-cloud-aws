@@ -309,6 +309,13 @@ public class AMI extends AbstractImageSupport {
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
             }
+            Architecture architecture = options.getArchitecture();
+
+            if( architecture != null && !architecture.equals(Architecture.I32) && !architecture.equals(Architecture.I64) ) {
+                if( !options.isMatchesAny() ) {
+                    return Collections.emptyList();
+                }
+            }
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
 
             ArrayList<MachineImage> list = new ArrayList<MachineImage>();
@@ -316,11 +323,14 @@ public class AMI extends AbstractImageSupport {
             EC2Method method;
             Document doc;
 
-            parameters.put("ExecutableBy.1", ctx.getAccountNumber());
+
             if( forPublic ) {
-                parameters.put("ExecutableBy.2", "all");
+                parameters.put("ExecutableBy.1", "all");
             }
-            options = fillImageFilterParameters(false, options, parameters);
+            else {
+                parameters.put("ExecutableBy.1", ctx.getAccountNumber());
+            }
+            options = fillImageFilterParameters(forPublic, options, parameters);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -340,7 +350,7 @@ public class AMI extends AbstractImageSupport {
                         MachineImage image = toMachineImage(instance);
 
                         if( image != null ) {
-                            if( options.matches(image, getContext().getAccountNumber()) ) {
+                            if( options.matches(image, forPublic ? null : getContext().getAccountNumber()) ) {
                                 list.add(image);
                             }
                         }
@@ -601,8 +611,10 @@ public class AMI extends AbstractImageSupport {
     private @Nonnull ImageFilterOptions fillImageFilterParameters(boolean forPublic, @Nonnull ImageFilterOptions options, @Nonnull Map<String,String> parameters) throws CloudException, InternalException {
         int filter = 1;
 
-        parameters.put("Filter." + filter + ".Name", "state");
-        parameters.put("Filter." + (filter++) + ".Value.1", "available");
+        if( forPublic ) {
+            parameters.put("Filter." + filter + ".Name", "state");
+            parameters.put("Filter." + (filter++) + ".Value.1", "available");
+        }
 
         if( options.isMatchesAny() && options.getCriteriaCount() > 1 ) {
             if( forPublic ) {
@@ -617,12 +629,12 @@ public class AMI extends AbstractImageSupport {
         String owner = options.getAccountNumber();
 
         if( owner != null ) {
-            parameters.put("Owner.1", owner);
+            parameters.put("Owner", owner);
         }
-        else if( !forPublic ) {
-            parameters.put("Owner.1", "self");
-        }
-        if( options.getArchitecture() != null ) {
+
+        Architecture architecture = options.getArchitecture();
+
+        if( architecture != null && (architecture.equals(Architecture.I32) || architecture.equals(Architecture.I64)) ) {
             parameters.put("Filter." + filter + ".Name", "architecture");
             parameters.put("Filter." + (filter++) + ".Value.1", Architecture.I32.equals(options.getArchitecture()) ? "i386" : "x86_64");
         }
@@ -653,12 +665,15 @@ public class AMI extends AbstractImageSupport {
         parameters.putAll(extraParameters);
         String regex = options.getRegex();
 
+        options = ImageFilterOptions.getInstance();
+
         if( regex != null ) {
-            return ImageFilterOptions.getInstance(regex);
+            options.matchingRegex(regex);
         }
-        else {
-            return ImageFilterOptions.getInstance();
+        if( platform != null ) {
+            options.onPlatform(platform);
         }
+        return options;
     }
 
     @Override
