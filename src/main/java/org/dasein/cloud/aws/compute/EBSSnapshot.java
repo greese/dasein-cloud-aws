@@ -407,8 +407,8 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
             Document doc;
 
             // we want to use the more efficient tag search via AWS if possible
-            // it is only possible if a) tags is the only search criterion or b) the options is set ot match any single criterion
-            if ( options != null && options.hasCriteria() && (options.isMatchesAny() || (options.getRegex() == null && options.getAccountNumber() == null)) ) {
+            // it is only possible if a) tags is the only search criterion or b) the options is set ot match all criteria
+            if ( options != null && options.hasCriteria() && (!options.isMatchesAny() || (options.getRegex() == null && options.getAccountNumber() == null)) ) {
                 Map<String,String> tags = options.getTags();
 
                 if( !tags.isEmpty() ) {
@@ -421,10 +421,38 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
                     if( options.getRegex() != null ) {
                         sfo.matchingRegex(options.getRegex());
                     }
+                    options = sfo;
                 }
             }
 
-            parameters.put("Owner.1", "self");
+            if( options == null || options.getAccountNumber() == null || getContext().getAccountNumber().equals(options.getAccountNumber()) ) {
+                parameters.put("Owner.1", "self");
+                if( options != null && options.getAccountNumber() != null ) {
+                    SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
+
+                    // if isMatchesAny() == false, then
+                    if( options.isMatchesAny() && !options.getTags().isEmpty() ) {
+                        sfo.withTags(options.getTags());
+                    }
+                    if( options.getRegex() != null ) {
+                        sfo.matchingRegex(options.getRegex());
+                    }
+                    options = sfo;
+                }
+            }
+            else {
+                parameters.put("Owner.1", options.getAccountNumber());
+                SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
+
+                // if isMatchesAny() == false, then
+                if( options.isMatchesAny() && !options.getTags().isEmpty() ) {
+                    sfo.withTags(options.getTags());
+                }
+                if( options.getRegex() != null ) {
+                    sfo.matchingRegex(options.getRegex());
+                }
+                options = sfo;
+            }
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -444,7 +472,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
                         Snapshot snapshot = toSnapshot(ctx, item);
 
                         if( snapshot != null ) {
-                            if( options != null && options.hasCriteria() && options.matches(snapshot) ) {
+                            if( options != null && options.hasCriteria() && options.matches(snapshot, getContext().getAccountNumber()) ) {
                                 list.add(snapshot);
                             }
                         }
