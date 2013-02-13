@@ -392,7 +392,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
     }
 
 	@Override
-	public @Nonnull Iterable<Snapshot> listSnapshots(SnapshotFilterOptions options) throws InternalException, CloudException {
+	public @Nonnull Iterable<Snapshot> listSnapshots(@Nullable SnapshotFilterOptions options) throws InternalException, CloudException {
         APITrace.begin(provider, "listSnapshots");
         try {
             ProviderContext ctx = provider.getContext();
@@ -406,8 +406,20 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
             NodeList blocks;
             Document doc;
 
-            if ( options != null ) {
-                provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+            if ( options != null && options.hasCriteria() && options.isMatchesAny() ) {
+                Map<String,String> tags = options.getTags();
+
+                if( !tags.isEmpty() ) {
+                    provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+                    SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
+
+                    if( options.getAccountNumber() != null ) {
+                        sfo.withAccountNumber(options.getAccountNumber());
+                    }
+                    if( options.getRegex() != null ) {
+                        sfo.matchingRegex(options.getRegex());
+                    }
+                }
             }
 
             parameters.put("Owner.1", "self");
@@ -430,7 +442,9 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
                         Snapshot snapshot = toSnapshot(ctx, item);
 
                         if( snapshot != null ) {
-                            list.add(snapshot);
+                            if( options != null && options.hasCriteria() && options.matches(snapshot) ) {
+                                list.add(snapshot);
+                            }
                         }
                     }
                 }
