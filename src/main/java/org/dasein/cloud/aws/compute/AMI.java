@@ -402,17 +402,14 @@ public class AMI extends AbstractImageSupport {
                 return null;
             }
             else {
-                for( MachineImage image : listImages(ImageClass.MACHINE) ) {
+                ImageFilterOptions options = ImageFilterOptions.getInstance();
+
+                for( MachineImage image : searchPublicImages(options) ) {
                     if( image.getProviderMachineImageId().equals(providerImageId) ) {
                         return image;
                     }
                 }
-                for( MachineImage image : listImages(ImageClass.KERNEL) ) {
-                    if( image.getProviderMachineImageId().equals(providerImageId) ) {
-                        return image;
-                    }
-                }
-                for( MachineImage image : listImages(ImageClass.RAMDISK) ) {
+                for( MachineImage image : listImages(options) ) {
                     if( image.getProviderMachineImageId().equals(providerImageId) ) {
                         return image;
                     }
@@ -605,7 +602,7 @@ public class AMI extends AbstractImageSupport {
         int filter = 1;
 
         parameters.put("Filter." + filter + ".Name", "state");
-        parameters.put("Filter." + filter + ".Value.1", "available");
+        parameters.put("Filter." + (filter++) + ".Value.1", "available");
 
         if( options.isMatchesAny() && options.getCriteriaCount() > 1 ) {
             if( forPublic ) {
@@ -620,12 +617,10 @@ public class AMI extends AbstractImageSupport {
         String owner = options.getAccountNumber();
 
         if( owner != null ) {
-            parameters.put("Filter." + filter + ".Name", "owner");
-            parameters.put("Filter." + filter + ".Value.1", owner);
+            parameters.put("Owner.1", owner);
         }
         else if( !forPublic ) {
-            parameters.put("Filter." + filter + ".Name", "owner");
-            parameters.put("Filter." + filter + ".Value.1", "self");
+            parameters.put("Owner.1", "self");
         }
         if( options.getArchitecture() != null ) {
             parameters.put("Filter." + filter + ".Name", "architecture");
