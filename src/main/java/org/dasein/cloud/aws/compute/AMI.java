@@ -49,9 +49,6 @@ import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.CalendarWrapper;
-import org.dasein.util.Jiterator;
-import org.dasein.util.JiteratorPopulator;
-import org.dasein.util.PopulatorThread;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -304,7 +301,7 @@ public class AMI extends AbstractImageSupport {
         }
     }
 
-    private @Nonnull Iterable<MachineImage> executeImageSearch(@Nullable String ownerId, @Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nonnull ImageClass cls) throws CloudException, InternalException {
+    private @Nonnull Iterable<MachineImage> executeImageSearch(boolean forPublic, @Nonnull ImageFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "executeImageSearch");
         try {
             ProviderContext ctx = provider.getContext();
@@ -313,32 +310,17 @@ public class AMI extends AbstractImageSupport {
                 throw new CloudException("No context was set for this request");
             }
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+
             ArrayList<MachineImage> list = new ArrayList<MachineImage>();
             NodeList blocks;
             EC2Method method;
             Document doc;
 
             parameters.put("ExecutableBy.1", ctx.getAccountNumber());
-            int filter = 1;
-            if( architecture != null ) {
-                parameters.put("Filter." + filter + ".Name", "architecture");
-                parameters.put("Filter." + (filter++) + ".Value.1", architecture.equals(Architecture.I32) ? "i386" : "x86_64");
+            if( forPublic ) {
+                parameters.put("ExecutableBy.2", "all");
             }
-            if( platform != null && platform.equals(Platform.WINDOWS) ) {
-                parameters.put("Filter." + filter + ".Name", "platform");
-                parameters.put("Filter." + (filter++) + ".Value.1", "windows");
-            }
-            String t = "machine";
-
-            switch( cls ) {
-                case MACHINE: t = "machine"; break;
-                case KERNEL: t = "kernel"; break;
-                case RAMDISK: t = "ramdisk"; break;
-            }
-            parameters.put("Filter." + filter + ".Name", "image-type");
-            parameters.put("Filter." + (filter++) + ".Value.1", t);
-            parameters.put("Filter." + filter + ".Name", "state");
-            parameters.put("Filter." + filter + ".Value.1", "available");
+            options = fillImageFilterParameters(false, options, parameters);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -358,71 +340,7 @@ public class AMI extends AbstractImageSupport {
                         MachineImage image = toMachineImage(instance);
 
                         if( image != null ) {
-                            if( matches(image, keyword, platform, architecture, cls) && ownerId == null || ownerId.equals(image.getProviderOwnerId()) ) {
-                                list.add(image);
-                            }
-                        }
-                    }
-                }
-            }
-            return list;
-        }
-        finally {
-            APITrace.end();
-        }
-    }
-
-    private @Nonnull Iterable<MachineImage> executePublicImageSearch(@Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nonnull ImageClass cls) throws CloudException, InternalException {
-        APITrace.begin(provider, "executePublicImageSearch");
-        try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
-            ArrayList<MachineImage> list = new ArrayList<MachineImage>();
-            NodeList blocks;
-            EC2Method method;
-            Document doc;
-
-            parameters.put("ExecutableBy.1", "all");
-            int filter = 1;
-            if( architecture != null ) {
-                parameters.put("Filter." + filter + ".Name", "architecture");
-                parameters.put("Filter." + (filter++) + ".Value.1", architecture.equals(Architecture.I32) ? "i386" : "x86_64");
-            }
-            if( platform != null && platform.equals(Platform.WINDOWS) ) {
-                parameters.put("Filter." + filter + ".Name", "platform");
-                parameters.put("Filter." + (filter++) + ".Value.1", "windows");
-            }
-            String t = "machine";
-
-            switch( cls ) {
-                case MACHINE: t = "machine"; break;
-                case KERNEL: t = "kernel"; break;
-                case RAMDISK: t = "ramdisk"; break;
-            }
-            parameters.put("Filter." + filter + ".Name", "image-type");
-            parameters.put("Filter." + (filter++) + ".Value.1", t);
-
-            parameters.put("Filter." + filter + ".Name", "state");
-            parameters.put("Filter." + filter + ".Value.1", "available");
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("imagesSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList instances = blocks.item(i).getChildNodes();
-
-                for( int j=0; j<instances.getLength(); j++ ) {
-                    Node instance = instances.item(j);
-
-                    if( instance.getNodeName().equals("item") ) {
-                        MachineImage image = toMachineImage(instance);
-
-                        if( image != null ) {
-                            if( matches(image, keyword, platform, architecture, cls) ) {
+                            if( options.matches(image, getContext().getAccountNumber()) ) {
                                 list.add(image);
                             }
                         }
@@ -683,58 +601,69 @@ public class AMI extends AbstractImageSupport {
         }
     }
 
-    private @Nullable Map<String,String> getMachineImageFilterParamers(@Nullable ImageFilterOptions options ) {
+    private @Nonnull ImageFilterOptions fillImageFilterParameters(boolean forPublic, @Nonnull ImageFilterOptions options, @Nonnull Map<String,String> parameters) throws CloudException, InternalException {
+        int filter = 1;
 
-        if ( options == null ) {
-            return null;
+        parameters.put("Filter." + filter + ".Name", "state");
+        parameters.put("Filter." + filter + ".Value.1", "available");
+
+        if( options.isMatchesAny() && options.getCriteriaCount() > 1 ) {
+            if( forPublic ) {
+                return options;
+            }
+            else {
+                options.withAccountNumber(getContext().getAccountNumber());
+                return options;
+            }
         }
 
-        Map<String, String> extraParameters = new HashMap<String, String>();
-        ImageClass cls = options.getImageClass();
-        int i = 1;
+        String owner = options.getAccountNumber();
 
-        if ( cls != null ) {
-            String t = "machine";
+        if( owner != null ) {
+            parameters.put("Filter." + filter + ".Name", "owner");
+            parameters.put("Filter." + filter + ".Value.1", owner);
+        }
+        else if( !forPublic ) {
+            parameters.put("Filter." + filter + ".Name", "owner");
+            parameters.put("Filter." + filter + ".Value.1", "self");
+        }
+        if( options.getArchitecture() != null ) {
+            parameters.put("Filter." + filter + ".Name", "architecture");
+            parameters.put("Filter." + (filter++) + ".Value.1", Architecture.I32.equals(options.getArchitecture()) ? "i386" : "x86_64");
+        }
+
+        Platform platform = options.getPlatform();
+
+        if( platform != null && platform.equals(Platform.WINDOWS) ) {
+            parameters.put("Filter." + filter + ".Name", "platform");
+            parameters.put("Filter." + (filter++) + ".Value.1", "windows");
+        }
+
+        ImageClass cls= options.getImageClass();
+        String t = "machine";
+
+        if( cls != null ) {
             switch( cls ) {
                 case MACHINE: t = "machine"; break;
                 case KERNEL: t = "kernel"; break;
                 case RAMDISK: t = "ramdisk"; break;
             }
-            extraParameters.put("Filter." + i + ".Name", "image-type");
-            extraParameters.put("Filter." + i + ".Value", t);
-            i++;
+            parameters.put("Filter." + filter + ".Name", "image-type");
+            parameters.put("Filter." + (filter++) + ".Value.1", t);
         }
 
-        provider.putExtraParameters( extraParameters, provider.getTagFilterParams( options.getTags(), i ) );
+        Map<String, String> extraParameters = new HashMap<String, String>();
 
-        return extraParameters;
-    }
+        provider.putExtraParameters( extraParameters, provider.getTagFilterParams( options.getTags(), filter ) );
+        parameters.putAll(extraParameters);
+        String regex = options.getRegex();
 
-    @Override
-    public @Nonnull Iterable<MachineImage> listImages(final @Nullable ImageFilterOptions options) throws CloudException, InternalException {
-        final ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was set for this request");
+        if( regex != null ) {
+            return ImageFilterOptions.getInstance(regex);
         }
-
-        final Map<String, String> filterParameters = getMachineImageFilterParamers( options );
-
-        PopulatorThread<MachineImage> populator;
-
-        provider.hold();
-        populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
-            public void populate(@Nonnull Jiterator<MachineImage> iterator) throws CloudException, InternalException {
-                try {
-                    populateImages(ctx, options == null ? null : options.getAccountNumber(), iterator, filterParameters);
-                }
-                finally {
-                    provider.release();
-                }
-            }
-        });
-        populator.populate();
-        return populator.getResult();
+        else {
+            return ImageFilterOptions.getInstance();
+        }
     }
 
     @Override
@@ -815,7 +744,8 @@ public class AMI extends AbstractImageSupport {
         }
         return new String[0];
     }
-    
+
+    /*
 	private void populateImages(@Nonnull ProviderContext ctx, @Nullable String accountNumber, @Nonnull Jiterator<MachineImage> iterator, Map<String,String> extraParameters) throws CloudException, InternalException {
         APITrace.begin(provider, "populateImages");
         try {
@@ -891,6 +821,7 @@ public class AMI extends AbstractImageSupport {
             APITrace.end();
         }
 	}
+    */
 
     @Override
     public @Nonnull MachineImage registerImageBundle(@Nonnull ImageCreateOptions options) throws CloudException, InternalException {
@@ -1028,26 +959,13 @@ public class AMI extends AbstractImageSupport {
     }
 
     @Override
-    public @Nonnull Iterable<MachineImage> searchImages(@Nullable String ownerId, @Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nullable ImageClass ... classes) throws CloudException, InternalException {
+    public @Nonnull Iterable<MachineImage> listImages(@Nullable ImageFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "searchImages");
         try {
-            if( classes == null || classes.length < 1 ) {
-                return executeImageSearch(ownerId, keyword, platform, architecture, ImageClass.MACHINE);
+            if( options == null ) {
+                options = ImageFilterOptions.getInstance();
             }
-            else if( classes.length == 1 ) {
-                return executeImageSearch(ownerId, keyword, platform, architecture, classes[0]);
-            }
-            else {
-                ArrayList<MachineImage> images = new ArrayList<MachineImage>();
-
-                // TODO: this should be optimized for asynchronous loading
-                for( ImageClass cls : classes ) {
-                    for( MachineImage img : executeImageSearch(ownerId, keyword, platform, architecture, cls) ) {
-                        images.add(img);
-                    }
-                }
-                return images;
-            }
+            return executeImageSearch(false, options);
         }
         finally {
             APITrace.end();
@@ -1061,26 +979,10 @@ public class AMI extends AbstractImageSupport {
     }
 
     @Override
-    public @Nonnull Iterable<MachineImage> searchPublicImages(@Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nullable ImageClass ... classes) throws CloudException, InternalException {
+    public @Nonnull Iterable<MachineImage> searchPublicImages(@Nonnull ImageFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "searchPublicImages");
         try {
-            if( classes == null || classes.length < 1 ) {
-                return executePublicImageSearch(keyword, platform, architecture, ImageClass.MACHINE);
-            }
-            else if( classes.length == 1 ) {
-                return executePublicImageSearch(keyword, platform, architecture, classes[0]);
-            }
-            else {
-                ArrayList<MachineImage> images = new ArrayList<MachineImage>();
-
-                // TODO: this should be optimized for asynchronous loading
-                for( ImageClass cls : classes ) {
-                    for( MachineImage img : executePublicImageSearch(keyword, platform, architecture, cls) ) {
-                        images.add(img);
-                    }
-                }
-                return images;
-            }
+            return executeImageSearch(true, options);
         }
         finally {
             APITrace.end();
