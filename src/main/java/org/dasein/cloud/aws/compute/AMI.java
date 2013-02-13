@@ -705,16 +705,8 @@ public class AMI extends AbstractImageSupport {
             i++;
         }
 
-        Map<String, String> tags = options.getTags();
-        if ( tags != null && tags.size() > 0 ) {
-            for ( Map.Entry<String, String> parameter : tags.entrySet() ) {
-                String key = parameter.getKey();
-                String value = parameter.getValue();
-                extraParameters.put( "Filter." + i + ".Name", "tag:" + key );
-                extraParameters.put( "Filter." + i + ".Value.1", value );
-                i++;
-            }
-        }
+        provider.putExtraParameters( extraParameters, provider.getTagFilterParams( options.getTags(), i ) );
+
         return extraParameters;
     }
 
@@ -839,7 +831,7 @@ public class AMI extends AbstractImageSupport {
                 parameters.put("Owner", accountNumber);
             }
 
-            putExtraParameters( parameters, extraParameters );
+            provider.putExtraParameters( parameters, extraParameters );
 
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
@@ -868,7 +860,7 @@ public class AMI extends AbstractImageSupport {
             if( provider.getEC2Provider().isAWS() ) {
                 parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
                 parameters.put("ExecutableBy", accountNumber);
-                putExtraParameters( parameters, extraParameters );
+                provider.putExtraParameters( parameters, extraParameters );
                 method = new EC2Method(provider, provider.getEc2Url(), parameters);
                 try {
                     doc = method.invoke();
@@ -899,17 +891,6 @@ public class AMI extends AbstractImageSupport {
             APITrace.end();
         }
 	}
-
-    private void putExtraParameters(Map<String, String> parameters, Map<String, String> extraParameters) {
-        if ( parameters == null ) {
-            parameters = new HashMap<String,String>();
-        }
-        if ( extraParameters != null && extraParameters.size() > 0 ) {
-            for ( Map.Entry<String, String> parameter : extraParameters.entrySet() ) {
-                parameters.put( parameter.getKey(), parameter.getValue() );
-            }
-        }
-    }
 
     @Override
     public @Nonnull MachineImage registerImageBundle(@Nonnull ImageCreateOptions options) throws CloudException, InternalException {

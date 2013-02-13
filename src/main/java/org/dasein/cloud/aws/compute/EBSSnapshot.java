@@ -36,6 +36,7 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.AbstractSnapshotSupport;
 import org.dasein.cloud.compute.Snapshot;
 import org.dasein.cloud.compute.SnapshotCreateOptions;
+import org.dasein.cloud.compute.SnapshotFilterOptions;
 import org.dasein.cloud.compute.SnapshotState;
 import org.dasein.cloud.compute.SnapshotSupport;
 import org.dasein.cloud.compute.Volume;
@@ -383,9 +384,15 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
             APITrace.end();
         }
     }
-    
+
+
+    @Override
+    public @Nonnull Iterable<Snapshot> listSnapshots() throws InternalException, CloudException {
+        return listSnapshots( null );
+    }
+
 	@Override
-	public @Nonnull Iterable<Snapshot> listSnapshots() throws InternalException, CloudException {
+	public @Nonnull Iterable<Snapshot> listSnapshots(SnapshotFilterOptions options) throws InternalException, CloudException {
         APITrace.begin(provider, "listSnapshots");
         try {
             ProviderContext ctx = provider.getContext();
@@ -398,6 +405,10 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
             EC2Method method;
             NodeList blocks;
             Document doc;
+
+            if ( options != null ) {
+                provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+            }
 
             parameters.put("Owner.1", "self");
             method = new EC2Method(provider, provider.getEc2Url(), parameters);

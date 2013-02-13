@@ -216,8 +216,9 @@ public class S3Method {
         }
         else {
             SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
+            Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
 
-            // TODO: sync regularly with CloudFront
+            fmt.setCalendar(cal);
             return fmt.format(new Date());
         }
 	}
