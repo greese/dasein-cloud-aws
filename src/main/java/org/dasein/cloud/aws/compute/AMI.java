@@ -49,6 +49,9 @@ import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.CalendarWrapper;
+import org.dasein.util.Jiterator;
+import org.dasein.util.JiteratorPopulator;
+import org.dasein.util.PopulatorThread;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -301,7 +304,7 @@ public class AMI extends AbstractImageSupport {
         }
     }
 
-    private @Nonnull Iterable<MachineImage> executeImageSearch(boolean forPublic, @Nonnull ImageFilterOptions options) throws CloudException, InternalException {
+    private @Nonnull Iterable<MachineImage> executeImageSearch(int pass, boolean forPublic, @Nonnull ImageFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "executeImageSearch");
         try {
             ProviderContext ctx = provider.getContext();
@@ -323,14 +326,24 @@ public class AMI extends AbstractImageSupport {
             EC2Method method;
             Document doc;
 
-
             if( forPublic ) {
-                parameters.put("ExecutableBy.1", "all");
+                if( pass == 1 ) {
+                    parameters.put("ExecutableBy.1", "all");
+                }
+                else {
+                    parameters.put("ExecutableBy.1", "self");
+                }
             }
             else {
-                parameters.put("ExecutableBy.1", ctx.getAccountNumber());
+                if( pass ==  1 ) {
+                    parameters.put("ExecutableBy.1", "self");
+                }
+                else {
+                    parameters.put("Owner", "self");
+                }
             }
-            options = fillImageFilterParameters(forPublic, options, parameters);
+            ImageFilterOptions finalOptions = fillImageFilterParameters(forPublic, options, parameters);
+
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -350,7 +363,7 @@ public class AMI extends AbstractImageSupport {
                         MachineImage image = toMachineImage(instance);
 
                         if( image != null ) {
-                            if( options.matches(image, forPublic ? null : getContext().getAccountNumber()) ) {
+                            if( finalOptions.matches(image) ) {
                                 list.add(image);
                             }
                         }
@@ -972,10 +985,28 @@ public class AMI extends AbstractImageSupport {
     public @Nonnull Iterable<MachineImage> listImages(@Nullable ImageFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "searchImages");
         try {
+            final ImageFilterOptions opts;
+
             if( options == null ) {
-                options = ImageFilterOptions.getInstance();
+                opts = ImageFilterOptions.getInstance();
             }
-            return executeImageSearch(false, options);
+            else {
+                opts = options;
+            }
+            PopulatorThread<MachineImage> populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
+                @Override
+                public void populate(@Nonnull Jiterator<MachineImage> iterator) throws Exception {
+                    for( MachineImage img : executeImageSearch(1, false, opts) ) {
+                        iterator.push(img);
+                    }
+                    for( MachineImage img : executeImageSearch(2, false, opts) ) {
+                        iterator.push(img);
+                    }
+                }
+            });
+
+            populator.populate();
+            return populator.getResult();
         }
         finally {
             APITrace.end();
@@ -989,10 +1020,23 @@ public class AMI extends AbstractImageSupport {
     }
 
     @Override
-    public @Nonnull Iterable<MachineImage> searchPublicImages(@Nonnull ImageFilterOptions options) throws CloudException, InternalException {
+    public @Nonnull Iterable<MachineImage> searchPublicImages(final @Nonnull ImageFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "searchPublicImages");
         try {
-            return executeImageSearch(true, options);
+            PopulatorThread<MachineImage> populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
+                @Override
+                public void populate(@Nonnull Jiterator<MachineImage> iterator) throws Exception {
+                    for( MachineImage img : executeImageSearch(1, true, options) ) {
+                        iterator.push(img);
+                    }
+                    for( MachineImage img : executeImageSearch(2, true, options) ) {
+                        iterator.push(img);
+                    }
+                }
+            });
+
+            populator.populate();
+            return populator.getResult();
         }
         finally {
             APITrace.end();
