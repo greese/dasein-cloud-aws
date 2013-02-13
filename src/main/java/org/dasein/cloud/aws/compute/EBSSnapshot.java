@@ -406,7 +406,9 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
             NodeList blocks;
             Document doc;
 
-            if ( options != null && options.hasCriteria() && options.isMatchesAny() ) {
+            // we want to use the more efficient tag search via AWS if possible
+            // it is only possible if a) tags is the only search criterion or b) the options is set ot match any single criterion
+            if ( options != null && options.hasCriteria() && (options.isMatchesAny() || (options.getRegex() == null && options.getAccountNumber() == null)) ) {
                 Map<String,String> tags = options.getTags();
 
                 if( !tags.isEmpty() ) {
