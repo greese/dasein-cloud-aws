@@ -592,7 +592,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
     }
 
     @Override
-    public @Nonnull Iterable<Snapshot> searchSnapshots(@Nullable String ownerId, @Nullable String keyword) throws InternalException, CloudException {
+    public @Nonnull Iterable<Snapshot> searchSnapshots(@Nonnull SnapshotFilterOptions options) throws InternalException, CloudException {
         APITrace.begin(provider, "searchSnapshots");
         try {
             ProviderContext ctx = provider.getContext();
@@ -606,6 +606,39 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
             NodeList blocks;
             Document doc;
 
+            // we want to use the more efficient tag search via AWS if possible
+            // it is only possible if a) tags is the only search criterion or b) the options is set ot match all criteria
+            if ( options != null && options.hasCriteria() && (!options.isMatchesAny() || (options.getRegex() == null && options.getAccountNumber() == null)) ) {
+                Map<String,String> tags = options.getTags();
+
+                if( !tags.isEmpty() ) {
+                    provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+                    SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
+
+                    if( options.getAccountNumber() != null ) {
+                        sfo.withAccountNumber(options.getAccountNumber());
+                    }
+                    if( options.getRegex() != null ) {
+                        sfo.matchingRegex(options.getRegex());
+                    }
+                    options = sfo;
+                }
+            }
+
+            if( options != null && options.getAccountNumber() != null && !options.isMatchesAny() ) {
+                parameters.put("Owner.1", options.getAccountNumber());
+                if( options != null && options.getAccountNumber() != null ) {
+                    SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
+
+                    if( !options.getTags().isEmpty() ) {
+                        sfo.withTags(options.getTags());
+                    }
+                    if( options.getRegex() != null ) {
+                        sfo.matchingRegex(options.getRegex());
+                    }
+                    options = sfo;
+                }
+            }
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -625,13 +658,9 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
                         Snapshot snapshot = toSnapshot(ctx, item);
 
                         if( snapshot != null ) {
-                            if( ownerId != null && !ownerId.equals(snapshot.getProviderSnapshotId()) ) {
-                                continue;
+                            if( options != null && options.hasCriteria() && options.matches(snapshot, null) ) {
+                                list.add(snapshot);
                             }
-                            if( keyword != null && !snapshot.getName().contains(keyword) && !snapshot.getDescription().contains(keyword) ) {
-                                continue;
-                            }
-                            list.add(snapshot);
                         }
                     }
                 }
