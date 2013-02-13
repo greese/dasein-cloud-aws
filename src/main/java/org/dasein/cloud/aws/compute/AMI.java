@@ -534,19 +534,25 @@ public class AMI extends AbstractImageSupport {
     public @Nonnull Iterable<ResourceStatus> listImageStatus(final @Nonnull ImageClass cls) throws CloudException, InternalException {
         APITrace.begin(provider, "listImageStatus");
         try {
+            provider.hold();
             PopulatorThread<ResourceStatus> populator = new PopulatorThread<ResourceStatus>(new JiteratorPopulator<ResourceStatus>() {
                 @Override
                 public void populate(@Nonnull Jiterator<ResourceStatus> iterator) throws Exception {
-                    TreeSet<String> ids = new TreeSet<String>();
+                    try {
+                        TreeSet<String> ids = new TreeSet<String>();
 
-                    for( ResourceStatus status : executeStatusList(1, cls) ) {
-                        ids.add(status.getProviderResourceId());
-                        iterator.push(status);
-                    }
-                    for( ResourceStatus status : executeStatusList(2, cls) ) {
-                        if( !ids.contains(status.getProviderResourceId()) ) {
+                        for( ResourceStatus status : executeStatusList(1, cls) ) {
+                            ids.add(status.getProviderResourceId());
                             iterator.push(status);
                         }
+                        for( ResourceStatus status : executeStatusList(2, cls) ) {
+                            if( !ids.contains(status.getProviderResourceId()) ) {
+                                iterator.push(status);
+                            }
+                        }
+                    }
+                    finally {
+                        provider.release();
                     }
                 }
             });
@@ -1019,19 +1025,25 @@ public class AMI extends AbstractImageSupport {
             else {
                 opts = options;
             }
+            provider.hold();
             PopulatorThread<MachineImage> populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
                 @Override
                 public void populate(@Nonnull Jiterator<MachineImage> iterator) throws Exception {
-                    TreeSet<String> ids = new TreeSet<String>();
+                    try {
+                        TreeSet<String> ids = new TreeSet<String>();
 
-                    for( MachineImage img : executeImageSearch(1, false, opts) ) {
-                        ids.add(img.getProviderMachineImageId());
-                        iterator.push(img);
-                    }
-                    for( MachineImage img : executeImageSearch(2, false, opts) ) {
-                        if( !ids.contains(img.getProviderMachineImageId()) ) {
+                        for( MachineImage img : executeImageSearch(1, false, opts) ) {
+                            ids.add(img.getProviderMachineImageId());
                             iterator.push(img);
                         }
+                        for( MachineImage img : executeImageSearch(2, false, opts) ) {
+                            if( !ids.contains(img.getProviderMachineImageId()) ) {
+                                iterator.push(img);
+                            }
+                        }
+                    }
+                    finally {
+                        provider.release();
                     }
                 }
             });
@@ -1054,14 +1066,20 @@ public class AMI extends AbstractImageSupport {
     public @Nonnull Iterable<MachineImage> searchPublicImages(final @Nonnull ImageFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "searchPublicImages");
         try {
+            provider.hold();
             PopulatorThread<MachineImage> populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
                 @Override
                 public void populate(@Nonnull Jiterator<MachineImage> iterator) throws Exception {
-                    for( MachineImage img : executeImageSearch(1, true, options) ) {
-                        iterator.push(img);
+                    try {
+                        for( MachineImage img : executeImageSearch(1, true, options) ) {
+                            iterator.push(img);
+                        }
+                        for( MachineImage img : executeImageSearch(2, true, options) ) {
+                            iterator.push(img);
+                        }
                     }
-                    for( MachineImage img : executeImageSearch(2, true, options) ) {
-                        iterator.push(img);
+                    finally {
+                        provider.release();
                     }
                 }
             });
