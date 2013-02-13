@@ -611,7 +611,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
             if ( options != null && options.hasCriteria() && (!options.isMatchesAny() || (options.getRegex() == null && options.getAccountNumber() == null)) ) {
                 Map<String,String> tags = options.getTags();
 
-                if( !tags.isEmpty() ) {
+                if( tags != null && !tags.isEmpty() ) {
                     provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
                     SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
 
