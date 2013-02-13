@@ -206,15 +206,20 @@ public class AWSCloud extends AbstractCloud {
                 parameters.put("ResourceId." + (i + 1), resourceIds[i]);
             }
 
+            Map<String,String> tagParameters = new HashMap<String, String>( );
             for( int i=0; i<keyValuePairs.length; i++ ) {
                 String key = keyValuePairs[i].getKey();
                 String value = keyValuePairs[i].getValue();
 
                 if ( value != null ) {
-                    parameters.put("Tag." + (i + 1) + ".Key", key);
-                    parameters.put("Tag." + (i + 1) + ".Value", value);
+                    tagParameters.put("Tag." + (i + 1) + ".Key", key);
+                    tagParameters.put("Tag." + (i + 1) + ".Value", value);
                 }
             }
+            if ( tagParameters.size() == 0 ) {
+                return true;
+            }
+            putExtraParameters( parameters, tagParameters );
             method = new EC2Method(this, getEc2Url(), parameters);
             try {
                 method.invoke();
@@ -288,6 +293,41 @@ public class AWSCloud extends AbstractCloud {
             logger.error("Error while removing tags for " + resourceIds + ".", ignore);
             return false;
         }
+    }
+
+    public Map<String, String> getTagsFromTagSet(Node attr) {
+        if ( attr == null || !attr.hasChildNodes() ) {
+            return null;
+        }
+        Map<String, String> tags = new HashMap<String, String>();
+        NodeList tagNodes = attr.getChildNodes();
+        for ( int j = 0; j < tagNodes.getLength(); j++ ) {
+            Node tag = tagNodes.item( j );
+
+            if ( tag.getNodeName().equals( "item" ) && tag.hasChildNodes() ) {
+                NodeList parts = tag.getChildNodes();
+                String key = null, value = null;
+
+                for ( int k = 0; k < parts.getLength(); k++ ) {
+                    Node part = parts.item( k );
+
+                    if ( part.getNodeName().equalsIgnoreCase( "key" ) ) {
+                        if ( part.hasChildNodes() ) {
+                            key = part.getFirstChild().getNodeValue().trim();
+                        }
+                    }
+                    else if ( part.getNodeName().equalsIgnoreCase( "value" ) ) {
+                        if ( part.hasChildNodes() ) {
+                            value = part.getFirstChild().getNodeValue().trim();
+                        }
+                    }
+                    if ( key != null && value != null ) {
+                        tags.put( key, value );
+                    }
+                }
+            }
+        }
+        return tags;
     }
 
     @Override
@@ -593,8 +633,40 @@ public class AWSCloud extends AbstractCloud {
        
        parameters.put(P_VERSION, getSqsVersion());
        return parameters;
-	}   
-   
+	}
+
+    public void putExtraParameters(Map<String, String> parameters, Map<String, String> extraParameters) {
+        if ( extraParameters == null || extraParameters.size() == 0 ) {
+            return;
+        }
+        if ( parameters == null ) {
+            parameters = new HashMap<String, String>();
+        }
+        parameters.putAll( extraParameters );
+    }
+
+    public @Nullable Map<String,String> getTagFilterParams(@Nullable Map<String,String> tags) {
+        return getTagFilterParams( tags, 1 );
+    }
+
+    public @Nullable Map<String,String> getTagFilterParams(@Nullable Map<String,String> tags, int startingFilterIndex) {
+        if ( tags == null || tags.size() == 0 ) {
+            return null;
+        }
+
+        Map<String, String> filterParameters = new HashMap<String, String>();
+        int i = startingFilterIndex;
+
+        for ( Map.Entry<String, String> parameter : tags.entrySet() ) {
+            String key = parameter.getKey();
+            String value = parameter.getValue();
+            filterParameters.put( "Filter." + i + ".Name", "tag:" + key );
+            filterParameters.put( "Filter." + i + ".Value.1", value );
+            i++;
+        }
+        return filterParameters;
+    }
+
 	public @Nonnull String getTimestamp(long timestamp, boolean withMillis) {
         SimpleDateFormat fmt;
         

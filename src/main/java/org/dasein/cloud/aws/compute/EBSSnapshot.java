@@ -33,10 +33,7 @@ import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.compute.Snapshot;
-import org.dasein.cloud.compute.SnapshotState;
-import org.dasein.cloud.compute.SnapshotSupport;
-import org.dasein.cloud.compute.Volume;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
@@ -330,9 +327,15 @@ public class EBSSnapshot implements SnapshotSupport {
             APITrace.end();
         }
     }
-    
+
+
+    @Override
+    public @Nonnull Iterable<Snapshot> listSnapshots() throws InternalException, CloudException {
+        return listSnapshots( null );
+    }
+
 	@Override
-	public @Nonnull Iterable<Snapshot> listSnapshots() throws InternalException, CloudException {
+	public @Nonnull Iterable<Snapshot> listSnapshots(SnapshotFilterOptions options) throws InternalException, CloudException {
         APITrace.begin(provider, "listSnapshots");
         try {
             ProviderContext ctx = provider.getContext();
@@ -345,6 +348,10 @@ public class EBSSnapshot implements SnapshotSupport {
             EC2Method method;
             NodeList blocks;
             Document doc;
+
+            if ( options != null ) {
+                provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+            }
 
             parameters.put("Owner.1", "self");
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
@@ -664,6 +671,16 @@ public class EBSSnapshot implements SnapshotSupport {
     @Override
     public boolean supportsSnapshotSharingWithPublic() throws InternalException, CloudException {
         return provider.getEC2Provider().isAWS();
+    }
+
+    @Override
+    public void updateTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.createTags( snapshotIds, tags );
+    }
+
+    @Override
+    public void removeTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.removeTags( snapshotIds, tags );
     }
 
     private @Nullable Snapshot toSnapshot(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException {

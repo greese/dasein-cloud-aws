@@ -20,26 +20,12 @@ package org.dasein.cloud.aws.compute;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.Requirement;
-import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.compute.Platform;
-import org.dasein.cloud.compute.Volume;
-import org.dasein.cloud.compute.VolumeCreateOptions;
-import org.dasein.cloud.compute.VolumeFormat;
-import org.dasein.cloud.compute.VolumeProduct;
-import org.dasein.cloud.compute.VolumeState;
-import org.dasein.cloud.compute.VolumeSupport;
-import org.dasein.cloud.compute.VolumeType;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.util.uom.storage.Gigabyte;
@@ -358,46 +344,56 @@ public class EBSVolume implements VolumeSupport {
         return list;
     }
 
+
     @Override
-	public @Nonnull Iterable<Volume> listVolumes() throws InternalException, CloudException {
+    public @Nonnull Iterable<Volume> listVolumes() throws InternalException, CloudException {
+        return listVolumes( null );
+    }
+
+    @Override
+    public @Nonnull Iterable<Volume> listVolumes(@Nullable VolumeFilterOptions options) throws InternalException, CloudException {
         ProviderContext ctx = provider.getContext();
-        
+
         if( ctx == null ) {
             throw new CloudException("No context exists for this request.");
         }
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_VOLUMES);
-		ArrayList<Volume> list = new ArrayList<Volume>();
-		EC2Method method;
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_VOLUMES);
+        ArrayList<Volume> list = new ArrayList<Volume>();
+        EC2Method method;
         NodeList blocks;
-		Document doc;
+        Document doc;
 
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        if ( options != null ) {
+            provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+        }
+
+        method = new EC2Method( provider, provider.getEc2Url(), parameters );
         try {
-        	doc = method.invoke();
+            doc = method.invoke();
         }
         catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         blocks = doc.getElementsByTagName("volumeSet");
         for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList items = blocks.item(i).getChildNodes();
-        	
+            NodeList items = blocks.item(i).getChildNodes();
+
             for( int j=0; j<items.getLength(); j++ ) {
-            	Node item = items.item(j);
-            	
-            	if( item.getNodeName().equals("item") ) {
-            		Volume volume = toVolume(ctx, item);
-            		
-            		if( volume != null ) {
-            			list.add(volume);
-            		}
-            	}
+                Node item = items.item(j);
+
+                if( item.getNodeName().equals("item") ) {
+                    Volume volume = toVolume( ctx, item );
+
+                    if( volume != null ) {
+                        list.add(volume);
+                    }
+                }
             }
         }
         return list;
-	}
-	
+    }
+
     @Override
     public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
         if( action.equals(VolumeSupport.ANY) ) {
@@ -445,6 +441,16 @@ public class EBSVolume implements VolumeSupport {
         }
     }
 
+    @Override
+    public void updateTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.createTags( snapshotIds, tags );
+    }
+
+    @Override
+    public void removeTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        provider.removeTags( snapshotIds, tags );
+    }
+
     private @Nullable ResourceStatus toStatus(@Nullable Node node) throws CloudException {
         if( node == null ) {
             return null;
@@ -489,7 +495,7 @@ public class EBSVolume implements VolumeSupport {
 		Volume volume = new Volume();
 
         volume.setProviderProductId("standard");
-        volume.setType(VolumeType.HDD);
+        volume.setType( VolumeType.HDD );
         volume.setFormat(VolumeFormat.BLOCK);
 		for( int i=0; i<attrs.getLength(); i++ ) {
 			Node attr = attrs.item(i);
@@ -579,6 +585,12 @@ public class EBSVolume implements VolumeSupport {
 					}
 				}
 			}
+            else if( name.equals("tagSet") ) {
+                Map<String, String> tags = provider.getTagsFromTagSet( attr );
+                if ( tags != null && tags.size() > 0 ) {
+                    volume.setTags( tags );
+                }
+            }
 		}
 		volume.setProviderRegionId(ctx.getRegionId());
 		return volume;

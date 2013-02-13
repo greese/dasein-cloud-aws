@@ -1494,17 +1494,9 @@ public class EC2Instance extends AbstractVMSupport {
         if( tags != null ) {
             // tag advantage of EC2-based filtering if we can...
             Map<String, String> extraParameters = new HashMap<String, String>();
-            int i = 1;
 
-            if ( tags.size() > 0 ) {
-                for ( Map.Entry<String, String> parameter : tags.entrySet() ) {
-                    String key = parameter.getKey();
-                    String value = parameter.getValue();
-                    extraParameters.put( "Filter." + i + ".Name", "tag:" + key );
-                    extraParameters.put( "Filter." + i + ".Value.1", value );
-                    i++;
-                }
-            }
+            provider.putExtraParameters( extraParameters, provider.getTagFilterParams( options.getTags() ) );
+
             String regex = options.getRegex();
 
             if( regex != null ) {
@@ -1545,11 +1537,7 @@ public class EC2Instance extends AbstractVMSupport {
 
             Map<String, String> parameters = provider.getStandardParameters( provider.getContext(), EC2Method.DESCRIBE_INSTANCES );
 
-            if ( extraParameters != null && extraParameters.size() > 0 ) {
-                for ( Map.Entry<String, String> parameter : extraParameters.entrySet() ) {
-                    parameters.put( parameter.getKey(), parameter.getValue() );
-                }
-            }
+            provider.putExtraParameters( parameters, extraParameters );
 
             EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
             ArrayList<VirtualMachine> list = new ArrayList<VirtualMachine>();
@@ -1917,41 +1905,15 @@ public class EC2Instance extends AbstractVMSupport {
                 }                
             }
             else if( name.equals("tagSet") ) {
-                if( attr.hasChildNodes() ) {
-                    NodeList tags = attr.getChildNodes();
-                    
-                    for( int j=0; j<tags.getLength(); j++ ) {
-                        Node tag = tags.item(j);
-                        
-                        if( tag.getNodeName().equals("item") && tag.hasChildNodes() ) {
-                            NodeList parts = tag.getChildNodes();
-                            String key = null, value = null;
-                            
-                            for( int k=0; k<parts.getLength(); k++ ) {
-                                Node part = parts.item(k);
-                                
-                                if( part.getNodeName().equalsIgnoreCase("key") ) {
-                                    if( part.hasChildNodes() ) {
-                                        key = part.getFirstChild().getNodeValue().trim();
-                                    }
-                                }
-                                else if( part.getNodeName().equalsIgnoreCase("value") ) {
-                                    if( part.hasChildNodes() ) {
-                                        value = part.getFirstChild().getNodeValue().trim();
-                                    }
-                                }
-                            }
-                            if( key != null ) {
-                                if( key.equalsIgnoreCase("name") ) {
-                                    server.setName(value);
-                                }
-                                else if( key.equalsIgnoreCase("description") ) {
-                                    server.setDescription(value);
-                                }
-                                else {
-                                    server.addTag(key, value);
-                                }
-                            }
+                Map<String, String> tags = provider.getTagsFromTagSet( attr );
+                if ( tags != null && tags.size() > 0 ) {
+                    server.setTags( tags );
+                    for ( Map.Entry<String, String> entry : tags.entrySet() ) {
+                        if ( entry.getKey().equalsIgnoreCase( "name" ) ) {
+                            server.setName( entry.getValue() );
+                        }
+                        else if ( entry.getKey().equalsIgnoreCase( "description" ) ) {
+                            server.setDescription( entry.getValue() );
                         }
                     }
                 }
