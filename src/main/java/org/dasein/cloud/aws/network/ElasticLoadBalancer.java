@@ -55,7 +55,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
     
     @Override
     public void addDataCenters(String toLoadBalancerId, String ... availabilityZoneIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "addDataCentersToLB");
+        APITrace.begin(provider, "LB.addDataCenters");
         try {
             if( availabilityZoneIds != null && availabilityZoneIds.length > 0 ) {
                 ProviderContext ctx = provider.getContext();
@@ -88,7 +88,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
 
     @Override
     public void addServers(String toLoadBalancerId, String ... instanceIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "addServersToLB");
+        APITrace.begin(provider, "LB.addServers");
         try {
             if( instanceIds != null && instanceIds.length > 0 ) {
                 ProviderContext ctx = provider.getContext();
@@ -127,7 +127,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
     
     @Override
     public String create(String name, String description, String addressId, String[] zoneIds, LbListener[] listeners, String[] serverIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "createLoadBalancer");
+        APITrace.begin(provider, "LB.create");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -186,7 +186,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
     }
     
     private Map<String,String> getELBParameters(ProviderContext ctx, String action) throws InternalException {
-        APITrace.begin(provider, "getELBParameters");
+        APITrace.begin(provider, "LB.getELBParameters");
         try {
             HashMap<String,String> parameters = new HashMap<String,String>();
 
@@ -216,7 +216,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
     
     @Override
     public LoadBalancer getLoadBalancer(String loadBalancerId) throws CloudException, InternalException {
-        APITrace.begin(provider, "getLoadBalancer");
+        APITrace.begin(provider, "LB.getLoadBalancer");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -335,7 +335,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "isSubscribedELB");
+        APITrace.begin(provider, "LB.isSubscribed");
         try {
             try {
                 ProviderContext ctx = provider.getContext();
@@ -393,7 +393,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listLoadBalancerStatus() throws CloudException, InternalException {
-        APITrace.begin(provider, "listLoadBalancerStatus");
+        APITrace.begin(provider, "LB.listLoadBalancerStatus");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -444,7 +444,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
 
     @Override
     public Iterable<LoadBalancer> listLoadBalancers() throws CloudException, InternalException {
-        APITrace.begin(provider, "listLoadBalancers");
+        APITrace.begin(provider, "LB.listLoadBalancers");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -500,7 +500,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
 
     @Override
     public Iterable<LoadBalancerServer> getLoadBalancerServerHealth( String loadBalancerId, String... serverIdsToCheck ) throws CloudException, InternalException {
-        APITrace.begin(provider, "getLoadBalancerServerHealth");
+        APITrace.begin(provider, "LB.getLoadBalancerServerHealth");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -584,7 +584,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
 
     @Override
     public void remove(String loadBalancerId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeLoadBalancer");
+        APITrace.begin(provider, "LB.remove");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -611,7 +611,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
 
     @Override
     public void removeDataCenters(String toLoadBalancerId, String ... availabilityZoneIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeDataCentersFromLB");
+        APITrace.begin(provider, "LB.removeDataCenters");
         try {
             if( availabilityZoneIds != null && availabilityZoneIds.length > 0 ) {
                 ProviderContext ctx = provider.getContext();
@@ -644,7 +644,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
 
     @Override
     public void removeServers(String toLoadBalancerId, String ... instanceIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeServersFromLB");
+        APITrace.begin(provider, "LB.removeServers");
         try {
             if( instanceIds != null && instanceIds.length > 0 ) {
                 ProviderContext ctx = provider.getContext();
