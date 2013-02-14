@@ -59,7 +59,7 @@ public class Route53 implements DNSSupport {
 
     @Override
     public @Nonnull DNSRecord addDnsRecord(@Nonnull String providerDnsZoneId, @Nonnull DNSRecordType recordType, @Nonnull String name, @Nonnegative int ttl, @Nonnull String... values) throws CloudException, InternalException {
-        APITrace.begin(provider, "addDnsRecord");
+        APITrace.begin(provider, "DNS.addDnsRecord");
         try {
             Route53Method method;
 
@@ -121,7 +121,7 @@ public class Route53 implements DNSSupport {
     
     @Override
     public @Nonnull String createDnsZone(@Nonnull String domainName, @Nonnull String name, @Nonnull String description) throws CloudException, InternalException {
-        APITrace.begin(provider, "createDnsZone");
+        APITrace.begin(provider, "DNS.createDnsZone");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -181,7 +181,7 @@ public class Route53 implements DNSSupport {
 
     @Override
     public void deleteDnsRecords(@Nonnull DNSRecord... dnsRecords) throws CloudException, InternalException {
-        APITrace.begin(provider, "deleteDnsRecords");
+        APITrace.begin(provider, "DNS.deleteDnsRecords");
         try {
             if( dnsRecords.length < 1 ) {
                 return;
@@ -246,7 +246,7 @@ public class Route53 implements DNSSupport {
 
     @Override
     public void deleteDnsZone(@Nonnull String providerDnsZoneId) throws CloudException, InternalException {
-        APITrace.begin(provider, "deleteDnsZone");
+        APITrace.begin(provider, "DNS.deleteDnsZone");
         try {
             Route53Method method;
 
@@ -265,7 +265,7 @@ public class Route53 implements DNSSupport {
 
     @Override
     public @Nullable DNSZone getDnsZone(@Nonnull String providerDnsZoneId) throws CloudException, InternalException {
-        APITrace.begin(provider, "getDnsZone");
+        APITrace.begin(provider, "DNS.getDnsZone");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -366,7 +366,7 @@ public class Route53 implements DNSSupport {
     }
     
     private void populateRecords(@Nonnull Jiterator<DNSRecord> iterator, @Nonnull String providerDnsZoneId, @Nullable DNSRecordType forType, @Nullable String name) throws CloudException, InternalException {
-        APITrace.begin(provider, "populateRecords");
+        APITrace.begin(provider, "DNS.listDnsRecords");
         try {
             String url = getResourceUrl(providerDnsZoneId);
             Route53Method method;
@@ -493,7 +493,7 @@ public class Route53 implements DNSSupport {
     }
 
     private void populateZoneStatus(@Nonnull Jiterator<ResourceStatus> iterator, @Nullable String marker) throws CloudException, InternalException {
-        APITrace.begin(provider, "populateZoneStatus");
+        APITrace.begin(provider, "DNS.listDnsZoneStatus");
         try {
             String url = getHostedZoneUrl(null);
             Route53Method method;
@@ -532,7 +532,7 @@ public class Route53 implements DNSSupport {
     }
 
     private void populateZones(@Nonnull ProviderContext ctx, @Nonnull Jiterator<DNSZone> iterator, @Nullable String marker) throws CloudException, InternalException {
-        APITrace.begin(provider, "populateZones");
+        APITrace.begin(provider, "DNS.listDnsZones");
         try {
             String url = getHostedZoneUrl(null);
             Route53Method method;
@@ -573,7 +573,7 @@ public class Route53 implements DNSSupport {
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "isSubscribedRoute53");
+        APITrace.begin(provider, "DNS.isSubscribed");
         try {
             Route53Method method;
 
