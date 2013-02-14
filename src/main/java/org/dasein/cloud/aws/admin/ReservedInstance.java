@@ -39,6 +39,7 @@ import org.dasein.cloud.compute.ComputeServices;
 import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -60,82 +61,94 @@ public class ReservedInstance implements PrepaymentSupport {
     
 	@Override
 	public @Nullable Offering getOffering(@Nonnull String offeringId) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_RESERVED_INSTANCES_OFFERINGS);
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
-
-		parameters.put("ReservedInstancesOfferingId", offeringId);
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "Prepayment.getOffering");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	String code = e.getCode();
-        	
-        	if( code != null && code.startsWith("InvalidReservedInstancesOfferingId") ) {
-        		return null;
-        	}
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("reservedInstancesOfferingsSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList items = blocks.item(i).getChildNodes();
-        	
-            for( int j=0; j<items.getLength(); j++ ) {
-            	Node item = items.item(j);
-            	
-            	if( item.getNodeName().equals("item") ) {
-            		Offering offering = toOffering(item);
-            		
-            		if( offering != null && offering.getProviderOfferingId().equals(offeringId) ) {
-            			return offering;
-            		}
-            	}
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_RESERVED_INSTANCES_OFFERINGS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("ReservedInstancesOfferingId", offeringId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
             }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.startsWith("InvalidReservedInstancesOfferingId") ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("reservedInstancesOfferingsSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        Offering offering = toOffering(item);
+
+                        if( offering != null && offering.getProviderOfferingId().equals(offeringId) ) {
+                            return offering;
+                        }
+                    }
+                }
+            }
+            return null;
         }
-        return null;
+        finally {
+            APITrace.end();
+        }
 	}
 
 	@Override
 	public @Nullable Prepayment getPrepayment(@Nonnull String prepaymentId) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_RESERVED_INSTANCES);
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
-
-		parameters.put("ReservedInstancesId.1", prepaymentId);
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "Prepayment.getPrepayment");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	String code = e.getCode();
-        	
-        	if( code != null && code.startsWith("InvalidReservedInstancesId") ) {
-        		return null;
-        	}
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("reservedInstancesSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList items = blocks.item(i).getChildNodes();
-        	
-            for( int j=0; j<items.getLength(); j++ ) {
-            	Node item = items.item(j);
-            	
-            	if( item.getNodeName().equals("item") ) {
-            		Prepayment prepayment = toPrepayment(item);
-            		
-            		if( prepayment != null && prepayment.getProviderPrepaymentId().equals(prepaymentId) ) {
-            			return prepayment;
-            		}
-            	}
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_RESERVED_INSTANCES);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("ReservedInstancesId.1", prepaymentId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
             }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.startsWith("InvalidReservedInstancesId") ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("reservedInstancesSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        Prepayment prepayment = toPrepayment(item);
+
+                        if( prepayment != null && prepayment.getProviderPrepaymentId().equals(prepaymentId) ) {
+                            return prepayment;
+                        }
+                    }
+                }
+            }
+            return null;
         }
-        return null;
+        finally {
+            APITrace.end();
+        }
 	}
 
 	@Override
@@ -150,84 +163,103 @@ public class ReservedInstance implements PrepaymentSupport {
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        ComputeServices svc = provider.getComputeServices();
+        APITrace.begin(provider, "Prepayment.isSubscribed");
+        try {
+            ComputeServices svc = provider.getComputeServices();
 
-        if( svc == null ) {
-            return false;
+            if( svc == null ) {
+                return false;
+            }
+            VirtualMachineSupport support = svc.getVirtualMachineSupport();
+
+            return (support != null && support.isSubscribed());
         }
-        VirtualMachineSupport support = svc.getVirtualMachineSupport();
-
-        return (support != null && support.isSubscribed());
+        finally {
+            APITrace.end();
+        }
     }
 
 	@Override
 	public @Nonnull Collection<Offering> listOfferings() throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_RESERVED_INSTANCES_OFFERINGS);
-		ArrayList<Offering> list = new ArrayList<Offering>();
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
-
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "Prepayment.listOfferings");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("reservedInstancesOfferingsSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList items = blocks.item(i).getChildNodes();
-        	
-            for( int j=0; j<items.getLength(); j++ ) {
-            	Node item = items.item(j);
-            	
-            	if( item.getNodeName().equals("item") ) {
-            		Offering offering = toOffering(item);
-            		
-            		if( offering != null ) {
-            			list.add(offering);
-            		}
-            	}
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_RESERVED_INSTANCES_OFFERINGS);
+            ArrayList<Offering> list = new ArrayList<Offering>();
+            EC2Method method;
+
+            NodeList blocks;
+            Document doc;
+
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
             }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("reservedInstancesOfferingsSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        Offering offering = toOffering(item);
+
+                        if( offering != null ) {
+                            list.add(offering);
+                        }
+                    }
+                }
+            }
+            return list;
         }
-        return list;
+        finally {
+            APITrace.end();
+        }
 	}
 
 	@Override
 	public @Nonnull Collection<Prepayment> listPrepayments() throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_RESERVED_INSTANCES);
-		ArrayList<Prepayment> list = new ArrayList<Prepayment>();
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
-
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "Prepayment.listPrepayments");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("reservedInstancesSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList items = blocks.item(i).getChildNodes();
-        	
-            for( int j=0; j<items.getLength(); j++ ) {
-            	Node item = items.item(j);
-            	
-            	if( item.getNodeName().equals("item") ) {
-            		Prepayment prepayment = toPrepayment(item);
-            		
-            		if( prepayment != null ) {
-            			list.add(prepayment);
-            		}
-            	}
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_RESERVED_INSTANCES);
+            ArrayList<Prepayment> list = new ArrayList<Prepayment>();
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
             }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("reservedInstancesSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        Prepayment prepayment = toPrepayment(item);
+
+                        if( prepayment != null ) {
+                            list.add(prepayment);
+                        }
+                    }
+                }
+            }
+            return list;
         }
-        return list;
+        finally {
+            APITrace.end();
+        }
 	}
 
     @Override
@@ -249,26 +281,32 @@ public class ReservedInstance implements PrepaymentSupport {
 
 	@Override
 	public @Nonnull String prepay(@Nonnull String offeringId, @Nonnegative int count) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.PURCHASE_RESERVED_INSTANCES_OFFERING);
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
-
-		parameters.put("ReservedInstanceOfferingId.1", offeringId);
-		parameters.put("InstanceCount.1", String.valueOf(count));
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "Prepayment.prepay");
         try {
-        	doc = method.invoke();
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.PURCHASE_RESERVED_INSTANCES_OFFERING);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("ReservedInstanceOfferingId.1", offeringId);
+            parameters.put("InstanceCount.1", String.valueOf(count));
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("reservedInstancesId");
+            if( blocks.getLength() > 0 ) {
+                return blocks.item(0).getFirstChild().getNodeValue().trim();
+            }
+            throw new CloudException("Unable to identify newly reserved instance");
         }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+        finally {
+            APITrace.end();
         }
-        blocks = doc.getElementsByTagName("reservedInstancesId");
-        if( blocks.getLength() > 0 ) {
-        	return blocks.item(0).getFirstChild().getNodeValue().trim();
-        }
-        throw new CloudException("Unable to identify newly reserved instance");
 	}
 	
 	private @Nullable Offering toOffering(@Nullable Node node) throws CloudException {
