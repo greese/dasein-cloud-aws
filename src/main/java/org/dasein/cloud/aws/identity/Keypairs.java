@@ -36,6 +36,7 @@ import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.identity.SSHKeypair;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.identity.ShellKeySupport;
+import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -54,128 +55,146 @@ public class Keypairs implements ShellKeySupport {
 	
 	@Override
 	public @Nonnull SSHKeypair createKeypair(@Nonnull String name) throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was established for this call.");
-        }
-        String regionId = ctx.getRegionId();
-
-        if( regionId == null ) {
-            throw new CloudException("No region was set for this request.");
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_KEY_PAIR);
-        EC2Method method;
-		NodeList blocks;
-		Document doc;
-
-		parameters.put("KeyName", name);
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "Keypair.createKeypair");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        String material = null, fingerprint = null;
-        blocks = doc.getElementsByTagName("CreateKeyPairResponse");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            Node item = blocks.item(i);
-            NodeList attrs = item.getChildNodes();
-            
-            for( int j=0; j<attrs.getLength(); j++ ) {
-                Node attr = attrs.item(j);
-                
-                if( attr.getNodeName().equalsIgnoreCase("keyMaterial")) {
-                    material = attr.getFirstChild().getNodeValue();
-                   
-                }
-                else if( attr.getNodeName().equalsIgnoreCase("keyFingerPrint")) {
-                    fingerprint = attr.getFirstChild().getNodeValue();
-                    
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was established for this call.");
+            }
+            String regionId = ctx.getRegionId();
+
+            if( regionId == null ) {
+                throw new CloudException("No region was set for this request.");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_KEY_PAIR);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("KeyName", name);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            String material = null, fingerprint = null;
+            blocks = doc.getElementsByTagName("CreateKeyPairResponse");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                NodeList attrs = item.getChildNodes();
+
+                for( int j=0; j<attrs.getLength(); j++ ) {
+                    Node attr = attrs.item(j);
+
+                    if( attr.getNodeName().equalsIgnoreCase("keyMaterial")) {
+                        material = attr.getFirstChild().getNodeValue();
+
+                    }
+                    else if( attr.getNodeName().equalsIgnoreCase("keyFingerPrint")) {
+                        fingerprint = attr.getFirstChild().getNodeValue();
+
+                    }
                 }
             }
-        }
-        if( fingerprint == null || material == null ) {
-            throw new CloudException("Invalid response to attempt to create the keypair");
-        }
-        SSHKeypair key = new SSHKeypair();
+            if( fingerprint == null || material == null ) {
+                throw new CloudException("Invalid response to attempt to create the keypair");
+            }
+            SSHKeypair key = new SSHKeypair();
 
-        try {
-            key.setPrivateKey(material.getBytes("utf-8"));
+            try {
+                key.setPrivateKey(material.getBytes("utf-8"));
+            }
+            catch( UnsupportedEncodingException e ) {
+                throw new InternalException(e);
+            }
+            key.setFingerprint(fingerprint);
+            key.setName(name);
+            key.setProviderKeypairId(name);
+            key.setProviderOwnerId(ctx.getAccountNumber());
+            key.setProviderRegionId(regionId);
+            return key;
         }
-        catch( UnsupportedEncodingException e ) {
-            throw new InternalException(e);
+        finally {
+            APITrace.end();
         }
-        key.setFingerprint(fingerprint);
-        key.setName(name);
-        key.setProviderKeypairId(name);
-        key.setProviderOwnerId(ctx.getAccountNumber());
-        key.setProviderRegionId(regionId);
-        return key;
 	}
 
 	@Override
 	public void deleteKeypair(@Nonnull String name) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_KEY_PAIR);
-		EC2Method method;
-		NodeList blocks;
-		Document doc;
-
-		parameters.put("KeyName", name);
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "Keypair.deleteKeypair");
         try {
-        	doc = method.invoke();
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_KEY_PAIR);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("KeyName", name);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.startsWith("InvalidKeyPair") ) {
+                    return;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("return");
+            if( blocks.getLength() > 0 ) {
+                if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                    throw new CloudException("Deletion of keypair denied.");
+                }
+            }
         }
-        catch( EC2Exception e ) {
-        	String code = e.getCode();
-        	
-        	if( code != null && code.startsWith("InvalidKeyPair") ) {
-        		return;
-        	}
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("return");
-        if( blocks.getLength() > 0 ) {
-        	if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
-        		throw new CloudException("Deletion of keypair denied.");
-        	}
+        finally {
+            APITrace.end();
         }
 	}
 
 	@Override
 	public @Nullable String getFingerprint(@Nonnull String name) throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new InternalException("No context was established for this call.");
-        }
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_KEY_PAIRS);
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
-
-		parameters.put("KeyName.1", name);
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "Keypair.getFingerprint");
         try {
-        	doc = method.invoke();
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new InternalException("No context was established for this call.");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_KEY_PAIRS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("KeyName.1", name);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.startsWith("InvalidKeyPair") ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("keyFingerprint");
+            if( blocks.getLength() > 0 ) {
+                return blocks.item(0).getFirstChild().getNodeValue().trim();
+            }
+            throw new CloudException("Unable to identify key fingerprint.");
         }
-        catch( EC2Exception e ) {
-        	String code = e.getCode();
-        	
-        	if( code != null && code.startsWith("InvalidKeyPair") ) {
-        		return null;
-        	}
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+        finally {
+            APITrace.end();
         }
-        blocks = doc.getElementsByTagName("keyFingerprint");
-        if( blocks.getLength() > 0 ) {
-        	return blocks.item(0).getFirstChild().getNodeValue().trim();
-        }
-        throw new CloudException("Unable to identify key fingerprint.");
 	}
 
     @Override
@@ -185,66 +204,72 @@ public class Keypairs implements ShellKeySupport {
 
     @Override
     public @Nullable SSHKeypair getKeypair(@Nonnull String name) throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was established for this call.");
-        }
-        String regionId = ctx.getRegionId();
-
-        if( regionId == null ) {
-            throw new CloudException("No region was set for this request.");
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_KEY_PAIRS);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        parameters.put("KeyName.1", name);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "Keypair.getKeypair");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            String code = e.getCode();
+            ProviderContext ctx = provider.getContext();
 
-            if( code != null && code.startsWith("InvalidKeyPair") ) {
-                return null;
+            if( ctx == null ) {
+                throw new CloudException("No context was established for this call.");
             }
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("item");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            Node item = blocks.item(i);
-            NodeList attrs = item.getChildNodes();
-            String fingerprint = null;
-            String keyName = null;
-            
-            for( int j=0; j<attrs.getLength(); j++ ) {
-                Node attr = attrs.item(j);
-                
-                if( attr.getNodeName().equalsIgnoreCase("keyFingerprint") && attr.hasChildNodes() ) {
-                    fingerprint = attr.getFirstChild().getNodeValue().trim();
-                }
-                else if( attr.getNodeName().equalsIgnoreCase("keyName") && attr.hasChildNodes() ) {
-                    keyName = attr.getFirstChild().getNodeValue().trim();
-                }
-            }
-            if( keyName != null && keyName.equals(name) && fingerprint != null ) {
-                SSHKeypair kp = new SSHKeypair();
+            String regionId = ctx.getRegionId();
 
-                kp.setFingerprint(fingerprint);
-                kp.setName(keyName);
-                kp.setPrivateKey(null);
-                kp.setPublicKey(null);
-                kp.setProviderKeypairId(keyName);
-                kp.setProviderOwnerId(ctx.getAccountNumber());
-                kp.setProviderRegionId(regionId);
-                return kp;
+            if( regionId == null ) {
+                throw new CloudException("No region was set for this request.");
             }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_KEY_PAIRS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("KeyName.1", name);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.startsWith("InvalidKeyPair") ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("item");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                NodeList attrs = item.getChildNodes();
+                String fingerprint = null;
+                String keyName = null;
+
+                for( int j=0; j<attrs.getLength(); j++ ) {
+                    Node attr = attrs.item(j);
+
+                    if( attr.getNodeName().equalsIgnoreCase("keyFingerprint") && attr.hasChildNodes() ) {
+                        fingerprint = attr.getFirstChild().getNodeValue().trim();
+                    }
+                    else if( attr.getNodeName().equalsIgnoreCase("keyName") && attr.hasChildNodes() ) {
+                        keyName = attr.getFirstChild().getNodeValue().trim();
+                    }
+                }
+                if( keyName != null && keyName.equals(name) && fingerprint != null ) {
+                    SSHKeypair kp = new SSHKeypair();
+
+                    kp.setFingerprint(fingerprint);
+                    kp.setName(keyName);
+                    kp.setPrivateKey(null);
+                    kp.setPublicKey(null);
+                    kp.setProviderKeypairId(keyName);
+                    kp.setProviderOwnerId(ctx.getAccountNumber());
+                    kp.setProviderRegionId(regionId);
+                    return kp;
+                }
+            }
+            return null;
         }
-        return null;
+        finally {
+            APITrace.end();
+        }
     }
 
 	@Override
@@ -254,135 +279,153 @@ public class Keypairs implements ShellKeySupport {
 
     @Override
     public @Nonnull SSHKeypair importKeypair(@Nonnull String name, @Nonnull String material) throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was established for this call.");
-        }
-        String regionId = ctx.getRegionId();
-
-        if( regionId == null ) {
-            throw new CloudException("No region was set for this request.");
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.IMPORT_KEY_PAIR);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        parameters.put("KeyName", name);
-        parameters.put("PublicKeyMaterial", material);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "Keypair.importKeypair");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        String fingerprint = null;
+            ProviderContext ctx = provider.getContext();
 
-        blocks = doc.getElementsByTagName("ImportKeyPairResponse");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            Node item = blocks.item(i);
-            NodeList attrs = item.getChildNodes();
+            if( ctx == null ) {
+                throw new CloudException("No context was established for this call.");
+            }
+            String regionId = ctx.getRegionId();
 
-            for( int j=0; j<attrs.getLength(); j++ ) {
-                Node attr = attrs.item(j);
+            if( regionId == null ) {
+                throw new CloudException("No region was set for this request.");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.IMPORT_KEY_PAIR);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-                if( attr.getNodeName().equalsIgnoreCase("keyFingerPrint")) {
-                    fingerprint = attr.getFirstChild().getNodeValue();
+            parameters.put("KeyName", name);
+            parameters.put("PublicKeyMaterial", material);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            String fingerprint = null;
 
+            blocks = doc.getElementsByTagName("ImportKeyPairResponse");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                NodeList attrs = item.getChildNodes();
+
+                for( int j=0; j<attrs.getLength(); j++ ) {
+                    Node attr = attrs.item(j);
+
+                    if( attr.getNodeName().equalsIgnoreCase("keyFingerPrint")) {
+                        fingerprint = attr.getFirstChild().getNodeValue();
+
+                    }
                 }
             }
-        }
-        if( fingerprint == null ) {
-            throw new CloudException("Invalid response to attempt to create the keypair");
-        }
-        SSHKeypair key = new SSHKeypair();
+            if( fingerprint == null ) {
+                throw new CloudException("Invalid response to attempt to create the keypair");
+            }
+            SSHKeypair key = new SSHKeypair();
 
-        try {
-            key.setPrivateKey(material.getBytes("utf-8"));
+            try {
+                key.setPrivateKey(material.getBytes("utf-8"));
+            }
+            catch( UnsupportedEncodingException e ) {
+                throw new InternalException(e);
+            }
+            key.setFingerprint(fingerprint);
+            key.setName(name);
+            key.setProviderKeypairId(name);
+            key.setProviderOwnerId(ctx.getAccountNumber());
+            key.setProviderRegionId(regionId);
+            return key;
         }
-        catch( UnsupportedEncodingException e ) {
-            throw new InternalException(e);
+        finally {
+            APITrace.end();
         }
-        key.setFingerprint(fingerprint);
-        key.setName(name);
-        key.setProviderKeypairId(name);
-        key.setProviderOwnerId(ctx.getAccountNumber());
-        key.setProviderRegionId(regionId);
-        return key;
     }
     
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        provider.testContext();
-        return true;
+        APITrace.begin(provider, "Keypair.isSubscribed");
+        try {
+            provider.testContext();
+            return true;
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
 	public @Nonnull Collection<SSHKeypair> list() throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was established for this call.");
-        }
-        String regionId = ctx.getRegionId();
-        
-        if( regionId == null ) {
-            throw new CloudException("No region was set for this request.");
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_KEY_PAIRS);
-	    ArrayList<SSHKeypair> keypairs = new ArrayList<SSHKeypair>();
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(provider, "Keypair.list");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            String code = e.getCode();
-            
-            if( code != null && code.startsWith("InvalidKeyPair") ) {
-                return Collections.emptyList();
-            }
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("item");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            Node item = blocks.item(i);
-            
-            if( item.hasChildNodes() ) {
-                NodeList attrs = item.getChildNodes();
-                String fingerprint = null;
-                
-                String keyName = null;
-                for( int j=0; j<attrs.getLength(); j++ ) {
-                    Node attr = attrs.item(j);
+            ProviderContext ctx = provider.getContext();
 
-                    if( attr.getNodeName().equalsIgnoreCase("keyName") && attr.hasChildNodes() ) {
-                        keyName = attr.getFirstChild().getNodeValue().trim();
+            if( ctx == null ) {
+                throw new CloudException("No context was established for this call.");
+            }
+            String regionId = ctx.getRegionId();
+
+            if( regionId == null ) {
+                throw new CloudException("No region was set for this request.");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_KEY_PAIRS);
+            ArrayList<SSHKeypair> keypairs = new ArrayList<SSHKeypair>();
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && code.startsWith("InvalidKeyPair") ) {
+                    return Collections.emptyList();
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("item");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+
+                if( item.hasChildNodes() ) {
+                    NodeList attrs = item.getChildNodes();
+                    String fingerprint = null;
+
+                    String keyName = null;
+                    for( int j=0; j<attrs.getLength(); j++ ) {
+                        Node attr = attrs.item(j);
+
+                        if( attr.getNodeName().equalsIgnoreCase("keyName") && attr.hasChildNodes() ) {
+                            keyName = attr.getFirstChild().getNodeValue().trim();
+                        }
+                        else if( attr.getNodeName().equalsIgnoreCase("keyFingerprint") && attr.hasChildNodes() ) {
+                            fingerprint = attr.getFirstChild().getNodeValue().trim();
+                        }
                     }
-                    else if( attr.getNodeName().equalsIgnoreCase("keyFingerprint") && attr.hasChildNodes() ) {
-                        fingerprint = attr.getFirstChild().getNodeValue().trim();
+                    if( keyName != null && fingerprint != null ) {
+                        SSHKeypair keypair = new SSHKeypair();
+
+                        keypair.setName(keyName);
+                        keypair.setProviderKeypairId(keyName);
+                        keypair.setFingerprint(fingerprint);
+                        keypair.setProviderOwnerId(ctx.getAccountNumber());
+                        keypair.setProviderRegionId(regionId);
+                        keypairs.add(keypair);
                     }
                 }
-                if( keyName != null && fingerprint != null ) {
-                    SSHKeypair keypair = new SSHKeypair();
-
-                    keypair.setName(keyName);
-                    keypair.setProviderKeypairId(keyName);
-                    keypair.setFingerprint(fingerprint);
-                    keypair.setProviderOwnerId(ctx.getAccountNumber());
-                    keypair.setProviderRegionId(regionId);
-                    keypairs.add(keypair);
-                }
             }
+            return keypairs;
         }
-        return keypairs;
+        finally {
+            APITrace.end();
+        }
 	}
     
     @Override
