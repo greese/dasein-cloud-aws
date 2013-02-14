@@ -57,7 +57,7 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public String createAutoScalingGroup(String name, String launchConfigurationId, int minServers, int maxServers, int cooldown, String ... zoneIds) throws InternalException, CloudException {
-        APITrace.begin(provider, "createAutoScalingGroup");
+        APITrace.begin(provider, "AutoScaling.createAutoScalingGroup");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_AUTO_SCALING_GROUP);
             EC2Method method;
@@ -94,7 +94,7 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public String createLaunchConfiguration(String name, String imageId, VirtualMachineProduct size, String ... firewalls) throws InternalException, CloudException {
-        APITrace.begin(provider, "createLaunchConfigursation");
+        APITrace.begin(provider, "AutoScaling.createLaunchConfigursation");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_LAUNCH_CONFIGURATION);
             EC2Method method;
@@ -123,7 +123,7 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public void deleteAutoScalingGroup(String providerAutoScalingGroupId) throws InternalException, CloudException {
-        APITrace.begin(provider, "deleteAutoScalingGroup");
+        APITrace.begin(provider, "AutoScaling.deleteAutoScalingGroup");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DELETE_AUTO_SCALING_GROUP);
             EC2Method method;
@@ -145,7 +145,7 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public void deleteLaunchConfiguration(String providerLaunchConfigurationId) throws InternalException, CloudException {
-        APITrace.begin(provider, "deleteLaunchConfiguration");
+        APITrace.begin(provider, "AutoScaling.deleteLaunchConfiguration");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DELETE_LAUNCH_CONFIGURATION);
             EC2Method method;
@@ -167,7 +167,7 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public String setTrigger(String name, String scalingGroupId, String statistic, String unitOfMeasure, String metric, int periodInSeconds, double lowerThreshold, double upperThreshold, int lowerIncrement, boolean lowerIncrementAbsolute, int upperIncrement, boolean upperIncrementAbsolute, int breachDuration) throws InternalException, CloudException {
-        APITrace.begin(provider, "setTrigger");
+        APITrace.begin(provider, "AutoScaling.setTrigger");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_OR_UPDATE_SCALING_TRIGGER);
             EC2Method method;
@@ -201,7 +201,7 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     private Map<String,String> getAutoScalingParameters(ProviderContext ctx, String action) throws InternalException {
-        APITrace.begin(provider, "getAutoScalingParameters");
+        APITrace.begin(provider, "AutoScaling.getAutoScalingParameters");
         try {
             HashMap<String,String> parameters = new HashMap<String,String>();
 
@@ -236,7 +236,7 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public LaunchConfiguration getLaunchConfiguration(String providerLaunchConfigurationId) throws CloudException, InternalException {
-        APITrace.begin(provider, "getLaunchConfiguration");
+        APITrace.begin(provider, "AutoScaling.getLaunchConfiguration");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_LAUNCH_CONFIGURATIONS);
             EC2Method method;
@@ -277,7 +277,7 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public ScalingGroup getScalingGroup(String providerScalingGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "getScalingGroup");
+        APITrace.begin(provider, "AutoScaling.getScalingGroup");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -323,7 +323,7 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "isSubscribed");
+        APITrace.begin(provider, "AutoScaling.isSubscribed");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_AUTO_SCALING_GROUPS);
             EC2Method method;
@@ -353,7 +353,7 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listLaunchConfigurationStatus() throws CloudException, InternalException {
-        APITrace.begin(provider, "listLaunchConfigurationStatus");
+        APITrace.begin(provider, "AutoScaling.listLaunchConfigurationStatus");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_LAUNCH_CONFIGURATIONS);
             ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
@@ -394,7 +394,7 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public Collection<LaunchConfiguration> listLaunchConfigurations() throws CloudException, InternalException {
-        APITrace.begin(provider, "listLaunchConfigurations");
+        APITrace.begin(provider, "AutoScaling.listLaunchConfigurations");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_LAUNCH_CONFIGURATIONS);
             ArrayList<LaunchConfiguration> list = new ArrayList<LaunchConfiguration>();
@@ -435,7 +435,7 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public Iterable<ResourceStatus> listScalingGroupStatus() throws CloudException, InternalException {
-        APITrace.begin(provider, "listScalingGroupStatus");
+        APITrace.begin(provider, "AutoScaling.listScalingGroupStatus");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -481,7 +481,7 @@ public class AutoScaling implements AutoScalingSupport {
     }
     @Override
     public Collection<ScalingGroup> listScalingGroups() throws CloudException, InternalException {
-        APITrace.begin(provider, "listScalingGroups");
+        APITrace.begin(provider, "AutoScaling.listScalingGroups");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -569,7 +569,7 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public void setDesiredCapacity(String scalingGroupId, int capacity) throws CloudException, InternalException {
-        APITrace.begin(provider, "setDesiredCapacity");
+        APITrace.begin(provider, "AutoScaling.setDesiredCapacity");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.SET_DESIRED_CAPACITY);
             EC2Method method;
@@ -817,7 +817,7 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public void updateAutoScalingGroup(@Nonnull String scalingGroupId, @Nonnull String launchConfigurationId, @Nonnegative int minServers, @Nonnegative int maxServers, @Nonnegative int cooldown, @Nonnull String ... zoneIds) throws InternalException, CloudException {
-        APITrace.begin(provider, "updateAutoScalingGroup");
+        APITrace.begin(provider, "AutoScaling.updateAutoScalingGroup");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.UPDATE_AUTO_SCALING_GROUP);
             EC2Method method;
