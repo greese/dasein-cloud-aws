@@ -78,7 +78,7 @@ public class ElasticIP implements IpAddressSupport {
 
 	@Override
 	public void assign(@Nonnull String addressId, @Nonnull String instanceId) throws InternalException,	CloudException {
-        APITrace.begin(provider, "assignAddressToServer");
+        APITrace.begin(provider, "IpAddress.assignAddressToServer");
         try {
             long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
             VirtualMachine vm = getInstance(instanceId);
@@ -126,7 +126,7 @@ public class ElasticIP implements IpAddressSupport {
 
     @Override
     public void assignToNetworkInterface(@Nonnull String addressId, @Nonnull String nicId) throws InternalException, CloudException {
-        APITrace.begin(provider, "assignAddressToNetworkInterface");
+        APITrace.begin(provider, "IpAddress.assignAddressToNetworkInterface");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ASSOCIATE_ADDRESS);
             EC2Method method;
@@ -162,7 +162,7 @@ public class ElasticIP implements IpAddressSupport {
 
 	@Override
 	public @Nullable IpAddress getIpAddress(@Nonnull String addressId) throws InternalException, CloudException {
-        APITrace.begin(provider, "getIpAddress");
+        APITrace.begin(provider, "IpAddress.getIpAddress");
         try {
             IpAddress address = getEC2Address(addressId);
         
@@ -174,7 +174,7 @@ public class ElasticIP implements IpAddressSupport {
     }
     
     private @Nullable IpAddress getEC2Address(@Nonnull String addressId) throws InternalException, CloudException {
-        APITrace.begin(provider, "getEC2Address");
+        APITrace.begin(provider, "IpAddress.getEC2Address");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -224,7 +224,7 @@ public class ElasticIP implements IpAddressSupport {
 	}
 
     private @Nullable IpAddress getVPCAddress(@Nonnull String addressId) throws InternalException, CloudException {
-        APITrace.begin(provider, "getVPCAddress");
+        APITrace.begin(provider, "IpAddress.getVPCAddress");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -335,7 +335,7 @@ public class ElasticIP implements IpAddressSupport {
 
     @Override
     public @Nonnull Iterable<IpAddress> listIpPool(@Nonnull IPVersion version, boolean unassignedOnly) throws InternalException, CloudException {
-        APITrace.begin(provider, "listIpPool");
+        APITrace.begin(provider, "IpAddress.listIpPool");
         try {
             if( !version.equals(IPVersion.IPV4) ) {
                 return Collections.emptyList();
@@ -384,7 +384,7 @@ public class ElasticIP implements IpAddressSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listIpPoolStatus(@Nonnull IPVersion version) throws InternalException, CloudException {
-        APITrace.begin(provider, "listIpPoolStatus");
+        APITrace.begin(provider, "IpAddress.listIpPoolStatus");
         try {
             if( !version.equals(IPVersion.IPV4) ) {
                 throw new OperationNotSupportedException(version + " is not supported in " + provider.getCloudName());
@@ -477,7 +477,7 @@ public class ElasticIP implements IpAddressSupport {
 
 	@Override
 	public void releaseFromServer(@Nonnull String addressId) throws InternalException, CloudException {
-        APITrace.begin(provider, "releaseAddressFromServer");
+        APITrace.begin(provider, "IpAddress.releaseFromServer");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DISASSOCIATE_ADDRESS);
             EC2Method method;
@@ -519,7 +519,7 @@ public class ElasticIP implements IpAddressSupport {
     
    @Override
    public void releaseFromPool(@Nonnull String addressId) throws InternalException, CloudException {
-       APITrace.begin(provider, "releaseAddressFromPool");
+       APITrace.begin(provider, "IpAddress.releaseFromPool");
        try {
            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.RELEASE_ADDRESS);
            EC2Method method;
@@ -557,7 +557,7 @@ public class ElasticIP implements IpAddressSupport {
 
     @Override
     public @Nonnull String request(@Nonnull IPVersion version) throws InternalException, CloudException {
-        APITrace.begin(provider, "requestIPAddress");
+        APITrace.begin(provider, "IpAddress.request");
         try {
             if( !version.equals(IPVersion.IPV4) ) {
                 throw new OperationNotSupportedException(provider.getCloudName() + " does not support " + version);
@@ -588,7 +588,7 @@ public class ElasticIP implements IpAddressSupport {
 
     @Override
     public @Nonnull String requestForVLAN(@Nonnull IPVersion forVersion) throws InternalException, CloudException {
-        APITrace.begin(provider, "requestAddressForVLAN");
+        APITrace.begin(provider, "IpAddress.requestForVLAN");
         try {
             if( !forVersion.equals(IPVersion.IPV4) ) {
                 throw new OperationNotSupportedException(provider.getCloudName() + " does not support " + forVersion + ".");
