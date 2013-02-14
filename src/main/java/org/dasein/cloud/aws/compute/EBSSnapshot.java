@@ -42,6 +42,9 @@ import org.dasein.cloud.compute.SnapshotSupport;
 import org.dasein.cloud.compute.Volume;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.util.Jiterator;
+import org.dasein.util.JiteratorPopulator;
+import org.dasein.util.PopulatorThread;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -182,7 +185,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
                         Node item = items.item(j);
 
                         if( item.getNodeName().equals("item") ) {
-                            Snapshot snapshot = toSnapshot(ctx, item);
+                            Snapshot snapshot = toSnapshot(item);
 
                             if( snapshot != null && snapshot.getProviderSnapshotId().equals(snapshotId) ) {
                                 return snapshot;
@@ -340,49 +343,56 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listSnapshotStatus() throws InternalException, CloudException {
-        APITrace.begin(provider, "Snapshot.listSnapshotStatus");
-        try {
-            ProviderContext ctx = provider.getContext();
+        getProvider().hold();
+        PopulatorThread<ResourceStatus> populator = new PopulatorThread<ResourceStatus>(new JiteratorPopulator<ResourceStatus>() {
+            @Override
+            public void populate(@Nonnull Jiterator<ResourceStatus> iterator) throws Exception {
+                try {
+                    APITrace.begin(provider, "Snapshot.listSnapshotStatus");
+                    try {
+                        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
+                        EC2Method method;
+                        NodeList blocks;
+                        Document doc;
 
-            if( ctx == null ) {
-                throw new CloudException("No context exists for this request.");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
-            ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+                        parameters.put("Owner.1", "self");
+                        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                        try {
+                            doc = method.invoke();
+                        }
+                        catch( EC2Exception e ) {
+                            logger.error(e.getSummary());
+                            throw new CloudException(e);
+                        }
+                        blocks = doc.getElementsByTagName("snapshotSet");
+                        for( int i=0; i<blocks.getLength(); i++ ) {
+                            NodeList items = blocks.item(i).getChildNodes();
 
-            parameters.put("Owner.1", "self");
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("snapshotSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
+                            for( int j=0; j<items.getLength(); j++ ) {
+                                Node item = items.item(j);
 
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
+                                if( item.getNodeName().equals("item") ) {
+                                    ResourceStatus status = toStatus(item);
 
-                    if( item.getNodeName().equals("item") ) {
-                        ResourceStatus status = toStatus(item);
-
-                        if( status != null ) {
-                            list.add(status);
+                                    if( status != null ) {
+                                        iterator.push(status);
+                                    }
+                                }
+                            }
                         }
                     }
+                    finally {
+                        APITrace.end();
+                    }
+                }
+                finally {
+                    getProvider().release();
                 }
             }
-            return list;
-        }
-        finally {
-            APITrace.end();
-        }
+        });
+
+        populator.populate();
+        return populator.getResult();
     }
 
 
@@ -392,76 +402,84 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
     }
 
 	@Override
-	public @Nonnull Iterable<Snapshot> listSnapshots(@Nullable SnapshotFilterOptions options) throws InternalException, CloudException {
-        APITrace.begin(provider, "Snapshot.listSnapshots");
-        try {
-            ProviderContext ctx = provider.getContext();
+	public @Nonnull Iterable<Snapshot> listSnapshots(final @Nullable SnapshotFilterOptions opts) throws InternalException, CloudException {
+        getProvider().hold();
+        PopulatorThread<Snapshot> populator = new PopulatorThread<Snapshot>(new JiteratorPopulator<Snapshot>() {
+            @Override
+            public void populate(@Nonnull Jiterator<Snapshot> iterator) throws Exception {
+                try {
+                    APITrace.begin(provider, "Snapshot.listSnapshots");
+                    try {
+                        SnapshotFilterOptions options = opts;
+                        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
+                        EC2Method method;
+                        NodeList blocks;
+                        Document doc;
 
-            if( ctx == null ) {
-                throw new CloudException("No context exists for this request.");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
-            ArrayList<Snapshot> list = new ArrayList<Snapshot>();
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+                        // we want to use the more efficient tag search via AWS if possible
+                        // it is only possible if a) tags is the only search criterion or b) the options is set ot match all criteria
+                        if ( options != null && options.hasCriteria() && (!options.isMatchesAny() || (options.getRegex() == null && options.getAccountNumber() == null)) ) {
+                            Map<String,String> tags = options.getTags();
 
-            // we want to use the more efficient tag search via AWS if possible
-            // it is only possible if a) tags is the only search criterion or b) the options is set ot match all criteria
-            if ( options != null && options.hasCriteria() && (!options.isMatchesAny() || (options.getRegex() == null && options.getAccountNumber() == null)) ) {
-                Map<String,String> tags = options.getTags();
+                            if( !tags.isEmpty() ) {
+                                provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+                                SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
 
-                if( !tags.isEmpty() ) {
-                    provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
-                    SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
+                                if( options.getAccountNumber() != null ) {
+                                    sfo.withAccountNumber(options.getAccountNumber());
+                                }
+                                if( options.getRegex() != null ) {
+                                    sfo.matchingRegex(options.getRegex());
+                                }
+                                options = sfo;
+                            }
+                        }
 
-                    if( options.getAccountNumber() != null ) {
-                        sfo.withAccountNumber(options.getAccountNumber());
-                    }
-                    if( options.getRegex() != null ) {
-                        sfo.matchingRegex(options.getRegex());
-                    }
-                    options = sfo;
-                }
-            }
+                        if( options == null || options.getAccountNumber() == null || getContext().getAccountNumber().equals(options.getAccountNumber()) ) {
+                            parameters.put("Owner.1", "self");
+                        }
+                        else {
+                            parameters.put("Owner.1", options.getAccountNumber());
+                        }
+                        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                        try {
+                            doc = method.invoke();
+                        }
+                        catch( EC2Exception e ) {
+                            logger.error(e.getSummary());
+                            throw new CloudException(e);
+                        }
+                        blocks = doc.getElementsByTagName("snapshotSet");
+                        for( int i=0; i<blocks.getLength(); i++ ) {
+                            NodeList items = blocks.item(i).getChildNodes();
 
-            if( options == null || options.getAccountNumber() == null || getContext().getAccountNumber().equals(options.getAccountNumber()) ) {
-                parameters.put("Owner.1", "self");
-            }
-            else {
-                parameters.put("Owner.1", options.getAccountNumber());
-            }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("snapshotSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
+                            for( int j=0; j<items.getLength(); j++ ) {
+                                Node item = items.item(j);
 
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
+                                if( item.getNodeName().equals("item") ) {
+                                    Snapshot snapshot = toSnapshot(item);
 
-                    if( item.getNodeName().equals("item") ) {
-                        Snapshot snapshot = toSnapshot(ctx, item);
-
-                        if( snapshot != null ) {
-                            if( options != null && options.hasCriteria() && options.matches(snapshot, getContext().getAccountNumber()) ) {
-                                list.add(snapshot);
+                                    if( snapshot != null ) {
+                                        if( options != null && options.hasCriteria() && options.matches(snapshot, getContext().getAccountNumber()) ) {
+                                            iterator.push(snapshot);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
+                    finally {
+                        APITrace.end();
+                    }
+                }
+                finally {
+                    getProvider().release();
                 }
             }
-            return list;
-        }
-        finally {
-            APITrace.end();
-        }
+        });
+
+        populator.populate();
+        return populator.getResult();
 	}
 
     @Override
@@ -582,73 +600,81 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
     }
 
     @Override
-    public @Nonnull Iterable<Snapshot> searchSnapshots(@Nonnull SnapshotFilterOptions options) throws InternalException, CloudException {
-        APITrace.begin(provider, "Snapshot.searchSnapshots");
-        try {
-            ProviderContext ctx = provider.getContext();
+    public @Nonnull Iterable<Snapshot> searchSnapshots(final @Nonnull SnapshotFilterOptions opts) throws InternalException, CloudException {
+        getProvider().hold();
+        PopulatorThread<Snapshot> populator = new PopulatorThread<Snapshot>(new JiteratorPopulator<Snapshot>() {
+            @Override
+            public void populate(@Nonnull Jiterator<Snapshot> iterator) throws Exception {
+                try {
+                    APITrace.begin(provider, "Snapshot.searchSnapshots");
+                    try {
+                        SnapshotFilterOptions options = opts;
+                        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
+                        EC2Method method;
+                        NodeList blocks;
+                        Document doc;
 
-            if( ctx == null ) {
-                throw new CloudException("No context exists for this request.");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
-            ArrayList<Snapshot> list = new ArrayList<Snapshot>();
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+                        // we want to use the more efficient tag search via AWS if possible
+                        // it is only possible if a) tags is the only search criterion or b) the options is set ot match all criteria
+                        if ( options != null && options.hasCriteria() && (!options.isMatchesAny() || (options.getRegex() == null && options.getAccountNumber() == null)) ) {
+                            Map<String,String> tags = options.getTags();
 
-            // we want to use the more efficient tag search via AWS if possible
-            // it is only possible if a) tags is the only search criterion or b) the options is set ot match all criteria
-            if ( options != null && options.hasCriteria() && (!options.isMatchesAny() || (options.getRegex() == null && options.getAccountNumber() == null)) ) {
-                Map<String,String> tags = options.getTags();
+                            if( tags != null && !tags.isEmpty() ) {
+                                provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+                                SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
 
-                if( tags != null && !tags.isEmpty() ) {
-                    provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
-                    SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
+                                if( options.getAccountNumber() != null ) {
+                                    sfo.withAccountNumber(options.getAccountNumber());
+                                }
+                                if( options.getRegex() != null ) {
+                                    sfo.matchingRegex(options.getRegex());
+                                }
+                                options = sfo;
+                            }
+                        }
 
-                    if( options.getAccountNumber() != null ) {
-                        sfo.withAccountNumber(options.getAccountNumber());
-                    }
-                    if( options.getRegex() != null ) {
-                        sfo.matchingRegex(options.getRegex());
-                    }
-                    options = sfo;
-                }
-            }
+                        if( options != null && options.getAccountNumber() != null && !options.isMatchesAny() ) {
+                            parameters.put("Owner.1", options.getAccountNumber());
+                        }
+                        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                        try {
+                            doc = method.invoke();
+                        }
+                        catch( EC2Exception e ) {
+                            logger.error(e.getSummary());
+                            throw new CloudException(e);
+                        }
+                        blocks = doc.getElementsByTagName("snapshotSet");
+                        for( int i=0; i<blocks.getLength(); i++ ) {
+                            NodeList items = blocks.item(i).getChildNodes();
 
-            if( options != null && options.getAccountNumber() != null && !options.isMatchesAny() ) {
-                parameters.put("Owner.1", options.getAccountNumber());
-            }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("snapshotSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
+                            for( int j=0; j<items.getLength(); j++ ) {
+                                Node item = items.item(j);
 
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
+                                if( item.getNodeName().equals("item") ) {
+                                    Snapshot snapshot = toSnapshot(item);
 
-                    if( item.getNodeName().equals("item") ) {
-                        Snapshot snapshot = toSnapshot(ctx, item);
-
-                        if( snapshot != null ) {
-                            if( options != null && options.hasCriteria() && options.matches(snapshot, null) ) {
-                                list.add(snapshot);
+                                    if( snapshot != null ) {
+                                        if( options != null && options.hasCriteria() && options.matches(snapshot, null) ) {
+                                            iterator.push(snapshot);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
+                    finally {
+                        APITrace.end();
+                    }
+                }
+                finally {
+                    getProvider().release();
                 }
             }
-            return list;
-        }
-        finally {
-            APITrace.end();
-        }
+        });
+
+        populator.populate();
+        return populator.getResult();
     }
 
     private void setPublicShare(@Nonnull String snapshotId, boolean affirmative) throws InternalException, CloudException {
@@ -735,7 +761,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
         return provider.getEC2Provider().isAWS();
     }
 
-    private @Nullable Snapshot toSnapshot(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException {
+    private @Nullable Snapshot toSnapshot(@Nullable Node node) throws CloudException {
         if( node == null ) {
             return null;
         }
@@ -743,7 +769,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 		Snapshot snapshot = new Snapshot();
 		
 		if( !provider.getEC2Provider().isAWS() ) {
-		    snapshot.setOwner(ctx.getAccountNumber());
+		    snapshot.setOwner(getContext().getAccountNumber());
 		}
 		for( int i=0; i<attrs.getLength(); i++ ) {
 			Node attr = attrs.item(i);
@@ -872,7 +898,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
             }
             snapshot.setDescription(description);
 		}
-		snapshot.setRegionId(ctx.getRegionId());
+		snapshot.setRegionId(getContext().getRegionId());
 		if( snapshot.getSizeInGb() < 1 ) {
             EC2ComputeServices svc = provider.getComputeServices();
 
