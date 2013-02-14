@@ -84,7 +84,7 @@ public class SNS implements PushNotificationSupport {
     
     @Override
     public String confirmSubscription(String providerTopicId, String token, boolean authenticateUnsubscribe) throws CloudException, InternalException {
-        APITrace.begin(provider, "confirmSubscription");
+        APITrace.begin(provider, "Notifications.confirmSubscription");
         try {
             Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), CONFIRM_SUBSCRIPTION);
             EC2Method method;
@@ -126,7 +126,7 @@ public class SNS implements PushNotificationSupport {
 
     @Override
     public Topic createTopic(String name) throws CloudException, InternalException {
-        APITrace.begin(provider, "createTopic");
+        APITrace.begin(provider, "Notifications.createTopic");
         try {
             Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), CREATE_TOPIC);
             Topic topic = null;
@@ -175,7 +175,7 @@ public class SNS implements PushNotificationSupport {
     
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "isSubscribedSNS");
+        APITrace.begin(provider, "Notifications.isSubscribed");
         try {
             Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), LIST_TOPICS);
             EC2Method method;
@@ -208,7 +208,7 @@ public class SNS implements PushNotificationSupport {
     
     @Override
     public Collection<Subscription> listSubscriptions(String optionalTopicId) throws CloudException, InternalException {
-        APITrace.begin(provider, "listSubscriptions");
+        APITrace.begin(provider, "Notifications.listSubscriptions");
         try {
             Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), optionalTopicId == null ? LIST_SUBSCRIPTIONS : LIST_SUBSCRIPTIONS_BY_TOPIC);
             ArrayList<Subscription> list = new ArrayList<Subscription>();
@@ -251,7 +251,7 @@ public class SNS implements PushNotificationSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listTopicStatus() throws CloudException, InternalException {
-        APITrace.begin(provider, "listTopicStatus");
+        APITrace.begin(provider, "Notifications.listTopicStatus");
         try {
             Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), LIST_TOPICS);
             ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
@@ -291,7 +291,7 @@ public class SNS implements PushNotificationSupport {
 
     @Override
     public Collection<Topic> listTopics() throws CloudException, InternalException {
-        APITrace.begin(provider, "listTopics");
+        APITrace.begin(provider, "Notifications.listTopics");
         try {
             Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), LIST_TOPICS);
             ArrayList<Topic> list = new ArrayList<Topic>();
@@ -336,7 +336,7 @@ public class SNS implements PushNotificationSupport {
 
     @Override
     public String publish(String providerTopicId, String subject, String message) throws CloudException, InternalException {
-        APITrace.begin(provider, "publishSNSMessage");
+        APITrace.begin(provider, "Notifications.publish");
         try {
             Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), PUBLISH);
             EC2Method method;
@@ -376,7 +376,7 @@ public class SNS implements PushNotificationSupport {
 
     @Override
     public void removeTopic(String providerTopicId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeTopic");
+        APITrace.begin(provider, "Notifications.removeTopic");
         try {
             Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), DELETE_TOPIC);
             EC2Method method;
@@ -396,7 +396,7 @@ public class SNS implements PushNotificationSupport {
     }
 
     private void setTopicAttributes(Topic topic) throws InternalException, CloudException {
-        APITrace.begin(provider, "setTopicAttributes");
+        APITrace.begin(provider, "Notifications.setTopicAttributes");
         try {
             Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), GET_TOPIC_ATTRIBUTES);
             EC2Method method;
@@ -459,7 +459,7 @@ public class SNS implements PushNotificationSupport {
     
     @Override
     public void subscribe(String providerTopicId, EndpointType endpointType, DataFormat dataFormat, String endpoint) throws CloudException, InternalException {
-        APITrace.begin(provider, "subscribeSNS");
+        APITrace.begin(provider, "Notifications.subscribe");
         try {
             Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), SUBSCRIBE);
             EC2Method method;
@@ -611,16 +611,22 @@ public class SNS implements PushNotificationSupport {
     
     @Override
     public void unsubscribe(String providerSubscriptionId) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), UNSUBSCRIBE);
-        EC2Method method;
-
-        parameters.put("SubscriptionArn", providerSubscriptionId);
-        method = new EC2Method(provider, getSNSUrl(), parameters);
+        APITrace.begin(provider, "Notifications.unsubscribe");
         try {
-            method.invoke();
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), UNSUBSCRIBE);
+            EC2Method method;
+
+            parameters.put("SubscriptionArn", providerSubscriptionId);
+            method = new EC2Method(provider, getSNSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-            throw new CloudException(e);
-        }; 
+        finally {
+            APITrace.end();
+        }
     }
 }
