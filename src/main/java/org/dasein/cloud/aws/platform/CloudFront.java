@@ -53,7 +53,7 @@ public class CloudFront implements CDNSupport {
 	
 	@Override
 	public @Nonnull String create(@Nonnull String bucket, @Nonnull String name, boolean active, @Nullable String ... cnames) throws InternalException, CloudException {
-        APITrace.begin(provider, "createDistribution");
+        APITrace.begin(provider, "CDN.create");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -99,7 +99,7 @@ public class CloudFront implements CDNSupport {
 
 	@Override
 	public void delete(@Nonnull String distributionId) throws InternalException, CloudException {
-        APITrace.begin(provider, "deleteDistribution");
+        APITrace.begin(provider, "CDN.delete");
         try {
             Distribution distribution = getDistribution(distributionId);
 
@@ -155,7 +155,7 @@ public class CloudFront implements CDNSupport {
 
 	@Override
 	public @Nullable Distribution getDistribution(@Nonnull String distributionId) throws InternalException, CloudException {
-        APITrace.begin(provider, "getDistribution");
+        APITrace.begin(provider, "CDN.getDistribution");
         try {
             Object[] parts = getDistributionWithEtag(distributionId);
         
@@ -170,7 +170,7 @@ public class CloudFront implements CDNSupport {
 	}
 	
 	private @Nonnull Object[] getDistributionWithEtag(@Nonnull String distributionId) throws InternalException, CloudException {
-        APITrace.begin(provider, "getDistributionWithEtag");
+        APITrace.begin(provider, "CDN.getDistributionWithEtag");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -221,7 +221,7 @@ public class CloudFront implements CDNSupport {
 
 	@Override
 	public boolean isSubscribed() throws InternalException, CloudException {
-        APITrace.begin(provider, "isSubscribedCDN");
+        APITrace.begin(provider, "CDN.isSubscribed");
         try {
             CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null);
 
@@ -252,7 +252,7 @@ public class CloudFront implements CDNSupport {
 	
 	@Override
 	public @Nonnull Collection<Distribution> list() throws InternalException, CloudException {
-        APITrace.begin(provider, "listDistributions");
+        APITrace.begin(provider, "CDN.list");
         try {
             CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null);
             ArrayList<Distribution> list = new ArrayList<Distribution>();
@@ -283,7 +283,7 @@ public class CloudFront implements CDNSupport {
 
     @Override
     public @Nonnull Collection<ResourceStatus> listDistributionStatus() throws InternalException, CloudException {
-        APITrace.begin(provider, "listDistributionStatus");
+        APITrace.begin(provider, "CDN.listDistributionStatus");
         try {
             CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null);
             ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
@@ -338,7 +338,7 @@ public class CloudFront implements CDNSupport {
 	}
 
 	private String updateWithReturn(@Nonnull String distributionId, @Nonnull String name, boolean active, @Nullable String ... cnames) throws InternalException, CloudException {
-        APITrace.begin(provider, "updateDistribution");
+        APITrace.begin(provider, "CDN.update");
         try {
             ProviderContext ctx = provider.getContext();
 
