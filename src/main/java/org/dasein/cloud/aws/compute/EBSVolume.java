@@ -42,6 +42,9 @@ import org.dasein.cloud.compute.VolumeSupport;
 import org.dasein.cloud.compute.VolumeType;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
 import org.w3c.dom.Document;
@@ -63,127 +66,145 @@ public class EBSVolume extends AbstractVolumeSupport {
 	
 	@Override
 	public void attach(@Nonnull String volumeId, @Nonnull String toServer, @Nonnull String device) throws InternalException, CloudException {
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ATTACH_VOLUME);
-		EC2Method method;
-
-		parameters.put("VolumeId", volumeId);
-		parameters.put("InstanceId", toServer);
-		parameters.put("Device", device);
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(getProvider(), "Volume.attach");
         try {
-        	method.invoke();
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ATTACH_VOLUME);
+            EC2Method method;
+
+            parameters.put("VolumeId", volumeId);
+            parameters.put("InstanceId", toServer);
+            parameters.put("Device", device);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
         }
-        catch( EC2Exception e ) {
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
+        finally {
+            APITrace.end();
         }
 	}
 
     @Override
     public @Nonnull String createVolume(@Nonnull VolumeCreateOptions options) throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new InternalException("No context was specified for this request");
-        }
-        Map<String,String> parameters = provider.getStandardParameters(ctx, EC2Method.CREATE_VOLUME);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        if( options.getSnapshotId() != null ) {
-            parameters.put("SnapshotId", options.getSnapshotId());
-        }
-        parameters.put("Size", String.valueOf(options.getVolumeSize().getQuantity().intValue()));
-
-        String az = options.getDataCenterId();
-
-        if( az == null ) {
-            for( DataCenter dc : provider.getDataCenterServices().listDataCenters(ctx.getRegionId()) ) {
-                az = dc.getProviderDataCenterId();
-            }
-            if( az == null ) {
-                throw new CloudException("Unable to identify a launch data center");
-            }
-        }
-        parameters.put("AvailabilityZone", az);
-        if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
-            if( options.getVolumeProductId() != null ) {
-                VolumeProduct prd = null;
-
-                for( VolumeProduct p : listVolumeProducts() ) {
-                    if( p.getProviderProductId().equals(options.getVolumeProductId()) ) {
-                        prd = p;
-                        break;
-                    }
-                }
-                if( prd != null ) {
-                    parameters.put("VolumeType", prd.getProviderProductId());
-                    if( prd.getMaxIops() > 0 && options.getIops() > 0 ) {
-                        parameters.put("Iops", String.valueOf(options.getIops()));
-                    }
-                    else if( prd.getMinIops() > 0 ) {
-                        parameters.put("Iops", String.valueOf(prd.getMinIops()));
-                    }
-                }
-            }
-        }
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(getProvider(), "Volume.createVolume");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("volumeId");
-        if( blocks.getLength() > 0 ) {
-            String id = blocks.item(0).getFirstChild().getNodeValue().trim();
-            Map<String,Object> meta = options.getMetaData();
+            ProviderContext ctx = provider.getContext();
 
-            if( !meta.isEmpty() ) {
-                ArrayList<Tag> tags = new ArrayList<Tag>();
+            if( ctx == null ) {
+                throw new InternalException("No context was specified for this request");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(ctx, EC2Method.CREATE_VOLUME);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-                for( Map.Entry<String,Object> entry : meta.entrySet() ) {
-                    Object value = entry.getValue();
+            if( options.getSnapshotId() != null ) {
+                parameters.put("SnapshotId", options.getSnapshotId());
+            }
+            parameters.put("Size", String.valueOf(options.getVolumeSize().getQuantity().intValue()));
 
-                    if( value != null ) {
-                        tags.add(new Tag(entry.getKey(), value.toString()));
-                    }
+            String az = options.getDataCenterId();
+
+            if( az == null ) {
+                for( DataCenter dc : provider.getDataCenterServices().listDataCenters(ctx.getRegionId()) ) {
+                    az = dc.getProviderDataCenterId();
                 }
-                if( !tags.isEmpty() ) {
-                    provider.createTags(id, tags.toArray(new Tag[tags.size()]));
+                if( az == null ) {
+                    throw new CloudException("Unable to identify a launch data center");
                 }
             }
-            return id;
+            parameters.put("AvailabilityZone", az);
+            if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
+                if( options.getVolumeProductId() != null ) {
+                    VolumeProduct prd = null;
+
+                    for( VolumeProduct p : listVolumeProducts() ) {
+                        if( p.getProviderProductId().equals(options.getVolumeProductId()) ) {
+                            prd = p;
+                            break;
+                        }
+                    }
+                    if( prd != null ) {
+                        parameters.put("VolumeType", prd.getProviderProductId());
+                        if( prd.getMaxIops() > 0 && options.getIops() > 0 ) {
+                            parameters.put("Iops", String.valueOf(options.getIops()));
+                        }
+                        else if( prd.getMinIops() > 0 ) {
+                            parameters.put("Iops", String.valueOf(prd.getMinIops()));
+                        }
+                    }
+                }
+            }
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("volumeId");
+            if( blocks.getLength() > 0 ) {
+                String id = blocks.item(0).getFirstChild().getNodeValue().trim();
+                Map<String,Object> meta = options.getMetaData();
+
+                if( !meta.isEmpty() ) {
+                    ArrayList<Tag> tags = new ArrayList<Tag>();
+
+                    for( Map.Entry<String,Object> entry : meta.entrySet() ) {
+                        Object value = entry.getValue();
+
+                        if( value != null ) {
+                            tags.add(new Tag(entry.getKey(), value.toString()));
+                        }
+                    }
+                    if( !tags.isEmpty() ) {
+                        provider.createTags(id, tags.toArray(new Tag[tags.size()]));
+                    }
+                }
+                return id;
+            }
+            throw new CloudException("Successful POST, but no volume information was provided");
         }
-        throw new CloudException("Successful POST, but no volume information was provided");
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public void detach(@Nonnull String volumeId, boolean force) throws InternalException, CloudException {
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DETACH_VOLUME);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        parameters.put("VolumeId", volumeId);
-        if( force ) {
-            parameters.put("Force", "true");
-        }
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(getProvider(), "Volume.detach");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("return");
-        if( blocks.getLength() > 0 ) {
-            if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
-                throw new CloudException("Detach of volume denied.");
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DETACH_VOLUME);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("VolumeId", volumeId);
+            if( force ) {
+                parameters.put("Force", "true");
             }
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("return");
+            if( blocks.getLength() > 0 ) {
+                if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                    throw new CloudException("Detach of volume denied.");
+                }
+            }
+        }
+        finally {
+            APITrace.end();
         }
     }
 
@@ -240,74 +261,93 @@ public class EBSVolume extends AbstractVolumeSupport {
 
     @Override
     public @Nonnull Iterable<VolumeProduct> listVolumeProducts() throws InternalException, CloudException {
-        ArrayList<VolumeProduct> prds = new ArrayList<VolumeProduct>();
-        ProviderContext ctx = provider.getContext();
-        float rawPrice = 0.11f;
+        APITrace.begin(getProvider(), "Volume.listVolumeProducts");
+        try {
+            Cache<VolumeProduct> cache = Cache.getInstance(getProvider(), "volumeProducts", VolumeProduct.class, CacheLevel.REGION);
+            Iterable<VolumeProduct> products = cache.get(getContext());
 
-        if( ctx != null ) {
-            String regionId = ctx.getRegionId();
+            if( products == null ) {
+                ArrayList<VolumeProduct> prds = new ArrayList<VolumeProduct>();
+                ProviderContext ctx = provider.getContext();
+                float rawPrice = 0.11f;
 
-            if( regionId != null ) {
-                if( regionId.equals("us-east-1") || regionId.equals("us-west-2") ) {
-                    rawPrice = 0.10f;
+                if( ctx != null ) {
+                    String regionId = ctx.getRegionId();
+
+                    if( regionId != null ) {
+                        if( regionId.equals("us-east-1") || regionId.equals("us-west-2") ) {
+                            rawPrice = 0.10f;
+                        }
+                        else if( regionId.equals("ap-northeast-1") ) {
+                            rawPrice = 0.12f;
+                        }
+                        else if( regionId.equals("sa-east-1") ) {
+                            rawPrice = 0.19f;
+                        }
+                    }
                 }
-                else if( regionId.equals("ap-northeast-1") ) {
-                    rawPrice = 0.12f;
-                }
-                else if( regionId.equals("sa-east-1") ) {
-                    rawPrice = 0.19f;
-                }
+
+                prds.add(VolumeProduct.getInstance("standard", "Standard", "Standard EBS with no IOPS Guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 0, 0, rawPrice, 0f));
+                prds.add(VolumeProduct.getInstance("io1", "IOPS EBS", "EBS Volume with IOPS guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 100, 1000, 0.125f, 0.1f));
+                cache.put(getContext(), prds);
+                products = prds;
             }
+            return products;
         }
-
-        prds.add(VolumeProduct.getInstance("standard", "Standard", "Standard EBS with no IOPS Guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 0, 0, rawPrice, 0f));
-        prds.add(VolumeProduct.getInstance("io1", "IOPS EBS", "EBS Volume with IOPS guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 100, 1000, 0.125f, 0.1f));
-        return prds;
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
 	public @Nullable Volume getVolume(@Nonnull String volumeId) throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context exists for this request.");
-        }
-		Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_VOLUMES);
-		EC2Method method;
-        NodeList blocks;
-		Document doc;
-
-		parameters.put("VolumeId.1", volumeId);
-		method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(getProvider(), "Volume.getVolume");
         try {
-        	doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-        	String code = e.getCode();
-        	
-        	if( code != null && (code.startsWith("InvalidVolume.NotFound") || code.equals("InvalidParameterValue")) ) {
-        		return null;
-        	}
-        	logger.error(e.getSummary());
-        	throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("volumeSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-        	NodeList items = blocks.item(i).getChildNodes();
-        	
-            for( int j=0; j<items.getLength(); j++ ) {
-            	Node item = items.item(j);
-            	
-            	if( item.getNodeName().equals("item") ) {
-            		Volume volume = toVolume(ctx, item);
-            		
-            		if( volume != null && volume.getProviderVolumeId().equals(volumeId) ) {
-            			return volume;
-            		}
-            	}
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context exists for this request.");
             }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_VOLUMES);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("VolumeId.1", volumeId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && (code.startsWith("InvalidVolume.NotFound") || code.equals("InvalidParameterValue")) ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("volumeSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        Volume volume = toVolume(ctx, item);
+
+                        if( volume != null && volume.getProviderVolumeId().equals(volumeId) ) {
+                            return volume;
+                        }
+                    }
+                }
+            }
+            return null;
         }
-        return null;
+        finally {
+            APITrace.end();
+        }
 	}
 
     @Override
@@ -322,42 +362,48 @@ public class EBSVolume extends AbstractVolumeSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listVolumeStatus() throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context exists for this request.");
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_VOLUMES);
-        ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(getProvider(), "Volume.listVolumeStatus");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("volumeSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            NodeList items = blocks.item(i).getChildNodes();
+            ProviderContext ctx = provider.getContext();
 
-            for( int j=0; j<items.getLength(); j++ ) {
-                Node item = items.item(j);
+            if( ctx == null ) {
+                throw new CloudException("No context exists for this request.");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_VOLUMES);
+            ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-                if( item.getNodeName().equals("item") ) {
-                    ResourceStatus status = toStatus(item);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("volumeSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
 
-                    if( status != null ) {
-                        list.add(status);
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        ResourceStatus status = toStatus(item);
+
+                        if( status != null ) {
+                            list.add(status);
+                        }
                     }
                 }
             }
+            return list;
         }
-        return list;
+        finally {
+            APITrace.end();
+        }
     }
 
 
@@ -368,46 +414,52 @@ public class EBSVolume extends AbstractVolumeSupport {
 
     @Override
     public @Nonnull Iterable<Volume> listVolumes(@Nullable VolumeFilterOptions options) throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context exists for this request.");
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_VOLUMES);
-        ArrayList<Volume> list = new ArrayList<Volume>();
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        if ( options != null ) {
-            provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
-        }
-
-        method = new EC2Method( provider, provider.getEc2Url(), parameters );
+        APITrace.begin(getProvider(), "Volume.listVolumes");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("volumeSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-            NodeList items = blocks.item(i).getChildNodes();
+            ProviderContext ctx = provider.getContext();
 
-            for( int j=0; j<items.getLength(); j++ ) {
-                Node item = items.item(j);
+            if( ctx == null ) {
+                throw new CloudException("No context exists for this request.");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_VOLUMES);
+            ArrayList<Volume> list = new ArrayList<Volume>();
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-                if( item.getNodeName().equals("item") ) {
-                    Volume volume = toVolume( ctx, item );
+            if ( options != null ) {
+                provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+            }
 
-                    if( volume != null ) {
-                        list.add(volume);
+            method = new EC2Method( provider, provider.getEc2Url(), parameters );
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("volumeSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        Volume volume = toVolume( ctx, item );
+
+                        if( volume != null ) {
+                            list.add(volume);
+                        }
                     }
                 }
             }
+            return list;
         }
-        return list;
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
@@ -435,36 +487,64 @@ public class EBSVolume extends AbstractVolumeSupport {
 
     @Override
     public void remove(@Nonnull String volumeId) throws InternalException, CloudException {
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_VOLUME);
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        parameters.put("VolumeId", volumeId);
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        APITrace.begin(getProvider(), "Volume.remove");
         try {
-            doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("return");
-        if( blocks.getLength() > 0 ) {
-            if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
-                throw new CloudException("Deletion of volume denied.");
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_VOLUME);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("VolumeId", volumeId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("return");
+            if( blocks.getLength() > 0 ) {
+                if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                    throw new CloudException("Deletion of volume denied.");
+                }
             }
         }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
-    public void updateTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
-        provider.createTags( snapshotIds, tags );
+    public void updateTags(@Nonnull String volumeId, @Nonnull Tag ... tags) throws CloudException, InternalException {
+        updateTags(new String[] { volumeId }, tags);
     }
 
     @Override
-    public void removeTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
-        provider.removeTags( snapshotIds, tags );
+    public void updateTags(@Nonnull String[] volumeIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Volume.updateTags");
+        try {
+            provider.createTags( volumeIds, tags );
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void removeTags(@Nonnull String volumeId, @Nonnull Tag ... tags) throws CloudException, InternalException {
+        removeTags(new String[] { volumeId }, tags);
+    }
+
+    @Override
+    public void removeTags(@Nonnull String[] volumeIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Volume.removeTags");
+        try {
+            provider.removeTags( volumeIds, tags );
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     private @Nullable ResourceStatus toStatus(@Nullable Node node) throws CloudException {
