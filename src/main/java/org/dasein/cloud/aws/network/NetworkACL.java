@@ -51,7 +51,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
 
     @Override
     public void associateWithSubnet(@Nonnull String firewallId, @Nonnull String withSubnetId) throws CloudException, InternalException {
-        APITrace.begin(getProvider(), "associateWithSubnet");
+        APITrace.begin(getProvider(), "NetworkFirewall.associateWithSubnet");
         try {
             String currentAssociation = getCurrentAssociation(withSubnetId);
 
@@ -91,7 +91,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
 
     @Override
     public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull RuleTarget sourceEndpoint, @Nonnull Protocol protocol, @Nonnull RuleTarget destinationEndpoint, int beginPort, int endPort, int precedence) throws CloudException, InternalException {
-        APITrace.begin(getProvider(), "authorizeNetworkACLEntry");
+        APITrace.begin(getProvider(), "NetworkFirewall.authorize");
         try {
             FirewallRule currentRule = null;
 
@@ -156,7 +156,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
 
     @Override
     public @Nonnull String createFirewall(@Nonnull FirewallCreateOptions options) throws InternalException, CloudException {
-        APITrace.begin(getProvider(), "createNetworkACL");
+        APITrace.begin(getProvider(), "NetworkFirewall.createFirewall");
         try {
             Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.CREATE_NETWORK_ACL);
             EC2Method method;
@@ -208,7 +208,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
     }
 
     private @Nullable String getCurrentAssociation(@Nonnull String subnetId) throws InternalException, CloudException {
-        APITrace.begin(getProvider(), "getCurrentACLAssociation");
+        APITrace.begin(getProvider(), "NetworkFirewall.getCurrentACLAssociation");
         try {
             Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
             EC2Method method;
@@ -264,7 +264,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
 
     @Override
     public @Nullable Firewall getFirewall(@Nonnull String firewallId) throws InternalException, CloudException {
-        APITrace.begin(getProvider(), "getNetworkACL");
+        APITrace.begin(getProvider(), "NetworkFirewall.getFirewall");
         try {
             Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
             EC2Method method;
@@ -310,19 +310,25 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        NetworkServices services = getProvider().getNetworkServices();
+        APITrace.begin(getProvider(), "NetworkFirewall.isSubscribed");
+        try {
+            NetworkServices services = getProvider().getNetworkServices();
 
-        if( services != null ) {
-            VLANSupport support = services.getVlanSupport();
+            if( services != null ) {
+                VLANSupport support = services.getVlanSupport();
 
-            return (support != null && support.isSubscribed());
+                return (support != null && support.isSubscribed());
+            }
+            return false;
         }
-        return false;
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public @Nonnull Collection<Firewall> listFirewalls() throws InternalException, CloudException {
-        APITrace.begin(getProvider(), "listNetworkACLs");
+        APITrace.begin(getProvider(), "NetworkFirewall.listFirewalls");
         try {
             Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
             ArrayList<Firewall> list = new ArrayList<Firewall>();
@@ -363,7 +369,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
 
     @Override
     public @Nonnull Iterable<FirewallRule> listRules(@Nonnull String firewallId) throws InternalException, CloudException {
-        APITrace.begin(getProvider(), "listNetworkACLRules");
+        APITrace.begin(getProvider(), "NetworkFirewall.listRules");
         try {
             Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
             EC2Method method;
@@ -472,7 +478,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
 
     @Override
     public void removeFirewall(@Nonnull String... firewallIds) throws InternalException, CloudException {
-        APITrace.begin(getProvider(), "removeNetworkACLs");
+        APITrace.begin(getProvider(), "NetworkFirewall.removeFirewall");
         try {
             for( String id : firewallIds ) {
                 Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DELETE_NETWORK_ACL);
@@ -504,17 +510,23 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
 
     @Override
     public void removeTags(@Nonnull String firewallId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ((AWSCloud)getProvider()).removeTags(firewallId, tags);
+        removeTags(new String[] { firewallId }, tags);
     }
 
     @Override
     public void removeTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ((AWSCloud)getProvider()).removeTags(firewallIds, tags);
+        APITrace.begin(getProvider(), "NetworkFirewall.removeTags");
+        try {
+            ((AWSCloud)getProvider()).removeTags(firewallIds, tags);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public void revoke(@Nonnull String providerFirewallRuleId) throws InternalException, CloudException {
-        APITrace.begin(getProvider(), "removeNetworkACLs");
+        APITrace.begin(getProvider(), "NetworkFirewall.revoke");
         try {
             Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DELETE_NETWORK_ACL_ENTRY);
             EC2Method method;
@@ -550,12 +562,18 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
 
     @Override
     public void updateTags(@Nonnull String firewallId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ((AWSCloud)getProvider()).createTags(firewallId, tags);
+        updateTags(new String[] { firewallId }, tags);
     }
 
     @Override
     public void updateTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ((AWSCloud)getProvider()).createTags(firewallIds, tags);
+        APITrace.begin(getProvider(), "NetworkFirewall.updateTags");
+        try {
+            ((AWSCloud)getProvider()).createTags(firewallIds, tags);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     private @Nullable Firewall toFirewall(@Nullable Node networkAcl) throws CloudException, InternalException {
