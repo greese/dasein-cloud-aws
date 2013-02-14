@@ -90,7 +90,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
 
     @Override
     public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull RuleTarget sourceEndpoint, @Nonnull Protocol protocol, @Nonnull RuleTarget destinationEndpoint, int beginPort, int endPort, @Nonnegative int precedence) throws CloudException, InternalException {
-        APITrace.begin(provider, "authorizeSecurityGroupRule");
+        APITrace.begin(provider, "Firewall.authorize");
         try {
             if( Permission.DENY.equals(permission) ) {
                 throw new OperationNotSupportedException("AWS does not support DENY rules");
@@ -178,7 +178,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
 
     @Override
 	public @Nonnull String create(@Nonnull FirewallCreateOptions options) throws InternalException, CloudException {
-        APITrace.begin(provider, "createSecurityGroup");
+        APITrace.begin(provider, "Firewall.create");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_SECURITY_GROUP);
             EC2Method method;
@@ -236,7 +236,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
 
 	@Override
 	public void delete(@Nonnull String securityGroupId) throws InternalException, CloudException {
-        APITrace.begin(provider, "deleteSecurityGroup");
+        APITrace.begin(provider, "Firewall.delete");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_SECURITY_GROUP);
             EC2Method method;
@@ -271,7 +271,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
 
 	@Override
 	public @Nullable Firewall getFirewall(@Nonnull String securityGroupId) throws InternalException, CloudException {
-        APITrace.begin(provider, "getFirewall");
+        APITrace.begin(provider, "Firewall.getFirewall");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -332,7 +332,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
 
 	@Override
 	public @Nonnull Collection<FirewallRule> getRules(@Nonnull String securityGroupId) throws InternalException, CloudException {
-        APITrace.begin(provider, "getSecurityGroupRules");
+        APITrace.begin(provider, "Firewall.getRules");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SECURITY_GROUPS);
             ArrayList<FirewallRule> list = new ArrayList<FirewallRule>();
@@ -480,7 +480,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "isSubscribedSecurityGroup");
+        APITrace.begin(provider, "Firewall.isSubscribed");
         try {
             ComputeServices svc = provider.getComputeServices();
         
@@ -503,7 +503,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
 
     @Override
 	public @Nonnull Collection<Firewall> list() throws InternalException, CloudException {
-        APITrace.begin(provider, "listSecurityGroups");
+        APITrace.begin(provider, "Firewall.list");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -549,7 +549,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listFirewallStatus() throws InternalException, CloudException {
-        APITrace.begin(provider, "listSecurityGroupStatus");
+        APITrace.begin(provider, "Firewall.listFirewallStatus");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -652,22 +652,34 @@ public class SecurityGroup extends AbstractFirewallSupport {
 
     @Override
     public void removeTags(@Nonnull String firewallId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        provider.removeTags(firewallId, tags);
+        removeTags(new String[] { firewallId }, tags);
     }
 
     @Override
     public void removeTags(@Nonnull String[] firewallIds, @Nonnull Tag ... tags) throws CloudException, InternalException {
-        provider.removeTags(firewallIds, tags);
+        APITrace.begin(getProvider(), "Firewall.removeTags");
+        try {
+            provider.removeTags(firewallIds, tags);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public void updateTags(@Nonnull String firewallId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        provider.createTags(firewallId, tags);
+        removeTags(new String[] { firewallId }, tags);
     }
 
     @Override
     public void updateTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
-        provider.createTags(firewallIds, tags);
+        APITrace.begin(getProvider(), "Firewall.updateTags");
+        try {
+            provider.createTags(firewallIds, tags);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
@@ -683,7 +695,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
 
     @Override
     public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, @Nonnull RuleTarget destination, int beginPort, int endPort) throws CloudException, InternalException {
-        APITrace.begin(provider, "revokeSecurityGroupRule");
+        APITrace.begin(provider, "Firewall.revoke");
         try {
             if( Permission.DENY.equals(permission) || !destination.getRuleTargetType().equals(RuleTargetType.GLOBAL) ) {
                 return;
