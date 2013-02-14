@@ -603,7 +603,6 @@ public class EC2Method {
     		if( logger.isDebugEnabled() ) {
     			logger.debug("Talking to server at " + url);
     		}
-            APITrace.trace(provider, parameters.get(AWSCloud.P_ACTION));
 
             HttpPost post = new HttpPost(url);
             HttpClient client = getClient();
@@ -637,6 +636,7 @@ public class EC2Method {
                 wire.debug("");
             }
             try {
+                APITrace.trace(provider, parameters.get(AWSCloud.P_ACTION));
                 response = client.execute(post);
                 if( wire.isDebugEnabled() ) {
                     wire.debug(response.getStatusLine().toString());
