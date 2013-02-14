@@ -43,6 +43,7 @@ import org.dasein.cloud.storage.AbstractBlobStoreSupport;
 import org.dasein.cloud.storage.Blob;
 import org.dasein.cloud.storage.BlobStoreSupport;
 import org.dasein.cloud.storage.FileTransfer;
+import org.dasein.cloud.util.APITrace;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
 import org.dasein.util.PopulatorThread;
@@ -85,172 +86,202 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public @Nonnull Blob createBucket(@Nonnull String bucketName, boolean findFreeName) throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
-        
-        if( ctx == null ) {
-            throw new InternalException("No context was set for this request");
-        }
-    	String regionId = ctx.getRegionId();
-        
-        if( regionId == null ) {
-            throw new InternalException("No region ID was specified for this request");
-        }
-    	StringBuilder body = null;
-    	boolean success;
+        APITrace.begin(provider, "Blob.createBucket");
+        try {
+            ProviderContext ctx = provider.getContext();
 
-    	success = false;
-        if( provider.getEC2Provider().isAWS() ) {
-            if( regionId.equals("eu-west-1") ) {
-                body = new StringBuilder();
-                body.append("<CreateBucketConfiguration>\r\n");
-                body.append("<LocationConstraint>");
-                body.append("EU");
-                body.append("</LocationConstraint>\r\n");
-                body.append("</CreateBucketConfiguration>\r\n");
+            if( ctx == null ) {
+                throw new InternalException("No context was set for this request");
             }
-            else if( regionId.equals("us-west-1") ) {
-                body = new StringBuilder();
-                body.append("<CreateBucketConfiguration>\r\n");
-                body.append("<LocationConstraint>");
-                body.append("us-west-1");
-                body.append("</LocationConstraint>\r\n");
-                body.append("</CreateBucketConfiguration>\r\n");
+            String regionId = ctx.getRegionId();
+
+            if( regionId == null ) {
+                throw new InternalException("No region ID was specified for this request");
             }
-            else if( regionId.equals("ap-southeast-1") ) {
-                body = new StringBuilder();
-                body.append("<CreateBucketConfiguration>\r\n");
-                body.append("<LocationConstraint>");
-                body.append("ap-southeast-1");
-                body.append("</LocationConstraint>\r\n");
-                body.append("</CreateBucketConfiguration>\r\n");
+            StringBuilder body = null;
+            boolean success;
+
+            success = false;
+            if( provider.getEC2Provider().isAWS() ) {
+                if( regionId.equals("eu-west-1") ) {
+                    body = new StringBuilder();
+                    body.append("<CreateBucketConfiguration>\r\n");
+                    body.append("<LocationConstraint>");
+                    body.append("EU");
+                    body.append("</LocationConstraint>\r\n");
+                    body.append("</CreateBucketConfiguration>\r\n");
+                }
+                else if( regionId.equals("us-west-1") ) {
+                    body = new StringBuilder();
+                    body.append("<CreateBucketConfiguration>\r\n");
+                    body.append("<LocationConstraint>");
+                    body.append("us-west-1");
+                    body.append("</LocationConstraint>\r\n");
+                    body.append("</CreateBucketConfiguration>\r\n");
+                }
+                else if( regionId.equals("ap-southeast-1") ) {
+                    body = new StringBuilder();
+                    body.append("<CreateBucketConfiguration>\r\n");
+                    body.append("<LocationConstraint>");
+                    body.append("ap-southeast-1");
+                    body.append("</LocationConstraint>\r\n");
+                    body.append("</CreateBucketConfiguration>\r\n");
+                }
+                else if( !regionId.equals("us-east-1") ) {
+                    body = new StringBuilder();
+                    body.append("<CreateBucketConfiguration>\r\n");
+                    body.append("<LocationConstraint>");
+                    body.append(regionId);
+                    body.append("</LocationConstraint>\r\n");
+                    body.append("</CreateBucketConfiguration>\r\n");
+                }
             }
-            else if( !regionId.equals("us-east-1") ) {
-                body = new StringBuilder();
-                body.append("<CreateBucketConfiguration>\r\n");
-                body.append("<LocationConstraint>");
-                body.append(regionId);
-                body.append("</LocationConstraint>\r\n");
-                body.append("</CreateBucketConfiguration>\r\n");
-            }
-        }
-    	while( !success ) {
-    		String ct = (body == null ? null : "text/xml; charset=utf-8");
-    		S3Method method;
-		
-    		method = new S3Method(provider, S3Action.CREATE_BUCKET, null, null, ct, body == null ? null : body.toString());
-    		try {
-    			method.invoke(bucketName, null);
-    			success = true;
-    		}
-    		catch( S3Exception e ) {
-    			String code = e.getCode();
-    			
-    			if( code != null && (code.equals("BucketAlreadyExists") || code.equals("BucketAlreadyOwnedByYou")) ) {
-    				if( code.equals("BucketAlreadyOwnedByYou") ) {
-    				    if( !isLocation(bucketName) ) {
-    				        bucketName = findFreeName(bucketName);
-    				    }
-    				    else {
-                            return Blob.getInstance(regionId, getLocation(bucketName, null), bucketName, System.currentTimeMillis());
+            while( !success ) {
+                String ct = (body == null ? null : "text/xml; charset=utf-8");
+                S3Method method;
+
+                method = new S3Method(provider, S3Action.CREATE_BUCKET, null, null, ct, body == null ? null : body.toString());
+                try {
+                    method.invoke(bucketName, null);
+                    success = true;
+                }
+                catch( S3Exception e ) {
+                    String code = e.getCode();
+
+                    if( code != null && (code.equals("BucketAlreadyExists") || code.equals("BucketAlreadyOwnedByYou")) ) {
+                        if( code.equals("BucketAlreadyOwnedByYou") ) {
+                            if( !isLocation(bucketName) ) {
+                                bucketName = findFreeName(bucketName);
+                            }
+                            else {
+                                return Blob.getInstance(regionId, getLocation(bucketName, null), bucketName, System.currentTimeMillis());
+                            }
                         }
-    				}
-    				else if( findFreeName ) {
-    					bucketName = findFreeName(bucketName);
-    				}
-    				else {
-    	    			throw new CloudException(e);    					
-    				}
-    			}
-    			else {
-    				logger.error(e.getSummary());
-        			throw new CloudException(e);
-    			}
-    		}
-    	}
-        return Blob.getInstance(regionId, "http://" + bucketName + ".s3.amazonaws.com", bucketName, System.currentTimeMillis());
+                        else if( findFreeName ) {
+                            bucketName = findFreeName(bucketName);
+                        }
+                        else {
+                            throw new CloudException(e);
+                        }
+                    }
+                    else {
+                        logger.error(e.getSummary());
+                        throw new CloudException(e);
+                    }
+                }
+            }
+            return Blob.getInstance(regionId, "http://" + bucketName + ".s3.amazonaws.com", bucketName, System.currentTimeMillis());
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public boolean exists(@Nonnull String bucketName) throws InternalException, CloudException {
-		S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
-		
-		try {
-			method.invoke(bucketName, "?location");
-			return true;
-		}
-		catch( S3Exception e ) {
-			if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
-				String code = e.getCode();
+        APITrace.begin(provider, "Blob.exists");
+        try {
+            S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
 
-				if( code != null && code.equals("AccessDenied") ) {
-					return true;
-				}
-				if( code == null || !code.equals("NoSuchBucket") ) {
-					logger.error(e.getSummary());
-					throw new CloudException(e);
-				}
-			}
-		}
-		return false;
+            try {
+                method.invoke(bucketName, "?location");
+                return true;
+            }
+            catch( S3Exception e ) {
+                if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
+                    String code = e.getCode();
+
+                    if( code != null && code.equals("AccessDenied") ) {
+                        return true;
+                    }
+                    if( code == null || !code.equals("NoSuchBucket") ) {
+                        logger.error(e.getSummary());
+                        throw new CloudException(e);
+                    }
+                }
+            }
+            return false;
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public Blob getBucket(@Nonnull String bucketName) throws InternalException, CloudException {
-        for( Blob blob : list(null) ) {
-            if( blob.isContainer() ) {
-                String name = blob.getBucketName();
+        APITrace.begin(provider, "Blob.getBucket");
+        try {
+            for( Blob blob : list(null) ) {
+                if( blob.isContainer() ) {
+                    String name = blob.getBucketName();
 
-                if( name != null && name.equals(bucketName) ) {
-                    return blob;
+                    if( name != null && name.equals(bucketName) ) {
+                        return blob;
+                    }
                 }
             }
+            return null;
         }
-        return null;
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public Blob getObject(@Nullable String bucketName, @Nonnull String objectName) throws InternalException, CloudException {
-        if( bucketName == null ) {
-            throw new CloudException("No bucket was specified for this request");
-        }
-        for( Blob blob : list(bucketName) ) {
-            String name = blob.getObjectName();
-
-            if( name != null && name.equals(objectName) ) {
-                return blob;
+        APITrace.begin(provider, "Blob.getObject");
+        try {
+            if( bucketName == null ) {
+                throw new CloudException("No bucket was specified for this request");
             }
+            for( Blob blob : list(bucketName) ) {
+                String name = blob.getObjectName();
+
+                if( name != null && name.equals(objectName) ) {
+                    return blob;
+                }
+            }
+            return null;
         }
-        return null;
+        finally {
+            APITrace.end();
+        }
     }
 
     private boolean belongsToAnother(@Nonnull String bucketName) throws InternalException, CloudException {
-		S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
-		
-		try {
-			method.invoke(bucketName, "?location");
-			return false;
-		}
-		catch( S3Exception e ) {
-			if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
-				String code = e.getCode();
-			
-				if( code != null && code.equals("AccessDenied") ) {
-					return true;
-				}
-				if( code == null || !code.equals("NoSuchBucket") ) {
-				    String message = e.getMessage();
-				    
-				    if( message != null ) {
-				        if( message.contains("Access forbidden") ) {
-				            return true;
-				        }
-				    }
-					logger.error(e.getSummary() + " (" + e.getCode() + ")");
-					throw new CloudException(e);
-				}
-			}
-		}
-		return false;
+        APITrace.begin(provider, "Blob.belongsToAnother");
+        try {
+            S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
+
+            try {
+                method.invoke(bucketName, "?location");
+                return false;
+            }
+            catch( S3Exception e ) {
+                if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
+                    String code = e.getCode();
+
+                    if( code != null && code.equals("AccessDenied") ) {
+                        return true;
+                    }
+                    if( code == null || !code.equals("NoSuchBucket") ) {
+                        String message = e.getMessage();
+
+                        if( message != null ) {
+                            if( message.contains("Access forbidden") ) {
+                                return true;
+                            }
+                        }
+                        logger.error(e.getSummary() + " (" + e.getCode() + ")");
+                        throw new CloudException(e);
+                    }
+                }
+            }
+            return false;
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     private @Nonnull String getLocation(@Nonnull String bucketName, @Nullable String objectName) {
@@ -262,36 +293,42 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public @Nullable Storage<org.dasein.util.uom.storage.Byte> getObjectSize(@Nullable String bucket, @Nullable String object) throws InternalException, CloudException {
-        if( bucket == null ) {
-            throw new CloudException("Requested object size for object in null bucket");
-        }
-        if( object == null ) {
-            return null;
-        }
-        S3Method method = new S3Method(provider, S3Action.OBJECT_EXISTS);
-        S3Response response;
-
+        APITrace.begin(provider, "Blob.getObjectSize");
         try {
-            response = method.invoke(bucket, object);
-            if( response != null && response.headers != null ) {
-                for( Header header : response.headers ) {
-                    if( header.getName().equalsIgnoreCase("Content-Length") ) {
-                        return new Storage<org.dasein.util.uom.storage.Byte>(Long.parseLong(header.getValue()), Storage.BYTE);
+            if( bucket == null ) {
+                throw new CloudException("Requested object size for object in null bucket");
+            }
+            if( object == null ) {
+                return null;
+            }
+            S3Method method = new S3Method(provider, S3Action.OBJECT_EXISTS);
+            S3Response response;
+
+            try {
+                response = method.invoke(bucket, object);
+                if( response != null && response.headers != null ) {
+                    for( Header header : response.headers ) {
+                        if( header.getName().equalsIgnoreCase("Content-Length") ) {
+                            return new Storage<org.dasein.util.uom.storage.Byte>(Long.parseLong(header.getValue()), Storage.BYTE);
+                        }
                     }
                 }
+                return null;
             }
-            return null;
-        }
-        catch( S3Exception e ) {
-            if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
-                String code = e.getCode();
+            catch( S3Exception e ) {
+                if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
+                    String code = e.getCode();
 
-                if( code == null || (!code.equals("NoSuchBucket") && !code.equals("NoSuchKey")) ) {
-                    logger.error(e.getSummary());
-                    throw new CloudException(e);
+                    if( code == null || (!code.equals("NoSuchBucket") && !code.equals("NoSuchKey")) ) {
+                        logger.error(e.getSummary());
+                        throw new CloudException(e);
+                    }
                 }
+                return null;
             }
-            return null;
+        }
+        finally {
+            APITrace.end();
         }
     }
 
@@ -346,51 +383,57 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     protected void get(@Nullable String bucket, @Nonnull String object, @Nonnull File toFile, @Nullable FileTransfer transfer) throws InternalException, CloudException {
-        if( bucket == null ) {
-            throw new CloudException("No bucket was specified");
+        APITrace.begin(provider, "Blob.get");
+        try {
+            if( bucket == null ) {
+                throw new CloudException("No bucket was specified");
+            }
+            IOException lastError = null;
+            int attempts = 0;
+
+            while( attempts < 5 ) {
+                S3Method method = new S3Method(provider, S3Action.GET_OBJECT);
+                S3Response response;
+
+                try {
+                    response = method.invoke(bucket, object);
+                    try {
+                        copy(response.input, new FileOutputStream(toFile), transfer);
+                        return;
+                    }
+                    catch( FileNotFoundException e ) {
+                        logger.error(e);
+                        e.printStackTrace();
+                        throw new InternalException(e);
+                    }
+                    catch( IOException e ) {
+                        lastError = e;
+                        logger.warn(e);
+                        try { Thread.sleep(10000L); }
+                        catch( InterruptedException ignore ) { }
+                    }
+                    finally {
+                        response.close();
+                    }
+                }
+                catch( S3Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                attempts++;
+            }
+            if( lastError != null ) {
+                logger.error(lastError);
+                lastError.printStackTrace();
+                throw new InternalException(lastError);
+            }
+            else {
+                logger.error("Unable to figure out error");
+                throw new InternalException("Unknown error");
+            }
         }
-    	IOException lastError = null;
-    	int attempts = 0;
-    	
-    	while( attempts < 5 ) {
-    		S3Method method = new S3Method(provider, S3Action.GET_OBJECT);
-    		S3Response response;
-		
-    		try {
-    		    response = method.invoke(bucket, object);
-        		try {
-        			copy(response.input, new FileOutputStream(toFile), transfer);
-        			return;
-        		} 
-        		catch( FileNotFoundException e ) {
-        			logger.error(e);
-        			e.printStackTrace();
-        			throw new InternalException(e);
-        		} 
-        		catch( IOException e ) {
-        			lastError = e;
-        			logger.warn(e);
-        			try { Thread.sleep(10000L); }
-        			catch( InterruptedException ignore ) { }
-        		}
-        		finally {
-        			response.close();
-        		}
-    		}
-    		catch( S3Exception e ) {
-    			logger.error(e.getSummary());
-    			throw new CloudException(e);
-    		} 
-    		attempts++;
-    	}
-        if( lastError != null ) {
-            logger.error(lastError);
-            lastError.printStackTrace();
-            throw new InternalException(lastError);
-        }
-        else {
-            logger.error("Unable to figure out error");
-            throw new InternalException("Unknown error");
+        finally {
+            APITrace.end();
         }
     }
 
@@ -497,76 +540,88 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public boolean isPublic(@Nullable String bucket, @Nullable String object) throws CloudException, InternalException {
-        if( bucket == null ) {
-            throw new CloudException("A bucket name was not specified");
-        }
-    	Document acl = getAcl(bucket, object);
+        APITrace.begin(provider, "Blob.isPublic");
+        try {
+            if( bucket == null ) {
+                throw new CloudException("A bucket name was not specified");
+            }
+            Document acl = getAcl(bucket, object);
 
-        if( acl == null ) {
+            if( acl == null ) {
+                return false;
+            }
+            NodeList grants;
+
+            grants = acl.getElementsByTagName("Grant");
+            for( int i=0; i<grants.getLength(); i++ ) {
+                boolean isAll = false, isRead = false;
+                Node grant = grants.item(i);
+                NodeList grantData;
+
+                grantData = grant.getChildNodes();
+                for( int j=0; j<grantData.getLength(); j++ ) {
+                    Node item = grantData.item(j);
+
+                    if( item.getNodeName().equals("Grantee") ) {
+                        String type = item.getAttributes().getNamedItem("xsi:type").getNodeValue();
+
+                        if( type.equals("Group") ) {
+                            NodeList items = item.getChildNodes();
+
+                            for( int k=0; k<items.getLength(); k++ ) {
+                                Node n = items.item(k);
+
+                                if( n.getNodeName().equals("URI") ) {
+                                    if( n.hasChildNodes() ) {
+                                        String uri = n.getFirstChild().getNodeValue();
+
+                                        if( uri.equals("http://acs.amazonaws.com/groups/global/AllUsers") ) {
+                                            isAll = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if( isAll ) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    else if( item.getNodeName().equals("Permission") ) {
+                        if( item.hasChildNodes() ) {
+                            String perm = item.getFirstChild().getNodeValue();
+
+                            isRead = (perm.equals("READ") || perm.equals("FULL_CONTROL"));
+                        }
+                    }
+                }
+                if( isAll ) {
+                    return isRead;
+                }
+            }
             return false;
         }
-    	NodeList grants;
-    	
-    	grants = acl.getElementsByTagName("Grant");
-    	for( int i=0; i<grants.getLength(); i++ ) {
-    		boolean isAll = false, isRead = false;
-    		Node grant = grants.item(i);
-    		NodeList grantData;
-    		
-    		grantData = grant.getChildNodes();
-    		for( int j=0; j<grantData.getLength(); j++ ) {
-    			Node item = grantData.item(j);
-    			
-    			if( item.getNodeName().equals("Grantee") ) {
-    				String type = item.getAttributes().getNamedItem("xsi:type").getNodeValue();
-    			
-    				if( type.equals("Group") ) {
-    					NodeList items = item.getChildNodes();
-    				
-    					for( int k=0; k<items.getLength(); k++ ) {
-    						Node n = items.item(k);
-    					
-    						if( n.getNodeName().equals("URI") ) {
-    							if( n.hasChildNodes() ) {
-    								String uri = n.getFirstChild().getNodeValue();
-    							
-    								if( uri.equals("http://acs.amazonaws.com/groups/global/AllUsers") ) {
-    									isAll = true;
-    									break;
-    								}
-    							}
-    						}
-        					if( isAll ) {
-        						break;
-        					}
-    					}
-    				}
-    			}
-    			else if( item.getNodeName().equals("Permission") ) {
-    				if( item.hasChildNodes() ) {
-    					String perm = item.getFirstChild().getNodeValue();
-    					
-    					isRead = (perm.equals("READ") || perm.equals("FULL_CONTROL")); 
-    				}
-    			}
-    		}
-    		if( isAll ) {
-    			return isRead;
-    		}
-    	}
-    	return false;
+        finally {
+            APITrace.end();
+        }
     }
     
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        S3Method method = new S3Method(provider, S3Action.LIST_BUCKETS);
-        
+        APITrace.begin(provider, "Blob.isSubscribed");
         try {
-            method.invoke(null, null);
-            return true;
+            S3Method method = new S3Method(provider, S3Action.LIST_BUCKETS);
+
+            try {
+                method.invoke(null, null);
+                return true;
+            }
+            catch( S3Exception e ) {
+                return false;
+            }
         }
-        catch( S3Exception e ) {
-            return false;
+        finally {
+            APITrace.end();
         }
     }
 
@@ -602,11 +657,17 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     private void list(@Nonnull String regionId, @Nullable String bucket, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
-        if( bucket == null ) {
-            loadBuckets(regionId, iterator);
+        APITrace.begin(provider, "Blob.list");
+        try {
+            if( bucket == null ) {
+                loadBuckets(regionId, iterator);
+            }
+            else {
+                loadObjects(regionId, bucket, iterator);
+            }
         }
-        else {
-            loadObjects(regionId, bucket, iterator);
+        finally {
+            APITrace.end();
         }
     }
 
@@ -773,122 +834,128 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public void makePublic(@Nullable String bucket, @Nullable String object) throws InternalException, CloudException {
-        if( bucket == null ) {
-            throw new CloudException("No bucket was specified for this request");
-        }
-    	Document current = getAcl(bucket, object);
+        APITrace.begin(provider, "Blob.makePublic");
+        try {
+            if( bucket == null ) {
+                throw new CloudException("No bucket was specified for this request");
+            }
+            Document current = getAcl(bucket, object);
 
-        if( current == null ) {
-            throw new CloudException("Target does not exist");
-        }
-    	StringBuilder xml = new StringBuilder();
-    	NodeList blocks;
+            if( current == null ) {
+                throw new CloudException("Target does not exist");
+            }
+            StringBuilder xml = new StringBuilder();
+            NodeList blocks;
 
-    	blocks = current.getDocumentElement().getChildNodes();
-    	xml.append("<AccessControlPolicy xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
-    	for( int i=0; i<blocks.getLength(); i++ ) {
-    		Node n = blocks.item(i);
-    		
-    		if( n.getNodeName().equals("Owner") ) {
-    			NodeList attrs = n.getChildNodes();
-    			
-    			xml.append("<Owner>");
-    			for( int j=0; j<attrs.getLength(); j++ ) {
-    				Node attr = attrs.item(j);
-    				
-    				if( attr.getNodeName().equals("ID") ) {
-    					xml.append("<ID>");
-    					xml.append(attr.getFirstChild().getNodeValue().trim());
-    					xml.append("</ID>");
-    				}
-    				else if( attr.getNodeName().equals("DisplayName") ) {
-    					xml.append("<DisplayName>");
-    					xml.append(attr.getFirstChild().getNodeValue().trim());
-    					xml.append("</DisplayName>");
-    				}
-    			}
-    			xml.append("</Owner>");
-    		}
-    		else if( n.getNodeName().equals("AccessControlList") ) {
-    			NodeList attrs = n.getChildNodes();
-    			boolean found = false;
-    			
-    			xml.append("<AccessControlList>");
-    			for( int j=0; j<attrs.getLength(); j++ ) {
-    				Node attr = attrs.item(j);
-    				
-    				if( attr.getNodeName().equals("Grant") ) {
-    					NodeList subList = attr.getChildNodes();
-    					boolean isAll = false;
-    					
-    					xml.append("<Grant>");
-    					for( int k=0; k<subList.getLength(); k++ ) {
-    						Node sub = subList.item(k);
-    						
-    						if( sub.getNodeName().equals("Grantee") ) {
-    							String type = sub.getAttributes().getNamedItem("xsi:type").getNodeValue();
-								NodeList agentInfo = sub.getChildNodes();
-    							
-    							xml.append("<Grantee xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:type=\"");
-    							xml.append(type);
-    							xml.append("\">");								
-								for( int l=0; l<agentInfo.getLength(); l++ ) {
-									Node item = agentInfo.item(l);
-									
-									xml.append("<");
-									xml.append(item.getNodeName());
-									if( item.hasChildNodes() ) {
-										String val = item.getFirstChild().getNodeValue();
-										
-										if( type.equals("Group") && item.getNodeName().equals("URI") && val.equals("http://acs.amazonaws.com/groups/global/AllUsers") ) {
-											found = true;
-											isAll = true;
-										}
-										xml.append(">");
-										xml.append(item.getFirstChild().getNodeValue());
-										xml.append("</");
-										xml.append(item.getNodeName());
-										xml.append(">");
-									}
-									else {
-										xml.append("/>");
-									}
-								}
-    							xml.append("</Grantee>");
-    						}
-    						else if( sub.getNodeName().equals("Permission") ) {
-    							if( isAll ) {
-    								xml.append("<Permission>READ</Permission>");
-    							}
-    							else {
-    								xml.append("<Permission");
-    								if( sub.hasChildNodes() ) {
-    									xml.append(">");
-    									xml.append(sub.getFirstChild().getNodeValue());
-        								xml.append("</Permission>");
-    								}
-    								else {
-    									xml.append("/>");
-    								}
-    							}
-    						}
-    					}
-    					xml.append("</Grant>");
-    				}
-    			}
-    			if( !found ) {
-    				xml.append("<Grant>");
-    				xml.append("<Grantee xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:type=\"Group\">");
-    				xml.append("<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>");
-    				xml.append("</Grantee>");
-    				xml.append("<Permission>READ</Permission>");
-    				xml.append("</Grant>");
-    			}
-    			xml.append("</AccessControlList>");
-    		}
-    	}
-    	xml.append("</AccessControlPolicy>\r\n");    	
-    	setAcl(bucket, object, xml.toString());
+            blocks = current.getDocumentElement().getChildNodes();
+            xml.append("<AccessControlPolicy xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node n = blocks.item(i);
+
+                if( n.getNodeName().equals("Owner") ) {
+                    NodeList attrs = n.getChildNodes();
+
+                    xml.append("<Owner>");
+                    for( int j=0; j<attrs.getLength(); j++ ) {
+                        Node attr = attrs.item(j);
+
+                        if( attr.getNodeName().equals("ID") ) {
+                            xml.append("<ID>");
+                            xml.append(attr.getFirstChild().getNodeValue().trim());
+                            xml.append("</ID>");
+                        }
+                        else if( attr.getNodeName().equals("DisplayName") ) {
+                            xml.append("<DisplayName>");
+                            xml.append(attr.getFirstChild().getNodeValue().trim());
+                            xml.append("</DisplayName>");
+                        }
+                    }
+                    xml.append("</Owner>");
+                }
+                else if( n.getNodeName().equals("AccessControlList") ) {
+                    NodeList attrs = n.getChildNodes();
+                    boolean found = false;
+
+                    xml.append("<AccessControlList>");
+                    for( int j=0; j<attrs.getLength(); j++ ) {
+                        Node attr = attrs.item(j);
+
+                        if( attr.getNodeName().equals("Grant") ) {
+                            NodeList subList = attr.getChildNodes();
+                            boolean isAll = false;
+
+                            xml.append("<Grant>");
+                            for( int k=0; k<subList.getLength(); k++ ) {
+                                Node sub = subList.item(k);
+
+                                if( sub.getNodeName().equals("Grantee") ) {
+                                    String type = sub.getAttributes().getNamedItem("xsi:type").getNodeValue();
+                                    NodeList agentInfo = sub.getChildNodes();
+
+                                    xml.append("<Grantee xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:type=\"");
+                                    xml.append(type);
+                                    xml.append("\">");
+                                    for( int l=0; l<agentInfo.getLength(); l++ ) {
+                                        Node item = agentInfo.item(l);
+
+                                        xml.append("<");
+                                        xml.append(item.getNodeName());
+                                        if( item.hasChildNodes() ) {
+                                            String val = item.getFirstChild().getNodeValue();
+
+                                            if( type.equals("Group") && item.getNodeName().equals("URI") && val.equals("http://acs.amazonaws.com/groups/global/AllUsers") ) {
+                                                found = true;
+                                                isAll = true;
+                                            }
+                                            xml.append(">");
+                                            xml.append(item.getFirstChild().getNodeValue());
+                                            xml.append("</");
+                                            xml.append(item.getNodeName());
+                                            xml.append(">");
+                                        }
+                                        else {
+                                            xml.append("/>");
+                                        }
+                                    }
+                                    xml.append("</Grantee>");
+                                }
+                                else if( sub.getNodeName().equals("Permission") ) {
+                                    if( isAll ) {
+                                        xml.append("<Permission>READ</Permission>");
+                                    }
+                                    else {
+                                        xml.append("<Permission");
+                                        if( sub.hasChildNodes() ) {
+                                            xml.append(">");
+                                            xml.append(sub.getFirstChild().getNodeValue());
+                                            xml.append("</Permission>");
+                                        }
+                                        else {
+                                            xml.append("/>");
+                                        }
+                                    }
+                                }
+                            }
+                            xml.append("</Grant>");
+                        }
+                    }
+                    if( !found ) {
+                        xml.append("<Grant>");
+                        xml.append("<Grantee xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:type=\"Group\">");
+                        xml.append("<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>");
+                        xml.append("</Grantee>");
+                        xml.append("<Permission>READ</Permission>");
+                        xml.append("</Grant>");
+                    }
+                    xml.append("</AccessControlList>");
+                }
+            }
+            xml.append("</AccessControlPolicy>\r\n");
+            setAcl(bucket, object, xml.toString());
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
@@ -925,185 +992,239 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public void move(@Nullable String sourceBucket, @Nullable String object, @Nullable String targetBucket) throws InternalException, CloudException {
-        if( sourceBucket == null ) {
-            throw new CloudException("No source bucket was specified");
+        APITrace.begin(provider, "Blob.move");
+        try {
+            if( sourceBucket == null ) {
+                throw new CloudException("No source bucket was specified");
+            }
+            if( targetBucket == null ) {
+                throw new CloudException("No target bucket was specified");
+            }
+            if( object == null ) {
+                throw new CloudException("No source object was specified");
+            }
+            copy(sourceBucket, object, targetBucket, object);
+            removeObject(sourceBucket, object);
         }
-        if( targetBucket == null ) {
-            throw new CloudException("No target bucket was specified");
+        finally {
+            APITrace.end();
         }
-        if( object == null ) {
-            throw new CloudException("No source object was specified");
-        }
-    	copy(sourceBucket, object, targetBucket, object);
-    	removeObject(sourceBucket, object);
     }
 
     @Override
     protected void put(@Nullable String bucket, @Nonnull String object, @Nonnull File file) throws CloudException, InternalException {
-		boolean bucketIsPublic = isPublic(bucket, null);
-		HashMap<String,String> headers = null;
-    	S3Method method;
-    	
-    	if( bucketIsPublic ) {
-    		headers = new HashMap<String,String>();
-    		headers.put("x-amz-acl", "public-read");
-    	}
-    	method = new S3Method(provider, S3Action.PUT_OBJECT, null, headers, "application/octet-stream", file);
-		try {			
-			method.invoke(bucket, object);
-		}
-		catch( S3Exception e ) {
-			throw new CloudException(e);
-		}
+        APITrace.begin(provider, "Blob.putFile");
+        try {
+            boolean bucketIsPublic = isPublic(bucket, null);
+            HashMap<String,String> headers = null;
+            S3Method method;
+
+            if( bucketIsPublic ) {
+                headers = new HashMap<String,String>();
+                headers.put("x-amz-acl", "public-read");
+            }
+            method = new S3Method(provider, S3Action.PUT_OBJECT, null, headers, "application/octet-stream", file);
+            try {
+                method.invoke(bucket, object);
+            }
+            catch( S3Exception e ) {
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     protected void put(@Nullable String bucket, @Nonnull String object, @Nonnull String content) throws CloudException, InternalException {
-		boolean bucketIsPublic = isPublic(bucket, null);
-		HashMap<String,String> headers = null;
-    	S3Method method;
+        APITrace.begin(provider, "Blob.putString");
+        try {
+            boolean bucketIsPublic = isPublic(bucket, null);
+            HashMap<String,String> headers = null;
+            S3Method method;
 
-    	if( bucketIsPublic ) {
-    		headers = new HashMap<String,String>();
-    		headers.put("x-amz-acl", "public-read");
-    	}
-    	File file = null;
-    	try {
-        	try {
-        	    file = File.createTempFile(object, ".txt");
-        	    PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(file)));
-        	    writer.print(content);
-        	    writer.flush();
-        	    writer.close();
-        	}
-        	catch( IOException e ) {
-        	    logger.error(e);
-        	    e.printStackTrace();
-        	    throw new InternalException(e);
-        	}
-        	method = new S3Method(provider, S3Action.PUT_OBJECT, null, headers, "text/plain", file);
-        	try {
-    			method.invoke(bucket, object);
-    		}
-    		catch( S3Exception e ) {
-    			logger.error(e.getSummary());
-    			throw new CloudException(e);
-    		}
-    	}
-        finally {
-            if( file != null ) {
-                //noinspection ResultOfMethodCallIgnored
-                file.delete();
+            if( bucketIsPublic ) {
+                headers = new HashMap<String,String>();
+                headers.put("x-amz-acl", "public-read");
             }
+            File file = null;
+            try {
+                try {
+                    file = File.createTempFile(object, ".txt");
+                    PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(file)));
+                    writer.print(content);
+                    writer.flush();
+                    writer.close();
+                }
+                catch( IOException e ) {
+                    logger.error(e);
+                    e.printStackTrace();
+                    throw new InternalException(e);
+                }
+                method = new S3Method(provider, S3Action.PUT_OBJECT, null, headers, "text/plain", file);
+                try {
+                    method.invoke(bucket, object);
+                }
+                catch( S3Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+            }
+            finally {
+                if( file != null ) {
+                    //noinspection ResultOfMethodCallIgnored
+                    file.delete();
+                }
+            }
+        }
+        finally {
+            APITrace.end();
         }
     }
 
     @Override
     public void removeBucket(@Nonnull String bucket) throws CloudException, InternalException {
-    	S3Method method = new S3Method(provider, S3Action.DELETE_BUCKET);
+        APITrace.begin(provider, "Blob.removeBucket");
+        try {
+            S3Method method = new S3Method(provider, S3Action.DELETE_BUCKET);
     	
-		try {
-			method.invoke(bucket, null);
-		}
-		catch( S3Exception e ) {
-			String code = e.getCode();
-			
-			if( code != null && (code.equals("NoSuchBucket")) ) {
-				return;
-			}
-			logger.error(e.getSummary());
-			throw new CloudException(e);
-		}
+            try {
+                method.invoke(bucket, null);
+            }
+            catch( S3Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && (code.equals("NoSuchBucket")) ) {
+                    return;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public void removeObject(@Nullable String bucket, @Nonnull String name) throws CloudException, InternalException {
-        if( bucket == null ) {
-            throw new CloudException("No bucket was specified for this request");
+        APITrace.begin(provider, "Blob.removeObject");
+        try {
+            if( bucket == null ) {
+                throw new CloudException("No bucket was specified for this request");
+            }
+            S3Method method = new S3Method(provider, S3Action.DELETE_OBJECT);
+
+            try {
+                method.invoke(bucket, name);
+            }
+            catch( S3Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && (code.equals("NoSuchBucket") || code.equals("NoSuchKey")) ) {
+                    return;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
         }
-    	S3Method method = new S3Method(provider, S3Action.DELETE_OBJECT);
-    	
-		try {
-			method.invoke(bucket, name);
-		}
-		catch( S3Exception e ) {
-			String code = e.getCode();
-			
-			if( code != null && (code.equals("NoSuchBucket") || code.equals("NoSuchKey")) ) {
-				return;
-			}
-			logger.error(e.getSummary());
-			throw new CloudException(e);
-		}
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public @Nonnull String renameBucket(@Nonnull String oldName, @Nonnull String newName, boolean findFreeName) throws CloudException, InternalException {
-        Blob bucket = createBucket(newName, findFreeName);
+        APITrace.begin(provider, "Blob.renameBucket");
+        try {
+            Blob bucket = createBucket(newName, findFreeName);
 
-        for( Blob file : list(oldName) ) {
-            int retries = 10;
-            
-            while( true ) {
-                retries--;
-                try {
-                    move(oldName, file.getObjectName(), bucket.getBucketName());
-                    break;
-                }
-                catch( CloudException e ) {
-                    if( retries < 1 ) {
-                        throw e;
+            for( Blob file : list(oldName) ) {
+                int retries = 10;
+
+                while( true ) {
+                    retries--;
+                    try {
+                        move(oldName, file.getObjectName(), bucket.getBucketName());
+                        break;
                     }
+                    catch( CloudException e ) {
+                        if( retries < 1 ) {
+                            throw e;
+                        }
+                    }
+                    try { Thread.sleep(retries * 10000L); }
+                    catch( InterruptedException ignore ) { }
                 }
-                try { Thread.sleep(retries * 10000L); } 
-                catch( InterruptedException ignore ) { }
             }
-        }
-        boolean ok = true;
-        for( Blob file : list(oldName ) ) {
-            if( file != null ) {
-                ok = false;
+            boolean ok = true;
+            for( Blob file : list(oldName ) ) {
+                if( file != null ) {
+                    ok = false;
+                }
             }
+            if( ok ) {
+                removeBucket(oldName);
+            }
+            return newName;
         }
-        if( ok ) {
-            removeBucket(oldName);
+        finally {
+            APITrace.end();
         }
-        return newName;
     }
 
     @Override
     public void renameObject(@Nullable String bucket, @Nonnull String object, @Nonnull String newName) throws CloudException, InternalException {
-        if( bucket == null ) {
-            throw new CloudException("No bucket was specified");
+        APITrace.begin(provider, "Blob.renameObject");
+        try {
+            if( bucket == null ) {
+                throw new CloudException("No bucket was specified");
+            }
+            copy(bucket, object, bucket, newName);
+            removeObject(bucket, object);
         }
-        copy(bucket, object, bucket, newName);
-    	removeObject(bucket, object);
+        finally {
+            APITrace.end();
+        }
     }
     
     private void setAcl(@Nonnull String bucket, @Nullable String object, @Nonnull String body) throws CloudException, InternalException {
-        //String ct = "text/xml; charset=utf-8";
-		S3Method method;
-	
-		method = new S3Method(provider, S3Action.SET_ACL, null, null, null /* ct */, body);
-		try {
-			method.invoke(bucket, object == null ? "?acl" : object + "?acl");
-		}
-		catch( S3Exception e ) {
-			logger.error(e.getSummary());
-			throw new CloudException(e);
-		}    	
+        APITrace.begin(provider, "Blob.setAcl");
+        try {
+            //String ct = "text/xml; charset=utf-8";
+            S3Method method;
+
+            method = new S3Method(provider, S3Action.SET_ACL, null, null, null /* ct */, body);
+            try {
+                method.invoke(bucket, object == null ? "?acl" : object + "?acl");
+            }
+            catch( S3Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public @Nonnull Blob upload(@Nonnull File source, @Nullable String bucket, @Nonnull String fileName) throws CloudException, InternalException {
-        if( bucket == null ) {
-            throw new CloudException("No bucket was specified for this request");
+        APITrace.begin(provider, "Blob.upload");
+        try {
+            if( bucket == null ) {
+                throw new CloudException("No bucket was specified for this request");
+            }
+            if( !exists(bucket) ) {
+                createBucket(bucket, false);
+            }
+            put(bucket, fileName, source);
+            return getObject(bucket, fileName);
         }
-    	if( !exists(bucket) ) {
-    		createBucket(bucket, false);
-    	}
-        put(bucket, fileName, source);
-        return getObject(bucket, fileName);
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
