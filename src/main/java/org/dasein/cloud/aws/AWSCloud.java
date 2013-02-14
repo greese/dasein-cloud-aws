@@ -60,6 +60,7 @@ import org.dasein.cloud.compute.ComputeServices;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.storage.BlobStoreSupport;
 import org.dasein.cloud.storage.StorageServices;
+import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
@@ -198,68 +199,74 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public boolean createTags(String[] resourceIds, Tag... keyValuePairs) {
+        APITrace.begin(this, "Cloud.createTags");
         try {
-            Map<String,String> parameters = getStandardParameters(getContext(), "CreateTags");
-            EC2Method method;
+            try {
+                Map<String,String> parameters = getStandardParameters(getContext(), "CreateTags");
+                EC2Method method;
 
-            for (int i = 0; i < resourceIds.length; i++) {
-                parameters.put("ResourceId." + (i + 1), resourceIds[i]);
-            }
-
-            Map<String,String> tagParameters = new HashMap<String, String>( );
-            for( int i=0; i<keyValuePairs.length; i++ ) {
-                String key = keyValuePairs[i].getKey();
-                String value = keyValuePairs[i].getValue();
-
-                if ( value != null ) {
-                    tagParameters.put("Tag." + (i + 1) + ".Key", key);
-                    tagParameters.put("Tag." + (i + 1) + ".Value", value);
+                for (int i = 0; i < resourceIds.length; i++) {
+                    parameters.put("ResourceId." + (i + 1), resourceIds[i]);
                 }
-            }
-            if ( tagParameters.size() == 0 ) {
+
+                Map<String,String> tagParameters = new HashMap<String, String>( );
+                for( int i=0; i<keyValuePairs.length; i++ ) {
+                    String key = keyValuePairs[i].getKey();
+                    String value = keyValuePairs[i].getValue();
+
+                    if ( value != null ) {
+                        tagParameters.put("Tag." + (i + 1) + ".Key", key);
+                        tagParameters.put("Tag." + (i + 1) + ".Value", value);
+                    }
+                }
+                if ( tagParameters.size() == 0 ) {
+                    return true;
+                }
+                putExtraParameters( parameters, tagParameters );
+                method = new EC2Method(this, getEc2Url(), parameters);
+                try {
+                    method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    String code = e.getCode();
+
+                    if( code != null && code.equals("InvalidInstanceID.NotFound") ) {
+                        try { Thread.sleep(5000L); }
+                        catch( InterruptedException ignore ) { }
+                        parameters = getStandardParameters(getContext(), "CreateTags");
+
+                        for (int i = 0; i < resourceIds.length; i++) {
+                            parameters.put("ResourceId." + (i + 1), resourceIds[i]);
+                        }
+
+                        for( int i=0; i<keyValuePairs.length; i++ ) {
+                            String key = keyValuePairs[i].getKey();
+                            String value = keyValuePairs[i].getValue();
+
+                            parameters.put("Tag." + (i + 1) + ".Key", key);
+                            parameters.put("Tag." + (i + 1) + ".Value", value);
+                        }
+                        method = new EC2Method(this, getEc2Url(), parameters);
+                        try {
+                            method.invoke();
+                            return true;
+                        }
+                        catch( EC2Exception ignore ) {
+                            // ignore me
+                        }
+                    }
+                    logger.error("EC2 error settings tags for " + resourceIds + ": " + e.getSummary());
+                    return false;
+                }
                 return true;
             }
-            putExtraParameters( parameters, tagParameters );
-            method = new EC2Method(this, getEc2Url(), parameters);
-            try {
-                method.invoke();
-            }
-            catch( EC2Exception e ) {
-                String code = e.getCode();
-
-                if( code != null && code.equals("InvalidInstanceID.NotFound") ) {
-                    try { Thread.sleep(5000L); }
-                    catch( InterruptedException ignore ) { }
-                    parameters = getStandardParameters(getContext(), "CreateTags");
-
-                    for (int i = 0; i < resourceIds.length; i++) {
-                        parameters.put("ResourceId." + (i + 1), resourceIds[i]);
-                    }
-
-                    for( int i=0; i<keyValuePairs.length; i++ ) {
-                        String key = keyValuePairs[i].getKey();
-                        String value = keyValuePairs[i].getValue();
-
-                        parameters.put("Tag." + (i + 1) + ".Key", key);
-                        parameters.put("Tag." + (i + 1) + ".Value", value);
-                    }
-                    method = new EC2Method(this, getEc2Url(), parameters);
-                    try {
-                        method.invoke();
-                        return true;
-                    }
-                    catch( EC2Exception ignore ) {
-                        // ignore me
-                    }
-                }
-                logger.error("EC2 error settings tags for " + resourceIds + ": " + e.getSummary());
+            catch( Throwable ignore ) {
+                logger.error("Error while creating tags for " + resourceIds + ".", ignore);
                 return false;
             }
-            return true;
         }
-        catch( Throwable ignore ) {
-            logger.error("Error while creating tags for " + resourceIds + ".", ignore);
-            return false;
+        finally {
+            APITrace.end();
         }
     }
 
@@ -268,30 +275,36 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public boolean removeTags(String[] resourceIds, Tag... keyValuePairs) {
+        APITrace.begin(this, "Cloud.removeTags");
         try {
-            Map<String, String> parameters = getStandardParameters(getContext(), "DeleteTags");
-            EC2Method method;
+            try {
+                Map<String, String> parameters = getStandardParameters(getContext(), "DeleteTags");
+                EC2Method method;
 
-            for (int i = 0; i < resourceIds.length; i++) {
-                parameters.put("ResourceId." + (i + 1), resourceIds[i]);
-            }
-
-            for (int i = 0; i < keyValuePairs.length; i++) {
-                String key = keyValuePairs[i].getKey();
-                String value = keyValuePairs[i].getValue();
-
-                parameters.put("Tag." + (i + 1) + ".Key", key);
-                if (value != null) {
-                    parameters.put("Tag." + (i + 1) + ".Value", value);
+                for (int i = 0; i < resourceIds.length; i++) {
+                    parameters.put("ResourceId." + (i + 1), resourceIds[i]);
                 }
+
+                for (int i = 0; i < keyValuePairs.length; i++) {
+                    String key = keyValuePairs[i].getKey();
+                    String value = keyValuePairs[i].getValue();
+
+                    parameters.put("Tag." + (i + 1) + ".Key", key);
+                    if (value != null) {
+                        parameters.put("Tag." + (i + 1) + ".Value", value);
+                    }
+                }
+                method = new EC2Method(this, getEc2Url(), parameters);
+                method.invoke();
+                return true;
             }
-            method = new EC2Method(this, getEc2Url(), parameters);
-            method.invoke();
-            return true;
+            catch (Throwable ignore) {
+                logger.error("Error while removing tags for " + resourceIds + ".", ignore);
+                return false;
+            }
         }
-        catch (Throwable ignore) {
-            logger.error("Error while removing tags for " + resourceIds + ".", ignore);
-            return false;
+        finally {
+            APITrace.end();
         }
     }
 
@@ -811,38 +824,44 @@ public class AWSCloud extends AbstractCloud {
     
     @Override
     public String testContext() {
-        ProviderContext ctx = getContext();
-
-        if( ctx == null ) {
-            logger.warn("No context exists for testing");
-            return null;
-        }
+        APITrace.begin(this, "Cloud.testContext");
         try {
-            ComputeServices compute = getComputeServices();
+            ProviderContext ctx = getContext();
 
-            if( compute != null ) {
-                VirtualMachineSupport support = compute.getVirtualMachineSupport();
+            if( ctx == null ) {
+                logger.warn("No context exists for testing");
+                return null;
+            }
+            try {
+                ComputeServices compute = getComputeServices();
 
-                if( support == null || !support.isSubscribed() ) {
-                    logger.warn("Not subscribed to virtual machine support");
-                    return null;
+                if( compute != null ) {
+                    VirtualMachineSupport support = compute.getVirtualMachineSupport();
+
+                    if( support == null || !support.isSubscribed() ) {
+                        logger.warn("Not subscribed to virtual machine support");
+                        return null;
+                    }
+                }
+                else {
+                    StorageServices storage = getStorageServices();
+                    BlobStoreSupport support = storage.getBlobStoreSupport();
+
+                    if( support == null || !support.isSubscribed() ) {
+                        logger.warn("No subscribed to storage services");
+                        return null;
+                    }
                 }
             }
-            else {
-                StorageServices storage = getStorageServices();
-                BlobStoreSupport support = storage.getBlobStoreSupport();
-
-                if( support == null || !support.isSubscribed() ) {
-                    logger.warn("No subscribed to storage services");
-                    return null;
-                }
+            catch( Throwable t ) {
+                logger.warn("Unable to connect to AWS for " + ctx.getAccountNumber() + ": " + t.getMessage());
+                return null;
             }
+            return ctx.getAccountNumber();
         }
-        catch( Throwable t ) {
-            logger.warn("Unable to connect to AWS for " + ctx.getAccountNumber() + ": " + t.getMessage());
-            return null;
+        finally {
+            APITrace.end();
         }
-        return ctx.getAccountNumber();
     }
 
     public void setTags(@Nonnull Node attr, @Nonnull Taggable item) {
