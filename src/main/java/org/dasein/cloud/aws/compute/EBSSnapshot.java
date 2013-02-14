@@ -61,7 +61,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public void addSnapshotShare(@Nonnull String providerSnapshotId, @Nonnull String accountNumber) throws CloudException, InternalException {
-        APITrace.begin(provider, "addSnapshotShare");
+        APITrace.begin(provider, "Snapshot.addSnapshotShare");
         try {
             setPrivateShare(providerSnapshotId, true, accountNumber);
         }
@@ -72,7 +72,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public void addPublicShare(@Nonnull String providerSnapshotId) throws CloudException, InternalException {
-        APITrace.begin(provider, "addPublicShare");
+        APITrace.begin(provider, "Snapshot.addPublicShare");
         try {
             setPublicShare(providerSnapshotId, true);
         }
@@ -83,7 +83,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public @Nonnull String createSnapshot(@Nonnull SnapshotCreateOptions options) throws InternalException, CloudException {
-        APITrace.begin(provider, "createSnapshot");
+        APITrace.begin(provider, "Snapshot.createSnapshot");
         try {
             String volumeId = options.getVolumeId();
             Map<String,String> parameters;
@@ -147,7 +147,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public @Nullable Snapshot getSnapshot(@Nonnull String snapshotId) throws InternalException, CloudException {
-        APITrace.begin(provider, "getSnapshot");
+        APITrace.begin(provider, "Snapshot.getSnapshot");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -213,7 +213,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
 	public boolean isPublic(@Nonnull String snapshotId) throws InternalException, CloudException {
-        APITrace.begin(provider, "isPublic");
+        APITrace.begin(provider, "Snapshot.isPublic");
         try {
             if( !provider.getEC2Provider().isAWS()) {
                 return false;
@@ -278,7 +278,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public @Nonnull Iterable<String> listShares(@Nonnull String forSnapshotId) throws InternalException, CloudException {
-        APITrace.begin(provider, "listShares");
+        APITrace.begin(provider, "Snapshot.listShares");
         try {
             if( !provider.getEC2Provider().isAWS() ) {
                 return new ArrayList<String>();
@@ -340,7 +340,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listSnapshotStatus() throws InternalException, CloudException {
-        APITrace.begin(provider, "listSnapshotStatus");
+        APITrace.begin(provider, "Snapshot.listSnapshotStatus");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -393,7 +393,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
 	@Override
 	public @Nonnull Iterable<Snapshot> listSnapshots(@Nullable SnapshotFilterOptions options) throws InternalException, CloudException {
-        APITrace.begin(provider, "listSnapshots");
+        APITrace.begin(provider, "Snapshot.listSnapshots");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -427,31 +427,9 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
             if( options == null || options.getAccountNumber() == null || getContext().getAccountNumber().equals(options.getAccountNumber()) ) {
                 parameters.put("Owner.1", "self");
-                if( options != null && options.getAccountNumber() != null ) {
-                    SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
-
-                    // if isMatchesAny() == false, then
-                    if( options.isMatchesAny() && !options.getTags().isEmpty() ) {
-                        sfo.withTags(options.getTags());
-                    }
-                    if( options.getRegex() != null ) {
-                        sfo.matchingRegex(options.getRegex());
-                    }
-                    options = sfo;
-                }
             }
             else {
                 parameters.put("Owner.1", options.getAccountNumber());
-                SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
-
-                // if isMatchesAny() == false, then
-                if( options.isMatchesAny() && !options.getTags().isEmpty() ) {
-                    sfo.withTags(options.getTags());
-                }
-                if( options.getRegex() != null ) {
-                    sfo.matchingRegex(options.getRegex());
-                }
-                options = sfo;
             }
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
@@ -508,7 +486,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public void remove(@Nonnull String snapshotId) throws InternalException, CloudException {
-        APITrace.begin(provider, "remove");
+        APITrace.begin(provider, "Snapshot.remove");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_SNAPSHOT);
             EC2Method method;
@@ -545,7 +523,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public void removeAllSnapshotShares(@Nonnull String providerSnapshotId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeAllSnapshotShares");
+        APITrace.begin(provider, "Snapshot.removeAllSnapshotShares");
         try {
             List<String> shares = (List<String>)listShares(providerSnapshotId);
 
@@ -561,7 +539,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public void removeSnapshotShare(@Nonnull String providerSnapshotId, @Nonnull String accountNumber) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeSnapshotShare");
+        APITrace.begin(provider, "Snapshot.removeSnapshotShare");
         try {
             setPrivateShare(providerSnapshotId, false, accountNumber);
         }
@@ -572,7 +550,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public void removePublicShare(@Nonnull String providerSnapshotId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removePublicShare");
+        APITrace.begin(provider, "Snapshot.removePublicShare");
         try {
             setPublicShare(providerSnapshotId, false);
         }
@@ -583,17 +561,29 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public void removeTags(@Nonnull String snapshotId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ((AWSCloud)getProvider()).removeTags(snapshotId, tags);
+        APITrace.begin(getProvider(), "Snapshot.removeTags");
+        try {
+            ((AWSCloud)getProvider()).removeTags(snapshotId, tags);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public void removeTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ((AWSCloud)getProvider()).removeTags(snapshotIds, tags);
+        APITrace.begin(getProvider(), "Snapshot.removeTags");
+        try {
+            ((AWSCloud)getProvider()).removeTags(snapshotIds, tags);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public @Nonnull Iterable<Snapshot> searchSnapshots(@Nonnull SnapshotFilterOptions options) throws InternalException, CloudException {
-        APITrace.begin(provider, "searchSnapshots");
+        APITrace.begin(provider, "Snapshot.searchSnapshots");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -627,17 +617,6 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
             if( options != null && options.getAccountNumber() != null && !options.isMatchesAny() ) {
                 parameters.put("Owner.1", options.getAccountNumber());
-                if( options != null && options.getAccountNumber() != null ) {
-                    SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
-
-                    if( !options.getTags().isEmpty() ) {
-                        sfo.withTags(options.getTags());
-                    }
-                    if( options.getRegex() != null ) {
-                        sfo.matchingRegex(options.getRegex());
-                    }
-                    options = sfo;
-                }
             }
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
@@ -953,11 +932,23 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public void updateTags(@Nonnull String snapshotId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ((AWSCloud)getProvider()).createTags(snapshotId, tags);
+        APITrace.begin(getProvider(), "Snapshot.updateTags");
+        try {
+            ((AWSCloud)getProvider()).createTags(snapshotId, tags);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public void updateTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ((AWSCloud)getProvider()).createTags(snapshotIds, tags);
+        APITrace.begin(getProvider(), "Snapshot.updateTags");
+        try {
+            ((AWSCloud)getProvider()).createTags(snapshotIds, tags);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 }
