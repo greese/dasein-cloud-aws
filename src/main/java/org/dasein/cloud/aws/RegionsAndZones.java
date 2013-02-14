@@ -80,7 +80,7 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public @Nullable DataCenter getDataCenter(@Nonnull String zoneId) throws InternalException, CloudException {
-        APITrace.begin(provider, "getDataCenter");
+        APITrace.begin(provider, "DC.getDataCenter");
         try {
             if( provider.getEC2Provider().isStorage() ) {
                 return (zoneId.equals(oneZoneId) ? getZone() : null);
@@ -170,7 +170,7 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Region getRegion(String regionId) throws InternalException, CloudException {
-        APITrace.begin(provider, "getRegion");
+        APITrace.begin(provider, "DC.getRegion");
         try {
             if( provider.getEC2Provider().isStorage() ) {
                 return (regionId.equals(oneRegionId) ? getRegion() : null);
@@ -225,7 +225,7 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Collection<DataCenter> listDataCenters(String regionId) throws InternalException, CloudException {
-        APITrace.begin(provider, "listDataCenters");
+        APITrace.begin(provider, "DC.listDataCenters");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -285,7 +285,7 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Collection<Region> listRegions() throws InternalException, CloudException {
-        APITrace.begin(provider, "listRegions");
+        APITrace.begin(provider, "DC.listRegions");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -345,7 +345,7 @@ public class RegionsAndZones implements DataCenterServices {
 	}
 
 	Map<String,String> mapRegions(String url) throws InternalException, CloudException {
-        APITrace.begin(provider, "mapRegions");
+        APITrace.begin(provider, "DC.mapRegions");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
             HashMap<String,String> results = new HashMap<String,String>();
