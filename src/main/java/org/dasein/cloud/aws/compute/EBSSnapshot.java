@@ -460,7 +460,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
                                     Snapshot snapshot = toSnapshot(item);
 
                                     if( snapshot != null ) {
-                                        if( options != null && options.hasCriteria() && options.matches(snapshot, getContext().getAccountNumber()) ) {
+                                        if( options == null || !options.hasCriteria() || options.matches(snapshot, getContext().getAccountNumber()) ) {
                                             iterator.push(snapshot);
                                         }
                                     }
