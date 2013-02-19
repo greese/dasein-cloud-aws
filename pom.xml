@@ -199,6 +199,10 @@
         <configuration>
             <systemProperties>
                 <property>
+                    <name>providerClass</name>
+                    <value>${providerClass}</value>
+                </property>
+                <property>
                     <name>endpoint</name>
                     <value>${endpoint}</value>
                 </property>
@@ -207,8 +211,20 @@
                     <value>${accountNumber}</value>
                 </property>
                 <property>
+                    <name>accessPublic</name>
+                    <value>${apiSharedKey}</value>
+                </property>
+                <property>
+                    <name>accessPrivate</name>
+                    <value>${apiSecretKey}</value>
+                </property>
+                <property>
                     <name>apiSharedKey</name>
                     <value>${apiSharedKey}</value>
+                </property>
+                <property>
+                    <name>apiSecretKey</name>
+                    <value>${apiSecretKey}</value>
                 </property>
                 <property>
                     <name>x509Cert</name>
@@ -217,10 +233,6 @@
                 <property>
                     <name>x509Key</name>
                     <value>${x509Key}</value>
-                </property>
-                <property>
-                    <name>apiSecretKey</name>
-                    <value>${apiSecretKey}</value>
                 </property>
                 <property>
                     <name>cloudName</name>
@@ -236,7 +248,7 @@
                 </property>
                 <property>
                     <name>test.region</name>
-                    <value>${test.region}</value>
+                    <value>${regionId}</value>
                 </property>
                 <property>
                     <name>test.dataCenter</name>
@@ -256,7 +268,7 @@
                 </property>
             </systemProperties>
           <includes>
-            <include>**/AWSTestSuite.java</include>
+              <include>**/AWSTestSuite.java</include>
           </includes>
         </configuration>
       </plugin>

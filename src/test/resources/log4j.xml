@@ -8,7 +8,7 @@
         <param name="DatePattern" value="'.'yyyy-MM-dd" />
         <param name="Threshold" value="TRACE" />
         <layout class="org.apache.log4j.PatternLayout">
-            <param name="ConversionPattern" value="%d %-5p [%c] (%t) %m%n" />
+            <param name="ConversionPattern" value="[%d] %m%n" />
         </layout>
     </appender>
 

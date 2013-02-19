@@ -18,13 +18,8 @@
 
 package org.dasein.cloud.aws;
 
-import junit.framework.Test;
+import org.dasein.cloud.test.GlobalTestSuite;
 
-import org.dasein.cloud.test.ComprehensiveTestSuite;
-import org.dasein.cloud.test.TestConfigurationException;
+public class AWSTestSuite extends GlobalTestSuite {
 
-public class AWSTestSuite  {
-    static public Test suite() throws TestConfigurationException {
-        return new ComprehensiveTestSuite(AWSCloud.class);
-    }
 }
