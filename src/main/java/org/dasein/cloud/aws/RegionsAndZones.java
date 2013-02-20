@@ -234,8 +234,9 @@ public class RegionsAndZones implements DataCenterServices {
             }
             Cache<DataCenter> cache = null;
             Collection<DataCenter> dataCenters;
+            String originalRegionId = ctx.getRegionId();
 
-            if( regionId.equals(ctx.getRegionId()) ) {
+            if( regionId.equals(originalRegionId) ) {
                 cache = Cache.getInstance(provider, "dataCenters", DataCenter.class, CacheLevel.REGION_ACCOUNT);
                 dataCenters = (Collection<DataCenter>)cache.get(ctx);
                 if( dataCenters != null ) {
@@ -248,35 +249,41 @@ public class RegionsAndZones implements DataCenterServices {
                 }
                 throw new CloudException("No such region: " + regionId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
-            EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            NodeList blocks;
-            Document doc;
-
-            dataCenters = new ArrayList<DataCenter>();
             try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("availabilityZoneInfo");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList zones = blocks.item(i).getChildNodes();
+                ctx.setRegionId(regionId);
+                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
+                EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                NodeList blocks;
+                Document doc;
 
-                for( int j=0; j<zones.getLength(); j++ ) {
-                    Node region = zones.item(j);
+                dataCenters = new ArrayList<DataCenter>();
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                blocks = doc.getElementsByTagName("availabilityZoneInfo");
+                for( int i=0; i<blocks.getLength(); i++ ) {
+                    NodeList zones = blocks.item(i).getChildNodes();
 
-                    if( region.getNodeName().equals("item") ) {
-                        dataCenters.add(toDataCenter(regionId, zones.item(j)));
+                    for( int j=0; j<zones.getLength(); j++ ) {
+                        Node region = zones.item(j);
+
+                        if( region.getNodeName().equals("item") ) {
+                            dataCenters.add(toDataCenter(regionId, zones.item(j)));
+                        }
                     }
                 }
+                if( cache != null ) {
+                    cache.put(ctx, dataCenters);
+                }
+                return dataCenters;
             }
-            if( cache != null ) {
-                cache.put(ctx, dataCenters);
+            finally {
+                ctx.setRegionId(originalRegionId);
             }
-            return dataCenters;
         }
         finally {
             APITrace.end();
