@@ -369,7 +369,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
     if ( action.equals( MonitoringSupport.LIST_METRICS ) ) {
       return new String[] {EC2Method.CW_PREFIX + EC2Method.LIST_METRICS};
     }
-    if ( action.equals( MonitoringSupport.LIST_ALARMS ) ) {
+    if ( action.equals( MonitoringSupport.DESCRIBE_ALARMS ) ) {
       return new String[] {EC2Method.CW_PREFIX + EC2Method.DESCRIBE_ALARMS};
     }
     return new String[0];
