@@ -132,7 +132,7 @@ public class EC2Method {
     static public final String SDB_PREFIX = "sdb:";
     static public final String SNS_PREFIX = "sns:";
     static public final String SQS_PREFIX = "sqs:";
-    static public final String CW_PREFIX  = "cw:";
+    static public final String CW_PREFIX  = "cloudwatch:";
 
     // AMI operations
     static public final String BUNDLE_INSTANCE          = "BundleInstance";
