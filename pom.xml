@@ -266,6 +266,10 @@
                     <name>test.shareAccount</name>
                     <value>${test.shareAccount}</value>
                 </property>
+                <property>
+                    <name>shareAccount</name>
+                    <value>${test.shareAccount}</value>
+                </property>
             </systemProperties>
           <includes>
               <include>**/AWSTestSuite.java</include>
