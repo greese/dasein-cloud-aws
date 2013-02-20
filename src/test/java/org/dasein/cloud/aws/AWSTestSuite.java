@@ -18,13 +18,15 @@
 
 package org.dasein.cloud.aws;
 
-import junit.framework.Test;
+import org.dasein.cloud.test.AbstractStatelessTestSuite;
+import org.dasein.cloud.test.platform.StatelessMonitoringTests;
+import org.junit.runner.RunWith;
+import org.junit.runners.Suite;
 
-import org.dasein.cloud.test.ComprehensiveTestSuite;
-import org.dasein.cloud.test.TestConfigurationException;
-
-public class AWSTestSuite  {
-    static public Test suite() throws TestConfigurationException {
-        return new ComprehensiveTestSuite(AWSCloud.class);
-    }
+@RunWith( Suite.class )
+@Suite.SuiteClasses( {StatelessMonitoringTests.class} )
+public class AWSTestSuite extends AbstractStatelessTestSuite {
+  /**
+   * Temporary change to shorten test cycle and only run monitoring tests.
+   */
 }

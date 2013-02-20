@@ -71,6 +71,7 @@ import org.dasein.cloud.network.IpAddressSupport;
 import org.dasein.cloud.network.NetworkFirewallSupport;
 import org.dasein.cloud.network.VLANSupport;
 import org.dasein.cloud.network.VPNSupport;
+import org.dasein.cloud.platform.MonitoringSupport;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -131,6 +132,7 @@ public class EC2Method {
     static public final String SDB_PREFIX = "sdb:";
     static public final String SNS_PREFIX = "sns:";
     static public final String SQS_PREFIX = "sqs:";
+    static public final String CW_PREFIX  = "cw:";
 
     // AMI operations
     static public final String BUNDLE_INSTANCE          = "BundleInstance";
@@ -248,6 +250,10 @@ public class EC2Method {
     static public final String DESCRIBE_VPN_CONNECTIONS    = "DescribeVpnConnections";
     static public final String DESCRIBE_VPN_GATEWAYS       = "DescribeVpnGateways";
     static public final String DETACH_VPN_GATEWAY          = "DetachVpnGateway";
+
+    // CloudWatch operations
+    static public final String LIST_METRICS = "ListMetrics";
+    static public final String DESCRIBE_ALARMS = "DescribeAlarms";
 
     static public @Nonnull ServiceAction[] asEC2ServiceAction(@Nonnull String action) {
         // TODO: implement me
@@ -527,6 +533,15 @@ public class EC2Method {
         else if( action.equals(DETACH_VPN_GATEWAY) ) {
             return new ServiceAction[] { VPNSupport.DETACH };
         }
+
+        // CloudWatch operations
+        if( action.equals(LIST_METRICS) ) {
+          return new ServiceAction[] {MonitoringSupport.LIST_METRICS};
+        }
+        else if ( action.equals( DESCRIBE_ALARMS ) ) {
+          return new ServiceAction[] {MonitoringSupport.DESCRIBE_ALARMS};
+        }
+
         return new ServiceAction[0];
     }
 
