@@ -90,6 +90,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
     }
 
     Alarm alarm = new Alarm();
+    alarm.setFunction( false ); // CloudWatch doesn't use a DSL or function for it's alarms. It uses statistic, comparisonOperator, and threshold.
 
     NodeList attributes = node.getChildNodes();
     for ( int i = 0; i < attributes.getLength(); i++ ) {
@@ -97,28 +98,28 @@ public class CloudWatch extends AbstractMonitoringSupport {
       String name = attribute.getNodeName();
 
       if ( name.equals( "AlarmName" ) ) {
-        alarm.setName( getTextValue( attribute ) );
+        alarm.setName( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "AlarmDescription" ) ) {
-        alarm.setDescription( getTextValue( attribute ) );
+        alarm.setDescription( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "Namespace" ) ) {
-        alarm.setMetricNamespace( getTextValue( attribute ) );
+        alarm.addMetadata( "Namespace", provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "MetricName" ) ) {
-        alarm.setMetricName( getTextValue( attribute ) );
+        alarm.setMetric( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "Dimensions" ) ) {
         Map<String, String> dimensions = toDimensions( attribute.getChildNodes() );
         if ( dimensions != null ) {
-          alarm.setDimensions( dimensions );
+          alarm.addMetadata( dimensions );
         }
       }
       else if ( name.equals( "ActionsEnabled" ) ) {
-        alarm.setActionsEnabled( "true".equals( getTextValue( attribute ) ) );
+        alarm.setEnabled( "true".equals( provider.getTextValue( attribute ) ) );
       }
       else if ( name.equals( "AlarmArn" ) ) {
-        alarm.setProviderAlarmId( getTextValue( attribute ) );
+        alarm.setProviderAlarmId( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "AlarmActions" ) ) {
         alarm.setProviderAlarmActionIds( getMembersValues( attribute ) );
@@ -130,34 +131,31 @@ public class CloudWatch extends AbstractMonitoringSupport {
         alarm.setProviderOKActionIds( getMembersValues( attribute ) );
       }
       else if ( name.equals( "Statistic" ) ) {
-        alarm.setStatistic( getTextValue( attribute ) );
+        alarm.setStatistic( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "Period" ) ) {
-        alarm.setPeriod( getTextValue( attribute ) );
+        alarm.setPeriod( provider.getIntValue( attribute ) );
       }
       else if ( name.equals( "EvaluationPeriods" ) ) {
-        alarm.setEvaluationPeriods( getTextValue( attribute ) );
+        alarm.setEvaluationPeriods( provider.getIntValue( attribute ) );
       }
       else if ( name.equals( "ComparisonOperator" ) ) {
-        alarm.setComparisonOperator( getTextValue( attribute ) );
+        alarm.setComparisonOperator( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "Threshold" ) ) {
-        alarm.setThreshold( getTextValue( attribute ) );
-      }
-      else if ( name.equals( "Unit" ) ) {
-        alarm.setUnit( getTextValue( attribute ) );
+        alarm.setThreshold( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "StateReason" ) ) {
-        alarm.setStateReason( getTextValue( attribute ) );
+        alarm.setStateReason( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "StateReasonData" ) ) {
-        alarm.setStateReasonData( getTextValue( attribute ) );
+        alarm.setStateReasonData( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "StateUpdatedTimestamp" ) ) {
-        alarm.setStateUpdatedTimestamp( getTextValue( attribute ) );
+        alarm.setStateUpdatedTimestamp( provider.getTimestampValue( attribute ) );
       }
       else if ( name.equals( "StateValue" ) ) {
-        alarm.setStateValue( getTextValue( attribute ) );
+        alarm.setStateValue( provider.getTextValue( attribute ) );
       }
     }
     return alarm;
@@ -169,7 +167,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
     for ( int j = 0; j < actionNodes.getLength(); j++ ) {
       Node actionNode = actionNodes.item( j );
       if ( actionNode.getNodeName().equals( "member" ) ) {
-        actions.add( getTextValue( actionNode ) );
+        actions.add( provider.getTextValue( actionNode ) );
       }
     }
     if ( actions.size() == 0 ) {
@@ -241,15 +239,15 @@ public class CloudWatch extends AbstractMonitoringSupport {
       String name = attribute.getNodeName();
 
       if ( name.equals( "MetricName" ) ) {
-        metric.setName( getTextValue( attribute ) );
+        metric.setName( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "Namespace" ) ) {
-        metric.setNamespace( getTextValue( attribute ) );
+        metric.addMetadata( "Namespace", provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "Dimensions" ) ) {
         Map<String, String> dimensions = toDimensions( attribute.getChildNodes() );
         if ( dimensions != null ) {
-          metric.setDimensions( dimensions );
+          metric.addMetadata( dimensions );
         }
       }
     }
@@ -272,10 +270,10 @@ public class CloudWatch extends AbstractMonitoringSupport {
           String name = attribute.getNodeName();
 
           if ( name.equals( "Name" ) ) {
-            dimensionName = getTextValue( attribute );
+            dimensionName = provider.getTextValue( attribute );
           }
           else if ( name.equals( "Value" ) ) {
-            dimensionValue = getTextValue( attribute );
+            dimensionValue = provider.getTextValue( attribute );
           }
         }
         if ( dimensionName != null ) {
@@ -350,11 +348,9 @@ public class CloudWatch extends AbstractMonitoringSupport {
     return parameters;
   }
 
-  private String getTextValue( Node node ) {
-    if ( node.getChildNodes().getLength() == 0 ) {
-      return null;
-    }
-    return node.getFirstChild().getNodeValue();
+  @Override
+  public boolean isSubscribed() throws CloudException, InternalException {
+    return true;
   }
 
   private String getCloudWatchUrl() throws InternalException, CloudException {

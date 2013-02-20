@@ -896,4 +896,30 @@ public class AWSCloud extends AbstractCloud {
             }
         }        
     }
+
+  public long getTimestampValue( Node node ) throws CloudException {
+    SimpleDateFormat fmt = new SimpleDateFormat( "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" );
+    String value = getTextValue( node );
+
+    try {
+      return fmt.parse( value ).getTime();
+    }
+    catch ( ParseException e ) {
+      logger.error( e );
+      e.printStackTrace();
+      throw new CloudException( e );
+    }
+  }
+
+  public int getIntValue( Node node ) {
+    return Integer.valueOf( getTextValue( node ) );
+  }
+
+  public String getTextValue( Node node ) {
+    if ( node.getChildNodes().getLength() == 0 ) {
+      return null;
+    }
+    return node.getFirstChild().getNodeValue();
+  }
+
 }
