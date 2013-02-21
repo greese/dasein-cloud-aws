@@ -453,7 +453,7 @@ public class EBSVolume extends AbstractVolumeSupport {
                     if( item.getNodeName().equals("item") ) {
                         Volume volume = toVolume( ctx, item );
 
-                        if( volume != null ) {
+                        if( volume != null && (options == null || options.matches(volume)) ) {
                             list.add(volume);
                         }
                     }
