@@ -1175,6 +1175,7 @@ public class AMI implements MachineImageSupport {
             List<String> shares = sharesAsList(providerImageId);
 
             setPrivateShare(providerImageId, false, shares.toArray(new String[shares.size()]));
+            setPublicShare(providerImageId, false);
         }
         finally {
             APITrace.end();
@@ -1264,6 +1265,9 @@ public class AMI implements MachineImageSupport {
     }
 
     private void setPrivateShare(@Nonnull String imageId, boolean allowed, @Nonnull String ... accountIds) throws CloudException, InternalException {
+        if( accountIds.length < 1 ) {
+            return;
+        }
         long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
 
         while( timeout > System.currentTimeMillis() ) {

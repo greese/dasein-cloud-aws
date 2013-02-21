@@ -22,6 +22,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -31,6 +32,7 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.Taggable;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.Volume;
@@ -485,102 +487,144 @@ public class EBSVolume implements VolumeSupport {
         if( node == null ) {
             return null;
         }
-		NodeList attrs = node.getChildNodes();
-		Volume volume = new Volume();
+        NodeList attrs = node.getChildNodes();
+        Volume volume = new Volume();
 
         volume.setProviderProductId("standard");
-        volume.setType(VolumeType.HDD);
+        volume.setType( VolumeType.HDD );
         volume.setFormat(VolumeFormat.BLOCK);
-		for( int i=0; i<attrs.getLength(); i++ ) {
-			Node attr = attrs.item(i);
-			String name;
-			
-			name = attr.getNodeName();
-			if( name.equals("volumeId") ) {
-				volume.setProviderVolumeId(attr.getFirstChild().getNodeValue().trim());
-				volume.setName(volume.getProviderVolumeId());
-			}
-			else if( name.equals("size") ) {
-				int size = Integer.parseInt(attr.getFirstChild().getNodeValue().trim());
-				
+        for( int i=0; i<attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String name;
+
+            name = attr.getNodeName();
+            if( name.equals("volumeId") ) {
+                volume.setProviderVolumeId(attr.getFirstChild().getNodeValue().trim());
+            }
+            else if( name.equalsIgnoreCase("name") && attr.hasChildNodes() ) {
+                volume.setName(attr.getFirstChild().getNodeName().trim());
+            }
+            else if( name.equalsIgnoreCase("description") && attr.hasChildNodes() ) {
+                volume.setDescription(attr.getFirstChild().getNodeName().trim());
+            }
+            else if( name.equals("size") ) {
+                int size = Integer.parseInt(attr.getFirstChild().getNodeValue().trim());
+
                 volume.setSize(new Storage<Gigabyte>(size, Storage.GIGABYTE));
-			}
-			else if( name.equals("snapshotId") ) {
-				NodeList values = attr.getChildNodes();
-				
-				if( values != null && values.getLength() > 0 ) {
-					volume.setProviderSnapshotId(values.item(0).getNodeValue().trim());
-				}
-			}
-			else if( name.equals("availabilityZone") ) {
-				String zoneId = attr.getFirstChild().getNodeValue().trim();
-				
-				volume.setProviderDataCenterId(zoneId);
-			}
+            }
+            else if( name.equals("snapshotId") ) {
+                NodeList values = attr.getChildNodes();
+
+                if( values != null && values.getLength() > 0 ) {
+                    volume.setProviderSnapshotId(values.item(0).getNodeValue().trim());
+                }
+            }
+            else if( name.equals("availabilityZone") ) {
+                String zoneId = attr.getFirstChild().getNodeValue().trim();
+
+                volume.setProviderDataCenterId(zoneId);
+            }
             else if( name.equalsIgnoreCase("volumeType") && attr.hasChildNodes() ) {
                 volume.setProviderProductId(attr.getFirstChild().getNodeValue().trim());
             }
             else if( name.equalsIgnoreCase("iops") && attr.hasChildNodes() ) {
                 volume.setIops(Integer.parseInt(attr.getFirstChild().getNodeValue().trim()));
             }
-			else if( name.equals("createTime") ) {
-				SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-				String value = attr.getFirstChild().getNodeValue().trim();
+            else if( name.equals("createTime") ) {
+                SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+                String value = attr.getFirstChild().getNodeValue().trim();
 
-				try {
-					volume.setCreationTimestamp(fmt.parse(value).getTime());
-				} 
-				catch( ParseException e ) {
-					logger.error(e);
-					e.printStackTrace();
-					throw new CloudException(e);
-				}				
-			}
-			else if( name.equals("status") ) {
-				String s = attr.getFirstChild().getNodeValue().trim();
-				VolumeState state;
-				
-		        if( s.equals("creating") || s.equals("attaching") || s.equals("attached") || s.equals("detaching") || s.equals("detached") ) {
-		            state = VolumeState.PENDING;
-		        }
-		        else if( s.equals("available") || s.equals("in-use") ) {
-		            state = VolumeState.AVAILABLE;
-		        }
-		        else {
-		            state = VolumeState.DELETED;
-		        }
-				volume.setCurrentState(state);
-			}
-			else if( name.equals("attachmentSet") ) {
-				NodeList attachments = attr.getChildNodes();
-				
-				for( int j=0; j<attachments.getLength(); j++ ) {
-					Node item = attachments.item(j);
-					
-					if( item.getNodeName().equals("item") ) {
-						NodeList infoList = item.getChildNodes();
-						
-						for( int k=0; k<infoList.getLength(); k++ ) {
-							Node info = infoList.item(k);
-							
-							name = info.getNodeName();
-							if( name.equals("instanceId") ) {
-								volume.setProviderVirtualMachineId(info.getFirstChild().getNodeValue().trim());
-							}
-							else if( name.equals("device") ) {
-							    String deviceId = info.getFirstChild().getNodeValue().trim();
+                try {
+                    volume.setCreationTimestamp(fmt.parse(value).getTime());
+                }
+                catch( ParseException e ) {
+                    logger.error(e);
+                    e.printStackTrace();
+                    throw new CloudException(e);
+                }
+            }
+            else if( name.equals("status") ) {
+                String s = attr.getFirstChild().getNodeValue().trim();
+                VolumeState state;
 
-							    if( deviceId.startsWith("unknown,requested:") ) {
-							        deviceId = deviceId.substring(18);
-							    }
-								volume.setDeviceId(deviceId);
-							}
-						}
-					}
-				}
-			}
-		}
-		volume.setProviderRegionId(ctx.getRegionId());
-		return volume;
+                if( s.equals("creating") || s.equals("attaching") || s.equals("attached") || s.equals("detaching") || s.equals("detached") ) {
+                    state = VolumeState.PENDING;
+                }
+                else if( s.equals("available") || s.equals("in-use") ) {
+                    state = VolumeState.AVAILABLE;
+                }
+                else {
+                    state = VolumeState.DELETED;
+                }
+                volume.setCurrentState(state);
+            }
+            else if( name.equals("tagSet") ) {
+                Taggable tmp = new Taggable() {
+                    HashMap<String,String> tags = new HashMap<String, String>();
+
+                    @Nonnull
+                    @Override
+                    public Map<String, String> getTags() {
+                        return tags;
+                    }
+
+                    @Override
+                    public void setTag(@Nonnull String key, @Nonnull String value) {
+                        tags.put(key, value);
+                    }
+                };
+                provider.setTags(attr, tmp);
+
+                String s = tmp.getTags().get("Name");
+
+                if( s != null && volume.getName() == null ) {
+                    volume.setName(s);
+                }
+                s = tmp.getTags().get("Description");
+
+                if( s != null && volume.getDescription() == null ) {
+                    volume.setDescription(s);
+                }
+            }
+            else if( name.equals("attachmentSet") ) {
+                NodeList attachments = attr.getChildNodes();
+
+                for( int j=0; j<attachments.getLength(); j++ ) {
+                    Node item = attachments.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        NodeList infoList = item.getChildNodes();
+
+                        for( int k=0; k<infoList.getLength(); k++ ) {
+                            Node info = infoList.item(k);
+
+                            name = info.getNodeName();
+                            if( name.equals("instanceId") ) {
+                                volume.setProviderVirtualMachineId(info.getFirstChild().getNodeValue().trim());
+                            }
+                            else if( name.equals("device") ) {
+                                String deviceId = info.getFirstChild().getNodeValue().trim();
+
+                                if( deviceId.startsWith("unknown,requested:") ) {
+                                    deviceId = deviceId.substring(18);
+                                }
+                                volume.setDeviceId(deviceId);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if( volume.getProviderVolumeId() == null ) {
+            return null;
+        }
+        if( volume.getName() == null ) {
+            volume.setName(volume.getProviderVolumeId());
+        }
+        if( volume.getDescription() == null ) {
+            volume.setDescription(volume.getName());
+        }
+        volume.setProviderRegionId(ctx.getRegionId());
+        return volume;
 	}
 }
