@@ -31,8 +31,6 @@ import java.util.Properties;
 
 import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletResponse;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.http.Header;
@@ -57,6 +55,7 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.CDNSupport;
+import org.dasein.cloud.util.XMLParser;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -345,14 +344,7 @@ public class CloudFrontMethod {
 			in.close();
 	            
 			//System.out.println(sb.toString());
-			ByteArrayInputStream bas = new ByteArrayInputStream(sb.toString().getBytes());
-	            
-			DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-			DocumentBuilder parser = factory.newDocumentBuilder();
-			Document doc = parser.parse(bas);
-
-			bas.close();
-			return doc;
+			return XMLParser.parse(new ByteArrayInputStream(sb.toString().getBytes()));
 		}
 		catch( IOException e ) {
 			logger.error(e);

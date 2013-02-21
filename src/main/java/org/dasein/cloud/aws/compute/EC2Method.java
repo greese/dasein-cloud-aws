@@ -31,8 +31,6 @@ import java.util.Properties;
 
 import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletResponse;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.http.Header;
@@ -70,6 +68,7 @@ import org.dasein.cloud.network.FirewallSupport;
 import org.dasein.cloud.network.IpAddressSupport;
 import org.dasein.cloud.network.VLANSupport;
 import org.dasein.cloud.network.VPNSupport;
+import org.dasein.cloud.util.XMLParser;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -834,14 +833,7 @@ public class EC2Method {
                     wire.debug(l);
                 }
             }
-            ByteArrayInputStream bas = new ByteArrayInputStream(responseBody.getBytes());
-            
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder parser = factory.newDocumentBuilder();
-            Document doc = parser.parse(bas);
-
-            bas.close();
-            return doc;
+            return XMLParser.parse(new ByteArrayInputStream(responseBody.getBytes()));
 	    }
 	    catch( IOException e ) {
 	        throw new CloudException(e);
