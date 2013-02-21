@@ -25,6 +25,7 @@ import java.util.*;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
@@ -92,6 +93,9 @@ public class EBSVolume extends AbstractVolumeSupport {
     public @Nonnull String createVolume(@Nonnull VolumeCreateOptions options) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "Volume.createVolume");
         try {
+            if( !options.getFormat().equals(VolumeFormat.BLOCK)) {
+                throw new OperationNotSupportedException("NFS volumes are not currently supported");
+            }
             ProviderContext ctx = provider.getContext();
 
             if( ctx == null ) {
@@ -152,19 +156,19 @@ public class EBSVolume extends AbstractVolumeSupport {
                 String id = blocks.item(0).getFirstChild().getNodeValue().trim();
                 Map<String,Object> meta = options.getMetaData();
 
-                if( !meta.isEmpty() ) {
-                    ArrayList<Tag> tags = new ArrayList<Tag>();
+                meta.put("Name", options.getName());
+                meta.put("Description", options.getDescription());
+                ArrayList<Tag> tags = new ArrayList<Tag>();
 
-                    for( Map.Entry<String,Object> entry : meta.entrySet() ) {
-                        Object value = entry.getValue();
+                for( Map.Entry<String,Object> entry : meta.entrySet() ) {
+                    Object value = entry.getValue();
 
-                        if( value != null ) {
-                            tags.add(new Tag(entry.getKey(), value.toString()));
-                        }
+                    if( value != null ) {
+                        tags.add(new Tag(entry.getKey(), value.toString()));
                     }
-                    if( !tags.isEmpty() ) {
-                        provider.createTags(id, tags.toArray(new Tag[tags.size()]));
-                    }
+                }
+                if( !tags.isEmpty() ) {
+                    provider.createTags(id, tags.toArray(new Tag[tags.size()]));
                 }
                 return id;
             }
@@ -600,9 +604,14 @@ public class EBSVolume extends AbstractVolumeSupport {
 			name = attr.getNodeName();
 			if( name.equals("volumeId") ) {
 				volume.setProviderVolumeId(attr.getFirstChild().getNodeValue().trim());
-				volume.setName(volume.getProviderVolumeId());
 			}
-			else if( name.equals("size") ) {
+            else if( name.equalsIgnoreCase("name") && attr.hasChildNodes() ) {
+                volume.setName(attr.getFirstChild().getNodeName().trim());
+            }
+            else if( name.equalsIgnoreCase("description") && attr.hasChildNodes() ) {
+                volume.setDescription(attr.getFirstChild().getNodeName().trim());
+            }
+            else if( name.equals("size") ) {
 				int size = Integer.parseInt(attr.getFirstChild().getNodeValue().trim());
 				
                 volume.setSize(new Storage<Gigabyte>(size, Storage.GIGABYTE));
@@ -654,41 +663,17 @@ public class EBSVolume extends AbstractVolumeSupport {
 				volume.setCurrentState(state);
 			}
             else if( name.equals("tagSet") ) {
-                if( attr.hasChildNodes() ) {
-                    NodeList tags = attr.getChildNodes();
+                provider.setTags(attr, volume);
 
-                    for( int j=0; j<tags.getLength(); j++ ) {
-                        Node tag = tags.item(j);
+                String s = volume.getTag("Name");
 
-                        if( tag.getNodeName().equals("item") && tag.hasChildNodes() ) {
-                            NodeList parts = tag.getChildNodes();
-                            String key = null, value = null;
+                if( s != null && volume.getName() == null ) {
+                    volume.setName(s);
+                }
+                s = volume.getTag("Description");
 
-                            for( int k=0; k<parts.getLength(); k++ ) {
-                                Node part = parts.item(k);
-
-                                if( part.getNodeName().equalsIgnoreCase("key") ) {
-                                    if( part.hasChildNodes() ) {
-                                        key = part.getFirstChild().getNodeValue().trim();
-                                    }
-                                }
-                                else if( part.getNodeName().equalsIgnoreCase("value") ) {
-                                    if( part.hasChildNodes() ) {
-                                        value = part.getFirstChild().getNodeValue().trim();
-                                    }
-                                }
-                            }
-                            if( key != null && value != null ) {
-                                if( key.equalsIgnoreCase("name") && volume.getName() == null ) {
-                                    volume.setName(value);
-                                }
-                                else if( key.equalsIgnoreCase("description") && volume.getDescription() == null ) {
-                                    volume.setDescription(value);
-                                }
-                                volume.setTag(key, value);
-                            }
-                        }
-                    }
+                if( s != null && volume.getDescription() == null ) {
+                    volume.setDescription(s);
                 }
             }
 			else if( name.equals("attachmentSet") ) {
@@ -719,10 +704,16 @@ public class EBSVolume extends AbstractVolumeSupport {
 					}
 				}
 			}
-            else if( name.equals("tagSet") ) {
-                provider.setTags(attr, volume);
-            }
 		}
+        if( volume.getProviderVolumeId() == null ) {
+            return null;
+        }
+        if( volume.getName() == null ) {
+            volume.setName(volume.getProviderVolumeId());
+        }
+        if( volume.getDescription() == null ) {
+            volume.setDescription(volume.getName());
+        }
 		volume.setProviderRegionId(ctx.getRegionId());
 		return volume;
 	}
