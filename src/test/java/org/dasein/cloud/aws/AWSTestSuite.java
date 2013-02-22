@@ -18,15 +18,7 @@
 
 package org.dasein.cloud.aws;
 
-import org.dasein.cloud.test.AbstractStatelessTestSuite;
-import org.dasein.cloud.test.platform.StatelessMonitoringTests;
-import org.junit.runner.RunWith;
-import org.junit.runners.Suite;
+import org.dasein.cloud.test.GlobalTestSuite;
 
-@RunWith( Suite.class )
-@Suite.SuiteClasses( {StatelessMonitoringTests.class} )
-public class AWSTestSuite extends AbstractStatelessTestSuite {
-  /**
-   * Temporary change to shorten test cycle and only run monitoring tests.
-   */
+public class AWSTestSuite extends GlobalTestSuite {
 }

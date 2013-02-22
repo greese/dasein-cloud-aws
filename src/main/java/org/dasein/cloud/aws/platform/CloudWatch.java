@@ -26,12 +26,112 @@ import java.util.*;
 public class CloudWatch extends AbstractMonitoringSupport {
 
   static private final Logger logger = Logger.getLogger( CloudWatch.class );
+  public static final String STATE_OK = "OK";
+  public static final String STATE_ALARM = "ALARM";
+  public static final String STATE_INSUFFICIENT_DATA = "INSUFFICIENT_DATA";
 
   private AWSCloud provider = null;
 
   CloudWatch( AWSCloud provider ) {
     super( provider );
     this.provider = provider;
+  }
+
+  @Override
+  public void updateAlarm( @Nonnull AlarmUpdateOptions options ) throws InternalException, CloudException {
+    APITrace.begin( provider, "CloudWatch.addAlarm" );
+    try {
+      ProviderContext ctx = provider.getContext();
+      if ( ctx == null ) {
+        throw new CloudException( "No context was set for this request" );
+      }
+
+      Map<String, String> parameters = provider.getStandardCloudWatchParameters( provider.getContext(), EC2Method.PUT_METRIC_ALARM );
+
+      // all required parameters per CloudWatch API Version 2010-08-01
+      parameters.put( "AlarmName", options.getAlarmName() );
+      parameters.put( "Namespace", options.getMetricNamespace() );
+      parameters.put( "MetricName", options.getMetric() );
+      parameters.put( "Statistic", options.getStatistic() );
+      parameters.put( "ComparisonOperator", options.getComparisonOperator() );
+      parameters.put( "Threshold", String.valueOf( options.getThreshold() ) );
+      parameters.put( "Period", String.valueOf( options.getPeriod() ) );
+      parameters.put( "EvaluationPeriods", String.valueOf( options.getEvaluationPeriods() ) );
+
+      // optional parameters per CloudWatch API Version 2010-08-01
+      parameters.put( "ActionsEnabled", String.valueOf( options.isEnabled() ) );
+      provider.putValueIfNotNull( parameters, "AlarmDescription", options.getAlarmDescription() );
+      provider.putIndexedParameters( parameters, "OKActions.member.", options.getProviderOKActionIds() );
+      provider.putIndexedParameters( parameters, "AlarmActions.member.", options.getProviderAlarmActionIds() );
+      provider.putIndexedParameters( parameters, "InsufficientDataActions.member.", options.getProviderInsufficentDataActionIds() );
+      provider.putIndexedMapParameters( parameters, "Dimensions.member.", options.getMetadata() );
+
+      EC2Method method;
+      method = new EC2Method( provider, getCloudWatchUrl(), parameters );
+      try {
+        method.invoke();
+      }
+      catch ( EC2Exception e ) {
+        logger.error( e.getSummary() );
+        throw new CloudException( e );
+      }
+    }
+    finally {
+      APITrace.end();
+    }
+  }
+
+  @Override public void removeAlarms( @Nonnull String[] alarmNames ) throws InternalException, CloudException {
+    APITrace.begin( provider, "CloudWatch.removeAlarms" );
+    try {
+      updateAlarmAction( alarmNames, EC2Method.DELETE_ALARMS );
+    }
+    finally {
+      APITrace.end();
+    }
+  }
+
+  @Override
+  public void enableAlarmActions( @Nonnull String[] alarmNames ) throws InternalException, CloudException {
+    APITrace.begin( provider, "CloudWatch.enableAlarmActions" );
+    try {
+      updateAlarmAction( alarmNames, EC2Method.ENABLE_ALARM_ACTIONS );
+    }
+    finally {
+      APITrace.end();
+    }
+  }
+
+  @Override
+  public void disableAlarmActions( @Nonnull String[] alarmNames ) throws InternalException, CloudException {
+    APITrace.begin( provider, "CloudWatch.disableAlarmActions" );
+    try {
+      updateAlarmAction( alarmNames, EC2Method.DISABLE_ALARM_ACTIONS );
+    }
+    finally {
+      APITrace.end();
+    }
+  }
+
+  private void updateAlarmAction( @Nonnull String[] alarmNames, @Nonnull String action ) throws InternalException, CloudException {
+    ProviderContext ctx = provider.getContext();
+    if ( ctx == null ) {
+      throw new CloudException( "No context was set for this request" );
+    }
+
+    Map<String, String> parameters = provider.getStandardCloudWatchParameters( provider.getContext(), action );
+
+    provider.putIndexedParameters( parameters, "AlarmNames.member.", alarmNames );
+
+    EC2Method method;
+    method = new EC2Method( provider, getCloudWatchUrl(), parameters );
+    try {
+      method.invoke();
+    }
+    catch ( EC2Exception e ) {
+      logger.error( e.getSummary() );
+      throw new CloudException( e );
+    }
   }
 
   @Override
@@ -104,15 +204,15 @@ public class CloudWatch extends AbstractMonitoringSupport {
         alarm.setDescription( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "Namespace" ) ) {
-        alarm.addMetadata( "Namespace", provider.getTextValue( attribute ) );
+        alarm.setMetricNamespace( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "MetricName" ) ) {
         alarm.setMetric( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "Dimensions" ) ) {
-        Map<String, String> dimensions = toDimensions( attribute.getChildNodes() );
+        Map<String, String> dimensions = toMetadata( attribute.getChildNodes() );
         if ( dimensions != null ) {
-          alarm.addMetadata( dimensions );
+          alarm.addMetricMetadata( dimensions );
         }
       }
       else if ( name.equals( "ActionsEnabled" ) ) {
@@ -143,7 +243,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
         alarm.setComparisonOperator( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "Threshold" ) ) {
-        alarm.setThreshold( provider.getTextValue( attribute ) );
+        alarm.setThreshold( provider.getDoubleValue( attribute ) );
       }
       else if ( name.equals( "StateReason" ) ) {
         alarm.setStateReason( provider.getTextValue( attribute ) );
@@ -155,12 +255,27 @@ public class CloudWatch extends AbstractMonitoringSupport {
         alarm.setStateUpdatedTimestamp( provider.getTimestampValue( attribute ) );
       }
       else if ( name.equals( "StateValue" ) ) {
-        alarm.setStateValue( provider.getTextValue( attribute ) );
+        String stateValue = provider.getTextValue( attribute );
+        if ( STATE_OK.equals( stateValue ) ) {
+          alarm.setStateValue( AlarmState.OK );
+        }
+        else if ( STATE_ALARM.equals( stateValue ) ) {
+          alarm.setStateValue( AlarmState.ALARM );
+        }
+        else if ( STATE_INSUFFICIENT_DATA.equals( stateValue ) ) {
+          alarm.setStateValue( AlarmState.INSUFFICIENT_DATA );
+        }
       }
     }
     return alarm;
   }
 
+  /**
+   * Gets single text values from a "member" set.
+   *
+   * @param attribute the node to start at
+   * @return array of member string values
+   */
   private String[] getMembersValues( Node attribute ) {
     List<String> actions = new ArrayList<String>();
     NodeList actionNodes = attribute.getChildNodes();
@@ -226,7 +341,13 @@ public class CloudWatch extends AbstractMonitoringSupport {
     }
   }
 
-  private Metric toMetric( Node node ) throws CloudException, InternalException {
+  /**
+   * Converts the given node to a Metric object.
+   *
+   * @param node the node to convert
+   * @return a Metric object
+   */
+  private Metric toMetric( Node node ) {
     if ( node == null ) {
       return null;
     }
@@ -242,10 +363,10 @@ public class CloudWatch extends AbstractMonitoringSupport {
         metric.setName( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "Namespace" ) ) {
-        metric.addMetadata( "Namespace", provider.getTextValue( attribute ) );
+        metric.setNamespace( provider.getTextValue( attribute ) );
       }
       else if ( name.equals( "Dimensions" ) ) {
-        Map<String, String> dimensions = toDimensions( attribute.getChildNodes() );
+        Map<String, String> dimensions = toMetadata( attribute.getChildNodes() );
         if ( dimensions != null ) {
           metric.addMetadata( dimensions );
         }
@@ -254,7 +375,13 @@ public class CloudWatch extends AbstractMonitoringSupport {
     return metric;
   }
 
-  private Map<String, String> toDimensions( NodeList blocks ) {
+  /**
+   * Converts the given NodeList to a metadata map.
+   *
+   * @param blocks the NodeList to convert
+   * @return metadata map
+   */
+  private Map<String, String> toMetadata( NodeList blocks ) {
     Map<String, String> dimensions = new HashMap<String, String>();
 
     for ( int i = 0; i < blocks.getLength(); i++ ) {
@@ -288,6 +415,12 @@ public class CloudWatch extends AbstractMonitoringSupport {
     return dimensions;
   }
 
+  /**
+   * Creates map of parameters based on the MetricFilterOptions.
+   *
+   * @param options options to convert to a parameter map
+   * @return parameter map
+   */
   private Map<String, String> getMetricFilterParameters( MetricFilterOptions options ) {
     if ( options == null ) {
       return null;
@@ -295,25 +428,9 @@ public class CloudWatch extends AbstractMonitoringSupport {
 
     Map<String, String> parameters = new HashMap<String, String>();
 
-    if ( options.getMetricName() != null ) {
-      parameters.put( "MetricName", options.getMetricName() );
-    }
-
-    if ( options.getMetricNamespace() != null ) {
-      parameters.put( "Namespace", options.getMetricNamespace() );
-    }
-
-    Map<String, String> dimensions = options.getMetricDimensions();
-    if ( dimensions != null && dimensions.size() > 0 ) {
-      int i = 1;
-      for ( Map.Entry<String, String> entry : dimensions.entrySet() ) {
-        parameters.put( "Dimensions.member." + i + ".Name", entry.getKey() );
-        if ( entry.getValue() != null ) {
-          parameters.put( "Dimensions.member." + i + ".Value", entry.getValue() );
-        }
-        i++;
-      }
-    }
+    provider.putValueIfNotNull( parameters, "MetricName", options.getMetricName() );
+    provider.putValueIfNotNull( parameters, "Namespace", options.getMetricNamespace() );
+    provider.putIndexedMapParameters( parameters, "Dimensions.member.", options.getMetricMetadata() );
 
     if ( parameters.size() == 0 ) {
       return null;
@@ -322,6 +439,12 @@ public class CloudWatch extends AbstractMonitoringSupport {
     return parameters;
   }
 
+  /**
+   * Creates map of parameters based on the AlarmFilterOptions.
+   *
+   * @param options options to convert to a parameter map
+   * @return parameter map
+   */
   private Map<String, String> getAlarmFilterParameters( AlarmFilterOptions options ) {
     if ( options == null ) {
       return null;
@@ -329,17 +452,21 @@ public class CloudWatch extends AbstractMonitoringSupport {
 
     Map<String, String> parameters = new HashMap<String, String>();
 
+    String stateValue = null;
     if ( options.getStateValue() != null ) {
-      parameters.put( "StateValue", options.getStateValue() );
-    }
-
-    if ( options.getAlarmNames() != null ) {
-      String[] alarmNames = options.getAlarmNames();
-      for ( int i = 0; i < options.getAlarmNames().length; i++ ) {
-        String alarmName = alarmNames[i];
-        parameters.put( "AlarmNames.member." + (i + 1), alarmName );
+      if ( options.getStateValue() == AlarmState.OK ) {
+        stateValue = STATE_OK;
+      }
+      else if ( options.getStateValue() == AlarmState.OK ) {
+        stateValue = STATE_ALARM;
+      }
+      else if ( options.getStateValue() == AlarmState.OK ) {
+        stateValue = STATE_INSUFFICIENT_DATA;
       }
     }
+
+    provider.putValueIfNotNull( parameters, "StateValue", stateValue );
+    provider.putIndexedParameters( parameters, "AlarmNames.member.", options.getAlarmNames() );
 
     if ( parameters.size() == 0 ) {
       return null;
@@ -353,7 +480,12 @@ public class CloudWatch extends AbstractMonitoringSupport {
     return true;
   }
 
-  private String getCloudWatchUrl() throws InternalException, CloudException {
+  /**
+   * Returns the cloudwatch endpoint url.
+   *
+   * @return the cloudwatch endpoint url
+   */
+  private String getCloudWatchUrl() {
     return ("https://monitoring." + provider.getContext().getRegionId() + ".amazonaws.com");
   }
 

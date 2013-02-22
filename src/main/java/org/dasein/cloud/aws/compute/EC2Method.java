@@ -143,7 +143,7 @@ public class EC2Method {
     static public final String DESCRIBE_IMAGES          = "DescribeImages";
     static public final String MODIFY_IMAGE_ATTRIBUTE   = "ModifyImageAttribute";
     static public final String REGISTER_IMAGE           = "RegisterImage";
-    
+
     // EBS operations
     static public final String ATTACH_VOLUME    = "AttachVolume";
     static public final String CREATE_VOLUME    = "CreateVolume";
@@ -254,6 +254,10 @@ public class EC2Method {
     // CloudWatch operations
     static public final String LIST_METRICS = "ListMetrics";
     static public final String DESCRIBE_ALARMS = "DescribeAlarms";
+    static public final String PUT_METRIC_ALARM = "PutMetricAlarm";
+    static public final String DELETE_ALARMS = "DeleteAlarms";
+    static public final String ENABLE_ALARM_ACTIONS = "EnableAlarmActions";
+    static public final String DISABLE_ALARM_ACTIONS = "DisableAlarmActions";
 
     static public @Nonnull ServiceAction[] asEC2ServiceAction(@Nonnull String action) {
         // TODO: implement me
@@ -462,7 +466,7 @@ public class EC2Method {
             return new ServiceAction[] { VLANSupport.REMOVE_VLAN };
         }
         else if( action.equals(DESCRIBE_DHCP_OPTIONS) ) {
-            return new ServiceAction[0];            
+            return new ServiceAction[0];
         }
         else if( action.equalsIgnoreCase(DESCRIBE_ROUTE_TABLES) ) {
             return new ServiceAction[] { VLANSupport.GET_ROUTING_TABLE, VLANSupport.LIST_ROUTING_TABLE };
@@ -541,6 +545,18 @@ public class EC2Method {
         else if ( action.equals( DESCRIBE_ALARMS ) ) {
           return new ServiceAction[] {MonitoringSupport.DESCRIBE_ALARMS};
         }
+        else if ( action.equals( PUT_METRIC_ALARM ) ) {
+          return new ServiceAction[] {MonitoringSupport.UPDATE_ALARM};
+        }
+        else if ( action.equals( DELETE_ALARMS ) ) {
+          return new ServiceAction[] {MonitoringSupport.REMOVE_ALARMS};
+        }
+        else if ( action.equals( ENABLE_ALARM_ACTIONS ) ) {
+          return new ServiceAction[] {MonitoringSupport.ENABLE_ALARM_ACTIONS};
+        }
+        else if ( action.equals( DISABLE_ALARM_ACTIONS ) ) {
+          return new ServiceAction[] {MonitoringSupport.DISABLE_ALARM_ACTIONS};
+        }
 
         return new ServiceAction[0];
     }
@@ -549,19 +565,19 @@ public class EC2Method {
 	private Map<String,String> parameters  = null;
 	private AWSCloud           provider    = null;
 	private String             url         = null;
-	
+
 	public EC2Method(AWSCloud provider, String url, Map<String,String> parameters) throws InternalException, CloudException {
 		this.url = url;
 		this.parameters = parameters;
 		this.provider = provider;
         ProviderContext ctx = provider.getContext();
-        
+
         if( ctx == null ) {
             throw new CloudException("Provider context is necessary for this request");
         }
 		parameters.put(AWSCloud.P_SIGNATURE, provider.signEc2(ctx.getAccessPrivate(), url, parameters));
 	}
-	
+
     public void checkSuccess(NodeList returnNodes) throws CloudException {
         if( returnNodes.getLength() > 0 ) {
             if( !returnNodes.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
@@ -875,12 +891,12 @@ public class EC2Method {
 
 	    }
 	}
-	
+
 	private Document parseResponse(String responseBody) throws CloudException, InternalException {
 	    try {
             if( wire.isDebugEnabled() ) {
                 String[] lines = responseBody.split("\n");
-                
+
                 if( lines.length < 1 ) {
                     lines = new String[] { responseBody };
                 }
@@ -889,7 +905,7 @@ public class EC2Method {
                 }
             }
             ByteArrayInputStream bas = new ByteArrayInputStream(responseBody.getBytes());
-            
+
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             DocumentBuilder parser = factory.newDocumentBuilder();
             Document doc = parser.parse(bas);
@@ -905,25 +921,25 @@ public class EC2Method {
         }
         catch( SAXException e ) {
             throw new CloudException(e);
-        }   
+        }
 	}
-	
+
 	private Document parseResponse(InputStream responseBodyAsStream) throws CloudException, InternalException {
 		try {
 			BufferedReader in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
 			StringBuilder sb = new StringBuilder();
 			String line;
-	            
+
 			while( (line = in.readLine()) != null ) {
 				sb.append(line);
 				sb.append("\n");
 			}
 			in.close();
-	          
+
 			return parseResponse(sb.toString());
 		}
 		catch( IOException e ) {
 			throw new CloudException(e);
-		}			
+		}
     }
 }
