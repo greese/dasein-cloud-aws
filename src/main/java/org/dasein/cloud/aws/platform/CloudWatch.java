@@ -225,7 +225,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
         alarm.setProviderAlarmActionIds( getMembersValues( attribute ) );
       }
       else if ( name.equals( "InsufficientDataActions" ) ) {
-        alarm.setProviderInsufficentDataActionIds( getMembersValues( attribute ) );
+        alarm.setProviderInsufficientDataActionIds( getMembersValues( attribute ) );
       }
       else if ( name.equals( "OKActions" ) ) {
         alarm.setProviderOKActionIds( getMembersValues( attribute ) );
