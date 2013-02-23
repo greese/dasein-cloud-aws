@@ -10,11 +10,15 @@ import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.*;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.util.Jiterator;
+import org.dasein.util.JiteratorPopulator;
+import org.dasein.util.PopulatorThread;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.*;
 
 /**
@@ -46,7 +50,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
         throw new CloudException( "No context was set for this request" );
       }
 
-      Map<String, String> parameters = provider.getStandardCloudWatchParameters( provider.getContext(), EC2Method.PUT_METRIC_ALARM );
+      Map<String, String> parameters = provider.getStandardCloudWatchParameters( ctx, EC2Method.PUT_METRIC_ALARM );
 
       // all required parameters per CloudWatch API Version 2010-08-01
       parameters.put( "AlarmName", options.getAlarmName() );
@@ -119,7 +123,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
       throw new CloudException( "No context was set for this request" );
     }
 
-    Map<String, String> parameters = provider.getStandardCloudWatchParameters( provider.getContext(), action );
+    Map<String, String> parameters = provider.getStandardCloudWatchParameters( ctx, action );
 
     provider.putIndexedParameters( parameters, "AlarmNames.member.", alarmNames );
 
@@ -143,7 +147,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
         throw new CloudException( "No context was set for this request" );
       }
 
-      Map<String, String> parameters = provider.getStandardCloudWatchParameters( provider.getContext(), EC2Method.DESCRIBE_ALARMS );
+      Map<String, String> parameters = provider.getStandardCloudWatchParameters( ctx, EC2Method.DESCRIBE_ALARMS );
 
       provider.putExtraParameters( parameters, getAlarmFilterParameters( options ) );
 
@@ -292,7 +296,25 @@ public class CloudWatch extends AbstractMonitoringSupport {
   }
 
   @Override
-  public @Nonnull Collection<Metric> listMetrics( MetricFilterOptions options ) throws InternalException, CloudException {
+  public @Nonnull Collection<Metric> listMetrics( final MetricFilterOptions options ) throws InternalException, CloudException {
+    PopulatorThread<Metric> populator;
+
+    provider.hold();
+    populator = new PopulatorThread<Metric>( new JiteratorPopulator<Metric>() {
+      public void populate( @Nonnull Jiterator<Metric> iterator ) throws CloudException, InternalException {
+        try {
+          populateMetrics( iterator, null, options );
+        }
+        finally {
+          provider.release();
+        }
+      }
+    } );
+    populator.populate();
+    return populator.getResult();
+  }
+
+  private void populateMetrics( @Nonnull Jiterator<Metric> iterator, @Nullable String nextToken, MetricFilterOptions options ) throws CloudException, InternalException {
     APITrace.begin( provider, "CloudWatch.listMetrics" );
     try {
       ProviderContext ctx = provider.getContext();
@@ -300,11 +322,11 @@ public class CloudWatch extends AbstractMonitoringSupport {
         throw new CloudException( "No context was set for this request" );
       }
 
-      Map<String, String> parameters = provider.getStandardCloudWatchParameters( provider.getContext(), EC2Method.LIST_METRICS );
+      Map<String, String> parameters = provider.getStandardCloudWatchParameters( ctx, EC2Method.LIST_METRICS );
 
       provider.putExtraParameters( parameters, getMetricFilterParameters( options ) );
+      provider.putValueIfNotNull( parameters, "NextToken", nextToken );
 
-      List<Metric> list = new ArrayList<Metric>();
       NodeList blocks;
       EC2Method method;
       Document doc;
@@ -328,12 +350,17 @@ public class CloudWatch extends AbstractMonitoringSupport {
           if ( metricNode.getNodeName().equals( "member" ) ) {
             Metric metric = toMetric( metricNode );
             if ( metric != null ) {
-              list.add( metric );
+              iterator.push( metric );
             }
           }
         }
       }
-      return list;
+
+      blocks = doc.getElementsByTagName( "NextToken" );
+      if ( blocks != null && blocks.getLength() == 1 && blocks.item( 0 ).hasChildNodes() ) {
+        String newNextToken = provider.getTextValue( blocks.item( 0 ) );
+        populateMetrics( iterator, newNextToken, options );
+      }
 
     }
     finally {
