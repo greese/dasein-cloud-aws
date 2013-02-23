@@ -435,8 +435,12 @@ public class Route53 implements DNSSupport {
         provider.hold();
         populator = new PopulatorThread<ResourceStatus>(new JiteratorPopulator<ResourceStatus>() {
             public void populate(@Nonnull Jiterator<ResourceStatus> iterator) throws CloudException, InternalException {
-                populateZoneStatus(iterator, null);
-                provider.release();
+                try {
+                    populateZoneStatus(iterator, null);
+                }
+                finally {
+                    provider.release();
+                }
             }
         });
         populator.populate();

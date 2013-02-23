@@ -931,7 +931,7 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public int getMaxVlanCount() throws CloudException, InternalException {
-        return 1;
+        return 5;
     }
 
     @Override
@@ -1197,6 +1197,11 @@ public class VPC extends AbstractVLANSupport {
         finally {
             APITrace.end();
         }
+    }
+
+    @Override
+    public @Nonnull Requirement identifySubnetDCRequirement() {
+        return Requirement.OPTIONAL;
     }
 
     @Override
