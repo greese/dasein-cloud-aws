@@ -20,8 +20,10 @@ package org.dasein.cloud.aws.platform;
 
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.platform.AbstractPlatformServices;
+import org.dasein.cloud.platform.MonitoringSupport;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 public class AWSPlatformServices extends AbstractPlatformServices {
     private AWSCloud cloud;
@@ -47,4 +49,10 @@ public class AWSPlatformServices extends AbstractPlatformServices {
     public @Nonnull RDS getRelationalDatabaseSupport() {
         return new RDS(cloud);
     }
+
+    @Override
+    public @Nonnull MonitoringSupport getMonitoringSupport() {
+      return new CloudWatch( cloud );
+    }
+
 }

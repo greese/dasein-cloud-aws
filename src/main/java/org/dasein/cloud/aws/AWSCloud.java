@@ -481,7 +481,7 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public String getCloudWatchVersion() {
-        return "2009-05-15";
+        return "2010-08-01";
     }
 
     public String getEc2Version() {
@@ -896,4 +896,114 @@ public class AWSCloud extends AbstractCloud {
             }
         }        
     }
+
+  /**
+   * Gets the epoch form of the text value of the provided node.
+   *
+   * @param node the node to extact the value from
+   * @return the epoch time
+   * @throws CloudException
+   */
+  public long getTimestampValue( Node node ) throws CloudException {
+    SimpleDateFormat fmt = new SimpleDateFormat( "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" );
+    String value = getTextValue( node );
+
+    try {
+      return fmt.parse( value ).getTime();
+    }
+    catch ( ParseException e ) {
+      logger.error( e );
+      e.printStackTrace();
+      throw new CloudException( e );
+    }
+  }
+
+  /**
+   * Returns the text from the given node.
+   *
+   * @param node the node to extract the value from
+   * @return the text from the node
+   */
+  public String getTextValue( Node node ) {
+    if ( node.getChildNodes().getLength() == 0 ) {
+      return null;
+    }
+    return node.getFirstChild().getNodeValue();
+  }
+
+  /**
+   * Returns the int value of the given node.
+   *
+   * @param node the node to extract the value from
+   * @return the int value of the given node
+   */
+  public int getIntValue( Node node ) {
+    return Integer.valueOf( getTextValue( node ) );
+  }
+
+  /**
+   * Returns the double value of the given node.
+   *
+   * @param node the node to extract the value from
+   * @return the double value of the given node
+   */
+  public double getDoubleValue( Node node ) {
+    return Double.valueOf( getTextValue( node ) );
+  }
+
+  /**
+   * Helper method for adding indexed member parameters, e.g. <i>AlarmNames.member.N</i>. Will overwrite existing
+   * parameters if present. Assumes indexing starts at 1.
+   *
+   * @param parameters the existing parameters map to add to
+   * @param prefix     the prefix value for each parameter key
+   * @param values     the values to add
+   */
+  public void putIndexedParameters( @Nonnull Map<String, String> parameters, @Nonnull String prefix, String[] values ) {
+    if ( values == null || values.length == 0 ) {
+      return;
+    }
+    int i = 1;
+    for ( String value : values ) {
+      parameters.put( prefix + i, value );
+      i++;
+    }
+  }
+
+  /**
+   * Helper method for adding indexed member parameters, e.g. <i>AlarmNames.member.N</i>. Will overwrite existing
+   * parameters if present. Assumes indexing starts at 1.
+   *
+   * @param parameters      the existing parameters map to add to
+   * @param prefix          the prefix value for each parameter key
+   * @param extraParameters the values to add
+   */
+  public void putIndexedMapParameters( @Nonnull Map<String, String> parameters, @Nonnull String prefix, Map<String, String> extraParameters ) {
+    if ( extraParameters == null || extraParameters.size() == 0 ) {
+      return;
+    }
+    int i = 1;
+    for ( Map.Entry<String, String> entry : extraParameters.entrySet() ) {
+      parameters.put( prefix + i + ".Name", entry.getKey() );
+      if ( entry.getValue() != null ) {
+        parameters.put( prefix + i + ".Value", entry.getValue() );
+      }
+      i++;
+    }
+  }
+
+  /**
+   * Puts the given key/value into the given map only if the value is not null.
+   *
+   * @param parameters the map to add to
+   * @param key        the key of the value
+   * @param value      the value to add if not null
+   */
+  public void putValueIfNotNull( @Nonnull Map<String, String> parameters, @Nonnull String key, String value ) {
+    if ( value == null ) {
+      return;
+    }
+    parameters.put( key, value );
+  }
+
 }
