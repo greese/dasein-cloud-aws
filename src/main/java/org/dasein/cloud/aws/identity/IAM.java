@@ -1417,7 +1417,8 @@ public class IAM implements IdentityAndAccessSupport {
 
             for( String actionId : actions ) {
                 Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.PUT_GROUP_POLICY, IAMMethod.VERSION);
-                String policyName = name + ":" + (actionId.equals("*") ? "ANY" : actionId);
+                String policyName = name + "+" + (actionId.equals("*") ? "ANY" : actionId.replaceAll(":", "_"));
+
                 EC2Method method;
 
                 parameters.put("GroupName", group.getName());
@@ -1479,7 +1480,7 @@ public class IAM implements IdentityAndAccessSupport {
 
             for( String actionId : actions ) {
                 Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.PUT_USER_POLICY, IAMMethod.VERSION);
-                String policyName = name + ":" + (actionId.equals("*") ? "ANY" : actionId);
+                String policyName = name + "+" + (actionId.equals("*") ? "ANY" : actionId.replaceAll(":", "_"));
                 EC2Method method;
 
                 parameters.put("UserName", user.getUserName());
