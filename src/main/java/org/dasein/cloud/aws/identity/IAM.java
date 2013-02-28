@@ -1169,6 +1169,49 @@ public class IAM implements IdentityAndAccessSupport {
     }
 
     @Override
+    public void removeGroupPolicy(@Nonnull String providerGroupId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
+        APITrace.begin(provider, "IAM.removeGroupPolicy");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                logger.error("No context was established for this request.");
+                throw new InternalException("No context was established for this request");
+            }
+            CloudGroup group = getGroup(providerGroupId);
+
+            if( group == null ) {
+                throw new CloudException("No such group: " + providerGroupId);
+            }
+
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_GROUP_POLICY, IAMMethod.VERSION);
+            EC2Method method;
+
+            parameters.put("GroupName", group.getName());
+            parameters.put("PolicyName", providerPolicyId);
+
+            if( logger.isDebugEnabled() ) {
+                logger.debug("parameters=" + parameters);
+            }
+            method = new IAMMethod(provider, parameters);
+            try {
+                if( logger.isInfoEnabled() ) {
+                    logger.info("Removing policy for group " + providerGroupId);
+                }
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+
+    @Override
     public void removeUser(@Nonnull String providerUserId) throws CloudException, InternalException {
         APITrace.begin(provider, "IAM.removeUser");
         try {
@@ -1206,6 +1249,49 @@ public class IAM implements IdentityAndAccessSupport {
             APITrace.end();
         }
     }
+
+    @Override
+    public void removeUserPolicy(@Nonnull String providerUserId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
+        APITrace.begin(provider, "IAM.removeUserPolicy");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                logger.error("No context was established for this request.");
+                throw new InternalException("No context was established for this request");
+            }
+            CloudUser user = getUser(providerUserId);
+
+            if( user == null ) {
+                throw new CloudException("No such user: " + providerUserId);
+            }
+
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_USER_POLICY, IAMMethod.VERSION);
+            EC2Method method;
+
+            parameters.put("UserName", user.getUserName());
+            parameters.put("PolicyName", providerPolicyId);
+
+            if( logger.isDebugEnabled() ) {
+                logger.debug("parameters=" + parameters);
+            }
+            method = new IAMMethod(provider, parameters);
+            try {
+                if( logger.isInfoEnabled() ) {
+                    logger.info("Removing policy for user " + providerUserId);
+                }
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
 
     @Override
     public void removeUserFromGroup(@Nonnull String providerUserId, @Nonnull String providerGroupId) throws CloudException, InternalException {
@@ -1730,10 +1816,10 @@ public class IAM implements IdentityAndAccessSupport {
                 resourceId = resource;
             }
             if( serviceActions == null ) {
-                return new CloudPolicy[] { new CloudPolicy(policyName, permission, null, resourceId) };
+                return new CloudPolicy[] { CloudPolicy.getInstance(policyName, policyName, permission, null, resourceId) };
             }
             for( ServiceAction sa : serviceActions ) {
-                policyList.add(new CloudPolicy(policyName, permission, sa, resourceId));
+                policyList.add(CloudPolicy.getInstance(policyName, policyName, permission, sa, resourceId));
             }
         }
         return policyList.toArray(new CloudPolicy[policyList.size()]);

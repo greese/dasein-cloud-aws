@@ -40,6 +40,7 @@ public class IAMMethod extends EC2Method {
     static public final String CREATE_USER            = "CreateUser";
     static public final String DELETE_ACCESS_KEY      = "DeleteAccessKey";
     static public final String DELETE_GROUP           = "DeleteGroup";
+    static public final String DELETE_GROUP_POLICY    = "DeleteGroupPolicy";
     static public final String DELETE_LOGIN_PROFILE   = "DeleteLoginProfile";
     static public final String DELETE_USER            = "DeleteUser";
     static public final String GET_ACCESS_KEY         = "GetAccessKey";
@@ -55,6 +56,7 @@ public class IAMMethod extends EC2Method {
     static public final String LIST_USERS             = "ListUsers";
     static public final String PUT_GROUP_POLICY       = "PutGroupPolicy";
     static public final String PUT_USER_POLICY        = "PutUserPolicy";
+    static public final String DELETE_USER_POLICY     = "DeleteUserPolicy";
     static public final String REMOVE_USER_FROM_GROUP = "RemoveUserFromGroup";
     static public final String UPDATE_GROUP           = "UpdateGroup";
     static public final String UPDATE_USER            = "UpdateUser";
