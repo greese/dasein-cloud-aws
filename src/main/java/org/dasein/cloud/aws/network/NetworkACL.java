@@ -145,9 +145,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
                     throw new CloudException("Failed to delete security group without explanation.");
                 }
             }
-
-
-            return null;
+            return (firewallId + ":" + direction.name() + ":" + String.valueOf(precedence));
         }
         finally {
             APITrace.end();
@@ -179,7 +177,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
-            blocks = doc.getElementsByTagName("groupId");
+            blocks = doc.getElementsByTagName("networkAclId");
             if( blocks.getLength() > 0 ) {
                 String id = blocks.item(0).getFirstChild().getNodeValue().trim();
                 Map<String,String> metaData = options.getMetaData();
@@ -277,7 +275,9 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
                 doc = method.invoke();
             }
             catch( EC2Exception e ) {
-                logger.error(e.getSummary());
+                if( "InvalidNetworkAclID.NotFound".equalsIgnoreCase(e.getCode()) ) {
+                    return null;
+                }
                 throw new CloudException(e);
             }
             blocks = doc.getElementsByTagName("networkAclSet");
@@ -481,24 +481,54 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
         APITrace.begin(getProvider(), "NetworkFirewall.removeFirewall");
         try {
             for( String id : firewallIds ) {
-                Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DELETE_NETWORK_ACL);
-                EC2Method method;
-                NodeList blocks;
-                Document doc;
+                Firewall fw = getFirewall(id);
 
-                parameters.put("NetworkAclId", id);
-                method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
-                try {
-                    doc = method.invoke();
-                }
-                catch( EC2Exception e ) {
-                    logger.error(e.getSummary());
-                    throw new CloudException(e);
-                }
-                blocks = doc.getElementsByTagName("return");
-                if( blocks.getLength() > 0 ) {
-                    if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
-                        throw new CloudException("Failed to delete security group without explanation.");
+                if( fw != null ) {
+                    String vlanId = fw.getProviderVlanId();
+                    String newFw = null;
+
+                    for( Firewall current : listFirewalls() ) {
+                        if( current.getProviderVlanId().equals(vlanId) ) {
+                            boolean pass = false;
+
+                            for( String testId : firewallIds ) {
+                                if( id.equals(testId) ) {
+                                    pass = true;
+                                }
+                            }
+                            if( !pass ) {
+                                newFw = current.getProviderFirewallId();
+                                if( current.getName().contains("default") ) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if( newFw != null ) {
+                        for( String subnetId : fw.getSubnetAssociations() ) {
+                            associateWithSubnet(newFw, subnetId);
+                        }
+                    }
+
+                    Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DELETE_NETWORK_ACL);
+                    EC2Method method;
+                    NodeList blocks;
+                    Document doc;
+
+                    parameters.put("NetworkAclId", id);
+                    method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+                    try {
+                        doc = method.invoke();
+                    }
+                    catch( EC2Exception e ) {
+                        logger.error(e.getSummary());
+                        throw new CloudException(e);
+                    }
+                    blocks = doc.getElementsByTagName("return");
+                    if( blocks.getLength() > 0 ) {
+                        if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                            throw new CloudException("Failed to delete security group without explanation.");
+                        }
                     }
                 }
             }

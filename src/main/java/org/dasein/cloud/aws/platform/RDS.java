@@ -50,6 +50,7 @@ import org.dasein.cloud.platform.DatabaseSnapshotState;
 import org.dasein.cloud.platform.DatabaseState;
 import org.dasein.cloud.platform.RelationalDatabaseSupport;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.util.CalendarWrapper;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
 import org.dasein.util.PopulatorThread;
@@ -1205,7 +1206,7 @@ public class RDS implements RelationalDatabaseSupport {
                     if( targetId != null ) {
                         String code = e.getCode();
 
-                        if( code != null && code.equals("DBInstanceNotFound") ) {
+                        if( code != null && code.equals("DBInstanceNotFound") || code.equals("InvalidParameterValue") ) {
                             return list;
                         }
                     }
@@ -1690,6 +1691,21 @@ public class RDS implements RelationalDatabaseSupport {
     public void removeDatabase(String providerDatabaseId) throws CloudException, InternalException {
         APITrace.begin(provider, "RDBMS.removeDatabase");
         try {
+            long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE*10L);
+            Database db = getDatabase(providerDatabaseId);
+
+            while( timeout > System.currentTimeMillis() ) {
+                if( db == null || DatabaseState.DELETED.equals(db.getCurrentState()) ) {
+                    return;
+                }
+                if( DatabaseState.AVAILABLE.equals(db.getCurrentState()) ) {
+                    break;
+                }
+                try { Thread.sleep(15000L); }
+                catch( InterruptedException ignore ) { }
+                try { db = getDatabase(providerDatabaseId); }
+                catch( Throwable ignore ) { }
+            }
             Iterable<String> securityGroups = getSecurityGroups(providerDatabaseId);
 
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_INSTANCE);

@@ -402,7 +402,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
     }
 
 	@Override
-	public @Nonnull Iterable<Snapshot> listSnapshots(final @Nullable SnapshotFilterOptions opts) throws InternalException, CloudException {
+	public @Nonnull Iterable<Snapshot> listSnapshots(final @Nullable SnapshotFilterOptions options) throws InternalException, CloudException {
         getProvider().hold();
         PopulatorThread<Snapshot> populator = new PopulatorThread<Snapshot>(new JiteratorPopulator<Snapshot>() {
             @Override
@@ -410,7 +410,6 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
                 try {
                     APITrace.begin(provider, "Snapshot.listSnapshots");
                     try {
-                        SnapshotFilterOptions options = opts;
                         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
                         EC2Method method;
                         NodeList blocks;
@@ -418,20 +417,11 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
                         // we want to use the more efficient tag search via AWS if possible
                         // it is only possible if a) tags is the only search criterion or b) the options is set ot match all criteria
-                        if ( options != null && options.hasCriteria() && (!options.isMatchesAny() || (options.getRegex() == null && options.getAccountNumber() == null)) ) {
+                        if ( options != null && options.hasCriteria() && !options.isMatchesAny() ) {
                             Map<String,String> tags = options.getTags();
 
-                            if( !tags.isEmpty() ) {
+                            if( tags != null && !tags.isEmpty() ) {
                                 provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
-                                SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
-
-                                if( options.getAccountNumber() != null ) {
-                                    sfo.withAccountNumber(options.getAccountNumber());
-                                }
-                                if( options.getRegex() != null ) {
-                                    sfo.matchingRegex(options.getRegex());
-                                }
-                                options = sfo;
                             }
                         }
 
@@ -460,7 +450,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
                                     Snapshot snapshot = toSnapshot(item);
 
                                     if( snapshot != null ) {
-                                        if( options == null || !options.hasCriteria() || options.matches(snapshot, getContext().getAccountNumber()) ) {
+                                        if( options == null || options.matches(snapshot, getContext().getAccountNumber()) ) {
                                             iterator.push(snapshot);
                                         }
                                     }
@@ -549,6 +539,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
                 return;
             }
             setPrivateShare(providerSnapshotId, false, shares.toArray(new String[shares.size()]));
+            setPublicShare(providerSnapshotId, false);
         }
         finally {
             APITrace.end();

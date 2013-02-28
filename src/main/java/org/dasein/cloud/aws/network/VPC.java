@@ -1205,6 +1205,11 @@ public class VPC extends AbstractVLANSupport {
     }
 
     @Override
+    public boolean isConnectedViaInternetGateway(@Nonnull String vlanId) throws CloudException, InternalException {
+        return (getInternetGatewayId(vlanId) != null);
+    }
+
+    @Override
     public boolean isNetworkInterfaceSupportEnabled() throws CloudException, InternalException {
         return true;
     }
@@ -1844,7 +1849,7 @@ public class VPC extends AbstractVLANSupport {
                     }
                 }
             }
-            throw new CloudException("Could not identify the Internet gateway for " + forVlanId);
+            return null;
         }
         finally {
             APITrace.end();
@@ -1874,20 +1879,27 @@ public class VPC extends AbstractVLANSupport {
                 e.printStackTrace();
                 throw new CloudException(e);
             }
-            parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_INTERNET_GATEWAY);
-            parameters.put("InternetGatewayId", gatewayId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                e.printStackTrace();
-                throw new CloudException(e);
-            }
+            removeGateway(gatewayId);
         }
         finally {
             APITrace.end();
+        }
+    }
+
+    private void removeGateway(@Nonnull String gatewayId) throws CloudException, InternalException {
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_INTERNET_GATEWAY);
+
+        parameters.put("InternetGatewayId", gatewayId);
+
+        EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+
+        try {
+            method.invoke();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            e.printStackTrace();
+            throw new CloudException(e);
         }
     }
 
