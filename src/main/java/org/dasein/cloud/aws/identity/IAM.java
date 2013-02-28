@@ -1396,7 +1396,7 @@ public class IAM implements IdentityAndAccessSupport {
     }
 
     @Override
-    public void saveGroupPolicy(@Nonnull String providerGroupId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
+    public @Nonnull String[] saveGroupPolicy(@Nonnull String providerGroupId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
         APITrace.begin(provider, "IAM.saveGroupPolicy");
         try {
             ProviderContext ctx = provider.getContext();
@@ -1412,13 +1412,16 @@ public class IAM implements IdentityAndAccessSupport {
             }
 
             String[] actions = (action == null ? new String[] { "*" } : action.map(provider));
+            String[] ids = new String[actions.length];
+            int i = 0;
 
             for( String actionId : actions ) {
                 Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.PUT_GROUP_POLICY, IAMMethod.VERSION);
+                String policyName = name + ":" + (actionId.equals("*") ? "ANY" : actionId);
                 EC2Method method;
 
                 parameters.put("GroupName", group.getName());
-                parameters.put("PolicyName", name);
+                parameters.put("PolicyName", policyName);
     
                 ArrayList<Map<String,Object>> policies = new ArrayList<Map<String, Object>>();
                 HashMap<String,Object> statement = new HashMap<String, Object>();
@@ -1445,7 +1448,9 @@ public class IAM implements IdentityAndAccessSupport {
                     logger.error(e.getSummary());
                     throw new CloudException(e);
                 }
+                ids[i++] = policyName;
             }
+            return ids;
         }
         finally {
             APITrace.end();
@@ -1453,7 +1458,7 @@ public class IAM implements IdentityAndAccessSupport {
     }
 
     @Override
-    public void saveUserPolicy(@Nonnull String providerUserId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
+    public String[] saveUserPolicy(@Nonnull String providerUserId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
         APITrace.begin(provider, "IAM.saveUserPolicy");
         try {
             ProviderContext ctx = provider.getContext();
@@ -1469,13 +1474,16 @@ public class IAM implements IdentityAndAccessSupport {
             }
 
             String[] actions = (action == null ? new String[] { "*" } : action.map(provider));
+            String[] ids = new String[actions.length];
+            int i = 0;
 
             for( String actionId : actions ) {
                 Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.PUT_USER_POLICY, IAMMethod.VERSION);
+                String policyName = name + ":" + (actionId.equals("*") ? "ANY" : actionId);
                 EC2Method method;
 
                 parameters.put("UserName", user.getUserName());
-                parameters.put("PolicyName", name);
+                parameters.put("PolicyName", policyName);
 
                 ArrayList<Map<String,Object>> policies = new ArrayList<Map<String, Object>>();
                 HashMap<String,Object> statement = new HashMap<String, Object>();
@@ -1502,7 +1510,9 @@ public class IAM implements IdentityAndAccessSupport {
                     logger.error(e.getSummary());
                     throw new CloudException(e);
                 }
+                ids[i++] = policyName;
             }
+            return ids;
         }
         finally {
             APITrace.end();
