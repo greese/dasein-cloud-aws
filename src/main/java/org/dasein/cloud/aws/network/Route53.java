@@ -283,7 +283,7 @@ public class Route53 implements DNSSupport {
             catch( EC2Exception e ) {
                 String code = e.getCode();
 
-                if( code != null && code.equals("AccessDenied") ) {
+                if( code != null && code.equals("AccessDenied") || code.equals("InvalidInput") ) {
                     for( DNSZone zone : listDnsZones() ) {
                         if( zone.getProviderDnsZoneId().equals(providerDnsZoneId) ) {
                             return zone;
@@ -357,8 +357,12 @@ public class Route53 implements DNSSupport {
         provider.hold();
         populator = new PopulatorThread<DNSRecord>(new JiteratorPopulator<DNSRecord>() {
             public void populate(@Nonnull Jiterator<DNSRecord> iterator) throws CloudException, InternalException {
-                populateRecords(iterator, zoneId, type, nom);
-                provider.release();
+                try {
+                    populateRecords(iterator, zoneId, type, nom);
+                }
+                finally {
+                    provider.release();
+                }
             }
         });
         populator.populate();
@@ -368,6 +372,11 @@ public class Route53 implements DNSSupport {
     private void populateRecords(@Nonnull Jiterator<DNSRecord> iterator, @Nonnull String providerDnsZoneId, @Nullable DNSRecordType forType, @Nullable String name) throws CloudException, InternalException {
         APITrace.begin(provider, "DNS.listDnsRecords");
         try {
+            DNSZone zone = getDnsZone(providerDnsZoneId);
+
+            if( zone == null ) {
+                return;
+            }
             String url = getResourceUrl(providerDnsZoneId);
             Route53Method method;
             NodeList blocks;
@@ -377,11 +386,17 @@ public class Route53 implements DNSSupport {
                 if( name != null ) {
                     url = url + "?name=" + name;
                 }
+                else {
+                    url = url + "&name=" + zone.getDomainName();
+                }
             }
             else {
                 url = url + "?type=" + forType.toString();
                 if( name != null ) {
                     url = url + "&name=" + name;
+                }
+                else {
+                    url = url + "&name=" + zone.getDomainName();
                 }
             }
             method = new Route53Method(Route53Method.LIST_RESOURCE_RECORD_SETS, provider, url);

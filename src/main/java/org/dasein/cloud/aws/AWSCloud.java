@@ -506,7 +506,7 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public String getRoute53Version() {
-        return "2010-10-01";
+        return "2012-12-12";
     }
 
     public String getSdbVersion() {
