@@ -61,10 +61,18 @@ public class Route53 implements DNSSupport {
     public @Nonnull DNSRecord addDnsRecord(@Nonnull String providerDnsZoneId, @Nonnull DNSRecordType recordType, @Nonnull String name, @Nonnegative int ttl, @Nonnull String... values) throws CloudException, InternalException {
         APITrace.begin(provider, "DNS.addDnsRecord");
         try {
+            DNSZone zone = getDnsZone(providerDnsZoneId);
+
+            if( zone == null ) {
+                throw new CloudException("Invalid DNS zone: " + providerDnsZoneId);
+            }
             Route53Method method;
 
+            if( !name.endsWith(".") && (recordType.equals(DNSRecordType.A) || recordType.equals(DNSRecordType.AAAA)) ) {
+                name = name + zone.getDomainName() + ".";
+            }
             for( DNSRecord record : listDnsRecords(providerDnsZoneId, recordType, name) ) {
-                if( record != null ) {
+                if( record != null && record.getType().equals(recordType) && record.getName().equals(name) ) {
                     deleteDnsRecords(record);
                 }
             }
@@ -72,7 +80,7 @@ public class Route53 implements DNSSupport {
             StringBuilder xml = new StringBuilder();
 
             xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
-            xml.append("<ChangeResourceRecordSetsRequest xmlns=\"https://route53.amazonaws.com/doc/2010-10-01/\">");
+            xml.append("<ChangeResourceRecordSetsRequest xmlns=\"https://route53.amazonaws.com/doc/2012-12-12/\">");
             xml.append("<ChangeBatch>");
             xml.append("<Changes>");
             xml.append("<Change>");
@@ -104,7 +112,7 @@ public class Route53 implements DNSSupport {
             xml.append("</ChangeBatch>");
             xml.append("</ChangeResourceRecordSetsRequest>");
             try {
-                method.invoke(xml.toString(), false);
+                method.invoke(xml.toString());
             }
             catch( EC2Exception e ) {
                 throw new CloudException(e);
@@ -136,7 +144,7 @@ public class Route53 implements DNSSupport {
             StringBuilder xml = new StringBuilder();
 
             xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
-            xml.append("<CreateHostedZoneRequest xmlns=\"https://route53.amazonaws.com/doc/2010-10-01/\">");
+            xml.append("<CreateHostedZoneRequest xmlns=\"https://route53.amazonaws.com/doc/2012-12-12/\">");
             xml.append("<Name>");
             xml.append(domainName);
             xml.append("</Name>");
@@ -148,7 +156,7 @@ public class Route53 implements DNSSupport {
             xml.append("</Comment></HostedZoneConfig>");
             xml.append("</CreateHostedZoneRequest>");
             try {
-                doc = method.invoke(xml.toString(), false);
+                doc = method.invoke(xml.toString());
             }
             catch( EC2Exception e ) {
                 throw new CloudException(e);
@@ -195,7 +203,7 @@ public class Route53 implements DNSSupport {
                 StringBuilder xml = new StringBuilder();
 
                 xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
-                xml.append("<ChangeResourceRecordSetsRequest xmlns=\"https://route53.amazonaws.com/doc/2010-10-01/\">");
+                xml.append("<ChangeResourceRecordSetsRequest xmlns=\"https://route53.amazonaws.com/doc/2012-12-12/\">");
                 xml.append("<ChangeBatch>");
                 xml.append("<Changes>");
                 for( DNSRecord record : dnsRecords ) {
@@ -232,7 +240,7 @@ public class Route53 implements DNSSupport {
                 xml.append("</ChangeBatch>");
                 xml.append("</ChangeResourceRecordSetsRequest>");
                 try {
-                    method.invoke(xml.toString(), false);
+                    method.invoke(xml.toString());
                 }
                 catch( EC2Exception e ) {
                     throw new CloudException(e);
@@ -252,7 +260,7 @@ public class Route53 implements DNSSupport {
 
             method = new Route53Method(Route53Method.DELETE_HOSTED_ZONE, provider, getHostedZoneUrl(providerDnsZoneId));
             try {
-                method.invoke(false);
+                method.invoke();
             }
             catch( EC2Exception e ) {
                 throw new CloudException(e);
@@ -278,7 +286,7 @@ public class Route53 implements DNSSupport {
 
             method = new Route53Method(Route53Method.GET_HOSTED_ZONE, provider, getHostedZoneUrl(providerDnsZoneId));
             try {
-                doc = method.invoke(false);
+                doc = method.invoke();
             }
             catch( EC2Exception e ) {
                 String code = e.getCode();
@@ -289,6 +297,9 @@ public class Route53 implements DNSSupport {
                             return zone;
                         }
                     }
+                    return null;
+                }
+                else if( code != null && code.equals("NoSuchHostedZone") ) {
                     return null;
                 }
                 throw new CloudException(e);
@@ -401,7 +412,7 @@ public class Route53 implements DNSSupport {
             }
             method = new Route53Method(Route53Method.LIST_RESOURCE_RECORD_SETS, provider, url);
             try {
-                doc = method.invoke(false);
+                doc = method.invoke();
             }
             catch( EC2Exception e ) {
                 throw new CloudException(e);
@@ -524,7 +535,7 @@ public class Route53 implements DNSSupport {
             }
             method = new Route53Method(Route53Method.LIST_HOSTED_ZONES, provider, url);
             try {
-                doc = method.invoke(false);
+                doc = method.invoke();
             }
             catch( EC2Exception e ) {
                 throw new CloudException(e);
@@ -563,7 +574,7 @@ public class Route53 implements DNSSupport {
             }
             method = new Route53Method(Route53Method.LIST_HOSTED_ZONES, provider, url);
             try {
-                doc = method.invoke(false);
+                doc = method.invoke();
             }
             catch( EC2Exception e ) {
                 throw new CloudException(e);
@@ -598,7 +609,7 @@ public class Route53 implements DNSSupport {
 
             method = new Route53Method(Route53Method.LIST_HOSTED_ZONES, provider, getHostedZoneUrl(null));
             try {
-                method.invoke(false);
+                method.invoke();
             }
             catch( EC2Exception e ) {
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {

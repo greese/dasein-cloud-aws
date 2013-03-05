@@ -141,15 +141,15 @@ public class Route53Method {
         return fmt.format(new Date(timestamp));
     }
 
-    private Document delete(boolean debug) throws EC2Exception, CloudException, InternalException {
-        return invoke(new HttpDelete(url), debug);
+    private Document delete() throws EC2Exception, CloudException, InternalException {
+        return invoke(new HttpDelete(url));
     }
 	   
-   private Document get(boolean debug) throws EC2Exception, CloudException, InternalException {
-        return invoke(new HttpGet(url), debug);
+   private Document get() throws EC2Exception, CloudException, InternalException {
+        return invoke(new HttpGet(url));
     }
 	   
-	private Document post(String body, boolean debug) throws EC2Exception, CloudException, InternalException {
+	private Document post(String body) throws EC2Exception, CloudException, InternalException {
 	    HttpPost post = new HttpPost(url);
 
         if( body != null ) {
@@ -160,31 +160,31 @@ public class Route53Method {
                 throw new InternalException(e);
             }
         }
-	    return invoke(post, debug);
+	    return invoke(post);
 	}
 	
-	public Document invoke(String body, boolean debug) throws EC2Exception, CloudException, InternalException {
+	public Document invoke(String body) throws EC2Exception, CloudException, InternalException {
 	    if( method.equals("GET") ) {
-	        return get(debug);
+	        return get();
 	    }
 	    else if( method.equals("DELETE") ) {
-	        return delete(debug);
+	        return delete();
 	    }
 	    else if( method.equals("POST") ) {
-	        return post(body, debug);
+	        return post(body);
 	    }
 	    throw new InternalException("No such method: " + method);
 	}
 	
-	public Document invoke(boolean debug) throws EC2Exception, CloudException, InternalException {
+	public Document invoke() throws EC2Exception, CloudException, InternalException {
 	    if( method.equals("GET") ) {
-	        return get(debug);
+	        return get();
 	    }
 	    else if( method.equals("DELETE") ) {
-	        return delete(debug);
+	        return delete();
 	    }
 	    else if( method.equals("POST") ) {
-	        return post(null, debug);
+	        return post(null);
 	    }
 	    throw new InternalException("No such method: " + method);
 	}
@@ -223,7 +223,7 @@ public class Route53Method {
         return new DefaultHttpClient(params);
     }
     
-	private Document invoke(HttpRequestBase method, boolean debug) throws EC2Exception, CloudException, InternalException {
+	private Document invoke(HttpRequestBase method) throws EC2Exception, CloudException, InternalException {
 		if( logger.isDebugEnabled() ) {
 			logger.debug("Talking to server at " + url);
 		}
@@ -370,7 +370,7 @@ public class Route53Method {
     					try { Thread.sleep(5000L); }
     					catch( InterruptedException ignore ) { }
     					try {
-    					    return invoke(method.getClass().newInstance(), false);
+    					    return invoke(method.getClass().newInstance());
     					}
     					catch( Throwable t ) {
     					    throw new InternalException(t);
