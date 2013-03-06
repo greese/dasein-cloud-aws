@@ -395,6 +395,14 @@ public class SNS implements PushNotificationSupport {
         }
     }
 
+  @Override
+  public @Nullable Topic getTopic( @Nonnull String providerTopicId ) throws CloudException, InternalException {
+    Topic topic = new Topic();
+    topic.setProviderTopicId( providerTopicId );
+    setTopicAttributes( topic );
+    return topic;
+  }
+
     private void setTopicAttributes(Topic topic) throws InternalException, CloudException {
         APITrace.begin(provider, "Notifications.setTopicAttributes");
         try {
