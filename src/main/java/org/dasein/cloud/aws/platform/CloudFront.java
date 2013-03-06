@@ -521,7 +521,9 @@ public class CloudFront implements CDNSupport {
 		ArrayList<String> cnames = new ArrayList<String>();
 		Distribution distribution = new Distribution();
 		NodeList attrs = node.getChildNodes();
-		
+
+        //noinspection ConstantConditions
+        distribution.setProviderOwnerId(provider.getContext().getAccountNumber());
 		for( int i=0; i<attrs.getLength(); i++ ) {
 			Node attr = attrs.item(i);
 			String name;
