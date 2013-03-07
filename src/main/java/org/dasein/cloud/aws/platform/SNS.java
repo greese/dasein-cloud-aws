@@ -31,6 +31,7 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.DataFormat;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
@@ -417,8 +418,17 @@ public class SNS implements PushNotificationSupport {
   }
 
     private void setTopicAttributes(Topic topic) throws InternalException, CloudException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was set for this request");
+        }
         APITrace.begin(provider, "Notifications.setTopicAttributes");
         try {
+            topic.setProviderRegionId(ctx.getRegionId());
+            topic.setProviderOwnerId(ctx.getAccountNumber());
+            topic.setActive(true);
+
             Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), GET_TOPIC_ATTRIBUTES);
             EC2Method method;
             NodeList blocks;
@@ -431,7 +441,7 @@ public class SNS implements PushNotificationSupport {
             }
             catch( EC2Exception e ) {
                 throw new CloudException(e);
-            };
+            }
             blocks = doc.getElementsByTagName("Attributes");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 NodeList items = blocks.item(i).getChildNodes();
@@ -471,6 +481,18 @@ public class SNS implements PushNotificationSupport {
                         }
                     }
                 }
+            }
+            if( topic.getName() == null ) {
+                String id = topic.getProviderTopicId();
+                int idx = id.lastIndexOf(":");
+
+                if( idx > 0 && idx < id.length()-1 ) {
+                    id = id.substring(idx+1);
+                }
+                topic.setName(id);
+            }
+            if( topic.getDescription() == null ) {
+                topic.setDescription(topic.getName() + " (" + topic.getProviderTopicId() + ")");
             }
         }
         finally {
@@ -619,8 +641,6 @@ public class SNS implements PushNotificationSupport {
                 String id = attr.getFirstChild().getNodeValue().trim();
                 
                 topic.setProviderTopicId(id);
-                topic.setName(id);
-                topic.setDescription(id);
             }
         }
         if( topic.getProviderTopicId() == null ) {
