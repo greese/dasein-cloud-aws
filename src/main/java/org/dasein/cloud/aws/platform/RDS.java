@@ -2191,12 +2191,19 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     private DatabaseState toDatabaseState(String value) throws CloudException {
+        //incompatible-option-group, incompatible-parameters, incompatible-restore, incompatible-network
         if( value == null ) {
             System.out.println("DEBUG: Null state value");
             return DatabaseState.PENDING;
         }
-        else if( value.equalsIgnoreCase("available") ) {
+        else if( value.equalsIgnoreCase("available") || value.equals("incompatible-option-group") || value.equals("incompatible-parameters") || value.equals("incompatible-restore") || value.equals("incompatible-network") ) {
             return DatabaseState.AVAILABLE;
+        }
+        else if( value.equalsIgnoreCase("storage-full") ) {
+            return DatabaseState.STORAGE_FULL;
+        }
+        else if( value.equalsIgnoreCase("failed") ) {
+            return DatabaseState.FAILED;
         }
         else if( value.equalsIgnoreCase("backing-up") ) {
             return DatabaseState.BACKUP;
@@ -2210,9 +2217,6 @@ public class RDS implements RelationalDatabaseSupport {
         else if( value.equalsIgnoreCase("deleting") ) {
             return DatabaseState.DELETING;
         }
-        else if( value.equalsIgnoreCase("failed") ) {
-            return DatabaseState.FAILED;
-        }
         else if( value.equalsIgnoreCase("modifying") ) {
             return DatabaseState.MODIFYING;
         }
@@ -2220,10 +2224,7 @@ public class RDS implements RelationalDatabaseSupport {
             return DatabaseState.RESTARTING;
         }
         else if( value.equalsIgnoreCase("resetting-mastercredentials") ) {
-            return DatabaseState.AVAILABLE;
-        }
-        else if( value.equalsIgnoreCase("storage-full") ) {
-            return DatabaseState.STORAGE_FULL;
+            return DatabaseState.MODIFYING;
         }
         else {
             System.out.println("DEBUG: Unknown database state: " + value);

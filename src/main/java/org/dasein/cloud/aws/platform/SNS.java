@@ -407,7 +407,7 @@ public class SNS implements PushNotificationSupport {
       Throwable cause = e.getCause();
       if ( cause instanceof EC2Exception ) {
         String code = ((EC2Exception) cause).getCode();
-        if ( "NotFound".equals( code ) ) {
+        if ( "NotFound".equals( code ) || "InvalidParameter".equals(code) ) {
           return null;
         }
 

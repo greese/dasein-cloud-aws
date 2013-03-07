@@ -69,9 +69,9 @@ public class Route53 implements DNSSupport {
             Route53Method method;
 
             if( !name.endsWith(".") && (recordType.equals(DNSRecordType.A) || recordType.equals(DNSRecordType.AAAA)) ) {
-                name = name + zone.getDomainName() + ".";
+                name = name + zone.getDomainName();
             }
-            for( DNSRecord record : listDnsRecords(providerDnsZoneId, recordType, name) ) {
+            for( DNSRecord record : listDnsRecords(providerDnsZoneId, recordType, null) ) {
                 if( record != null && record.getType().equals(recordType) && record.getName().equals(name) ) {
                     deleteDnsRecords(record);
                 }
@@ -117,8 +117,10 @@ public class Route53 implements DNSSupport {
             catch( EC2Exception e ) {
                 throw new CloudException(e);
             }
-            for( DNSRecord record : listDnsRecords(providerDnsZoneId, recordType, name) ) {
-                if( record != null ) { return record; }
+            for( DNSRecord record : listDnsRecords(providerDnsZoneId, recordType, null) ) {
+                if( record != null && record.getType().equals(recordType) && record.getName().equals(name) ) {
+                    return record;
+                }
             }
             throw new CloudException("Unable to identified newly added record");
         }
