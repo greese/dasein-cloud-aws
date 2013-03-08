@@ -45,6 +45,7 @@ import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.ParserConfigurationException;
 
+import com.sun.servicetag.SystemEnvironment;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -273,9 +274,23 @@ public class S3Method {
                     boolean validDomainName = isValidDomainName(bucket);
                     if( bucket != null && validDomainName ) {
                         url.append(bucket);
-                        url.append(".");
+                        url.append(".s3.amazonaws.com/");
                     }
-                    url.append("s3.amazonaws.com/");
+                    else if ( bucket != null && !validDomainName) {
+                        String regionId = provider.getContext().getRegionId();
+
+                        if (regionId != null && !"us-east-1".equals(regionId)) {
+                            url.append("s3-");
+                            url.append(regionId);
+                            url.append(".amazonaws.com/");
+                        }
+                        else {
+                            url.append("s3.amazonaws.com/");
+                        }
+                    }
+                    else {
+                        url.append("s3.amazonaws.com/");
+                    }
                     if ( bucket != null && !validDomainName) {
                         url.append(bucket);
                         url.append("/");
