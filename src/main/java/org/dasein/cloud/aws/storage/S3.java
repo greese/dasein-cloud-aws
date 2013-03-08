@@ -29,7 +29,6 @@ import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Locale;
 import java.util.Random;
 
@@ -73,6 +72,11 @@ public class S3 extends AbstractBlobStoreSupport {
     static public final Storage<org.dasein.util.uom.storage.Byte> MAX_OBJECT_SIZE = new Storage<org.dasein.util.uom.storage.Byte>(5000000000L, Storage.BYTE);
 
     static private final Random random = new Random();
+    static private final boolean disableAffinityCache;
+    static {
+        String disableStr = System.getProperty("disable.dasein.cloud.affinity.cache");
+        disableAffinityCache = "true".equals(disableStr);
+    }
 
     static private class Constraint {
         public String regionId;
@@ -254,12 +258,11 @@ public class S3 extends AbstractBlobStoreSupport {
         }
         Constraint c = affinity.constraints.get(bucket);
 
-        if( reload || c == null || c.timeout <= System.currentTimeMillis() ) {
-            S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
+        if( disableAffinityCache || reload || c == null || c.timeout <= System.currentTimeMillis() ) {
             String location = null;
             S3Response response;
 
-            method = new S3Method(provider, S3Action.LOCATE_BUCKET);
+            S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
             try {
                 response = method.invoke(bucket, "?location");
             }
