@@ -256,7 +256,7 @@
                 </property>
             </systemProperties>
           <includes>
-            <include>**/AWSTestSuite.java</include>
+            <!-- <include>**/AWSTestSuite.java</include> -->
           </includes>
         </configuration>
       </plugin>
