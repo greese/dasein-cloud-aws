@@ -270,16 +270,30 @@ public class S3Method {
             HttpRequestBase method;
             HttpClient client;
             int status;
-    
+
             if( provider.getEC2Provider().isAWS() ) {
                 url.append("https://");
                 if( temporaryEndpoint == null ) {
                     boolean validDomainName = isValidDomainName(bucket);
                     if( bucket != null && validDomainName ) {
                         url.append(bucket);
-                        url.append(".");
+                        url.append(".s3.amazonaws.com/");
                     }
-                    url.append("s3.amazonaws.com/");
+                    else if ( bucket != null && !validDomainName) {
+                        String regionId = provider.getContext().getRegionId();
+
+                        if (regionId != null && !"us-east-1".equals(regionId)) {
+                            url.append("s3-");
+                            url.append(regionId);
+                            url.append(".amazonaws.com/");
+                        }
+                        else {
+                            url.append("s3.amazonaws.com/");
+                        }
+                    }
+                    else {
+                        url.append("s3.amazonaws.com/");
+                    }
                     if ( bucket != null && !validDomainName) {
                         url.append(bucket);
                         url.append("/");
