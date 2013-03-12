@@ -495,18 +495,13 @@ public class AMI extends AbstractImageSupport {
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "Image.isSubscribed");
+        APITrace.begin(getProvider(), "Image.isSubscribed");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was set for this request");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+            Map<String,String> parameters = provider.getStandardParameters(getContext(), EC2Method.DESCRIBE_IMAGES);
             EC2Method method;
 
             if( provider.getEC2Provider().isAWS() ) {
-                parameters.put("Owner", ctx.getAccountNumber());
+                parameters.put("Owner", getContext().getAccountNumber());
             }
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {

@@ -27,6 +27,7 @@ import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -198,7 +199,27 @@ public class AWSCloud extends AbstractCloud {
         return createTags(new String[]{resourceId}, keyValuePairs);
     }
 
-    public boolean createTags(String[] resourceIds, Tag... keyValuePairs) {
+    public boolean createTags(final String[] resourceIds, final Tag... keyValuePairs) {
+        hold();
+
+        Thread t = new Thread() {
+            public void run() {
+                try {
+                    createTags(1, resourceIds, keyValuePairs);
+                }
+                finally {
+                    release();
+                }
+            }
+        };
+
+        t.setName("Tag Setter");
+        t.setDaemon(true);
+        t.start();
+        return true;
+    }
+
+    private void createTags(int attempt, String[] resourceIds, Tag ... keyValuePairs) {
         APITrace.begin(this, "Cloud.createTags");
         try {
             try {
@@ -220,7 +241,7 @@ public class AWSCloud extends AbstractCloud {
                     }
                 }
                 if ( tagParameters.size() == 0 ) {
-                    return true;
+                    return;
                 }
                 putExtraParameters( parameters, tagParameters );
                 method = new EC2Method(this, getEc2Url(), parameters);
@@ -228,41 +249,17 @@ public class AWSCloud extends AbstractCloud {
                     method.invoke();
                 }
                 catch( EC2Exception e ) {
-                    String code = e.getCode();
-
-                    if( code != null && code.equals("InvalidInstanceID.NotFound") ) {
-                        try { Thread.sleep(5000L); }
-                        catch( InterruptedException ignore ) { }
-                        parameters = getStandardParameters(getContext(), "CreateTags");
-
-                        for (int i = 0; i < resourceIds.length; i++) {
-                            parameters.put("ResourceId." + (i + 1), resourceIds[i]);
-                        }
-
-                        for( int i=0; i<keyValuePairs.length; i++ ) {
-                            String key = keyValuePairs[i].getKey();
-                            String value = keyValuePairs[i].getValue();
-
-                            parameters.put("Tag." + (i + 1) + ".Key", key);
-                            parameters.put("Tag." + (i + 1) + ".Value", value);
-                        }
-                        method = new EC2Method(this, getEc2Url(), parameters);
-                        try {
-                            method.invoke();
-                            return true;
-                        }
-                        catch( EC2Exception ignore ) {
-                            // ignore me
-                        }
+                    if( attempt > 20 ) {
+                        logger.error("EC2 error settings tags for " + Arrays.toString(resourceIds) + ": " + e.getSummary());
+                        return;
                     }
-                    logger.error("EC2 error settings tags for " + resourceIds + ": " + e.getSummary());
-                    return false;
+                    try { Thread.sleep(5000L); }
+                    catch( InterruptedException ignore ) { }
+                    createTags(attempt+1, resourceIds, keyValuePairs);
                 }
-                return true;
             }
             catch( Throwable ignore ) {
-                logger.error("Error while creating tags for " + resourceIds + ".", ignore);
-                return false;
+                logger.error("Error while creating tags for " + Arrays.toString(resourceIds) + ".", ignore);
             }
         }
         finally {

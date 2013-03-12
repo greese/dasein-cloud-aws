@@ -957,7 +957,7 @@ public class S3 extends AbstractBlobStoreSupport {
                         }
                     }
                 }
-                if( toRegion(location).equals(provider.getContext().getRegionId()) ) {
+                if( toRegion(location).equals(regionId) ) {
                     iterator.push(Blob.getInstance(regionId, getLocation(name, null), name, ts));
                 }
             }

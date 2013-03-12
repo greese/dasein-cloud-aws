@@ -125,7 +125,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     method.invoke();
                 }
                 catch( EC2Exception e ) {
-                    logger.error(e.getSummary());
                     throw new CloudException(e);
                 }
             }

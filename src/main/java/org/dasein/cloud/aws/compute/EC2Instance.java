@@ -1315,6 +1315,24 @@ public class EC2Instance extends AbstractVMSupport {
                     }
                 }
             }
+            if( server != null ) {
+                // wait for EC2 to figure out the server exists
+                VirtualMachine copy = getVirtualMachine(server.getProviderVirtualMachineId());
+
+                if( copy == null ) {
+                    long timeout = System.currentTimeMillis() + CalendarWrapper.MINUTE;
+
+                    while( timeout > System.currentTimeMillis() ) {
+                        try { Thread.sleep(5000L); }
+                        catch( InterruptedException ignore ) { }
+                        try { copy = getVirtualMachine(server.getProviderVirtualMachineId()); }
+                        catch( Throwable ignore ) { }
+                        if( copy != null ) {
+                            break;
+                        }
+                    }
+                }
+            }
             if( server != null && cfg.getBootstrapKey() != null ) {
                 try {
                     final String sid = server.getProviderVirtualMachineId();
