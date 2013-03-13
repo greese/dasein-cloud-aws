@@ -20,5 +20,5 @@ package org.dasein.cloud.aws;
 
 import org.dasein.cloud.test.GlobalTestSuite;
 
-public class AWSTestSuite extends GlobalTestSuite {
+public class TestSuite extends GlobalTestSuite {
 }
