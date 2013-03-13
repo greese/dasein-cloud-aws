@@ -20,7 +20,7 @@
 
   <groupId>org.dasein</groupId>
   <artifactId>dasein-cloud-aws</artifactId>
-  <version>2013.04-SNAPSHOT</version>
+  <version>2013.04</version>
   <packaging>jar</packaging>
 
   <name>dasein-cloud-aws</name>
@@ -244,7 +244,7 @@
                 </property>
             </systemProperties>
           <includes>
-              <!-- <include>**/TestSuite.java</include> -->
+              <include>**/TestSuite.java</include>
           </includes>
         </configuration>
       </plugin>
