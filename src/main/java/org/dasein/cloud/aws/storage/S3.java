@@ -1294,38 +1294,6 @@ public class S3 extends AbstractBlobStoreSupport {
                     file.delete();
                 }
             }
-            File file = null;
-            try {
-                try {
-                    file = File.createTempFile(object, ".txt");
-                    PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(file)));
-                    writer.print(content);
-                    writer.flush();
-                    writer.close();
-                }
-                catch( IOException e ) {
-                    logger.error(e);
-                    e.printStackTrace();
-                    throw new InternalException(e);
-                }
-                method = new S3Method(provider, S3Action.PUT_OBJECT, null, headers, "text/plain", file);
-                try {
-                    method.invoke(bucket, object);
-                }
-                catch( S3Exception e ) {
-                    logger.error(e.getSummary());
-                    throw new CloudException(e);
-                }
-            }
-            finally {
-                if( file != null ) {
-                    //noinspection ResultOfMethodCallIgnored
-                    file.delete();
-                }
-            }
-        }
-        finally {
-            APITrace.end();
         }
         finally {
             APITrace.end();
