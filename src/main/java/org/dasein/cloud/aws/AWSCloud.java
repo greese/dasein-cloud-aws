@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,6 +27,7 @@ import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -60,6 +61,7 @@ import org.dasein.cloud.compute.ComputeServices;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.storage.BlobStoreSupport;
 import org.dasein.cloud.storage.StorageServices;
+import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
@@ -191,58 +193,153 @@ public class AWSCloud extends AbstractCloud {
 		}
 		return authString.toString();
     }
-    
-    public boolean createTags(String resourceId, Tag ... keyValuePairs) {
+
+
+    public boolean createTags(String resourceId, Tag... keyValuePairs) {
+        return createTags(new String[]{resourceId}, keyValuePairs);
+    }
+
+    public boolean createTags(final String[] resourceIds, final Tag... keyValuePairs) {
+        hold();
+
+        Thread t = new Thread() {
+            public void run() {
+                try {
+                    createTags(1, resourceIds, keyValuePairs);
+                }
+                finally {
+                    release();
+                }
+            }
+        };
+
+        t.setName("Tag Setter");
+        t.setDaemon(true);
+        t.start();
+        return true;
+    }
+
+    private void createTags(int attempt, String[] resourceIds, Tag ... keyValuePairs) {
+        APITrace.begin(this, "Cloud.createTags");
         try {
-            Map<String,String> parameters = getStandardParameters(getContext(), "CreateTags");
-            EC2Method method;
-            
-            parameters.put("ResourceId.1", resourceId);
-            for( int i=0; i<keyValuePairs.length; i++ ) {
-                String key = keyValuePairs[i].getKey();
-                String value = keyValuePairs[i].getValue();
-                
-                parameters.put("Tag." + i + ".Key", key);
-                parameters.put("Tag." + i + ".Value", value);
-            }
-            method = new EC2Method(this, getEc2Url(), parameters);
             try {
-                method.invoke();
-            }
-            catch( EC2Exception e ) {
-                String code = e.getCode();
-                
-                if( code != null && code.equals("InvalidInstanceID.NotFound") ) {
-                    try { Thread.sleep(5000L); }
-                    catch( InterruptedException ignore ) { }
-                    parameters = getStandardParameters(getContext(), "CreateTags");
-                    parameters.put("ResourceId.1", resourceId);
-                    for( int i=0; i<keyValuePairs.length; i++ ) {
-                        String key = keyValuePairs[i].getKey();
-                        String value = keyValuePairs[i].getValue();
-                        
-                        parameters.put("Tag." + i + ".Key", key);
-                        parameters.put("Tag." + i + ".Value", value);
-                    }
-                    method = new EC2Method(this, getEc2Url(), parameters);
-                    try {
-                        method.invoke();
-                        return true;
-                    }
-                    catch( EC2Exception ignore ) {
-                        // ignore me
+                Map<String,String> parameters = getStandardParameters(getContext(), "CreateTags");
+                EC2Method method;
+
+                for (int i = 0; i < resourceIds.length; i++) {
+                    parameters.put("ResourceId." + (i + 1), resourceIds[i]);
+                }
+
+                Map<String,String> tagParameters = new HashMap<String, String>( );
+                for( int i=0; i<keyValuePairs.length; i++ ) {
+                    String key = keyValuePairs[i].getKey();
+                    String value = keyValuePairs[i].getValue();
+
+                    if ( value != null ) {
+                        tagParameters.put("Tag." + (i + 1) + ".Key", key);
+                        tagParameters.put("Tag." + (i + 1) + ".Value", value);
                     }
                 }
-                logger.error("EC2 error settings tags for " + resourceId + ": " + e.getSummary());
-                return false;
-            }   
-            return true;
+                if ( tagParameters.size() == 0 ) {
+                    return;
+                }
+                putExtraParameters( parameters, tagParameters );
+                method = new EC2Method(this, getEc2Url(), parameters);
+                try {
+                    method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    if( attempt > 20 ) {
+                        logger.error("EC2 error settings tags for " + Arrays.toString(resourceIds) + ": " + e.getSummary());
+                        return;
+                    }
+                    try { Thread.sleep(5000L); }
+                    catch( InterruptedException ignore ) { }
+                    createTags(attempt+1, resourceIds, keyValuePairs);
+                }
+            }
+            catch( Throwable ignore ) {
+                logger.error("Error while creating tags for " + Arrays.toString(resourceIds) + ".", ignore);
+            }
         }
-        catch( Throwable ignore ) {
-            return false;
+        finally {
+            APITrace.end();
         }
     }
-    
+
+    public boolean removeTags(String resourceId, Tag... keyValuePairs) {
+        return removeTags(new String[]{resourceId}, keyValuePairs);
+    }
+
+    public boolean removeTags(String[] resourceIds, Tag... keyValuePairs) {
+        APITrace.begin(this, "Cloud.removeTags");
+        try {
+            try {
+                Map<String, String> parameters = getStandardParameters(getContext(), "DeleteTags");
+                EC2Method method;
+
+                for (int i = 0; i < resourceIds.length; i++) {
+                    parameters.put("ResourceId." + (i + 1), resourceIds[i]);
+                }
+
+                for (int i = 0; i < keyValuePairs.length; i++) {
+                    String key = keyValuePairs[i].getKey();
+                    String value = keyValuePairs[i].getValue();
+
+                    parameters.put("Tag." + (i + 1) + ".Key", key);
+                    if (value != null) {
+                        parameters.put("Tag." + (i + 1) + ".Value", value);
+                    }
+                }
+                method = new EC2Method(this, getEc2Url(), parameters);
+                method.invoke();
+                return true;
+            }
+            catch (Throwable ignore) {
+                logger.error("Error while removing tags for " + resourceIds + ".", ignore);
+                return false;
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    public Map<String, String> getTagsFromTagSet(Node attr) {
+        if ( attr == null || !attr.hasChildNodes() ) {
+            return null;
+        }
+        Map<String, String> tags = new HashMap<String, String>();
+        NodeList tagNodes = attr.getChildNodes();
+        for ( int j = 0; j < tagNodes.getLength(); j++ ) {
+            Node tag = tagNodes.item( j );
+
+            if ( tag.getNodeName().equals( "item" ) && tag.hasChildNodes() ) {
+                NodeList parts = tag.getChildNodes();
+                String key = null, value = null;
+
+                for ( int k = 0; k < parts.getLength(); k++ ) {
+                    Node part = parts.item( k );
+
+                    if ( part.getNodeName().equalsIgnoreCase( "key" ) ) {
+                        if ( part.hasChildNodes() ) {
+                            key = part.getFirstChild().getNodeValue().trim();
+                        }
+                    }
+                    else if ( part.getNodeName().equalsIgnoreCase( "value" ) ) {
+                        if ( part.hasChildNodes() ) {
+                            value = part.getFirstChild().getNodeValue().trim();
+                        }
+                    }
+                    if ( key != null && value != null ) {
+                        tags.put( key, value );
+                    }
+                }
+            }
+        }
+        return tags;
+    }
+
     @Override
     public AWSAdminServices getAdminServices() {
         EC2Provider p = getEC2Provider();
@@ -381,12 +478,12 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public String getCloudWatchVersion() {
-        return "2009-05-15";
+        return "2010-08-01";
     }
 
     public String getEc2Version() {
         if( getEC2Provider().isAWS() ) {
-            return "2012-07-20";
+            return "2012-12-01";
         }
         else if( getEC2Provider().isEucalyptus() ) {
             return "2010-11-15";
@@ -406,7 +503,7 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public String getRoute53Version() {
-        return "2010-10-01";
+        return "2012-12-12";
     }
 
     public String getSdbVersion() {
@@ -546,8 +643,40 @@ public class AWSCloud extends AbstractCloud {
        
        parameters.put(P_VERSION, getSqsVersion());
        return parameters;
-	}   
-   
+	}
+
+    public void putExtraParameters(Map<String, String> parameters, Map<String, String> extraParameters) {
+        if ( extraParameters == null || extraParameters.size() == 0 ) {
+            return;
+        }
+        if ( parameters == null ) {
+            parameters = new HashMap<String, String>();
+        }
+        parameters.putAll( extraParameters );
+    }
+
+    public @Nullable Map<String,String> getTagFilterParams(@Nullable Map<String,String> tags) {
+        return getTagFilterParams( tags, 1 );
+    }
+
+    public @Nullable Map<String,String> getTagFilterParams(@Nullable Map<String,String> tags, int startingFilterIndex) {
+        if ( tags == null || tags.size() == 0 ) {
+            return null;
+        }
+
+        Map<String, String> filterParameters = new HashMap<String, String>();
+        int i = startingFilterIndex;
+
+        for ( Map.Entry<String, String> parameter : tags.entrySet() ) {
+            String key = parameter.getKey();
+            String value = parameter.getValue();
+            filterParameters.put( "Filter." + i + ".Name", "tag:" + key );
+            filterParameters.put( "Filter." + i + ".Value.1", value );
+            i++;
+        }
+        return filterParameters;
+    }
+
 	public @Nonnull String getTimestamp(long timestamp, boolean withMillis) {
         SimpleDateFormat fmt;
         
@@ -692,38 +821,44 @@ public class AWSCloud extends AbstractCloud {
     
     @Override
     public String testContext() {
-        ProviderContext ctx = getContext();
-
-        if( ctx == null ) {
-            logger.warn("No context exists for testing");
-            return null;
-        }
+        APITrace.begin(this, "Cloud.testContext");
         try {
-            ComputeServices compute = getComputeServices();
+            ProviderContext ctx = getContext();
 
-            if( compute != null ) {
-                VirtualMachineSupport support = compute.getVirtualMachineSupport();
+            if( ctx == null ) {
+                logger.warn("No context exists for testing");
+                return null;
+            }
+            try {
+                ComputeServices compute = getComputeServices();
 
-                if( support == null || !support.isSubscribed() ) {
-                    logger.warn("Not subscribed to virtual machine support");
-                    return null;
+                if( compute != null ) {
+                    VirtualMachineSupport support = compute.getVirtualMachineSupport();
+
+                    if( support == null || !support.isSubscribed() ) {
+                        logger.warn("Not subscribed to virtual machine support");
+                        return null;
+                    }
+                }
+                else {
+                    StorageServices storage = getStorageServices();
+                    BlobStoreSupport support = storage.getBlobStoreSupport();
+
+                    if( support == null || !support.isSubscribed() ) {
+                        logger.warn("No subscribed to storage services");
+                        return null;
+                    }
                 }
             }
-            else {
-                StorageServices storage = getStorageServices();
-                BlobStoreSupport support = storage.getBlobStoreSupport();
-
-                if( support == null || !support.isSubscribed() ) {
-                    logger.warn("No subscribed to storage services");
-                    return null;
-                }
+            catch( Throwable t ) {
+                logger.warn("Unable to connect to AWS for " + ctx.getAccountNumber() + ": " + t.getMessage());
+                return null;
             }
+            return ctx.getAccountNumber();
         }
-        catch( Throwable t ) {
-            logger.warn("Unable to connect to AWS for " + ctx.getAccountNumber() + ": " + t.getMessage());
-            return null;
+        finally {
+            APITrace.end();
         }
-        return ctx.getAccountNumber();
     }
 
     public void setTags(@Nonnull Node attr, @Nonnull Taggable item) {
@@ -758,4 +893,114 @@ public class AWSCloud extends AbstractCloud {
             }
         }        
     }
+
+  /**
+   * Gets the epoch form of the text value of the provided node.
+   *
+   * @param node the node to extact the value from
+   * @return the epoch time
+   * @throws CloudException
+   */
+  public long getTimestampValue( Node node ) throws CloudException {
+    SimpleDateFormat fmt = new SimpleDateFormat( "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" );
+    String value = getTextValue( node );
+
+    try {
+      return fmt.parse( value ).getTime();
+    }
+    catch ( ParseException e ) {
+      logger.error( e );
+      e.printStackTrace();
+      throw new CloudException( e );
+    }
+  }
+
+  /**
+   * Returns the text from the given node.
+   *
+   * @param node the node to extract the value from
+   * @return the text from the node
+   */
+  public String getTextValue( Node node ) {
+    if ( node.getChildNodes().getLength() == 0 ) {
+      return null;
+    }
+    return node.getFirstChild().getNodeValue();
+  }
+
+  /**
+   * Returns the int value of the given node.
+   *
+   * @param node the node to extract the value from
+   * @return the int value of the given node
+   */
+  public int getIntValue( Node node ) {
+    return Integer.valueOf( getTextValue( node ) );
+  }
+
+  /**
+   * Returns the double value of the given node.
+   *
+   * @param node the node to extract the value from
+   * @return the double value of the given node
+   */
+  public double getDoubleValue( Node node ) {
+    return Double.valueOf( getTextValue( node ) );
+  }
+
+  /**
+   * Helper method for adding indexed member parameters, e.g. <i>AlarmNames.member.N</i>. Will overwrite existing
+   * parameters if present. Assumes indexing starts at 1.
+   *
+   * @param parameters the existing parameters map to add to
+   * @param prefix     the prefix value for each parameter key
+   * @param values     the values to add
+   */
+  public void putIndexedParameters( @Nonnull Map<String, String> parameters, @Nonnull String prefix, String[] values ) {
+    if ( values == null || values.length == 0 ) {
+      return;
+    }
+    int i = 1;
+    for ( String value : values ) {
+      parameters.put( prefix + i, value );
+      i++;
+    }
+  }
+
+  /**
+   * Helper method for adding indexed member parameters, e.g. <i>AlarmNames.member.N</i>. Will overwrite existing
+   * parameters if present. Assumes indexing starts at 1.
+   *
+   * @param parameters      the existing parameters map to add to
+   * @param prefix          the prefix value for each parameter key
+   * @param extraParameters the values to add
+   */
+  public void putIndexedMapParameters( @Nonnull Map<String, String> parameters, @Nonnull String prefix, Map<String, String> extraParameters ) {
+    if ( extraParameters == null || extraParameters.size() == 0 ) {
+      return;
+    }
+    int i = 1;
+    for ( Map.Entry<String, String> entry : extraParameters.entrySet() ) {
+      parameters.put( prefix + i + ".Name", entry.getKey() );
+      if ( entry.getValue() != null ) {
+        parameters.put( prefix + i + ".Value", entry.getValue() );
+      }
+      i++;
+    }
+  }
+
+  /**
+   * Puts the given key/value into the given map only if the value is not null.
+   *
+   * @param parameters the map to add to
+   * @param key        the key of the value
+   * @param value      the value to add if not null
+   */
+  public void putValueIfNotNull( @Nonnull Map<String, String> parameters, @Nonnull String key, String value ) {
+    if ( value == null ) {
+      return;
+    }
+    parameters.put( key, value );
+  }
+
 }

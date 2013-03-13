@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,7 +34,7 @@ import java.util.TreeSet;
  */
 public class EC2Provider implements Comparable<EC2Provider> {
     static private final String AWS_NAME          = "AWS";
-    static private final String ENSTRATUS_NAME    = "enStratus";
+    static private final String ENSTRATUS_NAME    = "Enstratius";
     static private final String EUCALYPTUS_NAME   = "Eucalyptus";
     static private final String OPENSTACK_NAME    = "OpenStack";
     static private final String OTHER_NAME        = "Other";

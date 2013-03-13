@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,6 +29,7 @@ import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Random;
 
@@ -72,11 +73,6 @@ public class S3 extends AbstractBlobStoreSupport {
     static public final Storage<org.dasein.util.uom.storage.Byte> MAX_OBJECT_SIZE = new Storage<org.dasein.util.uom.storage.Byte>(5000000000L, Storage.BYTE);
 
     static private final Random random = new Random();
-    static private final boolean disableAffinityCache;
-    static {
-        String disableStr = System.getProperty("disable.dasein.cloud.affinity.cache");
-        disableAffinityCache = "true".equals(disableStr);
-    }
 
     static private class Constraint {
         public String regionId;
@@ -258,11 +254,12 @@ public class S3 extends AbstractBlobStoreSupport {
         }
         Constraint c = affinity.constraints.get(bucket);
 
-        if( disableAffinityCache || reload || c == null || c.timeout <= System.currentTimeMillis() ) {
+        if( reload || c == null || c.timeout <= System.currentTimeMillis() ) {
+            S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
             String location = null;
             S3Response response;
 
-            S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
+            method = new S3Method(provider, S3Action.LOCATE_BUCKET);
             try {
                 response = method.invoke(bucket, "?location");
             }
@@ -558,33 +555,33 @@ public class S3 extends AbstractBlobStoreSupport {
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
         }
-        int idx = bucket.lastIndexOf(".");
-        String prefix, rawName;
-
-        if( idx == -1 ) {
-            prefix = null;
-            rawName = bucket;
-            bucket = rawName;
-        }
-        else {
-            prefix = bucket.substring(0, idx);
-            rawName = bucket.substring(idx+1);
-            bucket = prefix + "." + rawName;
-        }
-        while( belongsToAnother(bucket) || (exists(bucket) && !getRegion(bucket, false).equals(ctx.getRegionId())) ) {
-            idx = rawName.lastIndexOf("-");
-            if( idx == -1 ) {
-                rawName = rawName + "-1";
-            }
-            else if( idx == rawName.length()-1 ) {
-                rawName = rawName + "1";
-            }
-            else {
-                String postfix = rawName.substring(idx+1);
-                int x;
-
-                try {
-                    x = Integer.parseInt(postfix) + 1;
+    	int idx = bucket.lastIndexOf(".");
+    	String prefix, rawName;
+    	
+    	if( idx == -1 ) {
+    		prefix = null;
+    		rawName = bucket;
+    		bucket = rawName;
+    	}
+    	else {
+    		prefix = bucket.substring(0, idx);
+    		rawName = bucket.substring(idx+1);
+    		bucket = prefix + "." + rawName;
+    	}
+    	while( belongsToAnother(bucket) || (exists(bucket) && !getRegion(bucket, false).equals(ctx.getRegionId())) ) {
+    		idx = rawName.lastIndexOf("-");
+    		if( idx == -1 ) {
+    			rawName = rawName + "-1";
+    		}
+    		else if( idx == rawName.length()-1 ) {
+    			rawName = rawName + "1";
+    		}
+    		else {
+    			String postfix = rawName.substring(idx+1);
+    			int x;
+    			
+    			try {
+    			    x = Integer.parseInt(postfix) + 1;
                     rawName = rawName.substring(0,idx) + "-" + x;
                 }
                 catch( NumberFormatException e ) {
@@ -860,12 +857,12 @@ public class S3 extends AbstractBlobStoreSupport {
         if( regionId == null ) {
             throw new CloudException("No region ID was specified");
         }
-        if( bucket != null && !getRegion(bucket, false).equals(regionId) ) {
-            throw new CloudException("No such bucket in target region: " + bucket + " in " + regionId);
-        }
-        provider.hold();
-        populator = new PopulatorThread<Blob>(new JiteratorPopulator<Blob>() {
-            public void populate(@Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
+    	if( bucket != null && !getRegion(bucket, false).equals(regionId) ) {
+    		throw new CloudException("No such bucket in target region: " + bucket + " in " + regionId);
+    	}
+    	provider.hold();
+    	populator = new PopulatorThread<Blob>(new JiteratorPopulator<Blob>() {
+    		public void populate(@Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
                 try {
                     list(regionId, bucket, iterator);
                 }
@@ -934,10 +931,10 @@ public class S3 extends AbstractBlobStoreSupport {
                 }
                 else if( attr.getNodeName().equals("CreationDate") ) {
                     ts = provider.parseTime(attr.getFirstChild().getNodeValue().trim());
-                }
-            }
-            if( name == null ) {
-                throw new CloudException("Bad response from server.");
+				}
+			}
+			if( name == null ) {
+				throw new CloudException("Bad response from server.");
             }
             if( provider.getEC2Provider().isAWS() ) {
                 String location = null;
@@ -960,14 +957,14 @@ public class S3 extends AbstractBlobStoreSupport {
                         }
                     }
                 }
-                if( toRegion(location).equals(provider.getContext().getRegionId()) ) {
+                if( toRegion(location).equals(regionId) ) {
                     iterator.push(Blob.getInstance(regionId, getLocation(name, null), name, ts));
                 }
             }
             else {
                 iterator.push(Blob.getInstance(regionId, getLocation(name, null), name, ts));
             }
-        }
+		}
     }
 
     private void loadObjects(@Nonnull String regionId, @Nonnull String bucket, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
@@ -1297,6 +1294,38 @@ public class S3 extends AbstractBlobStoreSupport {
                     file.delete();
                 }
             }
+            File file = null;
+            try {
+                try {
+                    file = File.createTempFile(object, ".txt");
+                    PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(file)));
+                    writer.print(content);
+                    writer.flush();
+                    writer.close();
+                }
+                catch( IOException e ) {
+                    logger.error(e);
+                    e.printStackTrace();
+                    throw new InternalException(e);
+                }
+                method = new S3Method(provider, S3Action.PUT_OBJECT, null, headers, "text/plain", file);
+                try {
+                    method.invoke(bucket, object);
+                }
+                catch( S3Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+            }
+            finally {
+                if( file != null ) {
+                    //noinspection ResultOfMethodCallIgnored
+                    file.delete();
+                }
+            }
+        }
+        finally {
+            APITrace.end();
         }
         finally {
             APITrace.end();
@@ -1308,7 +1337,7 @@ public class S3 extends AbstractBlobStoreSupport {
         APITrace.begin(provider, "Blob.removeBucket");
         try {
             S3Method method = new S3Method(provider, S3Action.DELETE_BUCKET);
-
+    	
             try {
                 method.invoke(bucket, null);
             }

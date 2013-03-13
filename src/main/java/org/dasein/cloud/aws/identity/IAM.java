@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -58,6 +58,7 @@ import org.dasein.cloud.platform.MessageQueueSupport;
 import org.dasein.cloud.platform.PushNotificationSupport;
 import org.dasein.cloud.platform.RelationalDatabaseSupport;
 import org.dasein.cloud.storage.BlobStoreSupport;
+import org.dasein.cloud.util.APITrace;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -70,7 +71,6 @@ import javax.annotation.Nullable;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -92,9 +92,7 @@ public class IAM implements IdentityAndAccessSupport {
     
     @Override
     public void addUserToGroups(@Nonnull String providerUserId, @Nonnull String... providerGroupIds) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".addUserToGroups(" + providerUserId + "," + Arrays.toString(providerGroupIds) + ")");
-        }
+        APITrace.begin(provider, "IAM.addUserToGroups");
         try {
             ProviderContext ctx = provider.getContext();
     
@@ -113,9 +111,7 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".addUserToGroups()");
-            }
+            APITrace.end();
         }
     }
 
@@ -175,9 +171,7 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull CloudGroup createGroup(@Nonnull String groupName, @Nullable String path, boolean asAdminGroup) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".createGroup(" + groupName + "," + path + "," + asAdminGroup + ")");
-        }
+        APITrace.begin(provider, "IAM.createGroup");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -235,17 +229,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".createGroup()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
     public @Nonnull CloudUser createUser(@Nonnull String userName, @Nullable String path, @Nullable String... autoJoinGroupIds) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".createUser(" + userName + "," + path + ")");
-        }
+        APITrace.begin(provider, "IAM.createUser");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -298,17 +288,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".createUser()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
     public @Nonnull  AccessKey enableAPIAccess(@Nonnull String providerUserId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".enableAPIAccess(" + providerUserId + ")");
-        }
+        APITrace.begin(provider, "enableAPIAccess");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -361,17 +347,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".enableAPIAccess()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
     public void enableConsoleAccess(@Nonnull String providerUserId, @Nonnull byte[] password) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".enableConsoleAccess(" + providerUserId + ",[omitted])");
-        }
+        APITrace.begin(provider, "IAM.enableConsoleAccess");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -419,17 +401,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".enableConsoleAccess()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
     public @Nullable CloudGroup getGroup(@Nonnull String providerGroupId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".getGroup(" + providerGroupId + ")");
-        }
+        APITrace.begin(provider, "IAM.getGroup");
         try {
             for( CloudGroup group : listGroups(null) ) {
                 if( providerGroupId.equals(group.getProviderGroupId()) ) {
@@ -439,9 +417,7 @@ public class IAM implements IdentityAndAccessSupport {
             return null;
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".getGroup()");
-            }
+            APITrace.end();
         }
     }
 
@@ -511,9 +487,7 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nullable CloudUser getUser(@Nonnull String providerUserId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".getUser(" + providerUserId + ")");
-        }
+        APITrace.begin(provider, "IAM.getUser");
         try {
             for( CloudUser user : this.listUsersInPath(null) ) {
                 if( providerUserId.equals(user.getProviderUserId()) ) {
@@ -523,9 +497,7 @@ public class IAM implements IdentityAndAccessSupport {
             return null;
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".getUser()");
-            }
+            APITrace.end();
         }
     }
 
@@ -552,8 +524,6 @@ public class IAM implements IdentityAndAccessSupport {
             }
             method = new IAMMethod(provider, parameters);
             try {
-                ArrayList<CloudUser> users = new ArrayList<CloudUser>();
-
                 doc = method.invoke();
                 blocks = doc.getElementsByTagName("member");
                 for( int i=0; i<blocks.getLength(); i++ ) {
@@ -649,21 +619,25 @@ public class IAM implements IdentityAndAccessSupport {
     
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        ComputeServices svc = provider.getComputeServices();
+        APITrace.begin(provider, "IAM.isSubscribed");
+        try {
+            ComputeServices svc = provider.getComputeServices();
 
-        if( svc == null ) {
-            return false;
+            if( svc == null ) {
+                return false;
+            }
+            VirtualMachineSupport support = svc.getVirtualMachineSupport();
+
+            return (support != null && support.isSubscribed());
         }
-        VirtualMachineSupport support = svc.getVirtualMachineSupport();
-
-        return (support != null && support.isSubscribed());
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
     public @Nonnull Iterable<CloudGroup> listGroups(@Nullable String pathBase) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".listGroups(" + pathBase + ")");
-        }
+        APITrace.begin(provider, "IAM.listGroups");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -707,17 +681,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".listGroups()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
     public @Nonnull Iterable<CloudGroup> listGroupsForUser(@Nonnull String providerUserId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".listGroupsForUser(" + providerUserId + ")");
-        }
+        APITrace.begin(provider, "IAM.listGroupsForUser");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -765,17 +735,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".listGroupsForUser()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
     public @Nonnull Iterable<CloudPolicy> listPoliciesForGroup(@Nonnull String providerGroupId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".listPoliciesForGroup(" + providerGroupId + ")");
-        }
+        APITrace.begin(provider, "IAM.listPoliciesForGroup");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -831,17 +797,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".listPoliciesForGroup()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
     public @Nonnull Iterable<CloudPolicy> listPoliciesForUser(@Nonnull String providerUserId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".listPoliciesForUser(" + providerUserId + ")");
-        }
+        APITrace.begin(provider, "IAM.listPoliciesForUser");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -897,17 +859,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".listPoliciesForGroup()");
-            }
+            APITrace.end();
         }
     }
     
     @Override
     public @Nonnull Iterable<CloudUser> listUsersInGroup(@Nonnull String inProviderGroupId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".listUsersInGroup(" + inProviderGroupId + ")");
-        }
+        APITrace.begin(provider, "IAM.listUsersInGroup");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -954,17 +912,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".listUsersInGroup()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
     public @Nonnull Iterable<CloudUser> listUsersInPath(@Nullable String pathBase) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".listUsersInPath(" + pathBase + ")");
-        }
+        APITrace.begin(provider, "listUsersInPath");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -1008,9 +962,7 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".listUsersInPath()");
-            }
+            APITrace.end();
         }
     }
 
@@ -1099,9 +1051,7 @@ public class IAM implements IdentityAndAccessSupport {
     
     @Override
     public void removeAccessKey(@Nonnull String sharedKeyPart, @Nonnull String providerUserId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".removeAccessKey(" + sharedKeyPart + ")");
-        }
+        APITrace.begin(provider, "IAM.removeAccessKey");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -1110,7 +1060,10 @@ public class IAM implements IdentityAndAccessSupport {
                 throw new InternalException("No context was established for this request");
             }
             CloudUser user = getUser(providerUserId);
-            
+
+            if( user == null ) {
+                return;
+            }
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_ACCESS_KEY, IAMMethod.VERSION);
             IAMMethod method;
 
@@ -1133,17 +1086,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".removeAccessKey()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
     public void removeConsoleAccess(@Nonnull String providerUserId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".removeConsoleAccess(" + providerUserId + ")");
-        }
+        APITrace.begin(provider, "IAM.removeConsoleAccess");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -1176,17 +1125,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".removeConsoleAccess()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
     public void removeGroup(@Nonnull String providerGroupId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".removeGroup(" + providerGroupId + ")");
-        }
+        APITrace.begin(provider, "IAM.removeGroup");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -1219,17 +1164,56 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".removeGroup()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
-    public void removeUser(@Nonnull String providerUserId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".removeUser(" + providerUserId + ")");
+    public void removeGroupPolicy(@Nonnull String providerGroupId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
+        APITrace.begin(provider, "IAM.removeGroupPolicy");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                logger.error("No context was established for this request.");
+                throw new InternalException("No context was established for this request");
+            }
+            CloudGroup group = getGroup(providerGroupId);
+
+            if( group == null ) {
+                throw new CloudException("No such group: " + providerGroupId);
+            }
+
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_GROUP_POLICY, IAMMethod.VERSION);
+            EC2Method method;
+
+            parameters.put("GroupName", group.getName());
+            parameters.put("PolicyName", providerPolicyId);
+
+            if( logger.isDebugEnabled() ) {
+                logger.debug("parameters=" + parameters);
+            }
+            method = new IAMMethod(provider, parameters);
+            try {
+                if( logger.isInfoEnabled() ) {
+                    logger.info("Removing policy for group " + providerGroupId);
+                }
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
         }
+        finally {
+            APITrace.end();
+        }
+    }
+
+
+    @Override
+    public void removeUser(@Nonnull String providerUserId) throws CloudException, InternalException {
+        APITrace.begin(provider, "IAM.removeUser");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -1262,17 +1246,56 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".removeUser()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
-    public void removeUserFromGroup(@Nonnull String providerUserId, @Nonnull String providerGroupId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".removeUserFromGroup(" + providerUserId + "," + providerGroupId + ")");
+    public void removeUserPolicy(@Nonnull String providerUserId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
+        APITrace.begin(provider, "IAM.removeUserPolicy");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                logger.error("No context was established for this request.");
+                throw new InternalException("No context was established for this request");
+            }
+            CloudUser user = getUser(providerUserId);
+
+            if( user == null ) {
+                throw new CloudException("No such user: " + providerUserId);
+            }
+
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_USER_POLICY, IAMMethod.VERSION);
+            EC2Method method;
+
+            parameters.put("UserName", user.getUserName());
+            parameters.put("PolicyName", providerPolicyId);
+
+            if( logger.isDebugEnabled() ) {
+                logger.debug("parameters=" + parameters);
+            }
+            method = new IAMMethod(provider, parameters);
+            try {
+                if( logger.isInfoEnabled() ) {
+                    logger.info("Removing policy for user " + providerUserId);
+                }
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
         }
+        finally {
+            APITrace.end();
+        }
+    }
+
+
+    @Override
+    public void removeUserFromGroup(@Nonnull String providerUserId, @Nonnull String providerGroupId) throws CloudException, InternalException {
+        APITrace.begin(provider, "IAM.removeUserFromGroup");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -1314,17 +1337,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".removeUserFromGroup()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
     public void saveGroup(@Nonnull String providerGroupId, @Nullable String newGroupName, @Nullable String newPath) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".saveGroup(" + providerGroupId + "," + newGroupName + "," + newPath + ")");
-        }
+        APITrace.begin(provider, "IAM.saveGroup");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -1372,17 +1391,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".saveGroup()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
-    public void saveGroupPolicy(@Nonnull String providerGroupId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".saveGroupPermission(" + providerGroupId + "," + permission + "," + action + "," +  resourceId + ")");
-        }
+    public @Nonnull String[] saveGroupPolicy(@Nonnull String providerGroupId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
+        APITrace.begin(provider, "IAM.saveGroupPolicy");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -1397,13 +1412,17 @@ public class IAM implements IdentityAndAccessSupport {
             }
 
             String[] actions = (action == null ? new String[] { "*" } : action.map(provider));
+            String[] ids = new String[actions.length];
+            int i = 0;
 
             for( String actionId : actions ) {
                 Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.PUT_GROUP_POLICY, IAMMethod.VERSION);
+                String policyName = name + "+" + (actionId.equals("*") ? "ANY" : actionId.replaceAll(":", "_"));
+
                 EC2Method method;
 
                 parameters.put("GroupName", group.getName());
-                parameters.put("PolicyName", name);
+                parameters.put("PolicyName", policyName);
     
                 ArrayList<Map<String,Object>> policies = new ArrayList<Map<String, Object>>();
                 HashMap<String,Object> statement = new HashMap<String, Object>();
@@ -1430,20 +1449,18 @@ public class IAM implements IdentityAndAccessSupport {
                     logger.error(e.getSummary());
                     throw new CloudException(e);
                 }
+                ids[i++] = policyName;
             }
+            return ids;
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".saveGroupPermission()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
-    public void saveUserPolicy(@Nonnull String providerUserId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".saveUserPermission(" + providerUserId + "," + permission + "," + action + "," +  resourceId + ")");
-        }
+    public String[] saveUserPolicy(@Nonnull String providerUserId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
+        APITrace.begin(provider, "IAM.saveUserPolicy");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -1458,13 +1475,16 @@ public class IAM implements IdentityAndAccessSupport {
             }
 
             String[] actions = (action == null ? new String[] { "*" } : action.map(provider));
+            String[] ids = new String[actions.length];
+            int i = 0;
 
             for( String actionId : actions ) {
                 Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.PUT_USER_POLICY, IAMMethod.VERSION);
+                String policyName = name + "+" + (actionId.equals("*") ? "ANY" : actionId.replaceAll(":", "_"));
                 EC2Method method;
 
                 parameters.put("UserName", user.getUserName());
-                parameters.put("PolicyName", name);
+                parameters.put("PolicyName", policyName);
 
                 ArrayList<Map<String,Object>> policies = new ArrayList<Map<String, Object>>();
                 HashMap<String,Object> statement = new HashMap<String, Object>();
@@ -1491,20 +1511,18 @@ public class IAM implements IdentityAndAccessSupport {
                     logger.error(e.getSummary());
                     throw new CloudException(e);
                 }
+                ids[i++] = policyName;
             }
+            return ids;
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".saveUserPermission()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
     public void saveUser(@Nonnull String providerUserId, @Nullable String newUserName, @Nullable String newPath) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".saveUser(" + providerUserId + "," + newUserName + "," + newPath + ")");
-        }
+        APITrace.begin(provider, "IAM.saveUser");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -1551,9 +1569,7 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".saveUser()");
-            }
+            APITrace.end();
         }
     }
 
@@ -1811,10 +1827,10 @@ public class IAM implements IdentityAndAccessSupport {
                 resourceId = resource;
             }
             if( serviceActions == null ) {
-                return new CloudPolicy[] { new CloudPolicy(policyName, permission, null, resourceId) };
+                return new CloudPolicy[] { CloudPolicy.getInstance(policyName, policyName, permission, null, resourceId) };
             }
             for( ServiceAction sa : serviceActions ) {
-                policyList.add(new CloudPolicy(policyName, permission, sa, resourceId));
+                policyList.add(CloudPolicy.getInstance(policyName, policyName, permission, sa, resourceId));
             }
         }
         return policyList.toArray(new CloudPolicy[policyList.size()]);

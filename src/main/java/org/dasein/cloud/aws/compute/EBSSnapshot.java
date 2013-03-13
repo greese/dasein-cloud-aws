@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,12 +33,18 @@ import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.compute.AbstractSnapshotSupport;
 import org.dasein.cloud.compute.Snapshot;
+import org.dasein.cloud.compute.SnapshotCreateOptions;
+import org.dasein.cloud.compute.SnapshotFilterOptions;
 import org.dasein.cloud.compute.SnapshotState;
 import org.dasein.cloud.compute.SnapshotSupport;
 import org.dasein.cloud.compute.Volume;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.util.Jiterator;
+import org.dasein.util.JiteratorPopulator;
+import org.dasein.util.PopulatorThread;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -46,18 +52,19 @@ import org.w3c.dom.NodeList;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-public class EBSSnapshot implements SnapshotSupport {
+public class EBSSnapshot extends AbstractSnapshotSupport {
 	static private final Logger logger = AWSCloud.getLogger(EBSSnapshot.class);
 	
 	private AWSCloud provider = null;
 	
 	EBSSnapshot(@Nonnull AWSCloud provider) {
+        super(provider);
 		this.provider = provider;
 	}
 
     @Override
     public void addSnapshotShare(@Nonnull String providerSnapshotId, @Nonnull String accountNumber) throws CloudException, InternalException {
-        APITrace.begin(provider, "addSnapshotShare");
+        APITrace.begin(provider, "Snapshot.addSnapshotShare");
         try {
             setPrivateShare(providerSnapshotId, true, accountNumber);
         }
@@ -68,7 +75,7 @@ public class EBSSnapshot implements SnapshotSupport {
 
     @Override
     public void addPublicShare(@Nonnull String providerSnapshotId) throws CloudException, InternalException {
-        APITrace.begin(provider, "addPublicShare");
+        APITrace.begin(provider, "Snapshot.addPublicShare");
         try {
             setPublicShare(providerSnapshotId, true);
         }
@@ -78,11 +85,62 @@ public class EBSSnapshot implements SnapshotSupport {
     }
 
     @Override
-    @Deprecated
-	public @Nonnull String create(@Nonnull String fromVolumeId, @Nonnull String description) throws InternalException, CloudException {
-        @SuppressWarnings("ConstantConditions") String name = (description == null ? ("From " + fromVolumeId) : description);
+    public @Nonnull String createSnapshot(@Nonnull SnapshotCreateOptions options) throws InternalException, CloudException {
+        APITrace.begin(provider, "Snapshot.createSnapshot");
+        try {
+            String volumeId = options.getVolumeId();
+            Map<String,String> parameters;
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-        return snapshot(fromVolumeId, name, name).getProviderSnapshotId();
+            if( volumeId != null ) {
+                parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_SNAPSHOT);
+                parameters.put("VolumeId", volumeId);
+            }
+            else {
+                parameters = provider.getStandardParameters(provider.getContext(), EC2Method.COPY_SNAPSHOT);
+                parameters.put("SourceSnapshotId", options.getSnapshotId());
+                parameters.put("SourceRegion", options.getRegionId());
+            }
+            parameters.put("Description", options.getDescription());
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("snapshotId");
+            if( blocks.getLength() > 0 ) {
+                String id = blocks.item(0).getFirstChild().getNodeValue().trim();
+
+                if( id == null ) {
+                    throw new CloudException("No error occurred, but no snapshot was provided");
+                }
+                Map<String,String> meta = options.getMetaData();
+
+                meta.put("Name", options.getName());
+                meta.put("Description", options.getDescription());
+
+                ArrayList<Tag> tags = new ArrayList<Tag>();
+
+                for( Map.Entry<String,String> entry : meta.entrySet() ) {
+                    String value = entry.getValue();
+
+                    if( value != null ) {
+                        tags.add(new Tag(entry.getKey(), value));
+                    }
+                }
+                provider.createTags(id, tags.toArray(new Tag[tags.size()]));
+                return id;
+            }
+            throw new CloudException("No error occurred, but no snapshot was provided");
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
@@ -90,10 +148,9 @@ public class EBSSnapshot implements SnapshotSupport {
 		return "snapshot";
 	}
 
-
     @Override
     public @Nullable Snapshot getSnapshot(@Nonnull String snapshotId) throws InternalException, CloudException {
-        APITrace.begin(provider, "getSnapshot");
+        APITrace.begin(provider, "Snapshot.getSnapshot");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -128,7 +185,7 @@ public class EBSSnapshot implements SnapshotSupport {
                         Node item = items.item(j);
 
                         if( item.getNodeName().equals("item") ) {
-                            Snapshot snapshot = toSnapshot(ctx, item);
+                            Snapshot snapshot = toSnapshot(item);
 
                             if( snapshot != null && snapshot.getProviderSnapshotId().equals(snapshotId) ) {
                                 return snapshot;
@@ -159,7 +216,7 @@ public class EBSSnapshot implements SnapshotSupport {
 
     @Override
 	public boolean isPublic(@Nonnull String snapshotId) throws InternalException, CloudException {
-        APITrace.begin(provider, "isPublic");
+        APITrace.begin(provider, "Snapshot.isPublic");
         try {
             if( !provider.getEC2Provider().isAWS()) {
                 return false;
@@ -224,7 +281,7 @@ public class EBSSnapshot implements SnapshotSupport {
 
     @Override
     public @Nonnull Iterable<String> listShares(@Nonnull String forSnapshotId) throws InternalException, CloudException {
-        APITrace.begin(provider, "listShares");
+        APITrace.begin(provider, "Snapshot.listShares");
         try {
             if( !provider.getEC2Provider().isAWS() ) {
                 return new ArrayList<String>();
@@ -286,96 +343,133 @@ public class EBSSnapshot implements SnapshotSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listSnapshotStatus() throws InternalException, CloudException {
-        APITrace.begin(provider, "listSnapshotStatus");
-        try {
-            ProviderContext ctx = provider.getContext();
+        getProvider().hold();
+        PopulatorThread<ResourceStatus> populator = new PopulatorThread<ResourceStatus>(new JiteratorPopulator<ResourceStatus>() {
+            @Override
+            public void populate(@Nonnull Jiterator<ResourceStatus> iterator) throws Exception {
+                try {
+                    APITrace.begin(provider, "Snapshot.listSnapshotStatus");
+                    try {
+                        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
+                        EC2Method method;
+                        NodeList blocks;
+                        Document doc;
 
-            if( ctx == null ) {
-                throw new CloudException("No context exists for this request.");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
-            ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+                        parameters.put("Owner.1", "self");
+                        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                        try {
+                            doc = method.invoke();
+                        }
+                        catch( EC2Exception e ) {
+                            logger.error(e.getSummary());
+                            throw new CloudException(e);
+                        }
+                        blocks = doc.getElementsByTagName("snapshotSet");
+                        for( int i=0; i<blocks.getLength(); i++ ) {
+                            NodeList items = blocks.item(i).getChildNodes();
 
-            parameters.put("Owner.1", "self");
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("snapshotSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
+                            for( int j=0; j<items.getLength(); j++ ) {
+                                Node item = items.item(j);
 
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
+                                if( item.getNodeName().equals("item") ) {
+                                    ResourceStatus status = toStatus(item);
 
-                    if( item.getNodeName().equals("item") ) {
-                        ResourceStatus status = toStatus(item);
-
-                        if( status != null ) {
-                            list.add(status);
+                                    if( status != null ) {
+                                        iterator.push(status);
+                                    }
+                                }
+                            }
                         }
                     }
+                    finally {
+                        APITrace.end();
+                    }
+                }
+                finally {
+                    getProvider().release();
                 }
             }
-            return list;
-        }
-        finally {
-            APITrace.end();
-        }
+        });
+
+        populator.populate();
+        return populator.getResult();
     }
-    
+
+
+    @Override
+    public @Nonnull Iterable<Snapshot> listSnapshots() throws InternalException, CloudException {
+        return listSnapshots( null );
+    }
+
 	@Override
-	public @Nonnull Iterable<Snapshot> listSnapshots() throws InternalException, CloudException {
-        APITrace.begin(provider, "listSnapshots");
-        try {
-            ProviderContext ctx = provider.getContext();
+	public @Nonnull Iterable<Snapshot> listSnapshots(final @Nullable SnapshotFilterOptions options) throws InternalException, CloudException {
+        getProvider().hold();
+        PopulatorThread<Snapshot> populator = new PopulatorThread<Snapshot>(new JiteratorPopulator<Snapshot>() {
+            @Override
+            public void populate(@Nonnull Jiterator<Snapshot> iterator) throws Exception {
+                try {
+                    APITrace.begin(provider, "Snapshot.listSnapshots");
+                    try {
+                        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
+                        EC2Method method;
+                        NodeList blocks;
+                        Document doc;
 
-            if( ctx == null ) {
-                throw new CloudException("No context exists for this request.");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
-            ArrayList<Snapshot> list = new ArrayList<Snapshot>();
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+                        // we want to use the more efficient tag search via AWS if possible
+                        // it is only possible if a) tags is the only search criterion or b) the options is set ot match all criteria
+                        if ( options != null && options.hasCriteria() && !options.isMatchesAny() ) {
+                            Map<String,String> tags = options.getTags();
 
-            parameters.put("Owner.1", "self");
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("snapshotSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
+                            if( tags != null && !tags.isEmpty() ) {
+                                provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+                            }
+                        }
 
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
+                        if( options == null || options.getAccountNumber() == null || getContext().getAccountNumber().equals(options.getAccountNumber()) ) {
+                            parameters.put("Owner.1", "self");
+                        }
+                        else {
+                            parameters.put("Owner.1", options.getAccountNumber());
+                        }
+                        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                        try {
+                            doc = method.invoke();
+                        }
+                        catch( EC2Exception e ) {
+                            logger.error(e.getSummary());
+                            throw new CloudException(e);
+                        }
+                        blocks = doc.getElementsByTagName("snapshotSet");
+                        for( int i=0; i<blocks.getLength(); i++ ) {
+                            NodeList items = blocks.item(i).getChildNodes();
 
-                    if( item.getNodeName().equals("item") ) {
-                        Snapshot snapshot = toSnapshot(ctx, item);
+                            for( int j=0; j<items.getLength(); j++ ) {
+                                Node item = items.item(j);
 
-                        if( snapshot != null ) {
-                            list.add(snapshot);
+                                if( item.getNodeName().equals("item") ) {
+                                    Snapshot snapshot = toSnapshot(item);
+
+                                    if( snapshot != null ) {
+                                        if( options == null || options.matches(snapshot, getContext().getAccountNumber()) ) {
+                                            iterator.push(snapshot);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
+                    finally {
+                        APITrace.end();
+                    }
+                }
+                finally {
+                    getProvider().release();
                 }
             }
-            return list;
-        }
-        finally {
-            APITrace.end();
-        }
+        });
+
+        populator.populate();
+        return populator.getResult();
 	}
 
     @Override
@@ -400,7 +494,7 @@ public class EBSSnapshot implements SnapshotSupport {
 
     @Override
     public void remove(@Nonnull String snapshotId) throws InternalException, CloudException {
-        APITrace.begin(provider, "remove");
+        APITrace.begin(provider, "Snapshot.remove");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_SNAPSHOT);
             EC2Method method;
@@ -437,7 +531,7 @@ public class EBSSnapshot implements SnapshotSupport {
 
     @Override
     public void removeAllSnapshotShares(@Nonnull String providerSnapshotId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeAllSnapshotShares");
+        APITrace.begin(provider, "Snapshot.removeAllSnapshotShares");
         try {
             List<String> shares = (List<String>)listShares(providerSnapshotId);
 
@@ -445,6 +539,7 @@ public class EBSSnapshot implements SnapshotSupport {
                 return;
             }
             setPrivateShare(providerSnapshotId, false, shares.toArray(new String[shares.size()]));
+            setPublicShare(providerSnapshotId, false);
         }
         finally {
             APITrace.end();
@@ -453,7 +548,7 @@ public class EBSSnapshot implements SnapshotSupport {
 
     @Override
     public void removeSnapshotShare(@Nonnull String providerSnapshotId, @Nonnull String accountNumber) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeSnapshotShare");
+        APITrace.begin(provider, "Snapshot.removeSnapshotShare");
         try {
             setPrivateShare(providerSnapshotId, false, accountNumber);
         }
@@ -464,7 +559,7 @@ public class EBSSnapshot implements SnapshotSupport {
 
     @Override
     public void removePublicShare(@Nonnull String providerSnapshotId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removePublicShare");
+        APITrace.begin(provider, "Snapshot.removePublicShare");
         try {
             setPublicShare(providerSnapshotId, false);
         }
@@ -474,55 +569,103 @@ public class EBSSnapshot implements SnapshotSupport {
     }
 
     @Override
-    public @Nonnull Iterable<Snapshot> searchSnapshots(@Nullable String ownerId, @Nullable String keyword) throws InternalException, CloudException {
-        APITrace.begin(provider, "searchSnapshots");
+    public void removeTags(@Nonnull String snapshotId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Snapshot.removeTags");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context exists for this request.");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
-            ArrayList<Snapshot> list = new ArrayList<Snapshot>();
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("snapshotSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
-
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
-
-                    if( item.getNodeName().equals("item") ) {
-                        Snapshot snapshot = toSnapshot(ctx, item);
-
-                        if( snapshot != null ) {
-                            if( ownerId != null && !ownerId.equals(snapshot.getProviderSnapshotId()) ) {
-                                continue;
-                            }
-                            if( keyword != null && !snapshot.getName().contains(keyword) && !snapshot.getDescription().contains(keyword) ) {
-                                continue;
-                            }
-                            list.add(snapshot);
-                        }
-                    }
-                }
-            }
-            return list;
+            ((AWSCloud)getProvider()).removeTags(snapshotId, tags);
         }
         finally {
             APITrace.end();
         }
+    }
+
+    @Override
+    public void removeTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Snapshot.removeTags");
+        try {
+            ((AWSCloud)getProvider()).removeTags(snapshotIds, tags);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<Snapshot> searchSnapshots(final @Nonnull SnapshotFilterOptions opts) throws InternalException, CloudException {
+        getProvider().hold();
+        PopulatorThread<Snapshot> populator = new PopulatorThread<Snapshot>(new JiteratorPopulator<Snapshot>() {
+            @Override
+            public void populate(@Nonnull Jiterator<Snapshot> iterator) throws Exception {
+                try {
+                    APITrace.begin(provider, "Snapshot.searchSnapshots");
+                    try {
+                        SnapshotFilterOptions options = opts;
+                        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SNAPSHOTS);
+                        EC2Method method;
+                        NodeList blocks;
+                        Document doc;
+
+                        // we want to use the more efficient tag search via AWS if possible
+                        // it is only possible if a) tags is the only search criterion or b) the options is set ot match all criteria
+                        if ( options != null && options.hasCriteria() && (!options.isMatchesAny() || (options.getRegex() == null && options.getAccountNumber() == null)) ) {
+                            Map<String,String> tags = options.getTags();
+
+                            if( tags != null && !tags.isEmpty() ) {
+                                provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+                                SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
+
+                                if( options.getAccountNumber() != null ) {
+                                    sfo.withAccountNumber(options.getAccountNumber());
+                                }
+                                if( options.getRegex() != null ) {
+                                    sfo.matchingRegex(options.getRegex());
+                                }
+                                options = sfo;
+                            }
+                        }
+
+                        if( options != null && options.getAccountNumber() != null && !options.isMatchesAny() ) {
+                            parameters.put("Owner.1", options.getAccountNumber());
+                        }
+                        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                        try {
+                            doc = method.invoke();
+                        }
+                        catch( EC2Exception e ) {
+                            logger.error(e.getSummary());
+                            throw new CloudException(e);
+                        }
+                        blocks = doc.getElementsByTagName("snapshotSet");
+                        for( int i=0; i<blocks.getLength(); i++ ) {
+                            NodeList items = blocks.item(i).getChildNodes();
+
+                            for( int j=0; j<items.getLength(); j++ ) {
+                                Node item = items.item(j);
+
+                                if( item.getNodeName().equals("item") ) {
+                                    Snapshot snapshot = toSnapshot(item);
+
+                                    if( snapshot != null ) {
+                                        if( options != null && options.hasCriteria() && options.matches(snapshot, null) ) {
+                                            iterator.push(snapshot);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    finally {
+                        APITrace.end();
+                    }
+                }
+                finally {
+                    getProvider().release();
+                }
+            }
+        });
+
+        populator.populate();
+        return populator.getResult();
     }
 
     private void setPublicShare(@Nonnull String snapshotId, boolean affirmative) throws InternalException, CloudException {
@@ -589,66 +732,9 @@ public class EBSSnapshot implements SnapshotSupport {
         }
     }
 
-	@Override
-    @Deprecated
-	public void shareSnapshot(@Nonnull String snapshotId, @Nullable String withAccountId, boolean affirmative) throws InternalException, CloudException {
-        if( withAccountId == null ) {
-            setPublicShare(snapshotId, affirmative);
-        }
-        else {
-            setPrivateShare(snapshotId, affirmative, withAccountId);
-        }
-    }
-
     @Override
-    public @Nonnull Snapshot snapshot(@Nonnull String volumeId, @Nonnull String name, @Nonnull String description, @Nullable Tag... tags) throws InternalException, CloudException {
-        APITrace.begin(provider, "snapshot");
-        try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_SNAPSHOT);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
-            parameters.put("VolumeId", volumeId);
-            parameters.put("Description", description);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("snapshotId");
-            if( blocks.getLength() > 0 ) {
-                Snapshot snapshot = getSnapshot(blocks.item(0).getFirstChild().getNodeValue().trim());
-
-                if( snapshot == null ) {
-                    throw new CloudException("No error occurred, but no snapshot was provided");
-                }
-                Tag[] toCreate;
-
-                if( tags == null || tags.length < 1 ) {
-                    toCreate = new Tag[1];
-                }
-                else {
-                    toCreate = new Tag[1 + tags.length];
-                    System.arraycopy(tags, 0, toCreate, 0, tags.length);
-                }
-                Tag t = new Tag();
-
-                t.setKey("Name");
-                t.setValue(name);
-                toCreate[toCreate.length-1] = t;
-                provider.createTags(snapshot.getProviderSnapshotId(), toCreate);
-                snapshot.setName(name);
-                return snapshot;
-            }
-            throw new CloudException("No error occurred, but no snapshot was provided");
-        }
-        finally {
-            APITrace.end();
-        }
+    public boolean supportsSnapshotCopying() throws CloudException, InternalException {
+        return provider.getEC2Provider().isAWS();
     }
 
     @Override
@@ -666,7 +752,7 @@ public class EBSSnapshot implements SnapshotSupport {
         return provider.getEC2Provider().isAWS();
     }
 
-    private @Nullable Snapshot toSnapshot(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException {
+    private @Nullable Snapshot toSnapshot(@Nullable Node node) throws CloudException {
         if( node == null ) {
             return null;
         }
@@ -674,7 +760,7 @@ public class EBSSnapshot implements SnapshotSupport {
 		Snapshot snapshot = new Snapshot();
 		
 		if( !provider.getEC2Provider().isAWS() ) {
-		    snapshot.setOwner(ctx.getAccountNumber());
+		    snapshot.setOwner(getContext().getAccountNumber());
 		}
 		for( int i=0; i<attrs.getLength(); i++ ) {
 			Node attr = attrs.item(i);
@@ -781,50 +867,29 @@ public class EBSSnapshot implements SnapshotSupport {
 				snapshot.setDescription(description);
 			}
             else if( name.equals("tagSet") ) {
-                if( attr.hasChildNodes() ) {
-                    NodeList tags = attr.getChildNodes();
-
-                    for( int j=0; j<tags.getLength(); j++ ) {
-                        Node tag = tags.item(j);
-
-                        if( tag.getNodeName().equals("item") && tag.hasChildNodes() ) {
-                            NodeList parts = tag.getChildNodes();
-                            String key = null, value = null;
-
-                            for( int k=0; k<parts.getLength(); k++ ) {
-                                Node part = parts.item(k);
-
-                                if( part.getNodeName().equalsIgnoreCase("key") ) {
-                                    if( part.hasChildNodes() ) {
-                                        key = part.getFirstChild().getNodeValue().trim();
-                                    }
-                                }
-                                else if( part.getNodeName().equalsIgnoreCase("value") ) {
-                                    if( part.hasChildNodes() ) {
-                                        value = part.getFirstChild().getNodeValue().trim();
-                                    }
-                                }
-                            }
-                            if( key != null ) {
-                                if( key.equalsIgnoreCase("name") ) {
-                                    snapshot.setName(value);
-                                }
-                                else {
-                                    snapshot.addTag(key, value);
-                                }
-                            }
-                        }
-                    }
-                }
+                provider.setTags(attr, snapshot);
             }
 		}
-        if( snapshot.getName() == null ) {
-            snapshot.setName(snapshot.getProviderSnapshotId());
+        String name = snapshot.getName();
+
+        if( name == null ) {
+            name = snapshot.getTags().get("Name");
+            if( name == null ) {
+                name = snapshot.getProviderSnapshotId();
+            }
+            snapshot.setName(name);
         }
-		if( snapshot.getDescription() == null ) {
-		    snapshot.setDescription(snapshot.getName() + " [" + snapshot.getSizeInGb() + " GB]");
+
+        String description = snapshot.getDescription();
+
+		if( description == null ) {
+            description = snapshot.getTags().get("Description");
+            if( description == null ) {
+                description = (name + " [" + snapshot.getSizeInGb() + " GB]");
+            }
+            snapshot.setDescription(description);
 		}
-		snapshot.setRegionId(ctx.getRegionId());
+		snapshot.setRegionId(getContext().getRegionId());
 		if( snapshot.getSizeInGb() < 1 ) {
             EC2ComputeServices svc = provider.getComputeServices();
 
@@ -880,5 +945,27 @@ public class EBSSnapshot implements SnapshotSupport {
             return null;
         }
         return new ResourceStatus(snapshotId, state);
+    }
+
+    @Override
+    public void updateTags(@Nonnull String snapshotId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Snapshot.updateTags");
+        try {
+            ((AWSCloud)getProvider()).createTags(snapshotId, tags);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void updateTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Snapshot.updateTags");
+        try {
+            ((AWSCloud)getProvider()).createTags(snapshotIds, tags);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 }

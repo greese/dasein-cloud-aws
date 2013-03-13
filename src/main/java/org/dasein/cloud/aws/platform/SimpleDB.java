@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,7 +80,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
     
     @Override
     public void addKeyValuePairs(String inDomainId, String itemId, KeyValuePair ... pairs) throws CloudException, InternalException {
-        APITrace.begin(provider, "addKeyValuePairs");
+        APITrace.begin(provider, "KVDB.addKeyValuePairs");
         try {
             if( pairs != null && pairs.length > 0 ) {
                 Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), PUT_ATTRIBUTES);
@@ -110,7 +110,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
 
     @Override
     public String createDatabase(String name, String description) throws CloudException, InternalException {
-        APITrace.begin(provider, "createKVDatabase");
+        APITrace.begin(provider, "KVDB.createDatabase");
         try {
             Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), CREATE_DOMAIN);
             EC2Method method;
@@ -133,7 +133,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
 
     @Override
     public KeyValueDatabase getDatabase(String domainId) throws CloudException, InternalException {
-        APITrace.begin(provider, "getDatabase");
+        APITrace.begin(provider, "KVDB.getDatabase");
         try {
             Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), DOMAIN_META_DATA);
             EC2Method method;
@@ -210,7 +210,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
 
     @Override
     public Iterable<KeyValuePair> getKeyValuePairs(String inDomainId, String itemId, boolean consistentRead) throws CloudException, InternalException {
-        APITrace.begin(provider, "getKeyValuePairs");
+        APITrace.begin(provider, "KVDB.getKeyValuePairs");
         try {
             Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), GET_ATTRIBUTES);
             EC2Method method;
@@ -281,7 +281,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
     
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "isSubscribedKVDB");
+        APITrace.begin(provider, "KVDB.isSubscribed");
         try {
             Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), LIST_DOMAINS);
             EC2Method method;
@@ -319,7 +319,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
     
     @Override
     public Iterable<String> list() throws CloudException, InternalException {
-        APITrace.begin(provider, "listKVDBs");
+        APITrace.begin(provider, "KVDB.list");
         try {
             ArrayList<String> list = new ArrayList<String>();
             String marker = null;
@@ -377,7 +377,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
 
     @Override
     public Iterable<ResourceStatus> listKeyValueDatabaseStatus() throws CloudException, InternalException {
-        APITrace.begin(provider, "listKVDBStatus");
+        APITrace.begin(provider, "KVDB.listKeyValueDatabaseStatus");
         try {
             ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
             String marker = null;
@@ -460,7 +460,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
 
     @Override
     public Map<String,Set<KeyValuePair>> query(String queryString, boolean consistentRead) throws CloudException, InternalException {
-        APITrace.begin(provider, "queryKVDB");
+        APITrace.begin(provider, "KVDB.query");
         try {
             Map<String,Set<KeyValuePair>> pairs = new HashMap<String,Set<KeyValuePair>>();
             String marker = null;
@@ -559,7 +559,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
 
     @Override
     public void removeDatabase(String domainId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeKVDB");
+        APITrace.begin(provider, "KVDB.removeDatabase");
         try {
             Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), DELETE_DOMAIN);
             EC2Method method;
@@ -580,7 +580,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
 
     @Override
     public void removeKeyValuePairs(String inDomainId, String itemId, KeyValuePair ... pairs) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeKeyValuePairs");
+        APITrace.begin(provider, "KVDB.removeKeyValuePairs");
         try {
             if( pairs != null && pairs.length > 0 ) {
                 Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), DELETE_ATTRIBUTES);
@@ -612,7 +612,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
 
     @Override
     public void removeKeyValuePairs(String inDomainId, String itemId, String ... pairs) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeKeyValuePairStrings");
+        APITrace.begin(provider, "KVDB.removeKeyValuePairStrings");
         try {
             if( pairs != null && pairs.length > 0 ) {
                 Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), DELETE_ATTRIBUTES);
@@ -641,7 +641,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
     
     @Override
     public void replaceKeyValuePairs(String inDomainId, String itemId, KeyValuePair ... pairs) throws CloudException, InternalException {
-        APITrace.begin(provider, "replaceKeyValuePairs");
+        APITrace.begin(provider, "KVDB.replaceKeyValuePairs");
         try {
             if( pairs != null && pairs.length > 0 ) {
                 Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), PUT_ATTRIBUTES);

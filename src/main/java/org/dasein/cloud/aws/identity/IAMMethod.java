@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,13 +40,14 @@ public class IAMMethod extends EC2Method {
     static public final String CREATE_USER            = "CreateUser";
     static public final String DELETE_ACCESS_KEY      = "DeleteAccessKey";
     static public final String DELETE_GROUP           = "DeleteGroup";
+    static public final String DELETE_GROUP_POLICY    = "DeleteGroupPolicy";
     static public final String DELETE_LOGIN_PROFILE   = "DeleteLoginProfile";
     static public final String DELETE_USER            = "DeleteUser";
     static public final String GET_ACCESS_KEY         = "GetAccessKey";
     static public final String GET_GROUP              = "GetGroup";
     static public final String GET_GROUP_POLICY       = "GetGroupPolicy";
     static public final String GET_USER               = "GetUser";
-    static public final String GET_USER_POLICY        = "GetPolicy";
+    static public final String GET_USER_POLICY        = "GetUserPolicy";
     static public final String LIST_ACCESS_KEY        = "ListAccessKey";
     static public final String LIST_GROUP_POLICIES    = "ListGroupPolicies";
     static public final String LIST_GROUPS            = "ListGroups";
@@ -55,6 +56,7 @@ public class IAMMethod extends EC2Method {
     static public final String LIST_USERS             = "ListUsers";
     static public final String PUT_GROUP_POLICY       = "PutGroupPolicy";
     static public final String PUT_USER_POLICY        = "PutUserPolicy";
+    static public final String DELETE_USER_POLICY     = "DeleteUserPolicy";
     static public final String REMOVE_USER_FROM_GROUP = "RemoveUserFromGroup";
     static public final String UPDATE_GROUP           = "UpdateGroup";
     static public final String UPDATE_USER            = "UpdateUser";

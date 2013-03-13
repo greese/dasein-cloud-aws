@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +19,7 @@ package org.dasein.cloud.aws.compute;
 
 import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.log4j.Logger;
 import org.dasein.cloud.AsynchronousTask;
@@ -38,9 +32,11 @@ import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.storage.S3Method;
+import org.dasein.cloud.compute.AbstractImageSupport;
 import org.dasein.cloud.compute.Architecture;
 import org.dasein.cloud.compute.ImageClass;
 import org.dasein.cloud.compute.ImageCreateOptions;
+import org.dasein.cloud.compute.ImageFilterOptions;
 import org.dasein.cloud.compute.MachineImage;
 import org.dasein.cloud.compute.MachineImageFormat;
 import org.dasein.cloud.compute.MachineImageState;
@@ -65,18 +61,19 @@ import javax.annotation.Nullable;
 /**
  * @version 2013.01.1 Fixed a data consistency issue with AWS (issue #21)
  */
-public class AMI implements MachineImageSupport {
-    static private final Logger logger = Logger.getLogger(AMI.class);
-
-    private AWSCloud provider = null;
-
-    AMI(AWSCloud provider) {
+public class AMI extends AbstractImageSupport {
+	static private final Logger logger = Logger.getLogger(AMI.class);
+	
+	private AWSCloud provider = null;
+	
+	AMI(AWSCloud provider) {
+		super(provider);
         this.provider = provider;
-    }
+	}
 
     @Override
     public void addImageShare(@Nonnull String providerImageId, @Nonnull String accountNumber) throws CloudException, InternalException {
-        APITrace.begin(provider, "addImageShare");
+        APITrace.begin(provider, "Image.addImageShare");
         try {
             setPrivateShare(providerImageId, true, accountNumber);
         }
@@ -87,7 +84,7 @@ public class AMI implements MachineImageSupport {
 
     @Override
     public void addPublicShare(@Nonnull String providerImageId) throws CloudException, InternalException {
-        APITrace.begin(provider, "addPublicShare");
+        APITrace.begin(provider, "Image.addPublicShare");
         try {
             setPublicShare(providerImageId, true);
         }
@@ -96,28 +93,8 @@ public class AMI implements MachineImageSupport {
         }
     }
 
-    @Override
-    public @Nonnull String bundleVirtualMachine(@Nonnull String virtualMachineId, @Nonnull MachineImageFormat format, @Nonnull String bucket, @Nonnull String name) throws CloudException, InternalException {
-        throw new OperationNotSupportedException("Not yet implemented");
-    }
-
-    @Override
-    public void bundleVirtualMachineAsync(@Nonnull String virtualMachineId, @Nonnull MachineImageFormat format, @Nonnull String bucket, @Nonnull String name, @Nonnull AsynchronousTask<String> trackingTask) throws CloudException, InternalException {
-        throw new OperationNotSupportedException("Not yet implemented");
-    }
-
-    @Override
-    public @Nonnull MachineImage captureImage(@Nonnull ImageCreateOptions options) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was set for this request");
-        }
-        return captureImage(ctx, options, null);
-    }
-
     private @Nonnull MachineImage captureImage(@Nonnull ProviderContext ctx, @Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
-        APITrace.begin(provider, "captureImage");
+        APITrace.begin(provider, "Image.captureImage");
         try {
             if( task != null ) {
                 task.setStartTime(System.currentTimeMillis());
@@ -227,61 +204,17 @@ public class AMI implements MachineImageSupport {
     }
 
     @Override
-    public void captureImageAsync(final @Nonnull ImageCreateOptions options, final @Nonnull AsynchronousTask<MachineImage> taskTracker) throws CloudException, InternalException {
-        final ProviderContext ctx = provider.getContext();
-        VirtualMachine vm = null;
-
-        long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
-
-        while( timeout > System.currentTimeMillis() ) {
-            try {
-                //noinspection ConstantConditions
-                vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(options.getVirtualMachineId());
-                if( vm == null ) {
-                    break;
-                }
-                if( !vm.isPersistent() ) {
-                    throw new OperationNotSupportedException("You cannot capture instance-backed virtual machines");
-                }
-                if( VmState.RUNNING.equals(vm.getCurrentState()) || VmState.STOPPED.equals(vm.getCurrentState()) ) {
-                    break;
-                }
-            }
-            catch( Throwable ignore ) {
-                // ignore
-            }
-            try { Thread.sleep(15000L); }
-            catch( InterruptedException ignore ) { }
-        }
-        if( vm == null ) {
-            throw new CloudException("No such virtual machine: " + options.getVirtualMachineId());
-        }
+    protected MachineImage capture(@Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
         }
-        Thread t = new Thread() {
-            public void run() {
-                try {
-                    taskTracker.completeWithResult(captureImage(ctx, options, taskTracker));
-                }
-                catch( Throwable t ) {
-                    taskTracker.complete(t);
-                }
-                finally {
-                    provider.release();
-                }
-            }
-        };
-
-        provider.hold();
-        t.setName("Imaging " + options.getVirtualMachineId() + " as " + options.getName());
-        t.setDaemon(true);
-        t.start();
+        return captureImage(ctx, options, task);
     }
 
     private MachineImage captureWindows(@Nonnull ProviderContext ctx, @Nonnull ImageCreateOptions options, @Nonnull String bucket, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
-        APITrace.begin(provider, "captureWindows");
+        APITrace.begin(provider, "Image.captureWindows");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.BUNDLE_INSTANCE);
             StringBuilder uploadPolicy = new StringBuilder();
@@ -370,105 +303,46 @@ public class AMI implements MachineImageSupport {
         }
     }
 
-    private @Nonnull Iterable<MachineImage> executeImageSearch(@Nullable String ownerId, @Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nonnull ImageClass cls) throws CloudException, InternalException {
-        APITrace.begin(provider, "executeImageSearch");
+    private @Nonnull Iterable<MachineImage> executeImageSearch(int pass, boolean forPublic, @Nonnull ImageFilterOptions options) throws CloudException, InternalException {
+        APITrace.begin(provider, "Image.executeImageSearch");
         try {
             ProviderContext ctx = provider.getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
-            ArrayList<MachineImage> list = new ArrayList<MachineImage>();
-            NodeList blocks;
-            EC2Method method;
-            Document doc;
+            Architecture architecture = options.getArchitecture();
 
-            parameters.put("ExecutableBy.1", ctx.getAccountNumber());
-            int filter = 1;
-            if( architecture != null ) {
-                parameters.put("Filter." + filter + ".Name", "architecture");
-                parameters.put("Filter." + (filter++) + ".Value.1", architecture.equals(Architecture.I32) ? "i386" : "x86_64");
-            }
-            if( platform != null && platform.equals(Platform.WINDOWS) ) {
-                parameters.put("Filter." + filter + ".Name", "platform");
-                parameters.put("Filter." + (filter++) + ".Value.1", "windows");
-            }
-            String t = "machine";
-
-            switch( cls ) {
-                case MACHINE: t = "machine"; break;
-                case KERNEL: t = "kernel"; break;
-                case RAMDISK: t = "ramdisk"; break;
-            }
-            parameters.put("Filter." + filter + ".Name", "image-type");
-            parameters.put("Filter." + (filter++) + ".Value.1", t);
-            parameters.put("Filter." + filter + ".Name", "state");
-            parameters.put("Filter." + filter + ".Value.1", "available");
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("imagesSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList instances = blocks.item(i).getChildNodes();
-
-                for( int j=0; j<instances.getLength(); j++ ) {
-                    Node instance = instances.item(j);
-
-                    if( instance.getNodeName().equals("item") ) {
-                        MachineImage image = toMachineImage(instance);
-
-                        if( image != null ) {
-                            if( matches(image, ownerId, keyword, platform) ) {
-                                list.add(image);
-                            }
-                        }
-                    }
+            if( architecture != null && !architecture.equals(Architecture.I32) && !architecture.equals(Architecture.I64) ) {
+                if( !options.isMatchesAny() ) {
+                    return Collections.emptyList();
                 }
             }
-            return list;
-        }
-        finally {
-            APITrace.end();
-        }
-    }
-
-    private @Nonnull Iterable<MachineImage> executePublicImageSearch(@Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nonnull ImageClass cls) throws CloudException, InternalException {
-        APITrace.begin(provider, "executePublicImageSearch");
-        try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+
             ArrayList<MachineImage> list = new ArrayList<MachineImage>();
             NodeList blocks;
             EC2Method method;
             Document doc;
 
-            parameters.put("ExecutableBy.1", "all");
-            int filter = 1;
-            if( architecture != null ) {
-                parameters.put("Filter." + filter + ".Name", "architecture");
-                parameters.put("Filter." + (filter++) + ".Value.1", architecture.equals(Architecture.I32) ? "i386" : "x86_64");
+            if( forPublic ) {
+                if( pass == 1 ) {
+                    parameters.put("ExecutableBy.1", "all");
+                }
+                else {
+                    parameters.put("ExecutableBy.1", "self");
+                }
             }
-            if( platform != null && platform.equals(Platform.WINDOWS) ) {
-                parameters.put("Filter." + filter + ".Name", "platform");
-                parameters.put("Filter." + (filter++) + ".Value.1", "windows");
+            else {
+                if( pass ==  1 ) {
+                    parameters.put("ExecutableBy.1", "self");
+                }
+                else {
+                    parameters.put("Owner", "self");
+                }
             }
-            String t = "machine";
+            ImageFilterOptions finalOptions = fillImageFilterParameters(forPublic, options, parameters);
 
-            switch( cls ) {
-                case MACHINE: t = "machine"; break;
-                case KERNEL: t = "kernel"; break;
-                case RAMDISK: t = "ramdisk"; break;
-            }
-            parameters.put("Filter." + filter + ".Name", "image-type");
-            parameters.put("Filter." + (filter++) + ".Value.1", t);
-
-            parameters.put("Filter." + filter + ".Name", "state");
-            parameters.put("Filter." + filter + ".Value.1", "available");
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -488,7 +362,7 @@ public class AMI implements MachineImageSupport {
                         MachineImage image = toMachineImage(instance);
 
                         if( image != null ) {
-                            if( matches(image, null, keyword, platform) ) {
+                            if( finalOptions.matches(image) ) {
                                 list.add(image);
                             }
                         }
@@ -504,7 +378,7 @@ public class AMI implements MachineImageSupport {
 
     @Override
     public @Nullable MachineImage getImage(@Nonnull String providerImageId) throws CloudException, InternalException {
-        APITrace.begin(provider, "getImage");
+        APITrace.begin(provider, "Image.getImage");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -550,17 +424,14 @@ public class AMI implements MachineImageSupport {
                 return null;
             }
             else {
-                for( MachineImage image : listImages(ImageClass.MACHINE) ) {
+                ImageFilterOptions options = ImageFilterOptions.getInstance();
+
+                for( MachineImage image : searchPublicImages(options) ) {
                     if( image.getProviderMachineImageId().equals(providerImageId) ) {
                         return image;
                     }
                 }
-                for( MachineImage image : listImages(ImageClass.KERNEL) ) {
-                    if( image.getProviderMachineImageId().equals(providerImageId) ) {
-                        return image;
-                    }
-                }
-                for( MachineImage image : listImages(ImageClass.RAMDISK) ) {
+                for( MachineImage image : listImages(options) ) {
                     if( image.getProviderMachineImageId().equals(providerImageId) ) {
                         return image;
                     }
@@ -572,14 +443,9 @@ public class AMI implements MachineImageSupport {
             APITrace.end();
         }
     }
-
-    @Override
-    public @Nullable MachineImage getMachineImage(@Nonnull String imageId) throws InternalException, CloudException {
-        return getImage(imageId);
-    }
-
-    @Override
-    public @Nonnull String getProviderTermForImage(@Nonnull Locale locale) {
+	
+	@Override
+	public @Nonnull String getProviderTermForImage(@Nonnull Locale locale) {
         return getProviderTermForImage(locale, ImageClass.MACHINE);
     }
 
@@ -609,56 +475,8 @@ public class AMI implements MachineImageSupport {
     }
 
     @Override
-    @Deprecated
-    public @Nonnull AsynchronousTask<String> imageVirtualMachine(@Nonnull String vmId, @Nonnull String name, @Nonnull String description) throws CloudException, InternalException {
-        @SuppressWarnings("ConstantConditions") VirtualMachine vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(vmId);
-
-        if( vm == null ) {
-            throw new CloudException("No such virtual machine: " + vmId);
-        }
-        final AsynchronousTask<MachineImage> task = new AsynchronousTask<MachineImage>();
-        final AsynchronousTask<String> oldTask = new AsynchronousTask<String>();
-
-        captureImageAsync(ImageCreateOptions.getInstance(vm,  name, description), task);
-
-        final long timeout = System.currentTimeMillis() + (CalendarWrapper.HOUR * 2);
-
-        Thread t = new Thread() {
-            public void run() {
-                while( timeout > System.currentTimeMillis() ) {
-                    try { Thread.sleep(15000L); }
-                    catch( InterruptedException ignore ) { }
-                    oldTask.setPercentComplete(task.getPercentComplete());
-
-                    Throwable error = task.getTaskError();
-                    MachineImage img = task.getResult();
-
-                    if( error != null ) {
-                        oldTask.complete(error);
-                        return;
-                    }
-                    else if( img != null ) {
-                        oldTask.completeWithResult(img.getProviderMachineImageId());
-                        return;
-                    }
-                    else if( task.isComplete() ) {
-                        oldTask.complete(new CloudException("Task completed without info"));
-                        return;
-                    }
-                }
-                oldTask.complete(new CloudException("Image creation task timed out"));
-            }
-        };
-
-        t.setDaemon(true);
-        t.start();
-
-        return oldTask;
-    }
-
-    @Override
     public boolean isImageSharedWithPublic(@Nonnull String machineImageId) throws CloudException, InternalException {
-        APITrace.begin(provider, "isImageSharedWithPublic");
+        APITrace.begin(provider, "Image.isImageSharedWithPublic");
         try {
             MachineImage image = getMachineImage(machineImageId);
 
@@ -676,18 +494,13 @@ public class AMI implements MachineImageSupport {
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "isSubscribed");
+        APITrace.begin(getProvider(), "Image.isSubscribed");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was set for this request");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+            Map<String,String> parameters = provider.getStandardParameters(getContext(), EC2Method.DESCRIBE_IMAGES);
             EC2Method method;
 
             if( provider.getEC2Provider().isAWS() ) {
-                parameters.put("Owner", ctx.getAccountNumber());
+                parameters.put("Owner", getContext().getAccountNumber());
             }
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
@@ -712,8 +525,43 @@ public class AMI implements MachineImageSupport {
         }
     }
 
-    public @Nonnull Iterable<ResourceStatus> listImageStatus(@Nonnull ImageClass cls) throws CloudException, InternalException {
-        APITrace.begin(provider, "listImageStatus");
+    public @Nonnull Iterable<ResourceStatus> listImageStatus(final @Nonnull ImageClass cls) throws CloudException, InternalException {
+            provider.hold();
+            PopulatorThread<ResourceStatus> populator = new PopulatorThread<ResourceStatus>(new JiteratorPopulator<ResourceStatus>() {
+                @Override
+                public void populate(@Nonnull Jiterator<ResourceStatus> iterator) throws Exception {
+                    APITrace.begin(provider, "Image.listImageStatus");
+                    try {
+                        try {
+                            TreeSet<String> ids = new TreeSet<String>();
+
+                            for( ResourceStatus status : executeStatusList(1, cls) ) {
+                                ids.add(status.getProviderResourceId());
+                                iterator.push(status);
+                            }
+                            for( ResourceStatus status : executeStatusList(2, cls) ) {
+                                if( !ids.contains(status.getProviderResourceId()) ) {
+                                    iterator.push(status);
+                                }
+                            }
+                        }
+                        finally {
+                            provider.release();
+                        }
+                    }
+                    finally {
+                        APITrace.end();
+                    }
+                }
+            });
+
+            populator.populate();
+            return populator.getResult();
+
+    }
+
+    private @Nonnull Iterable<ResourceStatus> executeStatusList(int pass, @Nonnull ImageClass cls) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Image.executeStatusList");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -729,9 +577,13 @@ public class AMI implements MachineImageSupport {
 
             String accountNumber = ctx.getAccountNumber();
 
-            if( provider.getEC2Provider().isAWS() ) {
-                parameters.put("Owner", accountNumber);
+            if( pass ==  1 ) {
+                parameters.put("ExecutableBy.1", "self");
             }
+            else if( provider.getEC2Provider().isAWS() ) {
+                parameters.put("Owner", "self");
+            }
+
             String t = "machine";
 
             switch( cls ) {
@@ -802,66 +654,72 @@ public class AMI implements MachineImageSupport {
         }
     }
 
-    @Override
-    public @Nonnull Iterable<MachineImage> listImages(final @Nonnull ImageClass cls) throws CloudException, InternalException {
-        final ProviderContext ctx = provider.getContext();
+    private @Nonnull ImageFilterOptions fillImageFilterParameters(boolean forPublic, @Nonnull ImageFilterOptions options, @Nonnull Map<String,String> parameters) throws CloudException, InternalException {
+        int filter = 1;
 
-        if( ctx == null ) {
-            throw new CloudException("No context was set for this request");
+        if( forPublic ) {
+            parameters.put("Filter." + filter + ".Name", "state");
+            parameters.put("Filter." + (filter++) + ".Value.1", "available");
         }
 
-        PopulatorThread<MachineImage> populator;
-
-        provider.hold();
-        populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
-            public void populate(@Nonnull Jiterator<MachineImage> iterator) throws CloudException, InternalException {
-                try {
-                    populateImages(ctx, null, iterator, cls);
-                }
-                finally {
-                    provider.release();
-                }
+        if( options.isMatchesAny() && options.getCriteriaCount() > 1 ) {
+            if( forPublic ) {
+                return options;
             }
-        });
-        populator.populate();
-        return populator.getResult();
-    }
-
-    @Override
-    public @Nonnull Iterable<MachineImage> listImages(final @Nonnull ImageClass cls, final @Nonnull String ownedBy) throws CloudException, InternalException {
-        final ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was set for this request");
+            else {
+                options.withAccountNumber(getContext().getAccountNumber());
+                return options;
+            }
         }
 
-        PopulatorThread<MachineImage> populator;
+        String owner = options.getAccountNumber();
 
-        provider.hold();
-        populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
-            public void populate(@Nonnull Jiterator<MachineImage> iterator) throws CloudException, InternalException {
-                try {
-                    populateImages(ctx, ownedBy, iterator, cls);
-                }
-                finally {
-                    provider.release();
-                }
+        if( owner != null ) {
+            parameters.put("Owner", owner);
+        }
+
+        Architecture architecture = options.getArchitecture();
+
+        if( architecture != null && (architecture.equals(Architecture.I32) || architecture.equals(Architecture.I64)) ) {
+            parameters.put("Filter." + filter + ".Name", "architecture");
+            parameters.put("Filter." + (filter++) + ".Value.1", Architecture.I32.equals(options.getArchitecture()) ? "i386" : "x86_64");
+        }
+
+        Platform platform = options.getPlatform();
+
+        if( platform != null && platform.equals(Platform.WINDOWS) ) {
+            parameters.put("Filter." + filter + ".Name", "platform");
+            parameters.put("Filter." + (filter++) + ".Value.1", "windows");
+        }
+
+        ImageClass cls= options.getImageClass();
+        String t = "machine";
+
+        if( cls != null ) {
+            switch( cls ) {
+                case MACHINE: t = "machine"; break;
+                case KERNEL: t = "kernel"; break;
+                case RAMDISK: t = "ramdisk"; break;
             }
-        });
-        populator.populate();
-        return populator.getResult();
-    }
+            parameters.put("Filter." + filter + ".Name", "image-type");
+            parameters.put("Filter." + (filter++) + ".Value.1", t);
+        }
 
-    @Override
-    @Deprecated
-    public @Nonnull Collection<MachineImage> listMachineImages() throws InternalException, CloudException {
-        return (Collection<MachineImage>)listImages(ImageClass.MACHINE);
-    }
+        Map<String, String> extraParameters = new HashMap<String, String>();
 
-    @Override
-    @Deprecated
-    public @Nonnull Collection<MachineImage> listMachineImagesOwnedBy(@Nonnull String owner) throws InternalException, CloudException {
-        return (Collection<MachineImage>)listImages(ImageClass.MACHINE, owner);
+        provider.putExtraParameters( extraParameters, provider.getTagFilterParams( options.getTags(), filter ) );
+        parameters.putAll(extraParameters);
+        String regex = options.getRegex();
+
+        options = ImageFilterOptions.getInstance();
+
+        if( regex != null ) {
+            options.matchingRegex(regex);
+        }
+        if( platform != null ) {
+            options.onPlatform(platform);
+        }
+        return options;
     }
 
     @Override
@@ -943,48 +801,8 @@ public class AMI implements MachineImageSupport {
         return new String[0];
     }
 
-    private boolean matches(@Nonnull MachineImage image, @Nullable String ownerId, @Nullable String keyword, @Nullable Platform platform) {
-        if( ownerId != null && !ownerId.equals(image.getProviderOwnerId()) ) {
-            return false;
-        }
-        if( platform != null && !platform.equals(Platform.UNKNOWN) ) {
-            Platform mine = image.getPlatform();
-
-            if( platform.isWindows() && !mine.isWindows() ) {
-                return false;
-            }
-            if( platform.isUnix() && !mine.isUnix() ) {
-                return false;
-            }
-            if( platform.isBsd() && !mine.isBsd() ) {
-                return false;
-            }
-            if( platform.isLinux() && !mine.isLinux() ) {
-                return false;
-            }
-            if( platform.equals(Platform.UNIX) ) {
-                if( !mine.isUnix() ) {
-                    return false;
-                }
-            }
-            else if( !platform.equals(mine) ) {
-                return false;
-            }
-        }
-        if( keyword != null ) {
-            keyword = keyword.toLowerCase();
-            if( !image.getDescription().toLowerCase().contains(keyword) ) {
-                if( !image.getName().toLowerCase().contains(keyword) ) {
-                    if( !image.getProviderMachineImageId().toLowerCase().contains(keyword) ) {
-                        return false;
-                    }
-                }
-            }
-        }
-        return true;
-    }
-
-    private void populateImages(@Nonnull ProviderContext ctx, @Nullable String accountNumber, @Nonnull Jiterator<MachineImage> iterator, @Nonnull ImageClass cls) throws CloudException, InternalException {
+    /*
+	private void populateImages(@Nonnull ProviderContext ctx, @Nullable String accountNumber, @Nonnull Jiterator<MachineImage> iterator, Map<String,String> extraParameters) throws CloudException, InternalException {
         APITrace.begin(provider, "populateImages");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
@@ -998,15 +816,9 @@ public class AMI implements MachineImageSupport {
             if( provider.getEC2Provider().isAWS() ) {
                 parameters.put("Owner", accountNumber);
             }
-            String t = "machine";
 
-            switch( cls ) {
-                case MACHINE: t = "machine"; break;
-                case KERNEL: t = "kernel"; break;
-                case RAMDISK: t = "ramdisk"; break;
-            }
-            parameters.put("Filter.1.Name", "image-type");
-            parameters.put("Filter.1.Value", t);
+            provider.putExtraParameters( parameters, extraParameters );
+
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -1034,8 +846,7 @@ public class AMI implements MachineImageSupport {
             if( provider.getEC2Provider().isAWS() ) {
                 parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
                 parameters.put("ExecutableBy", accountNumber);
-                parameters.put("Filter.1.Name", "image-type");
-                parameters.put("Filter.1.Value", t);
+                provider.putExtraParameters( parameters, extraParameters );
                 method = new EC2Method(provider, provider.getEc2Url(), parameters);
                 try {
                     doc = method.invoke();
@@ -1065,11 +876,12 @@ public class AMI implements MachineImageSupport {
         finally {
             APITrace.end();
         }
-    }
+	}
+    */
 
     @Override
     public @Nonnull MachineImage registerImageBundle(@Nonnull ImageCreateOptions options) throws CloudException, InternalException {
-        APITrace.begin(provider, "registerImageBundle");
+        APITrace.begin(provider, "Image.registerImageBundle");
         try {
             if( !MachineImageFormat.AWS.equals(options.getBundleFormat()) ) {
                 throw new CloudException("Unsupported bundle format: " + options.getBundleFormat());
@@ -1109,67 +921,64 @@ public class AMI implements MachineImageSupport {
         }
     }
 
-    @Override
-    public void remove( @Nonnull String providerImageId ) throws CloudException, InternalException {
-        APITrace.begin( provider, "remove" );
-        try {
-            Map<String, String> parameters = provider.getStandardParameters( provider.getContext(), EC2Method.DEREGISTER_IMAGE );
-            NodeList blocks;
-            EC2Method method;
-            Document doc;
+  @Override
+  public void remove( @Nonnull String providerImageId, boolean checkState ) throws CloudException, InternalException {
+      APITrace.begin(getProvider(), "Image.remove");
+      try {
+          if ( checkState ) {
+              long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
 
-            parameters.put( "ImageId", providerImageId );
-            method = new EC2Method( provider, provider.getEc2Url(), parameters );
-            try {
-                doc = method.invoke();
-            } catch ( EC2Exception e ) {
-                logger.error( e.getSummary() );
-                throw new CloudException( e );
-            }
-            blocks = doc.getElementsByTagName( "return" );
-            if ( blocks.getLength() > 0 ) {
-                Node imageIdNode = blocks.item( 0 );
+              while ( timeout > System.currentTimeMillis() ) {
+                  try {
+                      MachineImage img = getMachineImage( providerImageId );
 
-                if ( !imageIdNode.getFirstChild().getNodeValue().trim().equals( "true" ) ) {
-                    throw new CloudException( "Failed to de-register image " + providerImageId );
-                }
-            }
-        } finally {
-            APITrace.end();
-        }
-    }
+                      if ( img == null || MachineImageState.DELETED.equals( img.getCurrentState() ) ) {
+                          return;
+                      }
+                      if ( MachineImageState.ACTIVE.equals( img.getCurrentState() ) ) {
+                          break;
+                      }
+                  } catch ( Throwable ignore ) {
+                      // ignore
+                  }
+                  try {
+                      Thread.sleep( 15000L );
+                  }
+                  catch ( InterruptedException ignore ) {
+                  }
+              }
+          }
 
-    @Override
-    public void remove( @Nonnull String providerImageId, boolean checkState ) throws CloudException, InternalException {
-        if ( checkState ) {
-            long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
+          Map<String, String> parameters = provider.getStandardParameters( provider.getContext(), EC2Method.DEREGISTER_IMAGE );
+          NodeList blocks;
+          EC2Method method;
+          Document doc;
 
-            while ( timeout > System.currentTimeMillis() ) {
-                try {
-                    MachineImage img = getMachineImage( providerImageId );
+          parameters.put( "ImageId", providerImageId );
+          method = new EC2Method( provider, provider.getEc2Url(), parameters );
+          try {
+              doc = method.invoke();
+          } catch ( EC2Exception e ) {
+              logger.error( e.getSummary() );
+              throw new CloudException( e );
+          }
+          blocks = doc.getElementsByTagName( "return" );
+          if ( blocks.getLength() > 0 ) {
+              Node imageIdNode = blocks.item( 0 );
 
-                    if ( img == null || MachineImageState.DELETED.equals( img.getCurrentState() ) ) {
-                        return;
-                    }
-                    if ( MachineImageState.ACTIVE.equals( img.getCurrentState() ) ) {
-                        break;
-                    }
-                } catch ( Throwable ignore ) {
-                    // ignore
-                }
-                try {
-                    Thread.sleep( 15000L );
-                } catch ( InterruptedException ignore ) {
-                }
-            }
-        }
-
-        remove( providerImageId );
-    }
+              if ( !imageIdNode.getFirstChild().getNodeValue().trim().equals( "true" ) ) {
+                  throw new CloudException( "Failed to de-register image " + providerImageId );
+              }
+          }
+      }
+      finally {
+          APITrace.end();
+      }
+  }
 
     @Override
     public void removeAllImageShares(@Nonnull String providerImageId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeAllImageShares");
+        APITrace.begin(provider, "Image.removeAllImageShares");
         try {
             List<String> shares = sharesAsList(providerImageId);
 
@@ -1183,7 +992,7 @@ public class AMI implements MachineImageSupport {
 
     @Override
     public void removeImageShare(@Nonnull String providerImageId, @Nonnull String accountNumber) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeImageShare");
+        APITrace.begin(provider, "Image.removeImageShare");
         try {
             setPrivateShare(providerImageId, false, accountNumber);
         }
@@ -1194,7 +1003,7 @@ public class AMI implements MachineImageSupport {
 
     @Override
     public void removePublicShare(@Nonnull String providerImageId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removePublicShare");
+        APITrace.begin(provider, "Image.removePublicShare");
         try {
             setPublicShare(providerImageId, false);
         }
@@ -1204,67 +1013,80 @@ public class AMI implements MachineImageSupport {
     }
 
     @Override
-    public @Nonnull Iterable<MachineImage> searchImages(@Nullable String ownerId, @Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nullable ImageClass ... classes) throws CloudException, InternalException {
-        APITrace.begin(provider, "searchImages");
-        try {
-            if( classes == null || classes.length < 1 ) {
-                return executeImageSearch(ownerId, keyword, platform, architecture, ImageClass.MACHINE);
-            }
-            else if( classes.length == 1 ) {
-                return executeImageSearch(ownerId, keyword, platform, architecture, classes[0]);
-            }
-            else {
-                ArrayList<MachineImage> images = new ArrayList<MachineImage>();
+    public @Nonnull Iterable<MachineImage> listImages(@Nullable ImageFilterOptions options) throws CloudException, InternalException {
+        final ImageFilterOptions opts;
 
-                // TODO: this should be optimized for asynchronous loading
-                for( ImageClass cls : classes ) {
-                    for( MachineImage img : executeImageSearch(ownerId, keyword, platform, architecture, cls) ) {
-                        images.add(img);
+        if( options == null ) {
+            opts = ImageFilterOptions.getInstance();
+        }
+        else {
+            opts = options;
+        }
+        provider.hold();
+        PopulatorThread<MachineImage> populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
+            @Override
+            public void populate(@Nonnull Jiterator<MachineImage> iterator) throws Exception {
+                APITrace.begin(getProvider(), "Image.listImages");
+                try {
+                    try {
+                        TreeSet<String> ids = new TreeSet<String>();
+
+                        for( MachineImage img : executeImageSearch(1, false, opts) ) {
+                            ids.add(img.getProviderMachineImageId());
+                            iterator.push(img);
+                        }
+                        for( MachineImage img : executeImageSearch(2, false, opts) ) {
+                            if( !ids.contains(img.getProviderMachineImageId()) ) {
+                                iterator.push(img);
+                            }
+                        }
+                    }
+                    finally {
+                        provider.release();
                     }
                 }
-                return images;
+                finally {
+                    APITrace.end();
+                }
             }
-        }
-        finally {
-            APITrace.end();
-        }
+        });
+
+        populator.populate();
+        return populator.getResult();
     }
 
     @Override
-    @Deprecated
-    public @Nonnull Iterable<MachineImage> searchMachineImages(@Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture) throws InternalException, CloudException {
-        return searchPublicImages(keyword, platform, architecture, ImageClass.MACHINE);
-    }
-
-    @Override
-    public @Nonnull Iterable<MachineImage> searchPublicImages(@Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nullable ImageClass ... classes) throws CloudException, InternalException {
-        APITrace.begin(provider, "searchPublicImages");
-        try {
-            if( classes == null || classes.length < 1 ) {
-                return executePublicImageSearch(keyword, platform, architecture, ImageClass.MACHINE);
-            }
-            else if( classes.length == 1 ) {
-                return executePublicImageSearch(keyword, platform, architecture, classes[0]);
-            }
-            else {
-                ArrayList<MachineImage> images = new ArrayList<MachineImage>();
-
-                // TODO: this should be optimized for asynchronous loading
-                for( ImageClass cls : classes ) {
-                    for( MachineImage img : executePublicImageSearch(keyword, platform, architecture, cls) ) {
-                        images.add(img);
+    public @Nonnull Iterable<MachineImage> searchPublicImages(final @Nonnull ImageFilterOptions options) throws CloudException, InternalException {
+        provider.hold();
+        PopulatorThread<MachineImage> populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
+            @Override
+            public void populate(@Nonnull Jiterator<MachineImage> iterator) throws Exception {
+                APITrace.begin(getProvider(), "searchPublicImages");
+                try {
+                    try {
+                        for( MachineImage img : executeImageSearch(1, true, options) ) {
+                            iterator.push(img);
+                        }
+                        for( MachineImage img : executeImageSearch(2, true, options) ) {
+                            iterator.push(img);
+                        }
+                    }
+                    finally {
+                        provider.release();
                     }
                 }
-                return images;
+                finally {
+                    APITrace.end();
+                }
             }
-        }
-        finally {
-            APITrace.end();
-        }
+        });
+
+        populator.populate();
+        return populator.getResult();
     }
 
     private void setPrivateShare(@Nonnull String imageId, boolean allowed, @Nonnull String ... accountIds) throws CloudException, InternalException {
-        if( accountIds.length < 1 ) {
+        if( accountIds == null || accountIds.length < 1 ) {
             return;
         }
         long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
@@ -1425,17 +1247,6 @@ public class AMI implements MachineImageSupport {
         }
     }
 
-    @Override
-    @Deprecated
-    public void shareMachineImage(@Nonnull String machineImageId, @Nullable String withAccountId, boolean allowShare) throws CloudException, InternalException {
-        if( withAccountId == null ) {
-            setPublicShare(machineImageId, allowShare);
-        }
-        else {
-            setPrivateShare(machineImageId, allowShare, withAccountId);
-        }
-    }
-
     private @Nonnull List<String> sharesAsList(@Nonnull String forMachineImageId) throws CloudException, InternalException {
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGE_ATTRIBUTE);
         ArrayList<String> list = new ArrayList<String>();
@@ -1491,11 +1302,6 @@ public class AMI implements MachineImageSupport {
     @Override
     public boolean supportsCustomImages() {
         return true;
-    }
-
-    @Override
-    public boolean supportsDirectImageUpload() throws CloudException, InternalException {
-        return false;
     }
 
     @Override
@@ -1770,26 +1576,29 @@ public class AMI implements MachineImageSupport {
                     }
                 }
             }
-        }
-        if( image.getPlatform() == null ) {
-            if( location != null ) {
-                image.setPlatform(Platform.guess(location));
+            else if ( name.equals("tagSet")) {
+                provider.setTags( attribute, image );
             }
-            else {
-                image.setPlatform(Platform.UNKNOWN);
-            }
-        }
-        if( location != null ) {
-            String[] parts = location.split("/");
-
-            if( parts != null && parts.length > 1 ) {
-                location = parts[parts.length - 1];
-            }
-            int i = location.indexOf(".manifest.xml");
-
-            if( i > -1 ) {
-                location = location.substring(0, i);
-            }
+		}
+		if( image.getPlatform() == null ) {
+		    if( location != null ) {
+		        image.setPlatform(Platform.guess(location));
+		    }
+		    else {
+		        image.setPlatform(Platform.UNKNOWN);
+		    }
+		}
+		if( location != null ) {
+			String[] parts = location.split("/");
+			
+			if( parts != null && parts.length > 1 ) {
+				location = parts[parts.length - 1];
+			}
+			int i = location.indexOf(".manifest.xml");
+			
+			if( i > -1 ) {
+				location = location.substring(0, i);
+			}
             if( image.getName() == null || image.getName().equals("") ) {
                 image.setName(location);
             }
@@ -1813,98 +1622,131 @@ public class AMI implements MachineImageSupport {
 
     @Override
     public void updateTags(@Nonnull String imageId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        provider.createTags(imageId, tags);
+        updateTags(new String[]{imageId}, tags);
+    }
+
+    @Override
+    public void updateTags(@Nonnull String[] imageIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Image.updateTags");
+        try {
+            provider.createTags(imageIds, tags);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void removeTags(@Nonnull String imageId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        removeTags(new String[]{imageId}, tags);
+    }
+
+    @Override
+    public void removeTags(@Nonnull String[] imageIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Image.removeTags");
+        try {
+            provider.removeTags(imageIds, tags);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     private void waitForBundle(@Nonnull String bundleId, @Nonnull String manifest, @Nonnull Platform platform, @Nonnull String name, @Nonnull String description, AsynchronousTask<MachineImage> task) {
+        APITrace.begin(getProvider(), "Image.waitForBundle");
         try {
-            long failurePoint = -1L;
+            try {
+                long failurePoint = -1L;
 
-            while( !task.isComplete() ) {
-                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_BUNDLE_TASKS);
-                NodeList blocks;
-                EC2Method method;
-                Document doc;
+                while( !task.isComplete() ) {
+                    Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_BUNDLE_TASKS);
+                    NodeList blocks;
+                    EC2Method method;
+                    Document doc;
 
-                parameters.put("BundleId", bundleId);
-                method = new EC2Method(provider, provider.getEc2Url(), parameters);
-                try {
-                    doc = method.invoke();
-                }
-                catch( EC2Exception e ) {
-                    throw new CloudException(e);
-                }
-                blocks = doc.getElementsByTagName("bundleInstanceTasksSet");
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    NodeList instances = blocks.item(i).getChildNodes();
+                    parameters.put("BundleId", bundleId);
+                    method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                    try {
+                        doc = method.invoke();
+                    }
+                    catch( EC2Exception e ) {
+                        throw new CloudException(e);
+                    }
+                    blocks = doc.getElementsByTagName("bundleInstanceTasksSet");
+                    for( int i=0; i<blocks.getLength(); i++ ) {
+                        NodeList instances = blocks.item(i).getChildNodes();
 
-                    for( int j=0; j<instances.getLength(); j++ ) {
-                        Node node = instances.item(j);
+                        for( int j=0; j<instances.getLength(); j++ ) {
+                            Node node = instances.item(j);
 
-                        if( node.getNodeName().equals("item") ) {
-                            BundleTask bt = toBundleTask(node);
+                            if( node.getNodeName().equals("item") ) {
+                                BundleTask bt = toBundleTask(node);
 
-                            if( bt.bundleId.equals(bundleId) ) {
-                                // pending | waiting-for-shutdown | storing | canceling | complete | failed
-                                if( bt.state.equals("complete") ) {
-                                    String imageId;
+                                if( bt.bundleId.equals(bundleId) ) {
+                                    // pending | waiting-for-shutdown | storing | canceling | complete | failed
+                                    if( bt.state.equals("complete") ) {
+                                        String imageId;
 
-                                    task.setPercentComplete(99.0);
-                                    imageId = registerImageBundle(ImageCreateOptions.getInstance(MachineImageFormat.AWS, manifest, platform, name, description)).getProviderMachineImageId();
-                                    task.setPercentComplete(100.00);
-                                    task.completeWithResult(getMachineImage(imageId));
-                                }
-                                else if( bt.state.equals("failed") ) {
-                                    String message = bt.message;
+                                        task.setPercentComplete(99.0);
+                                        imageId = registerImageBundle(ImageCreateOptions.getInstance(MachineImageFormat.AWS, manifest, platform, name, description)).getProviderMachineImageId();
+                                        task.setPercentComplete(100.00);
+                                        task.completeWithResult(getMachineImage(imageId));
+                                    }
+                                    else if( bt.state.equals("failed") ) {
+                                        String message = bt.message;
 
-                                    if( message == null ) {
-                                        if( failurePoint == -1L ) {
-                                            failurePoint = System.currentTimeMillis();
+                                        if( message == null ) {
+                                            if( failurePoint == -1L ) {
+                                                failurePoint = System.currentTimeMillis();
+                                            }
+                                            if( (System.currentTimeMillis() - failurePoint) > (CalendarWrapper.MINUTE * 2) ) {
+                                                message = "Bundle failed without further information.";
+                                            }
                                         }
-                                        if( (System.currentTimeMillis() - failurePoint) > (CalendarWrapper.MINUTE * 2) ) {
-                                            message = "Bundle failed without further information.";
+                                        if( message != null ) {
+                                            task.complete(new CloudException(message));
                                         }
                                     }
-                                    if( message != null ) {
-                                        task.complete(new CloudException(message));
+                                    else if( bt.state.equals("pending") || bt.state.equals("waiting-for-shutdown") ) {
+                                        task.setPercentComplete(0.0);
                                     }
-                                }
-                                else if( bt.state.equals("pending") || bt.state.equals("waiting-for-shutdown") ) {
-                                    task.setPercentComplete(0.0);
-                                }
-                                else if( bt.state.equals("bundling") ) {
-                                    double p = bt.progress/2;
+                                    else if( bt.state.equals("bundling") ) {
+                                        double p = bt.progress/2;
 
-                                    if( p > 50.00 ) {
-                                        p = 50.00;
+                                        if( p > 50.00 ) {
+                                            p = 50.00;
+                                        }
+                                        task.setPercentComplete(p);
                                     }
-                                    task.setPercentComplete(p);
-                                }
-                                else if( bt.state.equals("storing") ) {
-                                    double p = 50.0 + bt.progress/2;
+                                    else if( bt.state.equals("storing") ) {
+                                        double p = 50.0 + bt.progress/2;
 
-                                    if( p > 100.0 ) {
-                                        p = 100.0;
+                                        if( p > 100.0 ) {
+                                            p = 100.0;
+                                        }
+                                        task.setPercentComplete(p);
                                     }
-                                    task.setPercentComplete(p);
-                                }
-                                else {
-                                    task.setPercentComplete(0.0);
+                                    else {
+                                        task.setPercentComplete(0.0);
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                if( !task.isComplete() ) {
-                    try { Thread.sleep(20000L); }
-                    catch( InterruptedException ignore ) { }
+                    if( !task.isComplete() ) {
+                        try { Thread.sleep(20000L); }
+                        catch( InterruptedException ignore ) { }
+                    }
                 }
             }
+            catch( Throwable t ) {
+                logger.error(t);
+                t.printStackTrace();
+                task.complete(t);
+            }
         }
-        catch( Throwable t ) {
-            logger.error(t);
-            t.printStackTrace();
-            task.complete(t);
+        finally {
+            APITrace.end();
         }
-    }
+	}
 }

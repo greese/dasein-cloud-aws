@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -55,7 +55,15 @@ public class EC2NetworkServices extends AbstractNetworkServices {
         }
         return null;
     }
-    
+
+    @Override
+    public @Nullable NetworkACL getNetworkFirewallSupport() {
+        if( cloud.getEC2Provider().isAWS() ) {
+            return new NetworkACL(cloud);
+        }
+        return null;
+    }
+
     @Override
     public @Nullable VPC getVlanSupport() {
         if( cloud.getEC2Provider().isAWS() || cloud.getEC2Provider().isEnStratus() ) {

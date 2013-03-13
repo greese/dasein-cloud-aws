@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,7 +80,7 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public @Nullable DataCenter getDataCenter(@Nonnull String zoneId) throws InternalException, CloudException {
-        APITrace.begin(provider, "getDataCenter");
+        APITrace.begin(provider, "DC.getDataCenter");
         try {
             if( provider.getEC2Provider().isStorage() ) {
                 return (zoneId.equals(oneZoneId) ? getZone() : null);
@@ -170,7 +170,7 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Region getRegion(String regionId) throws InternalException, CloudException {
-        APITrace.begin(provider, "getRegion");
+        APITrace.begin(provider, "DC.getRegion");
         try {
             if( provider.getEC2Provider().isStorage() ) {
                 return (regionId.equals(oneRegionId) ? getRegion() : null);
@@ -225,7 +225,7 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Collection<DataCenter> listDataCenters(String regionId) throws InternalException, CloudException {
-        APITrace.begin(provider, "listDataCenters");
+        APITrace.begin(provider, "DC.listDataCenters");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -234,8 +234,9 @@ public class RegionsAndZones implements DataCenterServices {
             }
             Cache<DataCenter> cache = null;
             Collection<DataCenter> dataCenters;
+            String originalRegionId = ctx.getRegionId();
 
-            if( regionId.equals(ctx.getRegionId()) ) {
+            if( regionId.equals(originalRegionId) ) {
                 cache = Cache.getInstance(provider, "dataCenters", DataCenter.class, CacheLevel.REGION_ACCOUNT);
                 dataCenters = (Collection<DataCenter>)cache.get(ctx);
                 if( dataCenters != null ) {
@@ -248,35 +249,41 @@ public class RegionsAndZones implements DataCenterServices {
                 }
                 throw new CloudException("No such region: " + regionId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
-            EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            NodeList blocks;
-            Document doc;
-
-            dataCenters = new ArrayList<DataCenter>();
             try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("availabilityZoneInfo");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList zones = blocks.item(i).getChildNodes();
+                ctx.setRegionId(regionId);
+                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
+                EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                NodeList blocks;
+                Document doc;
 
-                for( int j=0; j<zones.getLength(); j++ ) {
-                    Node region = zones.item(j);
+                dataCenters = new ArrayList<DataCenter>();
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                blocks = doc.getElementsByTagName("availabilityZoneInfo");
+                for( int i=0; i<blocks.getLength(); i++ ) {
+                    NodeList zones = blocks.item(i).getChildNodes();
 
-                    if( region.getNodeName().equals("item") ) {
-                        dataCenters.add(toDataCenter(regionId, zones.item(j)));
+                    for( int j=0; j<zones.getLength(); j++ ) {
+                        Node region = zones.item(j);
+
+                        if( region.getNodeName().equals("item") ) {
+                            dataCenters.add(toDataCenter(regionId, zones.item(j)));
+                        }
                     }
                 }
+                if( cache != null ) {
+                    cache.put(ctx, dataCenters);
+                }
+                return dataCenters;
             }
-            if( cache != null ) {
-                cache.put(ctx, dataCenters);
+            finally {
+                ctx.setRegionId(originalRegionId);
             }
-            return dataCenters;
         }
         finally {
             APITrace.end();
@@ -285,7 +292,7 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Collection<Region> listRegions() throws InternalException, CloudException {
-        APITrace.begin(provider, "listRegions");
+        APITrace.begin(provider, "DC.listRegions");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -345,7 +352,7 @@ public class RegionsAndZones implements DataCenterServices {
 	}
 
 	Map<String,String> mapRegions(String url) throws InternalException, CloudException {
-        APITrace.begin(provider, "mapRegions");
+        APITrace.begin(provider, "DC.mapRegions");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
             HashMap<String,String> results = new HashMap<String,String>();

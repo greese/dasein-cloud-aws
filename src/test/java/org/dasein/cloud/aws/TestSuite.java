@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,13 +18,7 @@
 
 package org.dasein.cloud.aws;
 
-import junit.framework.Test;
+import org.dasein.cloud.test.GlobalTestSuite;
 
-import org.dasein.cloud.test.ComprehensiveTestSuite;
-import org.dasein.cloud.test.TestConfigurationException;
-
-public class AWSTestSuite  {
-    static public Test suite() throws TestConfigurationException {
-        return new ComprehensiveTestSuite(AWSCloud.class);
-    }
+public class TestSuite extends GlobalTestSuite {
 }

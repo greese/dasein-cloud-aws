@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,44 +33,41 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.IPVersion;
-import org.dasein.cloud.network.LbAlgorithm;
-import org.dasein.cloud.network.LbListener;
-import org.dasein.cloud.network.LbProtocol;
-import org.dasein.cloud.network.LoadBalancer;
-import org.dasein.cloud.network.LoadBalancerAddressType;
-import org.dasein.cloud.network.LoadBalancerState;
-import org.dasein.cloud.network.LoadBalancerSupport;
+import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-public class ElasticLoadBalancer implements LoadBalancerSupport {
+public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     static private final Logger logger = Logger.getLogger(ElasticLoadBalancer.class);
     
     private AWSCloud provider = null;
-    
+
     ElasticLoadBalancer(AWSCloud provider) {
+        super(provider);
         this.provider = provider;
     }
     
     @Override
-    public void addDataCenters(String toLoadBalancerId, String ... availabilityZoneIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "addDataCentersToLB");
+    public void addDataCenters(@Nonnull String toLoadBalancerId, @Nonnull String ... availabilityZoneIds) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.addDataCenters");
         try {
+            //noinspection ConstantConditions
             if( availabilityZoneIds != null && availabilityZoneIds.length > 0 ) {
                 ProviderContext ctx = provider.getContext();
 
                 if( ctx == null ) {
                     throw new CloudException("No valid context is established for this request");
                 }
-                Map<String,String> parameters = getELBParameters(provider.getContext(), ELBMethod.ENABLE_AVAILABILITY_ZONES);
+                Map<String,String> parameters = getELBParameters(getContext(), ELBMethod.ENABLE_AVAILABILITY_ZONES);
                 ELBMethod method;
 
                 parameters.put("LoadBalancerName", toLoadBalancerId);
@@ -94,21 +91,27 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
     }
 
     @Override
-    public void addServers(String toLoadBalancerId, String ... instanceIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "addServersToLB");
+    public void addServers(@Nonnull String toLoadBalancerId, @Nonnull String ... instanceIds) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.addServers");
         try {
+            //noinspection ConstantConditions
             if( instanceIds != null && instanceIds.length > 0 ) {
                 ProviderContext ctx = provider.getContext();
 
                 if( ctx == null ) {
                     throw new CloudException("No valid context is established for this request");
                 }
-                Map<String,String> parameters = getELBParameters(provider.getContext(), ELBMethod.REGISTER_INSTANCES);
+                Map<String,String> parameters = getELBParameters(getContext(), ELBMethod.REGISTER_INSTANCES);
                 ELBMethod method;
 
                 LoadBalancer lb = getLoadBalancer(toLoadBalancerId);
+
+                if( lb == null ) {
+                    throw new CloudException("No such load balancer: " + toLoadBalancerId);
+                }
                 LbListener[] listeners = lb.getListeners();
 
+                //noinspection ConstantConditions
                 if( listeners == null ) {
                     throw new CloudException("The load balancer " + toLoadBalancerId + " is improperly configered.");
                 }
@@ -122,7 +125,6 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
                     method.invoke();
                 }
                 catch( EC2Exception e ) {
-                    logger.error(e.getSummary());
                     throw new CloudException(e);
                 }
             }
@@ -131,10 +133,10 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
             APITrace.end();
         }
     }
-    
+
     @Override
-    public String create(String name, String description, String addressId, String[] zoneIds, LbListener[] listeners, String[] serverIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "createLoadBalancer");
+    public @Nonnull String createLoadBalancer(@Nonnull LoadBalancerCreateOptions options) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.createLoadBalancer");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -146,13 +148,13 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
             NodeList blocks;
             Document doc;
 
-            if( addressId != null ) {
-                throw new CloudException("AWS does not support assignment of IP addresses to load balancers.");
+            if( options.getProviderIpAddressId() != null ) {
+                throw new OperationNotSupportedException(getProvider().getCloudName() + " does not support assignment of IP addresses to load balancers.");
             }
-            name = verifyName(name);
+            String name = verifyName(options.getName());
             parameters.put("LoadBalancerName", name);
             int i = 1;
-            for( LbListener listener : listeners ) {
+            for( LbListener listener : options.getListeners() ) {
                 switch( listener.getNetworkProtocol() ) {
                     case HTTP: parameters.put("Listeners.member." + i + ".Protocol", "HTTP"); break;
                     case RAW_TCP: parameters.put("Listeners.member." + i + ".Protocol", "TCP"); break;
@@ -163,7 +165,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
                 i++;
             }
             i = 1;
-            for( String zoneId : zoneIds ) {
+            for( String zoneId : options.getProviderDataCenterIds() ) {
                 parameters.put("AvailabilityZones.member." + (i++), zoneId);
             }
             method = new ELBMethod(provider, ctx, parameters);
@@ -176,24 +178,47 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
             }
             blocks = doc.getElementsByTagName("DNSName");
             if( blocks.getLength() > 0 ) {
-                if( serverIds != null && serverIds.length > 0 ) {
-                    addServers(name, serverIds);
+                for( LoadBalancerEndpoint endpoint : options.getEndpoints() ) {
+                    if( endpoint.getEndpointType().equals(LbEndpointType.VM) ) {
+                        addServers(name, endpoint.getEndpointValue());
+                    }
+                    else {
+                        addIPEndpoints(name, endpoint.getEndpointValue());
+                    }
                 }
                 return name;
             }
-            throw new CloudException("Unable to create a load balancer and no error message from AWS.");
+            throw new CloudException("Unable to create a load balancer and no error message from the cloud.");
         }
         finally {
             APITrace.end();
         }
     }
 
-    public LoadBalancerAddressType getAddressType() {
+    @SuppressWarnings("deprecation")
+    @Override
+    @Deprecated
+    public @Nonnull String create(@Nonnull String name, @Nonnull String description, @Nullable String addressId, @Nullable String[] zoneIds, @Nullable LbListener[] listeners, @Nullable String[] serverIds) throws CloudException, InternalException {
+        LoadBalancerCreateOptions options = LoadBalancerCreateOptions.getInstance(name, description);
+
+        if( zoneIds != null && zoneIds.length > 0 ) {
+            options.limitedTo(zoneIds);
+        }
+        if( listeners != null && listeners.length > 0 ) {
+            options.havingListeners(listeners);
+        }
+        if( serverIds != null && serverIds.length > 0 ) {
+            options.withVirtualMachines(serverIds);
+        }
+        return createLoadBalancer(options);
+    }
+
+    public @Nonnull LoadBalancerAddressType getAddressType() {
         return LoadBalancerAddressType.DNS;
     }
     
-    private Map<String,String> getELBParameters(ProviderContext ctx, String action) throws InternalException {
-        APITrace.begin(provider, "getELBParameters");
+    private @Nonnull Map<String,String> getELBParameters(@Nonnull ProviderContext ctx, @Nonnull String action) throws InternalException {
+        APITrace.begin(provider, "LB.getELBParameters");
         try {
             HashMap<String,String> parameters = new HashMap<String,String>();
 
@@ -222,15 +247,10 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
     }
     
     @Override
-    public LoadBalancer getLoadBalancer(String loadBalancerId) throws CloudException, InternalException {
-        APITrace.begin(provider, "getLoadBalancer");
+    public @Nullable LoadBalancer getLoadBalancer(@Nonnull String loadBalancerId) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.getLoadBalancer");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No valid context is established for this request");
-            }
-            Map<String,String> parameters = getELBParameters(provider.getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
+            Map<String,String> parameters = getELBParameters(getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
             ELBMethod method;
             NodeList blocks;
             Document doc;
@@ -239,7 +259,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
                 return null;
             }
             parameters.put("LoadBalancerNames.member.1", loadBalancerId);
-            method = new ELBMethod(provider, ctx, parameters);
+            method = new ELBMethod(provider, getContext(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -260,7 +280,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
                     Node item = items.item(j);
 
                     if( item.getNodeName().equals("member") ) {
-                        LoadBalancer loadBalancer = toLoadBalancer(ctx, item);
+                        LoadBalancer loadBalancer = toLoadBalancer(item);
 
                         if( loadBalancer != null ) {
                             return loadBalancer;
@@ -278,7 +298,7 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
     static private volatile List<LbAlgorithm> algorithms;
     
     @Override
-    public Iterable<LbAlgorithm> listSupportedAlgorithms() {
+    public @Nonnull Iterable<LbAlgorithm> listSupportedAlgorithms() {
         if( algorithms == null ) {
             List<LbAlgorithm> list = new ArrayList<LbAlgorithm>();
 
@@ -286,6 +306,11 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
             algorithms = Collections.unmodifiableList(list);
         }
         return algorithms;
+    }
+
+    @Override
+    public @Nonnull Iterable<LbEndpointType> listSupportedEndpointTypes() throws CloudException, InternalException {
+        return Collections.singletonList(LbEndpointType.VM);
     }
 
     static private volatile List<IPVersion> versions;
@@ -302,10 +327,15 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
         return versions;
     }
 
+    @Override
+    public @Nonnull Iterable<LbPersistence> listSupportedPersistenceOptions() throws CloudException, InternalException {
+        return Collections.singletonList(LbPersistence.NONE);
+    }
+
     static private volatile List<LbProtocol> protocols;
     
     @Override
-    public Iterable<LbProtocol> listSupportedProtocols() {
+    public @Nonnull Iterable<LbProtocol> listSupportedProtocols() {
         if( protocols == null ) {
             List<LbProtocol> list = new ArrayList<LbProtocol>();
 
@@ -316,8 +346,18 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
         return protocols;
     }
     
-    public String getProviderTermForLoadBalancer(Locale locale) {
+    public @Nonnull String getProviderTermForLoadBalancer(@Nonnull Locale locale) {
         return "load balancer";
+    }
+
+    @Override
+    public @Nonnull Requirement identifyEndpointsOnCreateRequirement() throws CloudException, InternalException {
+        return Requirement.OPTIONAL;
+    }
+
+    @Override
+    public @Nonnull Requirement identifyListenersOnCreateRequirement() throws CloudException, InternalException {
+        return Requirement.REQUIRED;
     }
 
     @Override
@@ -329,20 +369,10 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
     public boolean isDataCenterLimited() {
         return true;
     }
-    
-    @Override
-    public boolean requiresListenerOnCreate() {
-        return true;
-    }
-
-    @Override
-    public boolean requiresServerOnCreate() {
-        return false;
-    }
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "isSubscribedELB");
+        APITrace.begin(provider, "LB.isSubscribed");
         try {
             try {
                 ProviderContext ctx = provider.getContext();
@@ -392,33 +422,87 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
             APITrace.end();
         }
     }
-    
+
+    @Override
+    public @Nonnull Iterable<LoadBalancerEndpoint> listEndpoints(@Nonnull String loadBalancerId) throws CloudException, InternalException {
+        //noinspection RedundantArrayCreation
+        return listEndpoints(loadBalancerId, LbEndpointType.VM, new String[0]);
+    }
+
+    @Override
+    public @Nonnull Iterable<LoadBalancerEndpoint> listEndpoints(@Nonnull String loadBalancerId, @Nonnull LbEndpointType type, @Nonnull String ... endpoints) throws CloudException, InternalException {
+        if( !type.equals(LbEndpointType.VM) ) {
+            return Collections.emptyList();
+        }
+        APITrace.begin(provider, "LB.listEndpoints");
+        try {
+            ArrayList<LoadBalancerEndpoint> list = new ArrayList<LoadBalancerEndpoint>();
+            Map<String,String> parameters = getELBParameters(getContext(), ELBMethod.DESCRIBE_INSTANCE_HEALTH);
+            ELBMethod method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("LoadBalancerName", loadBalancerId );
+            if( endpoints.length > 0 ) {
+                for ( int i = 0; i < endpoints.length; i++ ) {
+                    parameters.put( "Instances.member." + (i + 1) + ".InstanceId", endpoints[i] );
+                }
+            }
+            method = new ELBMethod( provider, getContext(), parameters );
+            try {
+                doc = method.invoke();
+            }
+            catch ( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("InstanceStates");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("member") ) {
+                        LoadBalancerEndpoint ep = toEndpoint(item);
+                        if( ep != null ) {
+                            list.add(ep);
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
     @Override
     public boolean supportsMonitoring() {
         return true;
     }
 
     @Override
+    public boolean supportsMultipleTrafficTypes() throws CloudException, InternalException {
+        return true;
+    }
+
+    @Override
     public @Nonnull Iterable<ResourceStatus> listLoadBalancerStatus() throws CloudException, InternalException {
-        APITrace.begin(provider, "listLoadBalancerStatus");
+        APITrace.begin(provider, "LB.listLoadBalancerStatus");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No valid context is established for this request");
-            }
-
             if(!provider.getEC2Provider().isAWS() ) {
                 return Collections.emptyList();
             }
 
             ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
-            Map<String,String> parameters = getELBParameters(provider.getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
+            Map<String,String> parameters = getELBParameters(getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
             ELBMethod method;
             NodeList blocks;
             Document doc;
 
-            method = new ELBMethod(provider, ctx, parameters);
+            method = new ELBMethod(provider, getContext(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -450,26 +534,20 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
     }
 
     @Override
-    public Iterable<LoadBalancer> listLoadBalancers() throws CloudException, InternalException {
-        APITrace.begin(provider, "listLoadBalancers");
+    public @Nonnull Iterable<LoadBalancer> listLoadBalancers() throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.listLoadBalancers");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No valid context is established for this request");
-            }
-
             if(!provider.getEC2Provider().isAWS() ) {
                 return Collections.emptyList();
             }
 
             ArrayList<LoadBalancer> list = new ArrayList<LoadBalancer>();
-            Map<String,String> parameters = getELBParameters(provider.getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
+            Map<String,String> parameters = getELBParameters(getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
             ELBMethod method;
             NodeList blocks;
             Document doc;
 
-            method = new ELBMethod(provider, ctx, parameters);
+            method = new ELBMethod(provider, getContext(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -485,10 +563,71 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
                     Node item = items.item(j);
 
                     if( item.getNodeName().equals("member") ) {
-                        LoadBalancer loadBalancer = toLoadBalancer(ctx, item);
+                        LoadBalancer loadBalancer = toLoadBalancer(item);
 
                         if( loadBalancer != null ) {
                             list.add(loadBalancer);
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    @Deprecated
+    public @Nonnull Iterable<LoadBalancerServer> getLoadBalancerServerHealth(@Nonnull String loadBalancerId) throws CloudException, InternalException {
+        return getLoadBalancerServerHealth(loadBalancerId, new String[0]);
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    @Deprecated
+    public @Nonnull Iterable<LoadBalancerServer> getLoadBalancerServerHealth(@Nonnull String loadBalancerId, @Nonnull String ... serverIdsToCheck ) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.getLoadBalancerServerHealth");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No valid context is established for this request");
+            }
+
+            ArrayList<LoadBalancerServer> list = new ArrayList<LoadBalancerServer>();
+            Map<String,String> parameters = getELBParameters(provider.getContext(), ELBMethod.DESCRIBE_INSTANCE_HEALTH);
+            ELBMethod method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put( "LoadBalancerName", loadBalancerId );
+            if ( serverIdsToCheck != null && serverIdsToCheck.length > 0 ) {
+                for ( int i = 0; i < serverIdsToCheck.length; i++ ) {
+                    parameters.put( "Instances.member." + (i + 1) + ".InstanceId", serverIdsToCheck[i] );
+                }
+            }
+            method = new ELBMethod( provider, ctx, parameters );
+            try {
+                doc = method.invoke();
+            }
+            catch ( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("InstanceStates");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("member") ) {
+                        LoadBalancerServer loadBalancerServer = toLoadBalancerServer( ctx, loadBalancerId, item );
+                        if( loadBalancerServer != null ) {
+                            list.add(loadBalancerServer);
                         }
                     }
                 }
@@ -510,13 +649,15 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
         }
         else if( action.equals(LoadBalancerSupport.ADD_VMS) ) {
             return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.REGISTER_INSTANCES };
-            
         }
         else if( action.equals(LoadBalancerSupport.CREATE_LOAD_BALANCER) ) {
             return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.CREATE_LOAD_BALANCER };
         }
         else if( action.equals(LoadBalancerSupport.GET_LOAD_BALANCER) || action.equals(LoadBalancerSupport.LIST_LOAD_BALANCER) ) {
             return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.DESCRIBE_LOAD_BALANCERS };
+        }
+        else if( action.equals(LoadBalancerSupport.GET_LOAD_BALANCER_SERVER_HEALTH) ) {
+            return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.DESCRIBE_INSTANCE_HEALTH };
         }
         else if( action.equals(LoadBalancerSupport.REMOVE_DATA_CENTERS) ) {
             return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.DISABLE_AVAILABILITY_ZONES };
@@ -530,16 +671,23 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
         return new String[0]; 
     }
 
+    @SuppressWarnings("deprecation")
     @Override
-    public void remove(String loadBalancerId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeLoadBalancer");
+    @Deprecated
+    public void remove(@Nonnull String loadBalancerId) throws CloudException, InternalException {
+        removeLoadBalancer(loadBalancerId);
+    }
+
+    @Override
+    public void removeLoadBalancer(@Nonnull String loadBalancerId) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.remove");
         try {
             ProviderContext ctx = provider.getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No valid context is established for this request");
             }
-            Map<String,String> parameters = getELBParameters(provider.getContext(), ELBMethod.DELETE_LOAD_BALANCER);
+            Map<String,String> parameters = getELBParameters(getContext(), ELBMethod.DELETE_LOAD_BALANCER);
             ELBMethod method;
 
             parameters.put("LoadBalancerName", loadBalancerId);
@@ -558,16 +706,17 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
     }
 
     @Override
-    public void removeDataCenters(String toLoadBalancerId, String ... availabilityZoneIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeDataCentersFromLB");
+    public void removeDataCenters(@Nonnull String toLoadBalancerId, @Nonnull String ... availabilityZoneIds) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.removeDataCenters");
         try {
+            //noinspection ConstantConditions
             if( availabilityZoneIds != null && availabilityZoneIds.length > 0 ) {
                 ProviderContext ctx = provider.getContext();
 
                 if( ctx == null ) {
                     throw new CloudException("No valid context is established for this request");
                 }
-                Map<String,String> parameters = getELBParameters(provider.getContext(), ELBMethod.DISABLE_AVAILABILITY_ZONES);
+                Map<String,String> parameters = getELBParameters(getContext(), ELBMethod.DISABLE_AVAILABILITY_ZONES);
                 ELBMethod method;
 
                 parameters.put("LoadBalancerName", toLoadBalancerId);
@@ -591,16 +740,17 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
     }
 
     @Override
-    public void removeServers(String toLoadBalancerId, String ... instanceIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeServersFromLB");
+    public void removeServers(@Nonnull String toLoadBalancerId, @Nonnull String ... instanceIds) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.removeServers");
         try {
+            //noinspection ConstantConditions
             if( instanceIds != null && instanceIds.length > 0 ) {
                 ProviderContext ctx = provider.getContext();
 
                 if( ctx == null ) {
                     throw new CloudException("No valid context is established for this request");
                 }
-                Map<String,String> parameters = getELBParameters(provider.getContext(), ELBMethod.DEREGISTER_INSTANCES);
+                Map<String,String> parameters = getELBParameters(getContext(), ELBMethod.DEREGISTER_INSTANCES);
                 ELBMethod method;
 
                 parameters.put("LoadBalancerName", toLoadBalancerId);
@@ -623,59 +773,63 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
         }
     }
 
+    @Override
+    public boolean supportsAddingEndpoints() throws CloudException, InternalException {
+        return true;
+    }
+
     private LbListener toListener(Node node) {
-        LbListener listener = new LbListener();
         NodeList attrs = node.getChildNodes();
-        
-        listener.setAlgorithm(LbAlgorithm.ROUND_ROBIN);
+
+        LbProtocol protocol = LbProtocol.RAW_TCP;
+        int publicPort = 0;
+        int privatePort = 0;
+
         for( int i=0; i<attrs.getLength(); i++ ) {
             Node attr = attrs.item(i);
             String name;
             
             name = attr.getNodeName().toLowerCase();
             if( name.equals("protocol") ) {
-                listener.setNetworkProtocol(toProtocol(attr.getFirstChild().getNodeValue()));
+                protocol = toProtocol(attr.getFirstChild().getNodeValue());
             }
             else if( name.equals("loadbalancerport") ) {
-                listener.setPublicPort(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+                publicPort = Integer.parseInt(attr.getFirstChild().getNodeValue());
             }
             else if( name.equals("instanceport") ) {
-                listener.setPrivatePort(Integer.parseInt(attr.getFirstChild().getNodeValue()));                
+                privatePort = Integer.parseInt(attr.getFirstChild().getNodeValue());
             }
         }
-        return listener;
+        return LbListener.getInstance(protocol,  publicPort, privatePort);
     }
     
-    private @Nullable LoadBalancer toLoadBalancer(@Nonnull ProviderContext ctx, @Nullable Node node) {
+    private @Nullable LoadBalancer toLoadBalancer(@Nullable Node node) throws CloudException, InternalException {
         if( node == null ) {
             return null;
         }
-        LoadBalancer loadBalancer = new LoadBalancer();
+        ArrayList<LbListener> listenerList = new ArrayList<LbListener>();
+        ArrayList<Integer> portList = new ArrayList<Integer>();
+        ArrayList<String> zoneList = new ArrayList<String>();
+        ArrayList<String> serverIds = new ArrayList<String>();
+        String regionId = getContext().getRegionId();
+        String lbName = null, description = null, lbId = null, cname = null;
+        long created = 0L;
+
+        if( regionId == null ) {
+            throw new CloudException("No region was set for this context");
+        }
         NodeList attrs = node.getChildNodes();
 
-        loadBalancer.setListeners(new LbListener[0]);
-        loadBalancer.setProviderDataCenterIds(new String[0]);
-        loadBalancer.setProviderServerIds(new String[0]);
-        loadBalancer.setProviderRegionId(ctx.getRegionId());
-        loadBalancer.setAddressType(LoadBalancerAddressType.DNS);
-        loadBalancer.setCurrentState(LoadBalancerState.ACTIVE);
-        loadBalancer.setProviderOwnerId(ctx.getAccountNumber());
-        loadBalancer.setPublicPorts(new int[0]);
-        loadBalancer.setSupportedTraffic(new IPVersion[] { IPVersion.IPV4, IPVersion.IPV6 });
         for( int i=0; i<attrs.getLength(); i++ ) {
             Node attr = attrs.item(i);
             String name;
             
             name = attr.getNodeName().toLowerCase();
             if( name.equals("listeners") ) {
-                ArrayList<Integer> ports = new ArrayList<Integer>();
-                
                 if( attr.hasChildNodes() ) {
                     NodeList listeners = attr.getChildNodes();
                 
                     if( listeners.getLength() > 0 ) {
-                        ArrayList<LbListener> list = new ArrayList<LbListener>();
-                        
                         for( int j=0; j<listeners.getLength(); j++ ) {
                             Node item = listeners.item(j);
                             
@@ -683,34 +837,24 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
                                 LbListener l = toListener(item);
                                 
                                 if( l != null ) {
-                                    list.add(l);
-                                    ports.add(l.getPublicPort());
+                                    listenerList.add(l);
+                                    portList.add(l.getPublicPort());
                                 }
                             }
                         }
-                        loadBalancer.setListeners(list.toArray(new LbListener[list.size()]));
                     }
                 }
-                int[] p = new int[ports.size()];
-                int idx = 0;
-                
-                for( Integer port : ports ) {
-                    p[idx++] = port;
-                }
-                loadBalancer.setPublicPorts(p);
             }
             else if( name.equals("loadbalancername") ) {
-                loadBalancer.setName(attr.getFirstChild().getNodeValue());
-                loadBalancer.setDescription(attr.getFirstChild().getNodeValue());
-                loadBalancer.setProviderLoadBalancerId(attr.getFirstChild().getNodeValue());
+                lbName = attr.getFirstChild().getNodeValue();
+                description = attr.getFirstChild().getNodeValue();
+                lbId = attr.getFirstChild().getNodeValue();
             }
             else if( name.equals("instances") ) {
                 if( attr.hasChildNodes() ) {
                     NodeList instances = attr.getChildNodes();
                 
                     if( instances.getLength() > 0 ) {
-                        ArrayList<String> ids = new ArrayList<String>();
-                        
                         for( int j=0; j<instances.getLength(); j++ ) {
                             Node instance = instances.item(j);
                             
@@ -722,25 +866,18 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
                                         Node n = idList.item(k);
                                         
                                         if( n.getNodeName().equalsIgnoreCase("instanceid") ) {
-                                            ids.add(n.getFirstChild().getNodeValue());
+                                            serverIds.add(n.getFirstChild().getNodeValue());
                                         }
                                     }
                                 }
                             }
                         }
-                        String[] tmp = new String[ids.size()];
-                        int j=0; 
-                        
-                        for( String id : ids ) {
-                            tmp[j++] = id;
-                        }
-                        loadBalancer.setProviderServerIds(tmp);
                     }
                 }
             }
             else if( name.equals("createdtime") ) {
                 try {
-                    loadBalancer.setCreationTimestamp(provider.parseTime(attr.getFirstChild().getNodeValue()));
+                    created = provider.parseTime(attr.getFirstChild().getNodeValue());
                 }
                 catch( CloudException e ) {
                     logger.warn("Unable to parse time: " + e.getMessage());
@@ -750,34 +887,52 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
                 // unsupported
             }
             else if( name.equals("dnsname") ) {
-                loadBalancer.setAddress(attr.getFirstChild().getNodeValue());
+                cname = attr.getFirstChild().getNodeValue();
             }
             else if( name.equals("availabilityzones") ) {
                 if( attr.hasChildNodes() ) {
                     NodeList zones = attr.getChildNodes();
                 
                     if( zones.getLength() > 0 ) {
-                        ArrayList<String> ids = new ArrayList<String>();
-                        
                         for( int j=0; j<zones.getLength(); j++ ) {
                             Node zone = zones.item(j);
                             
                             if( zone.hasChildNodes() ) {
-                                ids.add(zone.getFirstChild().getNodeValue());
+                                zoneList.add(zone.getFirstChild().getNodeValue());
                             }
                         }
-                        String[] tmp = new String[ids.size()];
-                        int j=0; 
-                        
-                        for( String id : ids ) {
-                            tmp[j++] = id;
-                        }
-                        loadBalancer.setProviderDataCenterIds(tmp);
                     }
                 }                
             }
         }
-        return loadBalancer;
+        if( lbId == null || cname == null ) {
+            return null;
+        }
+        if( lbName == null ) {
+            lbName= lbId + " (" + cname + ")";
+        }
+        if( description == null ) {
+            description = lbName;
+        }
+        int[] ports = new int[portList.size()];
+        int i =0;
+
+        for( Integer p : portList ) {
+            ports[i++] = p;
+        }
+        LoadBalancer lb = LoadBalancer.getInstance(getContext().getAccountNumber(), regionId, lbId, LoadBalancerState.ACTIVE, lbName, description, LoadBalancerAddressType.DNS, cname, ports).supportingTraffic(IPVersion.IPV4, IPVersion.IPV6).createdAt(created);
+
+        if( !serverIds.isEmpty() ) {
+            //noinspection deprecation
+            lb.setProviderServerIds(serverIds.toArray(new String[serverIds.size()]));
+        }
+        if( !listenerList.isEmpty() ) {
+            lb.withListeners(listenerList.toArray(new LbListener[listenerList.size()]));
+        }
+        if( !zoneList.isEmpty() ) {
+            lb.operatingIn(zoneList.toArray(new String[zoneList.size()]));
+        }
+        return lb;
     }
     
     private LbProtocol toProtocol(String txt) {
@@ -786,6 +941,105 @@ public class ElasticLoadBalancer implements LoadBalancerSupport {
         }
         else {
             return LbProtocol.RAW_TCP;
+        }
+    }
+
+    private @Nullable LoadBalancerEndpoint toEndpoint(@Nullable Node node ) throws CloudException, InternalException {
+        if ( node == null ) {
+            return null;
+        }
+        String reason = null, description = null, vmId = null;
+        LbEndpointState state = LbEndpointState.ACTIVE;
+        NodeList attrs = node.getChildNodes();
+
+        for ( int i = 0; i < attrs.getLength(); i++ ) {
+            Node attr = attrs.item( i );
+            String name;
+
+            name = attr.getNodeName().toLowerCase();
+            if ( name.equals( "instanceid" ) && attr.hasChildNodes() ) {
+                vmId = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if ( name.equals( "state" ) && attr.hasChildNodes() ) {
+                if( attr.getFirstChild().getNodeValue().trim().equalsIgnoreCase("InService") ) {
+                    state = LbEndpointState.ACTIVE;
+                }
+                else {
+                    state = LbEndpointState.INACTIVE;
+                }
+            }
+            else if ( name.equals( "description" ) && attr.hasChildNodes() ) {
+                String value = attr.getFirstChild().getNodeValue().trim();
+
+                if ( !"N/A".equals( value ) ) {
+                    description = value;
+                }
+            }
+            else if ( name.equals( "reasoncode" ) && attr.hasChildNodes() ) {
+                String value = attr.getFirstChild().getNodeValue().trim();
+
+                if ( !"N/A".equals( value ) ) {
+                    reason =  attr.getFirstChild().getNodeValue();
+                }
+            }
+        }
+        if( vmId == null ) {
+            return null;
+        }
+        if( description == null ) {
+            description = state.toString();
+        }
+        if( reason == null ) {
+            reason = description;
+        }
+        return LoadBalancerEndpoint.getInstance(LbEndpointType.VM, vmId, state, reason, description);
+    }
+
+    private @Nullable LoadBalancerServer toLoadBalancerServer( @Nonnull ProviderContext ctx, @Nullable String loadBalancerId, @Nullable Node node ) {
+        if ( node == null ) {
+            return null;
+        }
+        LoadBalancerServer loadBalancerServer = new LoadBalancerServer();
+        NodeList attrs = node.getChildNodes();
+
+        loadBalancerServer.setProviderOwnerId( ctx.getAccountNumber() );
+        loadBalancerServer.setProviderRegionId( ctx.getRegionId() );
+        loadBalancerServer.setProviderLoadBalancerId( loadBalancerId );
+
+        for ( int i = 0; i < attrs.getLength(); i++ ) {
+            Node attr = attrs.item( i );
+            String name;
+
+            name = attr.getNodeName().toLowerCase();
+            if ( name.equals( "instanceid" ) ) {
+                loadBalancerServer.setProviderServerId( attr.getFirstChild().getNodeValue() );
+            }
+            else if ( name.equals( "state" ) ) {
+                loadBalancerServer.setCurrentState( toServerState( attr.getFirstChild().getNodeValue() ) );
+            }
+            else if ( name.equals( "description" ) ) {
+                String value = attr.getFirstChild().getNodeValue();
+                if ( !"N/A".equals( value ) ) {
+                    loadBalancerServer.setCurrentStateDescription( value );
+                }
+            }
+            else if ( name.equals( "reasoncode" ) ) {
+                String value = attr.getFirstChild().getNodeValue();
+                if ( !"N/A".equals( value ) ) {
+                    loadBalancerServer.setCurrentStateReason( attr.getFirstChild().getNodeValue() );
+                }
+            }
+        }
+
+        return loadBalancerServer;
+    }
+
+    private LoadBalancerServerState toServerState( String txt ) {
+        if ( txt.equals( "InService" ) ) {
+            return LoadBalancerServerState.ACTIVE;
+        }
+        else {
+            return LoadBalancerServerState.INACTIVE;
         }
     }
 

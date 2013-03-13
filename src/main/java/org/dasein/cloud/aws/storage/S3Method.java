@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -209,7 +209,7 @@ public class S3Method {
             return format.format(new Date());
         }
         else {
-            SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", new Locale("US"));
+            SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
             Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
 
             fmt.setCalendar(cal);
@@ -267,7 +267,7 @@ public class S3Method {
             HttpRequestBase method;
             HttpClient client;
             int status;
-    
+
             if( provider.getEC2Provider().isAWS() ) {
                 url.append("https://");
                 if( temporaryEndpoint == null ) {
@@ -664,7 +664,7 @@ public class S3Method {
             wire.debug(sb.toString());
 
 			return XMLParser.parse(new ByteArrayInputStream(sb.toString().getBytes()));
-        }
+		}
 		catch( IOException e ) {
 			logger.error(e);
 			e.printStackTrace();

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2009-2013 Enstratius, Inc.
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,6 +50,7 @@ import org.dasein.cloud.platform.DatabaseSnapshotState;
 import org.dasein.cloud.platform.DatabaseState;
 import org.dasein.cloud.platform.RelationalDatabaseSupport;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.util.CalendarWrapper;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
 import org.dasein.util.PopulatorThread;
@@ -96,7 +97,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void addAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
-        APITrace.begin(provider, "addDatabaseAccessRule");
+        APITrace.begin(provider, "RDBMS.addAccess");
         try {
             Iterator<String> securityGroups = getSecurityGroups(providerDatabaseId).iterator();
             String id;
@@ -161,7 +162,7 @@ public class RDS implements RelationalDatabaseSupport {
     
     @Override
     public void alterDatabase(String providerDatabaseId, boolean applyImmediately, String productSize, int storageInGigabytes, String configurationId, String newAdminUser, String newAdminPassword, int newPort, int snapshotRetentionInDays, TimeWindow preferredMaintenanceWindow, TimeWindow preferredBackupWindow) throws CloudException, InternalException {
-        APITrace.begin(provider, "alterDatabase");
+        APITrace.begin(provider, "RDBMS.alterDatabase");
         try {
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), MODIFY_DB_INSTANCE);
             EC2Method method;
@@ -207,7 +208,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private String createSecurityGroup(String id) throws CloudException, InternalException {
-        APITrace.begin(provider, "createDatabaseSecurityGroup");
+        APITrace.begin(provider, "RDBMS.createSecurityGroup");
         try {
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_SECURITY_GROUP);
             EC2Method method;
@@ -235,7 +236,7 @@ public class RDS implements RelationalDatabaseSupport {
     
     @Override
     public String createFromScratch(String databaseName, DatabaseProduct product, String engineVersion, String withAdminUser, String withAdminPassword, int hostPort) throws CloudException, InternalException {
-        APITrace.begin(provider, "createDatabaseFromScratch");
+        APITrace.begin(provider, "RDBMS.createFromScratch");
         try {
             Map<String,String> parameters;
             String id = toIdentifier(databaseName);
@@ -294,7 +295,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public String createFromLatest(String databaseName, String providerDatabaseId, String productSize, String providerDataCenterId, int hostPort) throws InternalException, CloudException {
-        APITrace.begin(provider, "createDatabaseFromLatest");
+        APITrace.begin(provider, "RDBMS.createFromLatest");
         try {
             Map<String,String> parameters;
             String id = toIdentifier(databaseName);
@@ -334,7 +335,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     public String createFromSnapshot(String databaseName, String providerDatabaseId, String providerDbSnapshotId, String productSize, String providerDataCenterId, int hostPort) throws CloudException, InternalException {
-        APITrace.begin(provider, "createDatabaseFromSnapshot");
+        APITrace.begin(provider, "RDBMS.createFromSnapshot");
         try {
             Map<String,String> parameters;
             String id = toIdentifier(databaseName);
@@ -373,7 +374,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     public String createFromTimestamp(String databaseName, String providerDatabaseId, long beforeTimestamp, String productSize, String providerDataCenterId, int hostPort) throws InternalException, CloudException {
-        APITrace.begin(provider, "createDatabaseFromTimestamp");
+        APITrace.begin(provider, "RDBMS.createFromTimestamp");
         try {
             Map<String,String> parameters;
             String id = toIdentifier(databaseName);
@@ -418,10 +419,16 @@ public class RDS implements RelationalDatabaseSupport {
         }
         PopulatorThread<DatabaseConfiguration> populator;
         final String id = providerConfigurationId;
-        
+
+        provider.hold();
         populator = new PopulatorThread<DatabaseConfiguration>(new JiteratorPopulator<DatabaseConfiguration>() {
             public void populate(Jiterator<DatabaseConfiguration> iterator) throws CloudException, InternalException {
-                populateConfigurationList(id, iterator);
+                try {
+                    populateConfigurationList(id, iterator);
+                }
+                finally {
+                    provider.release();
+                }
             }
         });
         populator.populate();
@@ -434,7 +441,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     public Database getDatabase(String providerDatabaseId) throws CloudException, InternalException {
-        APITrace.begin(provider, "getDatabase");
+        APITrace.begin(provider, "RDBMS.getDatabase");
         try {
             if( providerDatabaseId == null ) {
                 return null;
@@ -473,7 +480,7 @@ public class RDS implements RelationalDatabaseSupport {
     
     @Override
     public String getDefaultVersion(DatabaseEngine forEngine) throws CloudException, InternalException {
-        APITrace.begin(provider, "getDefaultVersion");
+        APITrace.begin(provider, "RDBMS.getDefaultVersion");
         try {
             String version = defaultVersions.get(forEngine);
 
@@ -528,7 +535,7 @@ public class RDS implements RelationalDatabaseSupport {
     
     @Override
     public Iterable<String> getSupportedVersions(DatabaseEngine forEngine) throws CloudException, InternalException {
-        APITrace.begin(provider, "getSupportedVersions");
+        APITrace.begin(provider, "RDBMS.getSupportedVersions");
         try {
             Collection<String> versions = engineVersions.get(forEngine);
 
@@ -605,7 +612,7 @@ public class RDS implements RelationalDatabaseSupport {
         ArrayList<DatabaseProduct> products = databaseProducts;
         
         if( products == null ) {
-            boolean us = provider.getContext().getRegionId().equals("us-east-1");
+            @SuppressWarnings("ConstantConditions") boolean us = provider.getContext().getRegionId().equals("us-east-1");
             
             products = new ArrayList<DatabaseProduct>();
             if( engine.equals(DatabaseEngine.MYSQL) || engine.equals(DatabaseEngine.MYSQL51) || engine.equals(DatabaseEngine.MYSQL55) ) {
@@ -960,16 +967,23 @@ public class RDS implements RelationalDatabaseSupport {
     
     
     private String getRDSUrl() throws InternalException, CloudException {
+        //noinspection ConstantConditions
         return ("https://rds." + provider.getContext().getRegionId() + ".amazonaws.com");
     }
     
     private Iterable<String> getSecurityGroups(String databaseId) throws CloudException, InternalException {
         PopulatorThread<String> populator;
         final String dbId = databaseId;
-        
+
+        provider.hold();
         populator = new PopulatorThread<String>(new JiteratorPopulator<String>() {
             public void populate(Jiterator<String> iterator) throws CloudException, InternalException {
-                populateSecurityGroupIds(dbId, iterator);
+                try {
+                    populateSecurityGroupIds(dbId, iterator);
+                }
+                finally {
+                    provider.release();
+                }
             }
         });
         populator.populate();
@@ -982,10 +996,16 @@ public class RDS implements RelationalDatabaseSupport {
         }
         PopulatorThread<DatabaseSnapshot> populator;
         final String id = providerDbSnapshotId;
-        
+
+        provider.hold();
         populator = new PopulatorThread<DatabaseSnapshot>(new JiteratorPopulator<DatabaseSnapshot>() {
             public void populate(Jiterator<DatabaseSnapshot> iterator) throws CloudException, InternalException {
-                populateSnapshotList(id, null, iterator);
+                try {
+                    populateSnapshotList(id, null, iterator);
+                }
+                finally {
+                    provider.release();
+                }
             }
         });
         populator.populate();
@@ -998,7 +1018,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "isSubscribedRDS");
+        APITrace.begin(provider, "RDBMS.isSubscribed");
         try {
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
             EC2Method method = new EC2Method(provider, getRDSUrl(), parameters);
@@ -1051,19 +1071,31 @@ public class RDS implements RelationalDatabaseSupport {
     public Iterable<String> listAccess(String toProviderDatabaseId) throws CloudException, InternalException {
         PopulatorThread<String> idPopulator, accessPopulator;
         final String dbId = toProviderDatabaseId;
-        
+
+        provider.hold();
         idPopulator = new PopulatorThread<String>(new JiteratorPopulator<String>() {
             public void populate(Jiterator<String> iterator) throws CloudException, InternalException {
-                populateSecurityGroupIds(dbId, iterator);
+                try {
+                    populateSecurityGroupIds(dbId, iterator);
+                }
+                finally {
+                    provider.release();
+                }
             }
         });
         idPopulator.populate();
         
         final Iterable<String> ids = idPopulator.getResult();
+        provider.hold();
         accessPopulator = new PopulatorThread<String>(new JiteratorPopulator<String>() {
             public void populate(Jiterator<String> iterator) throws CloudException, InternalException {
-                for( String id : ids ) {
-                    populateAccess(id, iterator);
+                try {
+                    for( String id : ids ) {
+                        populateAccess(id, iterator);
+                    }
+                }
+                finally {
+                    provider.release();
                 }
             }
         });
@@ -1085,7 +1117,7 @@ public class RDS implements RelationalDatabaseSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listDatabaseStatus() throws CloudException, InternalException {
-        APITrace.begin(provider, "listDatabaseStatus");
+        APITrace.begin(provider, "RDBMS.listDatabaseStatus");
         try {
             ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
             String marker = null;
@@ -1149,7 +1181,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private Iterable<Database> listDatabases(String targetId) throws CloudException, InternalException {
-        APITrace.begin(provider, "listDatabases");
+        APITrace.begin(provider, "RDBMS.listDatabases");
         try {
             ArrayList<Database> list = new ArrayList<Database>();
             String marker = null;
@@ -1174,7 +1206,7 @@ public class RDS implements RelationalDatabaseSupport {
                     if( targetId != null ) {
                         String code = e.getCode();
 
-                        if( code != null && code.equals("DBInstanceNotFound") ) {
+                        if( code != null && code.equals("DBInstanceNotFound") || code.equals("InvalidParameterValue") ) {
                             return list;
                         }
                     }
@@ -1225,8 +1257,12 @@ public class RDS implements RelationalDatabaseSupport {
         provider.hold();
         populator = new PopulatorThread<ConfigurationParameter>(new JiteratorPopulator<ConfigurationParameter>() {
             public void populate(Jiterator<ConfigurationParameter> iterator) throws CloudException, InternalException {
-                populateParameterList(id, null, iterator);
-                provider.release();
+                try {
+                    populateParameterList(id, null, iterator);
+                }
+                finally {
+                    provider.release();
+                }
             }
         });
         populator.populate();
@@ -1240,8 +1276,12 @@ public class RDS implements RelationalDatabaseSupport {
         provider.hold();
         populator = new PopulatorThread<ConfigurationParameter>(new JiteratorPopulator<ConfigurationParameter>() {
             public void populate(Jiterator<ConfigurationParameter> iterator) throws CloudException, InternalException {
-                populateParameterList(null, dbEngine, iterator);
-                provider.release();
+                try {
+                    populateParameterList(null, dbEngine, iterator);
+                }
+                finally {
+                    provider.release();
+                }
             }
         });
         populator.populate();
@@ -1255,8 +1295,12 @@ public class RDS implements RelationalDatabaseSupport {
         final String id = (forOptionalProviderDatabaseId == null ? null : forOptionalProviderDatabaseId);
         populator = new PopulatorThread<DatabaseSnapshot>(new JiteratorPopulator<DatabaseSnapshot>() {
             public void populate(Jiterator<DatabaseSnapshot> iterator) throws CloudException, InternalException {
-                populateSnapshotList(null, id, iterator);
-                provider.release();
+                try {
+                    populateSnapshotList(null, id, iterator);
+                }
+                finally {
+                    provider.release();
+                }
             }
         });
         populator.populate();
@@ -1269,7 +1313,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     private void populateAccess(String securityGroupId, Jiterator<String> iterator) throws CloudException, InternalException {
-        APITrace.begin(provider, "populateDBSGAccess");
+        APITrace.begin(provider, "RDBMS.populateDBSGAccess");
         try {
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_SECURITY_GROUPS);
             EC2Method method;
@@ -1283,7 +1327,7 @@ public class RDS implements RelationalDatabaseSupport {
             }
             catch( EC2Exception e ) {
                 throw new CloudException(e);
-            };
+            }
             blocks = doc.getElementsByTagName("DBSecurityGroups");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 NodeList items = blocks.item(i).getChildNodes();
@@ -1339,7 +1383,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private void populateConfigurationList(String targetId, Jiterator<DatabaseConfiguration> iterator) throws CloudException, InternalException {
-        APITrace.begin(provider, "populateConfigurationList");
+        APITrace.begin(provider, "RDBMS.populateConfigurationList");
         try {
             String marker = null;
 
@@ -1361,7 +1405,7 @@ public class RDS implements RelationalDatabaseSupport {
                 }
                 catch( EC2Exception e ) {
                     throw new CloudException(e);
-                };
+                }
                 marker = null;
                 blocks = doc.getElementsByTagName("Marker");
                 if( blocks.getLength() > 0 ) {
@@ -1400,7 +1444,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private void populateParameterList(String cfgId, DatabaseEngine engine, Jiterator<ConfigurationParameter> iterator) throws CloudException, InternalException {
-        APITrace.begin(provider, "populateParameterList");
+        APITrace.begin(provider, "RDBMS.populateParameterList");
         try {
             String marker = null;
 
@@ -1427,7 +1471,7 @@ public class RDS implements RelationalDatabaseSupport {
                 }
                 catch( EC2Exception e ) {
                     throw new CloudException(e);
-                };
+                }
                 marker = null;
                 blocks = doc.getElementsByTagName("Marker");
                 if( blocks.getLength() > 0 ) {
@@ -1466,7 +1510,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private void populateSecurityGroupIds(String providerDatabaseId, Jiterator<String> iterator) throws CloudException, InternalException {
-        APITrace.begin(provider, "populateDBSecurityGroups");
+        APITrace.begin(provider, "RDBMS.populateDBSecurityGroups");
         try {
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
             EC2Method method;
@@ -1480,7 +1524,7 @@ public class RDS implements RelationalDatabaseSupport {
             }
             catch( EC2Exception e ) {
                 throw new CloudException(e);
-            };
+            }
             blocks = doc.getElementsByTagName("DBInstances");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 NodeList items = blocks.item(i).getChildNodes();
@@ -1536,7 +1580,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private void populateSnapshotList(String snapshotId, String databaseId, Jiterator<DatabaseSnapshot> iterator) throws CloudException, InternalException {
-        APITrace.begin(provider, "populateDBSnapshotList");
+        APITrace.begin(provider, "RDBMS.populateDBSnapshotList");
         try {
             String marker = null;
 
@@ -1566,7 +1610,7 @@ public class RDS implements RelationalDatabaseSupport {
                         return;
                     }
                     throw new CloudException(e);
-                };
+                }
                 marker = null;
                 blocks = doc.getElementsByTagName("Marker");
                 if( blocks.getLength() > 0 ) {
@@ -1605,7 +1649,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void removeConfiguration(String providerConfigurationId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeDatabaseConfiguration");
+        APITrace.begin(provider, "RDBMS.removeConfiguration");
         try {
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_PARAMETER_GROUP);
             EC2Method method;
@@ -1625,7 +1669,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private void removeSecurityGroup(String securityGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeDatabaseSecurityGroup");
+        APITrace.begin(provider, "RDBMS.removeSecurityGroup");
         try {
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_SECURITY_GROUP);
             EC2Method method;
@@ -1645,8 +1689,23 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void removeDatabase(String providerDatabaseId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeDatabase");
+        APITrace.begin(provider, "RDBMS.removeDatabase");
         try {
+            long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE*10L);
+            Database db = getDatabase(providerDatabaseId);
+
+            while( timeout > System.currentTimeMillis() ) {
+                if( db == null || DatabaseState.DELETED.equals(db.getCurrentState()) ) {
+                    return;
+                }
+                if( DatabaseState.AVAILABLE.equals(db.getCurrentState()) ) {
+                    break;
+                }
+                try { Thread.sleep(15000L); }
+                catch( InterruptedException ignore ) { }
+                try { db = getDatabase(providerDatabaseId); }
+                catch( Throwable ignore ) { }
+            }
             Iterable<String> securityGroups = getSecurityGroups(providerDatabaseId);
 
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_INSTANCE);
@@ -1692,7 +1751,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void removeSnapshot(String providerSnapshotId) throws CloudException, InternalException {
-        APITrace.begin(provider, "removeSnapshot");
+        APITrace.begin(provider, "RDBMS.removeSnapshot");
         try {
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_SNAPSHOT);
             EC2Method method;
@@ -1712,7 +1771,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void resetConfiguration(String providerConfigurationId, String ... params) throws CloudException, InternalException {
-        APITrace.begin(provider, "resetDatabaseConfiguration");
+        APITrace.begin(provider, "RDBMS.resetConfiguration");
         try {
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), RESET_DB_PARAMETER_GROUP);
             EC2Method method;
@@ -1745,7 +1804,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void restart(String providerDatabaseId, boolean blockUntilDone) throws CloudException, InternalException {
-        APITrace.begin(provider, "restartDatabase");
+        APITrace.begin(provider, "RDBMS.restart");
         try {
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), REBOOT_DB_INSTANCE);
             EC2Method method;
@@ -1765,7 +1824,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void revokeAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
-        APITrace.begin(provider, "revokeDatabaseAccess");
+        APITrace.begin(provider, "RDBMS.revokeAccess");
         try {
             EC2Exception error = null;
 
@@ -1793,7 +1852,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void updateConfiguration(String providerConfigurationId, ConfigurationParameter ... params) throws CloudException, InternalException {
-        APITrace.begin(provider, "updateDatabaseconfiguration");
+        APITrace.begin(provider, "RDBMS.updateConfiguration");
         try {
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), MODIFY_DB_PARAMETER_GROUP);
             EC2Method method;
@@ -1832,7 +1891,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private void setSecurityGroup(String id, String securityGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "setDatabaseSecurityGroup");
+        APITrace.begin(provider, "RDBMS.setSecurityGroup");
         try {
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), MODIFY_DB_INSTANCE);
             EC2Method method;
@@ -1854,7 +1913,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public DatabaseSnapshot snapshot(String providerDatabaseId, String name) throws CloudException, InternalException {
-        APITrace.begin(provider, "snapshotDatabase");
+        APITrace.begin(provider, "RDBMS.snapshot");
         try {
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_SNAPSHOT);
             String id = toIdentifier(name);
@@ -2132,12 +2191,19 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     private DatabaseState toDatabaseState(String value) throws CloudException {
+        //incompatible-option-group, incompatible-parameters, incompatible-restore, incompatible-network
         if( value == null ) {
             System.out.println("DEBUG: Null state value");
             return DatabaseState.PENDING;
         }
-        else if( value.equalsIgnoreCase("available") ) {
+        else if( value.equalsIgnoreCase("available") || value.equals("incompatible-option-group") || value.equals("incompatible-parameters") || value.equals("incompatible-restore") || value.equals("incompatible-network") ) {
             return DatabaseState.AVAILABLE;
+        }
+        else if( value.equalsIgnoreCase("storage-full") ) {
+            return DatabaseState.STORAGE_FULL;
+        }
+        else if( value.equalsIgnoreCase("failed") ) {
+            return DatabaseState.FAILED;
         }
         else if( value.equalsIgnoreCase("backing-up") ) {
             return DatabaseState.BACKUP;
@@ -2151,9 +2217,6 @@ public class RDS implements RelationalDatabaseSupport {
         else if( value.equalsIgnoreCase("deleting") ) {
             return DatabaseState.DELETING;
         }
-        else if( value.equalsIgnoreCase("failed") ) {
-            return DatabaseState.FAILED;
-        }
         else if( value.equalsIgnoreCase("modifying") ) {
             return DatabaseState.MODIFYING;
         }
@@ -2161,10 +2224,7 @@ public class RDS implements RelationalDatabaseSupport {
             return DatabaseState.RESTARTING;
         }
         else if( value.equalsIgnoreCase("resetting-mastercredentials") ) {
-            return DatabaseState.AVAILABLE;
-        }
-        else if( value.equalsIgnoreCase("storage-full") ) {
-            return DatabaseState.STORAGE_FULL;
+            return DatabaseState.MODIFYING;
         }
         else {
             System.out.println("DEBUG: Unknown database state: " + value);
