@@ -776,7 +776,6 @@ public class VPC extends AbstractVLANSupport {
         throws CloudException, InternalException {
         VlanCreateOptions vco = VlanCreateOptions.getInstance(name, description, cidr, domainName, dnsServers, ntpServers);
         return createVlan(vco);
-
     }
 
     @Override
