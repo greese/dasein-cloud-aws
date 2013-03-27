@@ -774,62 +774,9 @@ public class VPC extends AbstractVLANSupport {
     public @Nonnull VLAN createVlan(@Nonnull String cidr, @Nonnull String name, @Nonnull String description,
                                     @Nullable String domainName, @Nonnull String[] dnsServers, @Nonnull String[] ntpServers)
         throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.createVLAN");
-        try {
-            ProviderContext ctx = provider.getContext();
+        VlanCreateOptions vco = VlanCreateOptions.getInstance(name, description, cidr, domainName, dnsServers, ntpServers);
+        return createVlan(vco);
 
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_VPC);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
-            parameters.put("CidrBlock", cidr);
-            parameters.put("InstanceTenancy", "default");
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                if( logger.isDebugEnabled() ) {
-                    e.printStackTrace();
-                }
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("vpc");
-
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                Node item = blocks.item(i);
-                VLAN vlan = toVLAN(ctx, item);
-
-                if( vlan != null ) {
-                    if( domainName != null || dnsServers.length > 0 || ntpServers.length > 0 ) {
-                        assignDHCPOptions(vlan, domainName, dnsServers, ntpServers);
-                    }
-                    Tag[] tags = new Tag[2];
-                    Tag t = new Tag();
-
-                    t.setKey("Name");
-                    t.setValue(name);
-                    tags[0] = t;
-                    t = new Tag();
-                    t.setKey("Description");
-                    t.setValue(description);
-                    tags[1] = t;
-                    provider.createTags(vlan.getProviderVlanId(), tags);
-                    vlan.setName(name);
-                    vlan.setDescription(description);
-                    return vlan;
-                }
-            }
-            throw new CloudException("No VLAN was created, but no error was reported");
-        }
-        finally {
-            APITrace.end();
-        }
     }
 
     @Override
@@ -866,8 +813,11 @@ public class VPC extends AbstractVLANSupport {
           VLAN vlan = toVLAN(ctx, item);
 
           if( vlan != null ) {
-            if( options.getDomain() != null || options.getDnsServers().length > 0 || options.getNtpServers().length > 0 ) {
-              assignDHCPOptions(vlan, options.getDomain(), options.getDnsServers(), options.getNtpServers());
+            String domain = options.getDomain();
+            String[] dns = options.getDnsServers();
+            String[] ntp = options.getNtpServers();
+            if( domain != null || dns != null || ntp != null ) {
+                assignDHCPOptions(vlan, options.getDomain(), options.getDnsServers(), options.getNtpServers());
             }
             Tag[] tags = new Tag[2];
             Tag t = new Tag();
