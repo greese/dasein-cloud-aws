@@ -63,6 +63,7 @@ import org.dasein.cloud.network.Subnet;
 import org.dasein.cloud.network.SubnetCreateOptions;
 import org.dasein.cloud.network.SubnetState;
 import org.dasein.cloud.network.VLAN;
+import org.dasein.cloud.network.VlanCreateOptions;
 import org.dasein.cloud.network.VLANState;
 import org.dasein.cloud.network.VLANSupport;
 import org.dasein.cloud.util.APITrace;
@@ -769,63 +770,76 @@ public class VPC extends AbstractVLANSupport {
     }
 
     @Override
-    public @Nonnull VLAN createVlan(@Nonnull String cidr, @Nonnull String name, @Nonnull String description, @Nullable String domainName, @Nonnull String[] dnsServers, @Nonnull String[] ntpServers) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.createVLAN");
+    @Deprecated
+    public @Nonnull VLAN createVlan(@Nonnull String cidr, @Nonnull String name, @Nonnull String description,
+                                    @Nullable String domainName, @Nonnull String[] dnsServers, @Nonnull String[] ntpServers)
+        throws CloudException, InternalException {
+        VlanCreateOptions vco = VlanCreateOptions.getInstance(name, description, cidr, domainName, dnsServers, ntpServers);
+        return createVlan(vco);
+
+    }
+
+    @Override
+    public @Nonnull VLAN createVlan(final @Nonnull VlanCreateOptions options) throws CloudException, InternalException {
+      APITrace.begin(provider, "VLAN.createVLAN");
+      try {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+          throw new CloudException("No context was configured");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_VPC);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("CidrBlock", options.getCidr());
+        parameters.put("InstanceTenancy", "default");
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_VPC);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
-            parameters.put("CidrBlock", cidr);
-            parameters.put("InstanceTenancy", "default");
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                if( logger.isDebugEnabled() ) {
-                    e.printStackTrace();
-                }
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("vpc");
-
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                Node item = blocks.item(i);
-                VLAN vlan = toVLAN(ctx, item);
-
-                if( vlan != null ) {
-                    if( domainName != null || dnsServers.length > 0 || ntpServers.length > 0 ) {
-                        assignDHCPOptions(vlan, domainName, dnsServers, ntpServers);
-                    }
-                    Tag[] tags = new Tag[2];
-                    Tag t = new Tag();
-
-                    t.setKey("Name");
-                    t.setValue(name);
-                    tags[0] = t;
-                    t = new Tag();
-                    t.setKey("Description");
-                    t.setValue(description);
-                    tags[1] = t;
-                    provider.createTags(vlan.getProviderVlanId(), tags);
-                    vlan.setName(name);
-                    vlan.setDescription(description);
-                    return vlan;
-                }
-            }
-            throw new CloudException("No VLAN was created, but no error was reported");
+          doc = method.invoke();
         }
-        finally {
-            APITrace.end();
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          if( logger.isDebugEnabled() ) {
+            e.printStackTrace();
+          }
+          throw new CloudException(e);
         }
+        blocks = doc.getElementsByTagName("vpc");
+
+        for( int i=0; i<blocks.getLength(); i++ ) {
+          Node item = blocks.item(i);
+          VLAN vlan = toVLAN(ctx, item);
+
+          if( vlan != null ) {
+            String domain = options.getDomain();
+            String[] dns = options.getDnsServers();
+            String[] ntp = options.getNtpServers();
+            if( domain != null || dns != null || ntp != null ) {
+                assignDHCPOptions(vlan, options.getDomain(), options.getDnsServers(), options.getNtpServers());
+            }
+            Tag[] tags = new Tag[2];
+            Tag t = new Tag();
+
+            t.setKey("Name");
+            t.setValue(options.getName());
+            tags[0] = t;
+            t = new Tag();
+            t.setKey("Description");
+            t.setValue(options.getDescription());
+            tags[1] = t;
+            provider.createTags(vlan.getProviderVlanId(), tags);
+            vlan.setName(options.getName());
+            vlan.setDescription(options.getDescription());
+            return vlan;
+          }
+        }
+        throw new CloudException("No VLAN was created, but no error was reported");
+      }
+      finally {
+        APITrace.end();
+      }
     }
 
     static private class Attachment {
