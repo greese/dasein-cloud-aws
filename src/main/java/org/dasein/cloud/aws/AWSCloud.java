@@ -495,7 +495,7 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public String getElbVersion() {
-        return "2009-05-15";
+        return "2012-06-01";
     }
 
     public String getRdsVersion() {
