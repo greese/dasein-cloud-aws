@@ -168,6 +168,14 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             for( String zoneId : options.getProviderDataCenterIds() ) {
                 parameters.put("AvailabilityZones.member." + (i++), zoneId);
             }
+            i = 1;
+            for( String subnetId : options.getSubnetIds() ) {
+              parameters.put("Subnets.member." + (i++), subnetId);
+            }
+            String scheme = options.getScheme();
+            if(scheme != null){
+              parameters.put("Scheme", scheme);
+            }
             method = new ELBMethod(provider, ctx, parameters);
             try {
                 doc = method.invoke();
@@ -198,7 +206,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     @SuppressWarnings("deprecation")
     @Override
     @Deprecated
-    public @Nonnull String create(@Nonnull String name, @Nonnull String description, @Nullable String addressId, @Nullable String[] zoneIds, @Nullable LbListener[] listeners, @Nullable String[] serverIds) throws CloudException, InternalException {
+    public @Nonnull String create(@Nonnull String name, @Nonnull String description, @Nullable String addressId, @Nullable String[] zoneIds, @Nullable LbListener[] listeners, @Nullable String[] serverIds, @Nullable String[] subnetIds, @Nullable String scheme) throws CloudException, InternalException {
         LoadBalancerCreateOptions options = LoadBalancerCreateOptions.getInstance(name, description);
 
         if( zoneIds != null && zoneIds.length > 0 ) {
@@ -209,6 +217,12 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
         if( serverIds != null && serverIds.length > 0 ) {
             options.withVirtualMachines(serverIds);
+        }
+        if( subnetIds != null && subnetIds.length > 0 ) {
+            options.subnettedTo(subnetIds);
+        }
+        if(scheme != null){
+          options.setInternal(true);
         }
         return createLoadBalancer(options);
     }
