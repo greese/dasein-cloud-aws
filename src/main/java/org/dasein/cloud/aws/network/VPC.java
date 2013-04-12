@@ -2524,6 +2524,23 @@ public class VPC extends AbstractVLANSupport {
             else if( nodeName.equalsIgnoreCase("dhcpOptionsId") ) {
                 dhcp = child.getFirstChild().getNodeValue().trim();
             }
+            else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
+              provider.setTags(child, vlan);
+              if( vlan.getTags().get("name") != null ) {
+                vlan.setName(vlan.getTags().get("name"));
+              } else {
+                if( vlan.getTags().get("Name") != null ) {
+                  vlan.setName(vlan.getTags().get("Name"));
+                }
+              }
+              if( vlan.getTags().get("description") != null ) {
+                vlan.setDescription(vlan.getTags().get("description"));
+              } else {
+                if( vlan.getTags().get("Description") != null ) {
+                  vlan.setDescription(vlan.getTags().get("Description"));
+                }
+              }
+            }
         }
         if( vlan.getProviderVlanId() == null ) {
             return null;
