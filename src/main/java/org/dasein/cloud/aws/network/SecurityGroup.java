@@ -722,8 +722,20 @@ public class SecurityGroup implements FirewallSupport {
 
     @Override
     public void revoke(@Nonnull String providerFirewallRuleId) throws InternalException, CloudException {
-        FirewallRule rule = FirewallRule.parseId(providerFirewallRuleId);
+        FirewallRule rule = null;
 
+        for( Firewall f : list() ) {
+            String fwId = f.getProviderFirewallId();
+
+            if( fwId != null ) {
+                for( FirewallRule r : getRules(fwId) ) {
+                    if( providerFirewallRuleId.equals(r.getProviderRuleId()) ) {
+                        rule = r;
+                        break;
+                    }
+                }
+            }
+        }
         if( rule == null ) {
             throw new CloudException("Unable to parse rule ID: " + providerFirewallRuleId);
         }
@@ -752,7 +764,6 @@ public class SecurityGroup implements FirewallSupport {
             String targetGroupId = null;
             boolean group;
             EC2Method method;
-            NodeList blocks;
             Document doc;
 
             if( direction.equals(Direction.INGRESS) ) {
@@ -816,13 +827,22 @@ public class SecurityGroup implements FirewallSupport {
 
     @Override
     public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String cidr, @Nonnull Protocol protocol, @Nonnull RuleTarget destination, int beginPort, int endPort) throws CloudException, InternalException {
-        if( direction.equals(Direction.INGRESS) ) {
-            revoke(firewallId, direction, permission, RuleTarget.getCIDR(cidr), protocol, destination, beginPort, endPort);
+        RuleTarget source;
+
+        if( cidr.startsWith("sg-") ) {
+            source = RuleTarget.getGlobal(cidr);
         }
         else {
-            revoke(firewallId, direction, permission, destination, protocol, RuleTarget.getCIDR(cidr), beginPort, endPort);
+            source = RuleTarget.getCIDR(cidr);
+        }
+        if( direction.equals(Direction.INGRESS) ) {
+            revoke(firewallId, direction, permission, source, protocol, destination, beginPort, endPort);
+        }
+        else {
+            revoke(firewallId, direction, permission, destination, protocol, source, beginPort, endPort);
         }
     }
+
 
     @Override
     public boolean supportsFirewallSources() throws CloudException, InternalException {
