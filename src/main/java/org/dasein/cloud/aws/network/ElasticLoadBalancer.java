@@ -839,22 +839,27 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             String name;
             
             name = attr.getNodeName().toLowerCase();
-            if( name.equals("listeners") ) {
+            if( name.equals("listenerdescriptions") ) {
                 if( attr.hasChildNodes() ) {
                     NodeList listeners = attr.getChildNodes();
                 
                     if( listeners.getLength() > 0 ) {
                         for( int j=0; j<listeners.getLength(); j++ ) {
-                            Node item = listeners.item(j);
-                            
-                            if( item.getNodeName().equals("member") ) {
-                                LbListener l = toListener(item);
-                                
-                                if( l != null ) {
-                                    listenerList.add(l);
-                                    portList.add(l.getPublicPort());
+                          Node item = listeners.item(j);
+                          if ( item.getNodeName().equals( "member" ) ) {
+                            NodeList listenerMembers = item.getChildNodes();
+                            for ( int k = 0; k < listenerMembers.getLength(); k++ ) {
+                              Node listenerItem = listenerMembers.item( k );
+                              if ( listenerItem.getNodeName().equals( "Listener" ) ) {
+                                LbListener l = toListener( listenerItem );
+
+                                if ( l != null ) {
+                                  listenerList.add( l );
+                                  portList.add( l.getPublicPort() );
                                 }
+                              }
                             }
+                          }
                         }
                     }
                 }
@@ -951,7 +956,10 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     
     private LbProtocol toProtocol(String txt) {
         if( txt.equals("HTTP") ) {
-            return LbProtocol.HTTP;
+          return LbProtocol.HTTP;
+        }
+        if( txt.equals("HTTPS") ) {
+          return LbProtocol.HTTPS;
         }
         else {
             return LbProtocol.RAW_TCP;
