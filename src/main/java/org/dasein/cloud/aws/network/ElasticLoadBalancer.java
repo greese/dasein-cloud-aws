@@ -169,12 +169,12 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 parameters.put("AvailabilityZones.member." + (i++), zoneId);
             }
             i = 1;
-            for( String subnetId : options.getSubnetIds() ) {
+            for( String subnetId : options.getProviderSubnetIds() ) {
               parameters.put("Subnets.member." + (i++), subnetId);
             }
-            String scheme = options.getScheme();
-            if(scheme != null){
-              parameters.put("Scheme", scheme);
+
+            if ( options.getType() != null && options.getType() == LbType.INTERNAL ) {
+              parameters.put("Scheme", "internal");
             }
             method = new ELBMethod(provider, ctx, parameters);
             try {
@@ -206,7 +206,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     @SuppressWarnings("deprecation")
     @Override
     @Deprecated
-    public @Nonnull String create(@Nonnull String name, @Nonnull String description, @Nullable String addressId, @Nullable String[] zoneIds, @Nullable LbListener[] listeners, @Nullable String[] serverIds, @Nullable String[] subnetIds, @Nullable String scheme) throws CloudException, InternalException {
+    public @Nonnull String create(@Nonnull String name, @Nonnull String description, @Nullable String addressId, @Nullable String[] zoneIds, @Nullable LbListener[] listeners, @Nullable String[] serverIds, @Nullable String[] subnetIds, @Nullable LbType type) throws CloudException, InternalException {
         LoadBalancerCreateOptions options = LoadBalancerCreateOptions.getInstance(name, description);
 
         if( zoneIds != null && zoneIds.length > 0 ) {
@@ -219,10 +219,10 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             options.withVirtualMachines(serverIds);
         }
         if( subnetIds != null && subnetIds.length > 0 ) {
-            options.subnettedTo(subnetIds);
+            options.withProviderSubnetIds(subnetIds);
         }
-        if(scheme != null){
-          options.setInternal(true);
+        if(type != null){
+          options.asType( type );
         }
         return createLoadBalancer(options);
     }
@@ -828,6 +828,8 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         String regionId = getContext().getRegionId();
         String lbName = null, description = null, lbId = null, cname = null;
         long created = 0L;
+        LbType type = null;
+        ArrayList<String> subnetList = new ArrayList<String>();
 
         if( regionId == null ) {
             throw new CloudException("No region was set for this context");
@@ -923,6 +925,27 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     }
                 }                
             }
+            else if( name.equals("scheme") ) {
+              if ( "internal".equals( provider.getTextValue( attr ) ) ) {
+                type = LbType.INTERNAL;
+              }
+            }
+            else if( name.equals("subnets") ) {
+              if( attr.hasChildNodes() ) {
+                NodeList subnets = attr.getChildNodes();
+
+                if( subnets.getLength() > 0 ) {
+                  for( int j=0; j<subnets.getLength(); j++ ) {
+                    Node subnet = subnets.item(j);
+
+                    if( subnet.hasChildNodes() ) {
+                      subnetList.add( provider.getTextValue( subnet ) );
+                    }
+                  }
+                }
+              }
+            }
+
         }
         if( lbId == null || cname == null ) {
             return null;
@@ -950,6 +973,12 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
         if( !zoneList.isEmpty() ) {
             lb.operatingIn(zoneList.toArray(new String[zoneList.size()]));
+        }
+        if ( type != null ) {
+            lb.setType( type );
+        }
+        if( !subnetList.isEmpty() ) {
+          lb.withProviderSubnetIds(subnetList.toArray(new String[subnetList.size()]));
         }
         return lb;
     }
