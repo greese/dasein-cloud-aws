@@ -20,7 +20,7 @@
 
   <groupId>org.dasein</groupId>
   <artifactId>dasein-cloud-aws</artifactId>
-  <version>2013.04.2-SNAPSHOT</version>
+  <version>2013.07-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>dasein-cloud-aws</name>
@@ -103,7 +103,7 @@
       <dependency>
           <groupId>org.dasein</groupId>
           <artifactId>dasein-cloud-test</artifactId>
-          <version>2013.04</version>
+          <version>2013.07-SNAPSHOT</version>
           <scope>test</scope>
           <optional>false</optional>
       </dependency>
@@ -244,9 +244,9 @@
                     <value>${test.shareAccount}</value>
                 </property>
             </systemProperties>
-          <excludes>
-              <exclude>**/TestSuite.java</exclude>
-          </excludes>
+          <includes>
+              <include>**/TestSuite.java</include>
+          </includes>
         </configuration>
       </plugin>
       <plugin>
