@@ -666,6 +666,7 @@ public class VPC extends AbstractVLANSupport {
                     parameters.put("DhcpConfiguration." + idx + ".Value." + vdx, dns);
                     vdx++;
                 }
+              idx++;
             }
             if( ntpServers != null && ntpServers.length > 0 ) {
                 int vdx = 1;
