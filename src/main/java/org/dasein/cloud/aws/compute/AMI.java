@@ -94,8 +94,20 @@ public class AMI extends AbstractImageSupport {
         }
     }
 
+
+
+    @Override
+    protected MachineImage capture(@Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was set for this request");
+        }
+        return captureImage(ctx, options, task);
+    }
+    
     private @Nonnull MachineImage captureImage(@Nonnull ProviderContext ctx, @Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
-        APITrace.begin(provider, "Image.captureImage");
+        APITrace.begin(provider, "captureImage");
         try {
             if( task != null ) {
                 task.setStartTime(System.currentTimeMillis());
@@ -111,12 +123,21 @@ public class AMI extends AbstractImageSupport {
                     if( vm == null || VmState.TERMINATED.equals(vm.getCurrentState()) ) {
                         break;
                     }
-                    if( !vm.isPersistent() ) {
-                        throw new OperationNotSupportedException("You cannot capture instance-backed virtual machines");
-                    }
+                    
                     if( VmState.RUNNING.equals(vm.getCurrentState()) || VmState.STOPPED.equals(vm.getCurrentState()) ) {
                         break;
                     }
+                    
+                    if( !vm.isPersistent() ) {
+                    	if( vm.getPlatform().isWindows() ) {
+                           	String bucket = provider.getStorageServices().getBlobStoreSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
+                            if( bucket == null ) {
+                                throw new CloudException("There is no bucket");
+                            }
+                            return captureWindows(provider.getContext(), options, bucket, task);
+                        }
+                    }
+
                 }
                 catch( Throwable ignore ) {
                     // ignore
@@ -131,68 +152,58 @@ public class AMI extends AbstractImageSupport {
             int attempts = 5;
 
             while( attempts > 0 ) {
-                if( vm.getPlatform().isWindows() ) {
-                    String bucket = provider.getStorageServices().getBlobStoreSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
+            	Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_IMAGE);
+                NodeList blocks;
+                EC2Method method;
+                Document doc;
 
-                    if( bucket == null ) {
-                        throw new CloudException("There is no bucket");
-                    }
-                    return captureWindows(ctx, options, bucket, task);
+                parameters.put("InstanceId", options.getVirtualMachineId());
+                parameters.put("Name", options.getName());
+                parameters.put("Description", options.getDescription());
+                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                try {
+                    doc = method.invoke();
                 }
-                else {
-                    Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_IMAGE);
-                    NodeList blocks;
-                    EC2Method method;
-                    Document doc;
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                blocks = doc.getElementsByTagName("imageId");
+                if( blocks.getLength() > 0 ) {
+                    Node imageIdNode = blocks.item(0);
+                    String id = imageIdNode.getFirstChild().getNodeValue().trim();
+                    MachineImage img = getImage(id);
 
-                    parameters.put("InstanceId", options.getVirtualMachineId());
-                    parameters.put("Name", options.getName());
-                    parameters.put("Description", options.getDescription());
-                    method = new EC2Method(provider, provider.getEc2Url(), parameters);
-                    try {
-                        doc = method.invoke();
-                    }
-                    catch( EC2Exception e ) {
-                        logger.error(e.getSummary());
-                        throw new CloudException(e);
-                    }
-                    blocks = doc.getElementsByTagName("imageId");
-                    if( blocks.getLength() > 0 ) {
-                        Node imageIdNode = blocks.item(0);
-                        String id = imageIdNode.getFirstChild().getNodeValue().trim();
-                        MachineImage img = getImage(id);
-
+                    if( img == null ) {
+                        for( int i=0; i<5; i++ ) {
+                            try { Thread.sleep(5000L * i); }
+                            catch( InterruptedException ignore ) { }
+                            img = getImage(id);
+                            if( img != null ) {
+                                break;
+                            }
+                        }
                         if( img == null ) {
-                            for( int i=0; i<5; i++ ) {
-                                try { Thread.sleep(5000L * i); }
-                                catch( InterruptedException ignore ) { }
-                                img = getImage(id);
-                                if( img != null ) {
-                                    break;
-                                }
-                            }
-                            if( img == null ) {
-                                throw new CloudException("No image exists for " + id + " as created during the capture process");
-                            }
+                            throw new CloudException("No image exists for " + id + " as created during the capture process");
                         }
-                        if( MachineImageState.DELETED.equals(img.getCurrentState()) ) {
-                            String errorMessage = (String)img.getTag("stateReason");
-
-                            if( errorMessage != null ) {
-                                if( errorMessage.contains("try again") ) {
-                                    lastMessage = errorMessage;
-                                    attempts--;
-                                    try { Thread.sleep(CalendarWrapper.MINUTE); }
-                                    catch( InterruptedException ignore ) { }
-                                    continue;
-                                }
-                                throw new CloudException(errorMessage);
-                            }
-                        }
-                        return img;
                     }
-                    throw new CloudException("No error occurred during imaging, but no machine image was specified");
+                    if( MachineImageState.DELETED.equals(img.getCurrentState()) ) {
+                        String errorMessage = (String)img.getTag("stateReason");
+
+                        if( errorMessage != null ) {
+                            if( errorMessage.contains("try again") ) {
+                                lastMessage = errorMessage;
+                                attempts--;
+                                try { Thread.sleep(CalendarWrapper.MINUTE); }
+                                catch( InterruptedException ignore ) { }
+                                continue;
+                            }
+                            throw new CloudException(errorMessage);
+                        }
+                    }
+                    return img;
                 }
+                throw new CloudException("No error occurred during imaging, but no machine image was specified");
             }
             if( lastMessage == null ) {
                 lastMessage = "Unknown error";
@@ -203,17 +214,6 @@ public class AMI extends AbstractImageSupport {
             APITrace.end();
         }
     }
-
-    @Override
-    protected MachineImage capture(@Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was set for this request");
-        }
-        return captureImage(ctx, options, task);
-    }
-
     private MachineImage captureWindows(@Nonnull ProviderContext ctx, @Nonnull ImageCreateOptions options, @Nonnull String bucket, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
         APITrace.begin(provider, "Image.captureWindows");
         try {
