@@ -360,8 +360,10 @@ public class AutoScaling implements AutoScalingSupport {
 
         parameters.put("AutoScalingGroupName", providerScalingGroupId);
         int x = 1;
-        for( String process : processesToSuspend ) {
-          parameters.put("ScalingProcesses.member." + (x++), process);
+        if(processesToSuspend != null) {
+          for( String process : processesToSuspend ) {
+            parameters.put("ScalingProcesses.member." + (x++), process);
+          }
         }
         method = new EC2Method(provider, getAutoScalingUrl(), parameters);
         try {
@@ -754,8 +756,8 @@ public class AutoScaling implements AutoScalingSupport {
             else if( name.equalsIgnoreCase("MaxSize") ) {
                 group.setMaxServers(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
-            else if( name.equalsIgnoreCase("Cooldown") ) {
-                group.setCooldown(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+            else if( name.equalsIgnoreCase("DefaultCooldown") ) {
+                group.setDefaultCoolcown(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
             else if( name.equalsIgnoreCase("CreatedTime") ) {
                 SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
