@@ -360,8 +360,10 @@ public class AutoScaling implements AutoScalingSupport {
 
         parameters.put("AutoScalingGroupName", providerScalingGroupId);
         int x = 1;
-        for( String process : processesToSuspend ) {
-          parameters.put("ScalingProcesses.member." + (x++), process);
+        if(processesToSuspend != null) {
+          for( String process : processesToSuspend ) {
+            parameters.put("ScalingProcesses.member." + (x++), process);
+          }
         }
         method = new EC2Method(provider, getAutoScalingUrl(), parameters);
         try {
