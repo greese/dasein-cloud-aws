@@ -754,8 +754,8 @@ public class AutoScaling implements AutoScalingSupport {
             else if( name.equalsIgnoreCase("MaxSize") ) {
                 group.setMaxServers(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
-            else if( name.equalsIgnoreCase("Cooldown") ) {
-                group.setCooldown(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+            else if( name.equalsIgnoreCase("DefaultCooldown") ) {
+                group.setDefaultCoolcown(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
             else if( name.equalsIgnoreCase("CreatedTime") ) {
                 SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
