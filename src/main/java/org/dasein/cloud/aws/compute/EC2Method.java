@@ -90,6 +90,7 @@ public class EC2Method {
     static public final String DELETE_AUTO_SCALING_GROUP        = "DeleteAutoScalingGroup";
     static public final String DELETE_LAUNCH_CONFIGURATION      = "DeleteLaunchConfiguration";
     static public final String DESCRIBE_AUTO_SCALING_GROUPS     = "DescribeAutoScalingGroups";
+    static public final String SUSPEND_AUTO_SCALING_GROUP       = "SuspendProcesses";
     static public final String DESCRIBE_LAUNCH_CONFIGURATIONS   = "DescribeLaunchConfigurations";
     static public final String SET_DESIRED_CAPACITY             = "SetDesiredCapacity";
     static public final String UPDATE_AUTO_SCALING_GROUP        = "UpdateAutoScalingGroup";
@@ -122,6 +123,9 @@ public class EC2Method {
         }
         else if( action.equals(UPDATE_AUTO_SCALING_GROUP) ) {
             return new ServiceAction[] { AutoScalingSupport.UPDATE_SCALING_GROUP };
+        }
+        else if( action.equals(SUSPEND_AUTO_SCALING_GROUP) ) {
+          return new ServiceAction[] { AutoScalingSupport.SUSPEND_AUTO_SCALING_GROUP };
         }
         return new ServiceAction[0];
     }
