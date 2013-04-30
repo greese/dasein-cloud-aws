@@ -72,7 +72,7 @@ public class AutoScaling implements AutoScalingSupport {
             parameters.put("LaunchConfigurationName", launchConfigurationId);
             parameters.put("MinSize", String.valueOf(minServers));
             parameters.put("MaxSize", String.valueOf(maxServers));
-            parameters.put("Cooldown", String.valueOf(cooldown));
+            parameters.put("DefaultCooldown", String.valueOf(cooldown));
             int i = 1;
             for( String zoneId : zoneIds ) {
                 parameters.put("AvailabilityZones.member." + (i++), zoneId);
@@ -352,6 +352,32 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
+    public void suspendAutoScaling(String providerScalingGroupId, String[] processesToSuspend) throws CloudException, InternalException {
+      APITrace.begin(provider, "AutoScaling.suspendAutoScaling");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.SUSPEND_AUTO_SCALING_GROUP);
+        EC2Method method;
+
+        parameters.put("AutoScalingGroupName", providerScalingGroupId);
+        int x = 1;
+        for( String process : processesToSuspend ) {
+          parameters.put("ScalingProcesses.member." + (x++), process);
+        }
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
     public @Nonnull Iterable<ResourceStatus> listLaunchConfigurationStatus() throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.listLaunchConfigurationStatus");
         try {
@@ -479,6 +505,7 @@ public class AutoScaling implements AutoScalingSupport {
             APITrace.end();
         }
     }
+
     @Override
     public Collection<ScalingGroup> listScalingGroups() throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.listScalingGroups");
@@ -563,6 +590,9 @@ public class AutoScaling implements AutoScalingSupport {
         }
         else if( action.equals(AutoScalingSupport.UPDATE_SCALING_GROUP) ) {
             return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.UPDATE_AUTO_SCALING_GROUP };
+        }
+        else if( action.equals(AutoScalingSupport.SUSPEND_AUTO_SCALING_GROUP) ) {
+          return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.SUSPEND_AUTO_SCALING_GROUP };
         }
         return new String[0];
     }
