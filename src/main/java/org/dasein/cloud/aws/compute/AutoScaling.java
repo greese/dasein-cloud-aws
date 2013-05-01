@@ -380,6 +380,34 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
+    public void resumeAutoScaling(String providerScalingGroupId, String[] processesToResume) throws CloudException, InternalException {
+      APITrace.begin(provider, "AutoScaling.resumeAutoScaling");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.RESUME_AUTO_SCALING_GROUP);
+        EC2Method method;
+
+        parameters.put("AutoScalingGroupName", providerScalingGroupId);
+        int x = 1;
+        if(processesToResume != null) {
+          for( String process : processesToResume ) {
+            parameters.put("ScalingProcesses.member." + (x++), process);
+          }
+        }
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
     public @Nonnull Iterable<ResourceStatus> listLaunchConfigurationStatus() throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.listLaunchConfigurationStatus");
         try {
