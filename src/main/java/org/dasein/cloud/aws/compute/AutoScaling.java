@@ -27,10 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.AutoScalingSupport;
 import org.dasein.cloud.compute.LaunchConfiguration;
@@ -56,7 +53,7 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
-    public String createAutoScalingGroup(String name, String launchConfigurationId, int minServers, int maxServers, int cooldown, String ... zoneIds) throws InternalException, CloudException {
+    public String createAutoScalingGroup(String name, String launchConfigurationId, int minServers, int maxServers, int cooldown, String[] loadBalancerIds, String ... zoneIds) throws InternalException, CloudException {
         APITrace.begin(provider, "AutoScaling.createAutoScalingGroup");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_AUTO_SCALING_GROUP);
@@ -76,6 +73,12 @@ public class AutoScaling implements AutoScalingSupport {
             int i = 1;
             for( String zoneId : zoneIds ) {
                 parameters.put("AvailabilityZones.member." + (i++), zoneId);
+            }
+            if( loadBalancerIds != null ) {
+              i = 1;
+              for( String lbId : loadBalancerIds ) {
+                parameters.put("LoadBalancerNames.member." + (i++), lbId);
+              }
             }
             method = new EC2Method(provider, getAutoScalingUrl(), parameters);
             try {
@@ -408,6 +411,42 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
+    public String updateScalingPolicy(String policyName, String adjustmentType, String autoScalingGroupName, int cooldown, Integer minAdjustmentStep, int scalingAdjustment) throws CloudException, InternalException {
+      APITrace.begin(provider, "AutoScaling.updateScalingPolicy");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.PUT_SCALING_POLICY);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("PolicyName", policyName);
+        parameters.put("AdjustmentType", adjustmentType);
+        parameters.put("AutoScalingGroupName", autoScalingGroupName);
+        parameters.put("Cooldown", String.valueOf(cooldown));
+        if(minAdjustmentStep != null){
+          parameters.put("MinAdjustmentStep", String.valueOf(minAdjustmentStep));
+        }
+        parameters.put("ScalingAdjustment", String.valueOf(scalingAdjustment));
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("PolicyARN");
+        if( blocks.getLength() > 0 ) {
+          return blocks.item(0).getFirstChild().getNodeValue().trim();
+        }
+        throw new CloudException("Successful POST, but no Policy information was provided");
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
     public @Nonnull Iterable<ResourceStatus> listLaunchConfigurationStatus() throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.listLaunchConfigurationStatus");
         try {
@@ -624,6 +663,12 @@ public class AutoScaling implements AutoScalingSupport {
         else if( action.equals(AutoScalingSupport.SUSPEND_AUTO_SCALING_GROUP) ) {
           return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.SUSPEND_AUTO_SCALING_GROUP };
         }
+        else if( action.equals(AutoScalingSupport.RESUME_AUTO_SCALING_GROUP) ) {
+          return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.RESUME_AUTO_SCALING_GROUP };
+        }
+        else if( action.equals(AutoScalingSupport.PUT_SCALING_POLICY) ) {
+          return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.PUT_SCALING_POLICY };
+        }
         return new String[0];
     }
 
@@ -803,6 +848,34 @@ public class AutoScaling implements AutoScalingSupport {
             }
             else if( name.equalsIgnoreCase("LaunchConfigurationName") ) {
                 group.setProviderLaunchConfigurationId(attr.getFirstChild().getNodeValue());
+            }
+            else if( name.equalsIgnoreCase("AutoScalingGroupARN") ) {
+              group.setAutoScalingGroupARN(attr.getFirstChild().getNodeValue());
+            }
+            /* FIXME
+            private Collection<String[]> enabledMetrics;
+            private Collection<String[]> suspendedProcesses;
+            private String[] terminationPolicies;
+            private String[] providerLoadBalancerNames;
+             */
+            else if( name.equalsIgnoreCase("HealthCheckGracePeriod") ) {
+              group.setHealthCheckGracePeriod(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+            }
+            else if( name.equalsIgnoreCase("HealthCheckType") ) {
+              group.setHealthCheckType(attr.getFirstChild().getNodeValue());
+            }
+            else if( name.equalsIgnoreCase("Status") ) {
+              group.setStatus(attr.getFirstChild().getNodeValue());
+            }
+            else if( name.equalsIgnoreCase("VPCZoneIdentifier") ) {
+              String vlan = null;
+              try {
+                vlan = attr.getFirstChild().getNodeValue();
+                if(vlan != null) {
+                  group.setProviderVlanId(vlan);
+                }
+              }
+              catch(Exception e) { /* vlan remains null */ }
             }
             else if( name.equalsIgnoreCase("AutoScalingGroupName") ) {
                 String gname = attr.getFirstChild().getNodeValue();
