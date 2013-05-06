@@ -779,10 +779,10 @@ public class AutoScaling implements AutoScalingSupport {
                 }
             }
             else if( name.equalsIgnoreCase("SecurityGroups") ) {
-                String[] names;
+                String[] ids;
 
                 if( attr.hasChildNodes() ) {
-                    ArrayList<String> securityNames = new ArrayList<String>();
+                    ArrayList<String> securityIds = new ArrayList<String>();
                     NodeList securityGroups = attr.getChildNodes();
 
                     for( int j=0; j<securityGroups.getLength(); j++ ) {
@@ -790,20 +790,20 @@ public class AutoScaling implements AutoScalingSupport {
 
                         if( securityGroup.getNodeName().equalsIgnoreCase("member") ) {
                             if( securityGroup.hasChildNodes() ) {
-                                securityNames.add(securityGroup.getFirstChild().getNodeValue());
+                              securityIds.add(securityGroup.getFirstChild().getNodeValue());
                             }
                         }
                     }
-                    names = new String[securityNames.size()];
+                    ids = new String[securityIds.size()];
                     int j=0;
-                    for( String securityName : securityNames ) {
-                        names[j++] = securityName;
+                    for( String securityId : securityIds ) {
+                        ids[j++] = securityId;
                     }
                 }
                 else {
-                    names = new String[0];
+                    ids = new String[0];
                 }
-                cfg.setProviderFirewallNames(names);
+                cfg.setProviderFirewallIds(ids);
             }
         }
         return cfg;
