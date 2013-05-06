@@ -96,7 +96,7 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
-    public String createLaunchConfiguration(String name, String imageId, VirtualMachineProduct size, String ... firewalls) throws InternalException, CloudException {
+    public String createLaunchConfiguration(String name, String imageId, VirtualMachineProduct size, String keyPairName, String userData, String ... firewalls) throws InternalException, CloudException {
         APITrace.begin(provider, "AutoScaling.createLaunchConfigursation");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_LAUNCH_CONFIGURATION);
@@ -104,10 +104,16 @@ public class AutoScaling implements AutoScalingSupport {
 
             parameters.put("LaunchConfigurationName", name);
             parameters.put("ImageId", imageId);
+            if(keyPairName != null) {
+              parameters.put("KeyName", keyPairName);
+            }
+            if(userData != null) {
+              parameters.put("UserData", userData);
+            }
             parameters.put("InstanceType", size.getProviderProductId());
             int i = 1;
             for( String fw : firewalls ) {
-                parameters.put("SecurityGroup.member." + (i++), fw);
+                parameters.put("SecurityGroups.member." + (i++), fw);
             }
             method = new EC2Method(provider, getAutoScalingUrl(), parameters);
             try {
@@ -729,16 +735,37 @@ public class AutoScaling implements AutoScalingSupport {
 
             name = attr.getNodeName();
             if( name.equalsIgnoreCase("ImageId") ) {
+              if(attr.getFirstChild() != null){
                 cfg.setProviderImageId(attr.getFirstChild().getNodeValue());
+              }
+            }
+            else if( name.equalsIgnoreCase("KeyName") ) {
+              if(attr.getFirstChild() != null){
+                cfg.setProviderKeypairName(attr.getFirstChild().getNodeValue());
+              }
+            }
+            else if( name.equalsIgnoreCase("LaunchConfigurationARN") ) {
+              if(attr.getFirstChild() != null){
+                cfg.setProviderARN(attr.getFirstChild().getNodeValue());
+              }
+            }
+            else if( name.equalsIgnoreCase("UserData") ) {
+              if(attr.getFirstChild() != null){
+                cfg.setUserData(attr.getFirstChild().getNodeValue());
+              }
             }
             else if( name.equalsIgnoreCase("InstanceType") ) {
+              if(attr.getFirstChild() != null){
                 cfg.setServerSizeId(attr.getFirstChild().getNodeValue());
+              }
             }
             else if( name.equalsIgnoreCase("LaunchConfigurationName") ) {
+              if(attr.getFirstChild() != null){
                 String lcname = attr.getFirstChild().getNodeValue();
 
                 cfg.setProviderLaunchConfigurationId(lcname);
                 cfg.setName(lcname);
+              }
             }
             else if( name.equalsIgnoreCase("CreatedTime") ) {
                 SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
@@ -752,39 +779,31 @@ public class AutoScaling implements AutoScalingSupport {
                 }
             }
             else if( name.equalsIgnoreCase("SecurityGroups") ) {
-                String[] ids;
+                String[] names;
 
                 if( attr.hasChildNodes() ) {
-                    ArrayList<String> instanceIds = new ArrayList<String>();
-                    NodeList instances = attr.getChildNodes();
+                    ArrayList<String> securityNames = new ArrayList<String>();
+                    NodeList securityGroups = attr.getChildNodes();
 
-                    for( int j=0; j<instances.getLength(); j++ ) {
-                        Node instance = instances.item(j);
+                    for( int j=0; j<securityGroups.getLength(); j++ ) {
+                        Node securityGroup = securityGroups.item(j);
 
-                        if( instance.getNodeName().equalsIgnoreCase("member") ) {
-                            if( instance.hasChildNodes() ) {
-                                NodeList items = instance.getChildNodes();
-
-                                for( int k=0; k<items.getLength(); k++ ) {
-                                    Node val = items.item(k);
-
-                                    if( val.getNodeName().equalsIgnoreCase("InstanceId") ) {
-                                        instanceIds.add(val.getFirstChild().getNodeValue());
-                                    }
-                                }
+                        if( securityGroup.getNodeName().equalsIgnoreCase("member") ) {
+                            if( securityGroup.hasChildNodes() ) {
+                                securityNames.add(securityGroup.getFirstChild().getNodeValue());
                             }
                         }
                     }
-                    ids = new String[instanceIds.size()];
+                    names = new String[securityNames.size()];
                     int j=0;
-                    for( String id : instanceIds ) {
-                        ids[j++] = id;
+                    for( String securityName : securityNames ) {
+                        names[j++] = securityName;
                     }
                 }
                 else {
-                    ids = new String[0];
+                    names = new String[0];
                 }
-                cfg.setProviderFirewallIds(ids);
+                cfg.setProviderFirewallNames(names);
             }
         }
         return cfg;
