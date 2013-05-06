@@ -852,12 +852,6 @@ public class AutoScaling implements AutoScalingSupport {
             else if( name.equalsIgnoreCase("AutoScalingGroupARN") ) {
               group.setAutoScalingGroupARN(attr.getFirstChild().getNodeValue());
             }
-            /* FIXME
-            private Collection<String[]> enabledMetrics;
-            private Collection<String[]> suspendedProcesses;
-            private String[] terminationPolicies;
-            private String[] providerLoadBalancerNames;
-             */
             else if( name.equalsIgnoreCase("HealthCheckGracePeriod") ) {
               group.setHealthCheckGracePeriod(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
@@ -943,6 +937,121 @@ public class AutoScaling implements AutoScalingSupport {
                     ids = new String[0];
                 }
                 group.setProviderDataCenterIds(ids);
+            }
+            else if( name.equalsIgnoreCase("EnabledMetrics") ) {
+              String[] names;
+
+              if( attr.hasChildNodes() ) {
+                ArrayList<String> metricNames = new ArrayList<String>();
+                NodeList metrics = attr.getChildNodes();
+
+                for( int j=0; j< metrics.getLength(); j++ ) {
+                  Node metric = metrics.item(j);
+
+                  if( metric.getNodeName().equalsIgnoreCase("Metric") ) {
+                    metricNames.add(metric.getFirstChild().getNodeValue());
+                  }
+                }
+                names = new String[metricNames.size()];
+                int j=0;
+                for( String metricName : metricNames ) {
+                  names[j++] = metricName;
+                }
+              }
+              else {
+                names = new String[0];
+              }
+              group.setEnabledMetrics(names);
+            }
+            else if( name.equalsIgnoreCase("LoadBalancerNames") ) {
+              String[] names;
+
+              if( attr.hasChildNodes() ) {
+                ArrayList<String> lbNames = new ArrayList<String>();
+                NodeList loadBalancers = attr.getChildNodes();
+
+                for( int j=0; j< loadBalancers.getLength(); j++ ) {
+                  Node lb = loadBalancers.item(j);
+
+                  if( lb.getNodeName().equalsIgnoreCase("member") ) {
+                    lbNames.add(lb.getFirstChild().getNodeValue());
+                  }
+                }
+                names = new String[lbNames.size()];
+                int j=0;
+                for( String lbName : lbNames ) {
+                  names[j++] = lbName;
+                }
+              }
+              else {
+                names = new String[0];
+              }
+              group.setProviderLoadBalancerNames(names);
+            }
+            else if( name.equalsIgnoreCase("SuspendedProcesses") ) {
+              Collection<String[]> processes;
+
+              if( attr.hasChildNodes() ) {
+                ArrayList<String[]> processList = new ArrayList<String[]>();
+                NodeList processesList = attr.getChildNodes();
+
+                for( int j=0; j< processesList.getLength(); j++ ) {
+                  Node processParent = processesList.item(j);
+                  ArrayList<String> theProcess = new ArrayList<String>();
+
+                  if( processParent.getNodeName().equals("member") ) {
+                    if( processParent.hasChildNodes() ) {
+                      NodeList items = processParent.getChildNodes();
+
+                      for( int k=0; k<items.getLength(); k++ ) {
+                        Node val = items.item(k);
+                        if( val.getNodeName().equalsIgnoreCase("SuspensionReason") ) {
+                          theProcess.add(val.getFirstChild().getNodeValue());
+                        }
+                        // seems to come second...
+                        if( val.getNodeName().equalsIgnoreCase("ProcessName") ) {
+                          theProcess.add(val.getFirstChild().getNodeValue());
+                        }
+                      }
+                    }
+                  }
+                  if(theProcess.size() > 0){
+                    String[] stringArr = new String[theProcess.size()];
+                    stringArr = theProcess.toArray(stringArr);
+                    processList.add(stringArr);
+                  }
+                }
+                processes = processList;
+              }
+              else {
+                processes = new ArrayList<String[]>();
+              }
+              group.setSuspendedProcesses(processes);
+            }
+            else if( name.equalsIgnoreCase("TerminationPolicies") ) {
+              String[] policies;
+
+              if( attr.hasChildNodes() ) {
+                ArrayList<String> subPolicies = new ArrayList<String>();
+                NodeList policyList = attr.getChildNodes();
+
+                for( int j=0; j< policyList.getLength(); j++ ) {
+                  Node lb = policyList.item(j);
+
+                  if( lb.getNodeName().equalsIgnoreCase("member") ) {
+                    subPolicies.add(lb.getFirstChild().getNodeValue());
+                  }
+                }
+                policies = new String[subPolicies.size()];
+                int j=0;
+                for( String policyString : subPolicies ) {
+                  policies[j++] = policyString;
+                }
+              }
+              else {
+                policies = new String[0];
+              }
+              group.setTerminationPolicies(policies);
             }
         }
         return group;
