@@ -29,10 +29,7 @@ import java.util.Map;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.compute.AutoScalingSupport;
-import org.dasein.cloud.compute.LaunchConfiguration;
-import org.dasein.cloud.compute.ScalingGroup;
-import org.dasein.cloud.compute.VirtualMachineProduct;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
@@ -453,6 +450,73 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
+    public void deleteScalingPolicy(@Nonnull String policyName, @Nullable String autoScalingGroupName) throws InternalException, CloudException {
+      APITrace.begin(provider, "AutoScaling.deleteScalingPolicy");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DELETE_SCALING_POLICY);
+        EC2Method method;
+
+        parameters.put("PolicyName", policyName);
+        if(autoScalingGroupName != null) {
+          parameters.put("AutoScalingGroupName", autoScalingGroupName);
+        }
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
+    public Collection<ScalingPolicy> listScalingPolicies(String autoScalingGroupName) throws CloudException, InternalException {
+      APITrace.begin(provider, "AutoScaling.getScalingPolicies");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_SCALING_POLICIES);
+        ArrayList<ScalingPolicy> list = new ArrayList<ScalingPolicy>();
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("AutoScalingGroupName", autoScalingGroupName);
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("ScalingPolicies");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+          NodeList items = blocks.item(i).getChildNodes();
+
+          for( int j=0; j<items.getLength(); j++ ) {
+            Node item = items.item(j);
+
+            if( item.getNodeName().equals("member") ) {
+              ScalingPolicy sp = toScalingPolicy(item);
+
+              if( sp != null ) {
+                list.add(sp);
+              }
+            }
+          }
+        }
+        return list;
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
     public @Nonnull Iterable<ResourceStatus> listLaunchConfigurationStatus() throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.listLaunchConfigurationStatus");
         try {
@@ -720,7 +784,6 @@ public class AutoScaling implements AutoScalingSupport {
         }
         return new ResourceStatus(groupId, true);
     }
-
 
     private @Nullable LaunchConfiguration toLaunchConfiguration(@Nullable Node item) {
         if( item == null ) {
@@ -1074,6 +1137,94 @@ public class AutoScaling implements AutoScalingSupport {
             }
         }
         return group;
+    }
+
+    private @Nullable ScalingPolicy toScalingPolicy(@Nullable Node item) {
+      if( item == null ) {
+        return null;
+      }
+      ScalingPolicy sp = new ScalingPolicy();
+      NodeList attrs = item.getChildNodes();
+
+      for( int i=0; i<attrs.getLength(); i++ ) {
+        Node attr = attrs.item(i);
+        String name;
+
+        name = attr.getNodeName();
+        if( name.equalsIgnoreCase("AdjustmentType") ) {
+          if(attr.getFirstChild() != null){
+            sp.setAdjustmentType(attr.getFirstChild().getNodeValue());
+          }
+        }
+        else if( name.equalsIgnoreCase("Alarms") ) {
+          Collection<Alarm> alarms;
+
+          if( attr.hasChildNodes() ) {
+            ArrayList<Alarm> alarmList = new ArrayList<Alarm>();
+            NodeList alarmsList = attr.getChildNodes();
+
+            for( int j=0; j< alarmsList.getLength(); j++ ) {
+              Node alarmParent = alarmsList.item(j);
+              Alarm anAlarm = new Alarm();
+
+              if( alarmParent.getNodeName().equals("member") ) {
+                if( alarmParent.hasChildNodes() ) {
+                  NodeList items = alarmParent.getChildNodes();
+
+                  for( int k=0; k<items.getLength(); k++ ) {
+                    Node val = items.item(k);
+                    if( val.getNodeName().equalsIgnoreCase("AlarmARN") ) {
+                      anAlarm.setAlarmARN(val.getFirstChild().getNodeValue());
+                    }
+                    if( val.getNodeName().equalsIgnoreCase("AlarmName") ) {
+                      anAlarm.setName(val.getFirstChild().getNodeValue());
+                    }
+                  }
+                  alarmList.add(anAlarm);
+                }
+              }
+            }
+            alarms = alarmList;
+          }
+          else {
+            alarms = new ArrayList<Alarm>();
+          }
+          Alarm[] alarmArr = new Alarm[alarms.size()];
+          alarmArr = alarms.toArray(alarmArr);
+          sp.setAlarms(alarmArr);
+        }
+        else if( name.equalsIgnoreCase("AutoScalingGroupName") ) {
+          if(attr.getFirstChild() != null){
+            sp.setAutoScalingGroupName(attr.getFirstChild().getNodeValue());
+          }
+        }
+        else if( name.equalsIgnoreCase("Cooldown") ) {
+          if(attr.getFirstChild() != null){
+            sp.setCoolDown(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+          }
+        }
+        else if( name.equalsIgnoreCase("MinAdjustmentStep") ) {
+          if(attr.getFirstChild() != null){
+            sp.setMinAdjustmentStep(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+          }
+        }
+        else if( name.equalsIgnoreCase("PolicyARN") ) {
+          if(attr.getFirstChild() != null){
+            sp.setPolicyARN(attr.getFirstChild().getNodeValue());
+          }
+        }
+        else if( name.equalsIgnoreCase("PolicyName") ) {
+          if(attr.getFirstChild() != null){
+            sp.setName(attr.getFirstChild().getNodeValue());
+          }
+        }
+        else if( name.equalsIgnoreCase("ScalingAdjustment") ) {
+          if(attr.getFirstChild() != null){
+            sp.setScalingAdjustment(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+          }
+        }
+      }
+      return sp;
     }
 
     @Override

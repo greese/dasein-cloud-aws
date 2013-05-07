@@ -89,10 +89,12 @@ public class EC2Method {
     static public final String CREATE_OR_UPDATE_SCALING_TRIGGER = "CreateOrUpdateScalingTrigger";
     static public final String DELETE_AUTO_SCALING_GROUP        = "DeleteAutoScalingGroup";
     static public final String DELETE_LAUNCH_CONFIGURATION      = "DeleteLaunchConfiguration";
+    static public final String DELETE_SCALING_POLICY            = "DeletePolicy";
     static public final String DESCRIBE_AUTO_SCALING_GROUPS     = "DescribeAutoScalingGroups";
     static public final String SUSPEND_AUTO_SCALING_GROUP       = "SuspendProcesses";
     static public final String RESUME_AUTO_SCALING_GROUP        = "ResumeProcesses";
     static public final String PUT_SCALING_POLICY               = "PutScalingPolicy";
+    static public final String DESCRIBE_SCALING_POLICIES        = "DescribePolicies";
     static public final String DESCRIBE_LAUNCH_CONFIGURATIONS   = "DescribeLaunchConfigurations";
     static public final String SET_DESIRED_CAPACITY             = "SetDesiredCapacity";
     static public final String UPDATE_AUTO_SCALING_GROUP        = "UpdateAutoScalingGroup";
@@ -134,6 +136,12 @@ public class EC2Method {
         }
         else if( action.equals(PUT_SCALING_POLICY) ) {
           return new ServiceAction[] { AutoScalingSupport.PUT_SCALING_POLICY };
+        }
+        else if( action.equals(DELETE_SCALING_POLICY) ) {
+          return new ServiceAction[] { AutoScalingSupport.DELETE_SCALING_POLICY };
+        }
+        else if( action.equals(DESCRIBE_SCALING_POLICIES) ) {
+          return new ServiceAction[] { AutoScalingSupport.LIST_SCALING_POLICIES };
         }
         return new ServiceAction[0];
     }
