@@ -739,6 +739,12 @@ public class AutoScaling implements AutoScalingSupport {
         else if( action.equals(AutoScalingSupport.PUT_SCALING_POLICY) ) {
           return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.PUT_SCALING_POLICY };
         }
+        else if( action.equals(AutoScalingSupport.DELETE_SCALING_POLICY) ) {
+          return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.DELETE_SCALING_POLICY };
+        }
+        else if( action.equals(AutoScalingSupport.LIST_SCALING_POLICIES) ) {
+          return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.DESCRIBE_SCALING_POLICIES };
+        }
         return new String[0];
     }
 
