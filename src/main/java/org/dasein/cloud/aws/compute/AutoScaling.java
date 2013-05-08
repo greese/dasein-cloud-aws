@@ -50,7 +50,7 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
-    public String createAutoScalingGroup(String name, String launchConfigurationId, int minServers, int maxServers, @Nullable Integer cooldown, @Nullable String[] loadBalancerIds, @Nullable Integer  desiredCapacity, @Nullable Integer healthCheckGracePeriod, @Nullable String healthCheckType, @Nullable String vpcZones, String ... zoneIds) throws InternalException, CloudException {
+    public String createAutoScalingGroup(String name, String launchConfigurationId, Integer minServers, Integer maxServers, @Nullable Integer cooldown, @Nullable String[] loadBalancerIds, @Nullable Integer  desiredCapacity, @Nullable Integer healthCheckGracePeriod, @Nullable String healthCheckType, @Nullable String vpcZones, String ... zoneIds) throws InternalException, CloudException {
         APITrace.begin(provider, "AutoScaling.createAutoScalingGroup");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_AUTO_SCALING_GROUP);
@@ -104,6 +104,72 @@ public class AutoScaling implements AutoScalingSupport {
         finally {
             APITrace.end();
         }
+    }
+
+    @Override
+    public void updateAutoScalingGroup(@Nonnull String scalingGroupId, @Nullable String launchConfigurationId, @Nonnegative Integer minServers, @Nonnegative Integer maxServers, @Nullable Integer cooldown, @Nullable String[] loadBalancerIds, @Nullable Integer  desiredCapacity, @Nullable Integer healthCheckGracePeriod, @Nullable String healthCheckType, @Nullable String vpcZones, @Nullable String ... zoneIds) throws InternalException, CloudException {
+      APITrace.begin(provider, "AutoScaling.updateAutoScalingGroup");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.UPDATE_AUTO_SCALING_GROUP);
+        EC2Method method;
+
+        if(scalingGroupId != null) {
+          parameters.put("AutoScalingGroupName", scalingGroupId);
+        }
+        if(launchConfigurationId != null) {
+          parameters.put("LaunchConfigurationName", launchConfigurationId);
+        }
+        if(minServers != null) {
+          if( minServers < 0 ) {
+            minServers = 0;
+          }
+          parameters.put("MinSize", String.valueOf(minServers));
+        }
+        if(maxServers != null) {
+          if( maxServers < minServers ) {
+            maxServers = minServers + 1;
+          }
+          parameters.put("MaxSize", String.valueOf(maxServers));
+        }
+        if(cooldown != null) {
+          parameters.put("DefaultCooldown", String.valueOf(cooldown));
+        }
+        if(desiredCapacity != null) {
+          parameters.put("DesiredCapacity", String.valueOf(desiredCapacity));
+        }
+        if(healthCheckGracePeriod != null) {
+          parameters.put("HealthCheckGracePeriod", String.valueOf(healthCheckGracePeriod));
+        }
+        if(healthCheckType != null) {
+          parameters.put("HealthCheckType", healthCheckType);
+        }
+        if(vpcZones != null) {
+          parameters.put("VPCZoneIdentifier", vpcZones);
+        }
+        if(zoneIds != null) {
+          int i = 1;
+          for( String zoneId : zoneIds ) {
+            parameters.put("AvailabilityZones.member." + (i++), zoneId);
+          }
+        }
+        if( loadBalancerIds != null ) {
+          int x = 1;
+          for( String lbId : loadBalancerIds ) {
+            parameters.put("LoadBalancerNames.member." + (x++), lbId);
+          }
+        }
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+      }
+      finally {
+        APITrace.end();
+      }
     }
 
     @Override
@@ -1247,39 +1313,4 @@ public class AutoScaling implements AutoScalingSupport {
       return sp;
     }
 
-    @Override
-    public void updateAutoScalingGroup(@Nonnull String scalingGroupId, @Nonnull String launchConfigurationId, @Nonnegative int minServers, @Nonnegative int maxServers, @Nonnegative int cooldown, @Nonnull String ... zoneIds) throws InternalException, CloudException {
-        APITrace.begin(provider, "AutoScaling.updateAutoScalingGroup");
-        try {
-            Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.UPDATE_AUTO_SCALING_GROUP);
-            EC2Method method;
-
-            if( minServers < 0 ) {
-                minServers = 0;
-            }
-            if( maxServers < minServers ) {
-                maxServers = minServers;
-            }
-            parameters.put("AutoScalingGroupName", scalingGroupId);
-            parameters.put("LaunchConfigurationName", launchConfigurationId);
-            parameters.put("MinSize", String.valueOf(minServers));
-            parameters.put("MaxSize", String.valueOf(maxServers));
-            parameters.put("Cooldown", String.valueOf(cooldown));
-            int i = 1;
-            for( String zoneId : zoneIds ) {
-                parameters.put("AvailabilityZones.member." + (i++), zoneId);
-            }
-            method = new EC2Method(provider, getAutoScalingUrl(), parameters);
-            try {
-                method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-        }
-        finally {
-            APITrace.end();
-        }
-    }
 }
