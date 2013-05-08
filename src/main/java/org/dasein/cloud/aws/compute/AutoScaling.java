@@ -50,7 +50,7 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
-    public String createAutoScalingGroup(String name, String launchConfigurationId, int minServers, int maxServers, int cooldown, String[] loadBalancerIds, String ... zoneIds) throws InternalException, CloudException {
+    public String createAutoScalingGroup(String name, String launchConfigurationId, int minServers, int maxServers, @Nullable Integer cooldown, @Nullable String[] loadBalancerIds, @Nullable Integer  desiredCapacity, @Nullable Integer healthCheckGracePeriod, @Nullable String healthCheckType, @Nullable String vpcZones, String ... zoneIds) throws InternalException, CloudException {
         APITrace.begin(provider, "AutoScaling.createAutoScalingGroup");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_AUTO_SCALING_GROUP);
@@ -66,7 +66,21 @@ public class AutoScaling implements AutoScalingSupport {
             parameters.put("LaunchConfigurationName", launchConfigurationId);
             parameters.put("MinSize", String.valueOf(minServers));
             parameters.put("MaxSize", String.valueOf(maxServers));
-            parameters.put("DefaultCooldown", String.valueOf(cooldown));
+            if(cooldown != null) {
+              parameters.put("DefaultCooldown", String.valueOf(cooldown));
+            }
+            if(desiredCapacity != null) {
+              parameters.put("DesiredCapacity", String.valueOf(desiredCapacity));
+            }
+            if(healthCheckGracePeriod != null) {
+              parameters.put("HealthCheckGracePeriod", String.valueOf(healthCheckGracePeriod));
+            }
+            if(healthCheckType != null) {
+              parameters.put("HealthCheckType", healthCheckType);
+            }
+            if(vpcZones != null) {
+              parameters.put("VPCZoneIdentifier", vpcZones);
+            }
             int i = 1;
             for( String zoneId : zoneIds ) {
                 parameters.put("AvailabilityZones.member." + (i++), zoneId);
