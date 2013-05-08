@@ -1,6 +1,6 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 <!--
-    Copyright (C) 2008-2013 Enstratius, Inc. (http://www.enstratius.com)
+    Copyright (C) 2008-2013 Dell, Inc. (http://www.enstratius.com)
 
     ====================================================================
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,8 +42,8 @@
   </licenses>
 
   <organization>
-    <name>Enstratius, Inc.</name>
-    <url>http://www.enstratius.com</url>
+    <name>Dell, Inc.</name>
+    <url>http://software.dell.com</url>
   </organization>
 
   <scm>
@@ -169,7 +169,7 @@
                 </excludes>
                 <properties>
                     <year>2009-2013</year>
-                    <copyrightHolder>Enstratius, Inc.</copyrightHolder>
+                    <copyrightHolder>Dell, Inc.</copyrightHolder>
                 </properties>
             </configuration>
         </plugin>
