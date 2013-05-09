@@ -273,14 +273,22 @@ public class S3Method {
 
             if( provider.getEC2Provider().isAWS() ) {
                 url.append("https://");
+                String regionId = provider.getContext().getRegionId();
+
                 if( temporaryEndpoint == null ) {
                     boolean validDomainName = isValidDomainName(bucket);
                     if( bucket != null && validDomainName ) {
                         url.append(bucket);
-                        url.append(".s3.amazonaws.com/");
+                        if (regionId != null && !"us-east-1".equals(regionId)) {
+                            url.append(".s3-");
+                            url.append(regionId);
+                            url.append(".amazonaws.com/");
+                        }
+                        else {
+                            url.append(".s3.amazonaws.com/");
+                        }
                     }
                     else if ( bucket != null && !validDomainName) {
-                        String regionId = provider.getContext().getRegionId();
 
                         if (regionId != null && !"us-east-1".equals(regionId)) {
                             url.append("s3-");
