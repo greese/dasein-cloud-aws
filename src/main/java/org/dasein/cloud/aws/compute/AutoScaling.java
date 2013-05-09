@@ -50,7 +50,7 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
-    public String createAutoScalingGroup(String name, String launchConfigurationId, Integer minServers, Integer maxServers, @Nullable Integer cooldown, @Nullable String[] loadBalancerIds, @Nullable Integer  desiredCapacity, @Nullable Integer healthCheckGracePeriod, @Nullable String healthCheckType, @Nullable String vpcZones, String ... zoneIds) throws InternalException, CloudException {
+    public String createAutoScalingGroup(@Nonnull String name, @Nonnull String launchConfigurationId, @Nonnull Integer minServers, @Nonnull Integer maxServers, @Nullable Integer cooldown, @Nullable String[] loadBalancerIds, @Nullable Integer desiredCapacity, @Nullable Integer healthCheckGracePeriod, @Nullable String healthCheckType, @Nullable String vpcZones, @Nullable String ... zoneIds) throws InternalException, CloudException {
         APITrace.begin(provider, "AutoScaling.createAutoScalingGroup");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_AUTO_SCALING_GROUP);
@@ -81,14 +81,16 @@ public class AutoScaling implements AutoScalingSupport {
             if(vpcZones != null) {
               parameters.put("VPCZoneIdentifier", vpcZones);
             }
-            int i = 1;
-            for( String zoneId : zoneIds ) {
-                parameters.put("AvailabilityZones.member." + (i++), zoneId);
+            if( loadBalancerIds != null ) {
+              int i = 1;
+              for( String zoneId : zoneIds ) {
+                  parameters.put("AvailabilityZones.member." + (i++), zoneId);
+              }
             }
             if( loadBalancerIds != null ) {
-              i = 1;
+              int x = 1;
               for( String lbId : loadBalancerIds ) {
-                parameters.put("LoadBalancerNames.member." + (i++), lbId);
+                parameters.put("LoadBalancerNames.member." + (x++), lbId);
               }
             }
             method = new EC2Method(provider, getAutoScalingUrl(), parameters);
