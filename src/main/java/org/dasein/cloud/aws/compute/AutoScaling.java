@@ -1262,7 +1262,7 @@ public class AutoScaling implements AutoScalingSupport {
                   for( int k=0; k<items.getLength(); k++ ) {
                     Node val = items.item(k);
                     if( val.getNodeName().equalsIgnoreCase("AlarmARN") ) {
-                      anAlarm.setAlarmARN(val.getFirstChild().getNodeValue());
+                      anAlarm.setId(val.getFirstChild().getNodeValue());
                     }
                     if( val.getNodeName().equalsIgnoreCase("AlarmName") ) {
                       anAlarm.setName(val.getFirstChild().getNodeValue());
