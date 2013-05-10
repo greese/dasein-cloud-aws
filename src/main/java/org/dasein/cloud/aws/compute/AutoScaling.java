@@ -109,7 +109,7 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
-    public void updateAutoScalingGroup(@Nonnull String scalingGroupId, @Nullable String launchConfigurationId, @Nonnegative Integer minServers, @Nonnegative Integer maxServers, @Nullable Integer cooldown, @Nullable String[] loadBalancerIds, @Nullable Integer  desiredCapacity, @Nullable Integer healthCheckGracePeriod, @Nullable String healthCheckType, @Nullable String vpcZones, @Nullable String ... zoneIds) throws InternalException, CloudException {
+    public void updateAutoScalingGroup(@Nonnull String scalingGroupId, @Nullable String launchConfigurationId, @Nonnegative Integer minServers, @Nonnegative Integer maxServers, @Nullable Integer cooldown, @Nullable String[] loadBalancerIds, @Nullable Integer desiredCapacity, @Nullable Integer healthCheckGracePeriod, @Nullable String healthCheckType, @Nullable String vpcZones, @Nullable String ... zoneIds) throws InternalException, CloudException {
       APITrace.begin(provider, "AutoScaling.updateAutoScalingGroup");
       try {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.UPDATE_AUTO_SCALING_GROUP);
@@ -128,8 +128,8 @@ public class AutoScaling implements AutoScalingSupport {
           parameters.put("MinSize", String.valueOf(minServers));
         }
         if(maxServers != null) {
-          if( maxServers < minServers ) {
-            maxServers = minServers + 1;
+          if( minServers != null && maxServers < minServers ) {
+            maxServers = minServers;
           }
           parameters.put("MaxSize", String.valueOf(maxServers));
         }
