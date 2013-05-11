@@ -557,7 +557,7 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
-    public Collection<ScalingPolicy> listScalingPolicies(String autoScalingGroupName) throws CloudException, InternalException {
+    public Collection<ScalingPolicy> listScalingPolicies(@Nullable String autoScalingGroupName) throws CloudException, InternalException {
       APITrace.begin(provider, "AutoScaling.getScalingPolicies");
       try {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_SCALING_POLICIES);
@@ -566,7 +566,9 @@ public class AutoScaling implements AutoScalingSupport {
         NodeList blocks;
         Document doc;
 
-        parameters.put("AutoScalingGroupName", autoScalingGroupName);
+        if(autoScalingGroupName != null) {
+          parameters.put("AutoScalingGroupName", autoScalingGroupName);
+        }
         method = new EC2Method(provider, getAutoScalingUrl(), parameters);
         try {
           doc = method.invoke();
