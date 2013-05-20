@@ -1007,10 +1007,10 @@ public class VPC extends AbstractVLANSupport {
             NodeList blocks;
             Document doc;
 
-            parameters.put("Filter.1.Name", "association.main");
-            parameters.put("Filter.1.Value.1", "true");
-            parameters.put("Filter.2.Name", "association.subnet-id");
-            parameters.put("Filter.2.Value.1", subnetId);
+            //parameters.put("Filter.1.Name", "association.main");
+            //parameters.put("Filter.1.Value.1", "true");
+            parameters.put("Filter.1.Name", "association.subnet-id");
+            parameters.put("Filter.1.Value.1", subnetId);
 
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
