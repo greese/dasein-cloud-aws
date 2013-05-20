@@ -18,16 +18,11 @@
 
 package org.dasein.cloud.aws.compute;
 
-import java.io.UnsupportedEncodingException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.apache.log4j.Logger;
-import org.dasein.cloud.*;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
@@ -39,6 +34,13 @@ import org.w3c.dom.NodeList;
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.UnsupportedEncodingException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 public class AutoScaling implements AutoScalingSupport {
     static private final Logger logger = Logger.getLogger(AutoScaling.class);
@@ -109,7 +111,7 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
-    public void updateAutoScalingGroup(@Nonnull String scalingGroupId, @Nullable String launchConfigurationId, @Nonnegative Integer minServers, @Nonnegative Integer maxServers, @Nullable Integer cooldown, @Nullable String[] loadBalancerIds, @Nullable Integer desiredCapacity, @Nullable Integer healthCheckGracePeriod, @Nullable String healthCheckType, @Nullable String vpcZones, @Nullable String ... zoneIds) throws InternalException, CloudException {
+    public void updateAutoScalingGroup(@Nonnull String scalingGroupId, @Nullable String launchConfigurationId, @Nonnegative Integer minServers, @Nonnegative Integer maxServers, @Nullable Integer cooldown, @Nullable Integer desiredCapacity, @Nullable Integer healthCheckGracePeriod, @Nullable String healthCheckType, @Nullable String vpcZones, @Nullable String ... zoneIds) throws InternalException, CloudException {
       APITrace.begin(provider, "AutoScaling.updateAutoScalingGroup");
       try {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.UPDATE_AUTO_SCALING_GROUP);
@@ -152,12 +154,6 @@ public class AutoScaling implements AutoScalingSupport {
           int i = 1;
           for( String zoneId : zoneIds ) {
             parameters.put("AvailabilityZones.member." + (i++), zoneId);
-          }
-        }
-        if( loadBalancerIds != null ) {
-          int x = 1;
-          for( String lbId : loadBalancerIds ) {
-            parameters.put("LoadBalancerNames.member." + (x++), lbId);
           }
         }
         method = new EC2Method(provider, getAutoScalingUrl(), parameters);
