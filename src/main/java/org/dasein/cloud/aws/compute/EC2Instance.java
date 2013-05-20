@@ -165,7 +165,7 @@ public class EC2Instance implements VirtualMachineSupport {
 
             parameters.put("EndTime", fmt.format(new Date(endTimestamp)));
             parameters.put("StartTime", fmt.format(new Date(startTimestamp)));
-            parameters.put("MeasureName", metric);
+            parameters.put("MetricName", metric);
             parameters.put("Namespace", "AWS/EC2");
             parameters.put("Unit", unit);
             parameters.put("Dimensions.member.Name.1", "InstanceId");
