@@ -249,11 +249,14 @@ public class EC2Instance extends AbstractVMSupport {
         }
         if( end < 0L ) {
             end = endTimestamp;
+            if( end < 1L ) {
+                end = System.currentTimeMillis();
+            }
         }
         if( minimum < 0.0 ) {
             minimum = 0.0;
         }
-        apply.apply(stats, start, end, samples, sum/samples, minimum, maximum);
+        apply.apply(stats, start, end, samples, samples == 0 ? 0.0 : sum/samples, minimum, maximum);
     }
     
 	private void calculateCpuUtilization(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
