@@ -165,7 +165,7 @@ public class EC2Instance extends AbstractVMSupport {
             parameters.put("Statistics.member.2", "Minimum");
             parameters.put("Statistics.member.3", "Maximum");
             parameters.put("Period", "60");
-            method = new EC2Method(provider, getCloudWatchUrl(), parameters);
+            method = new EC2Method(provider, getCloudWatchUrl(provider.getContext()), parameters);
             try {
                 doc = method.invoke();
             }
@@ -381,9 +381,9 @@ public class EC2Instance extends AbstractVMSupport {
 			return Architecture.I64;
 		}
 	}
-	
-	private String getCloudWatchUrl() {
-        return "http://monitoring.amazonaws.com";
+
+    private @Nonnull String getCloudWatchUrl(@Nonnull ProviderContext ctx) {
+        return ("https://monitoring." + ctx.getRegionId() + ".amazonaws.com");
     }
     
 	@Override
