@@ -1394,7 +1394,7 @@ public class VPC implements VLANSupport {
             Document doc;
 
             parameters.put("Filter.1.Name", "attachment.instance-id");
-            parameters.put("Filter.2.Value.1", forVmId);
+            parameters.put("Filter.1.Value.1", forVmId);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -1437,7 +1437,7 @@ public class VPC implements VLANSupport {
             Document doc;
 
             parameters.put("Filter.1.Name", "subnet-id");
-            parameters.put("Filter.2.Value.1", subnetId);
+            parameters.put("Filter.1.Value.1", subnetId);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -1480,7 +1480,7 @@ public class VPC implements VLANSupport {
             Document doc;
 
             parameters.put("Filter.1.Name", "vpc-id");
-            parameters.put("Filter.2.Value.1", vlanId);
+            parameters.put("Filter.1.Value.1", vlanId);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
