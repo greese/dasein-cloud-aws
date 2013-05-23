@@ -165,7 +165,7 @@ public class EC2Instance extends AbstractVMSupport {
             parameters.put("Statistics.member.2", "Minimum");
             parameters.put("Statistics.member.3", "Maximum");
             parameters.put("Period", "60");
-            method = new EC2Method(provider, getCloudWatchUrl(provider.getContext()), parameters);
+            method = new EC2Method(provider, getCloudWatchUrl(getContext()), parameters);
             try {
                 doc = method.invoke();
             }
