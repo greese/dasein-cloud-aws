@@ -387,9 +387,9 @@ public class EC2Instance implements VirtualMachineSupport {
 			return Architecture.I64;
 		}
 	}
-	
-	private String getCloudWatchUrl() {
-        return "http://monitoring.amazonaws.com";
+
+    private @Nonnull String getCloudWatchUrl(@Nonnull ProviderContext ctx) {
+        return ("https://monitoring." + ctx.getRegionId() + ".amazonaws.com");
     }
     
 	@Override
