@@ -174,7 +174,7 @@ public class EC2Instance implements VirtualMachineSupport {
             parameters.put("Statistics.member.2", "Minimum");
             parameters.put("Statistics.member.3", "Maximum");
             parameters.put("Period", "60");
-            method = new EC2Method(provider, getCloudWatchUrl(), parameters);
+            method = new EC2Method(provider, getCloudWatchUrl(provider.getContext()), parameters);
             try {
                 doc = method.invoke();
             }
