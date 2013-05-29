@@ -253,6 +253,9 @@ public class RDS implements RelationalDatabaseSupport {
             if( size < 5 ) {
                 size = 5;
             }
+            
+            String securityGroupId = createSecurityGroup(id);
+
             parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_INSTANCE);
             parameters.put("DBInstanceIdentifier", id);
             parameters.put("AllocatedStorage", String.valueOf(size));
@@ -262,6 +265,8 @@ public class RDS implements RelationalDatabaseSupport {
             parameters.put("MasterUsername", withAdminUser);
             parameters.put("MasterUserPassword", withAdminPassword);
             parameters.put("Port", String.valueOf(hostPort));
+            parameters.put("DBSecurityGroups.member.1", securityGroupId);
+            
             if( product.getEngine().isMySQL() ) {
                 parameters.put("LicenseModel", "general-public-license");
             }
