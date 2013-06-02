@@ -381,7 +381,7 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public String getCloudWatchVersion() {
-        return "2009-05-15";
+        return "2010-08-01";
     }
 
     public String getEc2Version() {
