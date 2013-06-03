@@ -17,34 +17,11 @@
  */
 package org.dasein.cloud.aws.compute;
 
-import java.io.UnsupportedEncodingException;
-import java.text.SimpleDateFormat;
-import java.util.*;
-
 import org.apache.log4j.Logger;
-import org.dasein.cloud.AsynchronousTask;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.Requirement;
-import org.dasein.cloud.ResourceStatus;
-import org.dasein.cloud.Tag;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.storage.S3Method;
-import org.dasein.cloud.compute.AbstractImageSupport;
-import org.dasein.cloud.compute.Architecture;
-import org.dasein.cloud.compute.ImageClass;
-import org.dasein.cloud.compute.ImageCreateOptions;
-import org.dasein.cloud.compute.ImageFilterOptions;
-import org.dasein.cloud.compute.MachineImage;
-import org.dasein.cloud.compute.MachineImageFormat;
-import org.dasein.cloud.compute.MachineImageState;
-import org.dasein.cloud.compute.MachineImageSupport;
-import org.dasein.cloud.compute.MachineImageType;
-import org.dasein.cloud.compute.Platform;
-import org.dasein.cloud.compute.VirtualMachine;
-import org.dasein.cloud.compute.VmState;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.CalendarWrapper;
@@ -57,6 +34,9 @@ import org.w3c.dom.NodeList;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.UnsupportedEncodingException;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 /**
  * @version 2013.01.1 Fixed a data consistency issue with AWS (issue #21)
@@ -130,68 +110,58 @@ public class AMI extends AbstractImageSupport {
             int attempts = 5;
 
             while( attempts > 0 ) {
-                if( vm.getPlatform().isWindows() ) {
-                    String bucket = provider.getStorageServices().getBlobStoreSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
+                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_IMAGE);
+                NodeList blocks;
+                EC2Method method;
+                Document doc;
 
-                    if( bucket == null ) {
-                        throw new CloudException("There is no bucket");
-                    }
-                    return captureWindows(ctx, options, bucket, task);
+                parameters.put("InstanceId", options.getVirtualMachineId());
+                parameters.put("Name", options.getName());
+                parameters.put("Description", options.getDescription());
+                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                try {
+                    doc = method.invoke();
                 }
-                else {
-                    Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_IMAGE);
-                    NodeList blocks;
-                    EC2Method method;
-                    Document doc;
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                blocks = doc.getElementsByTagName("imageId");
+                if( blocks.getLength() > 0 ) {
+                    Node imageIdNode = blocks.item(0);
+                    String id = imageIdNode.getFirstChild().getNodeValue().trim();
+                    MachineImage img = getImage(id);
 
-                    parameters.put("InstanceId", options.getVirtualMachineId());
-                    parameters.put("Name", options.getName());
-                    parameters.put("Description", options.getDescription());
-                    method = new EC2Method(provider, provider.getEc2Url(), parameters);
-                    try {
-                        doc = method.invoke();
-                    }
-                    catch( EC2Exception e ) {
-                        logger.error(e.getSummary());
-                        throw new CloudException(e);
-                    }
-                    blocks = doc.getElementsByTagName("imageId");
-                    if( blocks.getLength() > 0 ) {
-                        Node imageIdNode = blocks.item(0);
-                        String id = imageIdNode.getFirstChild().getNodeValue().trim();
-                        MachineImage img = getImage(id);
-
+                    if( img == null ) {
+                        for( int i=0; i<5; i++ ) {
+                            try { Thread.sleep(5000L * i); }
+                            catch( InterruptedException ignore ) { }
+                            img = getImage(id);
+                            if( img != null ) {
+                                break;
+                            }
+                        }
                         if( img == null ) {
-                            for( int i=0; i<5; i++ ) {
-                                try { Thread.sleep(5000L * i); }
-                                catch( InterruptedException ignore ) { }
-                                img = getImage(id);
-                                if( img != null ) {
-                                    break;
-                                }
-                            }
-                            if( img == null ) {
-                                throw new CloudException("No image exists for " + id + " as created during the capture process");
-                            }
+                            throw new CloudException("No image exists for " + id + " as created during the capture process");
                         }
-                        if( MachineImageState.DELETED.equals(img.getCurrentState()) ) {
-                            String errorMessage = (String)img.getTag("stateReason");
-
-                            if( errorMessage != null ) {
-                                if( errorMessage.contains("try again") ) {
-                                    lastMessage = errorMessage;
-                                    attempts--;
-                                    try { Thread.sleep(CalendarWrapper.MINUTE); }
-                                    catch( InterruptedException ignore ) { }
-                                    continue;
-                                }
-                                throw new CloudException(errorMessage);
-                            }
-                        }
-                        return img;
                     }
-                    throw new CloudException("No error occurred during imaging, but no machine image was specified");
+                    if( MachineImageState.DELETED.equals(img.getCurrentState()) ) {
+                        String errorMessage = (String)img.getTag("stateReason");
+
+                        if( errorMessage != null ) {
+                            if( errorMessage.contains("try again") ) {
+                                lastMessage = errorMessage;
+                                attempts--;
+                                try { Thread.sleep(CalendarWrapper.MINUTE); }
+                                catch( InterruptedException ignore ) { }
+                                continue;
+                            }
+                            throw new CloudException(errorMessage);
+                        }
+                    }
+                    return img;
                 }
+                throw new CloudException("No error occurred during imaging, but no machine image was specified");
             }
             if( lastMessage == null ) {
                 lastMessage = "Unknown error";
