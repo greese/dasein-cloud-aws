@@ -526,6 +526,8 @@ public class SNS implements PushNotificationSupport {
                 case AWS_SQS:
                     parameters.put("Protocol", "sqs");
                     break;
+                case SMS:
+                    parameters.put("Protocol", "sms");
             }
             parameters.put("Endpoint", endpoint);
             method = new EC2Method(provider, getSNSUrl(), parameters);
@@ -615,6 +617,10 @@ public class SNS implements PushNotificationSupport {
                     else if( proto.equals("sqs") ) {
                         subscription.setEndpointType(EndpointType.AWS_SQS);
                         subscription.setDataFormat(DataFormat.JSON);
+                    }
+                    else if( proto.equals("sms") ) {
+                        subscription.setEndpointType(EndpointType.SMS);
+                        subscription.setDataFormat(DataFormat.PLAINTEXT);
                     }
                 }
             }
