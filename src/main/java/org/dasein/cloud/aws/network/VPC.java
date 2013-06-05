@@ -988,8 +988,9 @@ public class VPC extends AbstractVLANSupport {
             NodeList blocks;
             Document doc;
 
-            parameters.put("Filter.1.Name", "association.main");
-            parameters.put("Filter.1.Value.1", "true");
+            // FIXME: make this a param to pass in possibly or a seperate method for main tables...
+            //parameters.put("Filter.1.Name", "association.main");
+            //parameters.put("Filter.1.Value.1", "true");
             parameters.put("Filter.2.Name", "association.subnet-id");
             parameters.put("Filter.2.Value.1", subnetId);
 
@@ -1232,7 +1233,6 @@ public class VPC extends AbstractVLANSupport {
     public boolean isVlanDataCenterConstrained() throws CloudException, InternalException {
         return false;
     }
-
 
     @Override
     public @Nonnull Collection<String> listFirewallIdsForNIC(@Nonnull String nicId) throws CloudException, InternalException {
@@ -2377,8 +2377,11 @@ public class VPC extends AbstractVLANSupport {
                     if( attr.getNodeName().equalsIgnoreCase("subnetId") && attr.hasChildNodes() ) {
                       subnet = attr.getFirstChild().getNodeValue().trim();
                     }
+                    //routeTableAssociationId
                   }
-                  associations.add(subnet);
+                  if( subnet != null ) {
+                    associations.add(subnet);
+                  }
                 }
               }
               table.setProviderSubnetIds(associations.toArray(new String[associations.size()]));
