@@ -18,26 +18,8 @@
 
 package org.dasein.cloud.aws.network;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.TreeSet;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.servlet.http.HttpServletResponse;
-
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.Requirement;
-import org.dasein.cloud.ResourceStatus;
-import org.dasein.cloud.Tag;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
@@ -45,27 +27,7 @@ import org.dasein.cloud.compute.ComputeServices;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.AbstractVLANSupport;
-import org.dasein.cloud.network.Firewall;
-import org.dasein.cloud.network.FirewallSupport;
-import org.dasein.cloud.network.IPVersion;
-import org.dasein.cloud.network.IpAddress;
-import org.dasein.cloud.network.IpAddressSupport;
-import org.dasein.cloud.network.NICCreateOptions;
-import org.dasein.cloud.network.NICState;
-import org.dasein.cloud.network.NetworkInterface;
-import org.dasein.cloud.network.NetworkServices;
-import org.dasein.cloud.network.Networkable;
-import org.dasein.cloud.network.RawAddress;
-import org.dasein.cloud.network.Route;
-import org.dasein.cloud.network.RoutingTable;
-import org.dasein.cloud.network.Subnet;
-import org.dasein.cloud.network.SubnetCreateOptions;
-import org.dasein.cloud.network.SubnetState;
-import org.dasein.cloud.network.VLAN;
-import org.dasein.cloud.network.VlanCreateOptions;
-import org.dasein.cloud.network.VLANState;
-import org.dasein.cloud.network.VLANSupport;
+import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
@@ -73,6 +35,11 @@ import org.dasein.util.PopulatorThread;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.servlet.http.HttpServletResponse;
+import java.util.*;
 
 public class VPC extends AbstractVLANSupport {
     static private final Logger logger = Logger.getLogger(VPC.class);
@@ -2396,6 +2363,25 @@ public class VPC extends AbstractVLANSupport {
                     }
                 }
                 table.setRoutes(routes.toArray(new Route[routes.size()]));
+            }
+            else if( nodeName.equalsIgnoreCase("associationSet") && child.hasChildNodes() ) {
+              ArrayList<String> associations = new ArrayList<String>();
+              NodeList set = child.getChildNodes();
+              for( int j=0; j<set.getLength(); j++ ) {
+                Node item = set.item(j);
+                if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
+                  String subnet = null;
+                  NodeList attrs = item.getChildNodes();
+                  for( int k=0; k<attrs.getLength(); k++ ) {
+                    Node attr = attrs.item(k);
+                    if( attr.getNodeName().equalsIgnoreCase("subnetId") && attr.hasChildNodes() ) {
+                      subnet = attr.getFirstChild().getNodeValue().trim();
+                    }
+                  }
+                  associations.add(subnet);
+                }
+              }
+              table.setProviderSubnetIds(associations.toArray(new String[associations.size()]));
             }
             else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
                 provider.setTags(child, table);
