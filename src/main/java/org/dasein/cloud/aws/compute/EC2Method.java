@@ -18,27 +18,7 @@
 
 package org.dasein.cloud.aws.compute;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-
-import javax.annotation.Nonnull;
-import javax.servlet.http.HttpServletResponse;
-import javax.xml.parsers.ParserConfigurationException;
-
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpVersion;
-import org.apache.http.NameValuePair;
+import org.apache.http.*;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpPost;
@@ -57,18 +37,10 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.admin.PrepaymentSupport;
 import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.compute.AutoScalingSupport;
-import org.dasein.cloud.compute.MachineImageSupport;
-import org.dasein.cloud.compute.SnapshotSupport;
-import org.dasein.cloud.compute.VirtualMachineSupport;
-import org.dasein.cloud.compute.VolumeSupport;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.identity.ShellKeySupport;
-import org.dasein.cloud.network.FirewallSupport;
-import org.dasein.cloud.network.IpAddressSupport;
-import org.dasein.cloud.network.NetworkFirewallSupport;
-import org.dasein.cloud.network.VLANSupport;
-import org.dasein.cloud.network.VPNSupport;
+import org.dasein.cloud.network.*;
 import org.dasein.cloud.platform.MonitoringSupport;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.XMLParser;
@@ -76,6 +48,15 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
+
+import javax.annotation.Nonnull;
+import javax.servlet.http.HttpServletResponse;
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 
 public class EC2Method {
     static private final Logger logger = AWSCloud.getLogger(EC2Method.class);
@@ -239,6 +220,7 @@ public class EC2Method {
     static public final String DESCRIBE_SUBNETS        = "DescribeSubnets";
     static public final String DESCRIBE_VPCS           = "DescribeVpcs";
     static public final String DETACH_INTERNET_GATEWAY = "DetachInternetGateway";
+    static public final String DISASSOCIATE_ROUTE_TABLE = "DisassociateRouteTable";
     static public final String REPLACE_ROUTE_TABLE_ASSOCIATION = "ReplaceRouteTableAssociation";
 
     // network ACL operations

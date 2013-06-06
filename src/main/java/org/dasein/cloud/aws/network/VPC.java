@@ -87,8 +87,96 @@ public class VPC extends AbstractVLANSupport {
         }
     }
 
-    private @Nonnull String getAssociationId(@Nonnull String vlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.getAssociationId");
+    @Override
+    public void disassociateRoutingTableFromSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.disassociateRoutingTableFromSubnet");
+        try {
+          ProviderContext ctx = provider.getContext();
+
+          if( ctx == null ) {
+            throw new CloudException("No context was configured");
+          }
+          Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DISASSOCIATE_ROUTE_TABLE);
+          EC2Method method;
+
+          String associationId = getRoutingTableAssociationIdForSubnet(subnetId, routingTableId);
+          parameters.put("AssociationId", associationId);
+          method = new EC2Method(provider, provider.getEc2Url(), parameters);
+          try {
+            method.invoke();
+          }
+          catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            if( logger.isDebugEnabled() ) {
+              e.printStackTrace();
+            }
+            throw new CloudException(e);
+          }
+        }
+        finally {
+          APITrace.end();
+        }
+    }
+
+    private @Nonnull String getRoutingTableAssociationIdForSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.getRoutingTableAssociationIdForSubnet");
+        try {
+          ProviderContext ctx = provider.getContext();
+
+          if( ctx == null ) {
+            throw new CloudException("No context was configured");
+          }
+          Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+          EC2Method method;
+          NodeList blocks;
+          Document doc;
+
+          parameters.put("Filter.1.Name", "association.route-table-id");
+          parameters.put("Filter.1.Value.1", routingTableId);
+          parameters.put("Filter.2.Name", "association.subnet-id");
+          parameters.put("Filter.2.Value.1", subnetId);
+
+          method = new EC2Method(provider, provider.getEc2Url(), parameters);
+          try {
+            doc = method.invoke();
+          }
+          catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            e.printStackTrace();
+            throw new CloudException(e);
+          }
+          blocks = doc.getElementsByTagName("associationSet");
+
+          for( int i=0; i<blocks.getLength(); i++ ) {
+            Node set = blocks.item(i);
+            NodeList items = set.getChildNodes();
+
+            for( int i1=0; i1<items.getLength(); i1++ ) {
+              Node item = items.item(i1);
+
+              if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
+                NodeList attrs = item.getChildNodes();
+
+                for( int j=0; j<attrs.getLength(); j++ ) {
+                  Node attr = attrs.item(j);
+
+                  if( attr.getNodeName().equalsIgnoreCase("routeTableAssociationId") && attr.hasChildNodes() ) {
+                    return attr.getFirstChild().getNodeValue().trim();
+                  }
+                }
+              }
+            }
+          }
+          throw new CloudException("Could not identify the association between subnet " + subnetId + " and routing table " + routingTableId);
+        }
+        finally {
+          APITrace.end();
+        }
+    }
+
+    private @Nonnull String getMainRoutingTableAssociationIdForVlan(@Nonnull String vlanId) throws CloudException,
+            InternalException {
+        APITrace.begin(provider, "VLAN.getMainRoutingTableAssociationIdForVlan");
         try {
             ProviderContext ctx = provider.getContext();
 
@@ -152,7 +240,7 @@ public class VPC extends AbstractVLANSupport {
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            String associationId = getAssociationId(vlanId);
+            String associationId = getMainRoutingTableAssociationIdForVlan(vlanId);
 
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.REPLACE_ROUTE_TABLE_ASSOCIATION);
             EC2Method method;
@@ -988,7 +1076,7 @@ public class VPC extends AbstractVLANSupport {
             NodeList blocks;
             Document doc;
 
-            // FIXME: make this a param to pass in possibly or a seperate method for main tables...
+            // FIXME: make this a param to pass in possibly or a separate method for main tables...
             //parameters.put("Filter.1.Name", "association.main");
             //parameters.put("Filter.1.Value.1", "true");
             parameters.put("Filter.2.Name", "association.subnet-id");
