@@ -466,8 +466,8 @@ public class S3 extends AbstractBlobStoreSupport {
                 if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
                     String code = e.getCode();
 
-                    if( code != null && code.equals("AccessDenied") ) {
-                        return true;
+                    if ( e.getStatus() == HttpServletResponse.SC_FORBIDDEN){
+                    	return true;
                     }
                     if( code == null || !code.equals("NoSuchBucket") ) {
                         String message = e.getMessage();
