@@ -478,12 +478,12 @@ public class VPC extends AbstractVLANSupport {
     }
 
     @Override
-    public void addRouteToAddress(@Nonnull String toRoutingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String address) throws CloudException, InternalException {
+    public Route addRouteToAddress(@Nonnull String toRoutingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String address) throws CloudException, InternalException {
         throw new OperationNotSupportedException("You cannot route to a raw IP address in " + provider.getCloudName() + ".");
     }
 
     @Override
-    public void addRouteToGateway(@Nonnull String toRoutingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String gatewayId) throws CloudException, InternalException {
+    public Route addRouteToGateway(@Nonnull String toRoutingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String gatewayId) throws CloudException, InternalException {
         APITrace.begin(provider, "VLAN.addRouteToGateway");
         try {
             if( !version.equals(IPVersion.IPV4) ) {
@@ -511,6 +511,7 @@ public class VPC extends AbstractVLANSupport {
                 }
                 throw new CloudException(e);
             }
+            return Route.getRouteToGateway(version, destinationCidr, gatewayId);
         }
         finally {
             APITrace.end();
@@ -518,7 +519,7 @@ public class VPC extends AbstractVLANSupport {
     }
 
     @Override
-    public void addRouteToNetworkInterface(@Nonnull String toRoutingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String nicId) throws CloudException, InternalException {
+    public Route addRouteToNetworkInterface(@Nonnull String toRoutingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String nicId) throws CloudException, InternalException {
         APITrace.begin(provider, "VLAN.addRouteToNetworkInterface");
         try {
             if( !version.equals(IPVersion.IPV4) ) {
@@ -546,6 +547,7 @@ public class VPC extends AbstractVLANSupport {
                 }
                 throw new CloudException(e);
             }
+          return Route.getRouteToNetworkInterface(version, destinationCidr, nicId);
         }
         finally {
             APITrace.end();
@@ -553,7 +555,7 @@ public class VPC extends AbstractVLANSupport {
     }
 
     @Override
-    public void addRouteToVirtualMachine(@Nonnull String toRoutingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String vmId) throws CloudException, InternalException {
+    public Route addRouteToVirtualMachine(@Nonnull String toRoutingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String vmId) throws CloudException, InternalException {
         APITrace.begin(provider, "VLAN.addRouteToVirtualMachine");
         try {
             if( !version.equals(IPVersion.IPV4) ) {
@@ -581,6 +583,8 @@ public class VPC extends AbstractVLANSupport {
                 }
                 throw new CloudException(e);
             }
+          // TODO: Find out what ownerId should be
+          return Route.getRouteToVirtualMachine(version, destinationCidr, "", vmId);
         }
         finally {
             APITrace.end();
