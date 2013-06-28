@@ -1070,52 +1070,21 @@ public class VPC extends AbstractVLANSupport {
     public RoutingTable getRoutingTableForSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
         APITrace.begin(provider, "VLAN.getRoutingTableForSubnet");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
-            // FIXME: make this a param to pass in possibly or a separate method for main tables...
-            //parameters.put("Filter.1.Name", "association.main");
-            //parameters.put("Filter.1.Value.1", "true");
-            parameters.put("Filter.2.Name", "association.subnet-id");
-            parameters.put("Filter.2.Value.1", subnetId);
-
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                e.printStackTrace();
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("routeTableSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                Node set = blocks.item(i);
-                NodeList items = set.getChildNodes();
-
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
-
-                    if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
-                        RoutingTable t = toRoutingTable(ctx, item);
-
-                        if( t != null ) {
-                            return t;
-                        }
-                    }
-                }
-            }
+          Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+          parameters.put("Filter.1.Name", "association.main");
+          parameters.put("Filter.1.Value.1", "true");
+          parameters.put("Filter.2.Name", "association.subnet-id");
+          parameters.put("Filter.2.Value.1", subnetId);
+          RoutingTable rt = getRoutingTableAbstract(parameters);
+          // here for backwards compatability - should just return null similar to other resources
+          if( rt == null ) {
             throw new CloudException("Could not identify the subnet routing table for " + subnetId);
+          } else {
+            return rt;
+          }
         }
         finally {
-            APITrace.end();
+          APITrace.end();
         }
     }
 
@@ -1128,52 +1097,75 @@ public class VPC extends AbstractVLANSupport {
     public RoutingTable getRoutingTableForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
         APITrace.begin(provider, "VLAN.getRoutingTableForVlan");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
-            parameters.put("Filter.1.Name", "association.main");
-            parameters.put("Filter.1.Value.1", "true");
-            parameters.put("Filter.2.Name", "vpc-id");
-            parameters.put("Filter.2.Value.1", vlanId);
-
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                e.printStackTrace();
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("routeTableSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                Node set = blocks.item(i);
-                NodeList items = set.getChildNodes();
-
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
-
-                    if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
-                        RoutingTable t = toRoutingTable(ctx, item);
-
-                        if( t != null ) {
-                            return t;
-                        }
-                    }
-                }
-            }
+          Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+          parameters.put("Filter.1.Name", "association.main");
+          parameters.put("Filter.1.Value.1", "true");
+          parameters.put("Filter.2.Name", "vpc-id");
+          parameters.put("Filter.2.Value.1", vlanId);
+          RoutingTable rt = getRoutingTableAbstract(parameters);
+          // here for backwards compatability - should just return null similar to other resources
+          if( rt == null ) {
             throw new CloudException("Could not identify the main routing table for " + vlanId);
+          } else {
+            return rt;
+          }
         }
         finally {
-            APITrace.end();
+          APITrace.end();
         }
+    }
+
+    @Override
+    public RoutingTable getRoutingTable(@Nonnull String id) throws CloudException, InternalException {
+      APITrace.begin(provider, "VLAN.getRoutingTable");
+      try {
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+        parameters.put("Filter.1.Name", "route-table-id");
+        parameters.put("Filter.1.Value.1", id);
+        return getRoutingTableAbstract(parameters);
+      } finally {
+        APITrace.end();
+      }
+    }
+
+    private RoutingTable getRoutingTableAbstract(@Nonnull Map<String,String> parameters) throws CloudException, InternalException {
+      ProviderContext ctx = provider.getContext();
+
+      if( ctx == null ) {
+        throw new CloudException("No context was configured");
+      }
+
+      EC2Method method;
+      NodeList blocks;
+      Document doc;
+
+      method = new EC2Method(provider, provider.getEc2Url(), parameters);
+      try {
+        doc = method.invoke();
+      }
+      catch( EC2Exception e ) {
+        logger.error(e.getSummary());
+        e.printStackTrace();
+        throw new CloudException(e);
+      }
+      blocks = doc.getElementsByTagName("routeTableSet");
+      for( int i=0; i<blocks.getLength(); i++ ) {
+        Node set = blocks.item(i);
+        NodeList items = set.getChildNodes();
+
+        for( int j=0; j<items.getLength(); j++ ) {
+          Node item = items.item(j);
+
+          if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
+            RoutingTable t = toRoutingTable(ctx, item);
+
+            if( t != null ) {
+              return t;
+            }
+          }
+        }
+      }
+      return null;
     }
 
     @Override 
@@ -1682,54 +1674,78 @@ public class VPC extends AbstractVLANSupport {
     }
 
     @Override
+    public @Nonnull Iterable<RoutingTable> listRoutingTablesForSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
+      APITrace.begin(provider, "VLAN.listRoutingTablesForSubnet");
+      try {
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+        parameters.put("Filter.1.Name", "association.subnet-id");
+        parameters.put("Filter.1.Value.1", subnetId);
+        return listRoutingTablesForResource(parameters);
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
+    @Deprecated
     public @Nonnull Iterable<RoutingTable> listRoutingTables(@Nonnull String inVlanId) throws CloudException, InternalException {
+      return listRoutingTablesForVlan(inVlanId);
+    }
+
+    @Override
+    public @Nonnull Iterable<RoutingTable> listRoutingTablesForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
         APITrace.begin(provider, "VLAN.listRoutingTables");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
-            EC2Method method;
-            Document doc;
-
-            parameters.put("Filter.1.Name", "vpc-id");
-            parameters.put("Filter.1.Value.1", inVlanId);
-
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                e.printStackTrace();
-                throw new CloudException(e);
-            }
-            ArrayList<RoutingTable> tables = new ArrayList<RoutingTable>();
-            NodeList blocks = doc.getElementsByTagName("routeTableSet");
-
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                Node set = blocks.item(i);
-                NodeList items = set.getChildNodes();
-
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
-
-                    if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
-                        RoutingTable t = toRoutingTable(ctx, item);
-
-                        if( t != null ) {
-                            tables.add(t);
-                        }
-                    }
-                }
-            }
-            return tables;
+          Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+          parameters.put("Filter.1.Name", "vpc-id");
+          parameters.put("Filter.1.Value.1", vlanId);
+          return listRoutingTablesForResource(parameters);
         }
         finally {
-            APITrace.end();
+          APITrace.end();
         }
+    }
+
+    private @Nonnull Iterable<RoutingTable> listRoutingTablesForResource(@Nonnull Map<String,String> params) throws CloudException, InternalException {
+      ProviderContext ctx = provider.getContext();
+
+      if( ctx == null ) {
+        throw new CloudException("No context was configured");
+      }
+
+      EC2Method method;
+      Document doc;
+
+      method = new EC2Method(provider, provider.getEc2Url(), params);
+      try {
+        doc = method.invoke();
+      }
+      catch( EC2Exception e ) {
+        logger.error(e.getSummary());
+        e.printStackTrace();
+        throw new CloudException(e);
+      }
+      ArrayList<RoutingTable> tables = new ArrayList<RoutingTable>();
+      NodeList blocks = doc.getElementsByTagName("routeTableSet");
+
+      for( int i=0; i<blocks.getLength(); i++ ) {
+        Node set = blocks.item(i);
+        NodeList items = set.getChildNodes();
+
+        for( int j=0; j<items.getLength(); j++ ) {
+          Node item = items.item(j);
+
+          if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
+            RoutingTable t = toRoutingTable(ctx, item);
+
+            if( t != null ) {
+              tables.add(t);
+            }
+          }
+        }
+      }
+      return tables;
     }
 
     @Override

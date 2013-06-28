@@ -18,19 +18,8 @@
 
 package org.dasein.cloud.aws.network;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Locale;
-import java.util.Map;
-
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.Requirement;
-import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
@@ -39,12 +28,7 @@ import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.AddressType;
-import org.dasein.cloud.network.IPVersion;
-import org.dasein.cloud.network.IpAddress;
-import org.dasein.cloud.network.IpAddressSupport;
-import org.dasein.cloud.network.IpForwardingRule;
-import org.dasein.cloud.network.Protocol;
+import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.CalendarWrapper;
 import org.w3c.dom.Document;
@@ -53,6 +37,7 @@ import org.w3c.dom.NodeList;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.*;
 
 public class ElasticIP implements IpAddressSupport {
 	static private final Logger logger = AWSCloud.getLogger(ElasticIP.class);
@@ -102,7 +87,7 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
-            setId("", parameters, getIpAddress(addressId), addressId);
+            setId("", parameters, getIpAddress(addressId), addressId, false);
             parameters.put("InstanceId", instanceId);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
@@ -166,7 +151,7 @@ public class ElasticIP implements IpAddressSupport {
         try {
             IpAddress address = getEC2Address(addressId);
         
-            return ((address == null && provider.getEC2Provider().isAWS()) ? getVPCAddress(addressId) : address);
+            return (((address == null || address.isForVlan()) && provider.getEC2Provider().isAWS()) ? getVPCAddress(addressId) : address);
         }
         finally {
             APITrace.end();
@@ -484,7 +469,7 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
-            setId("", parameters, getIpAddress(addressId), addressId);
+            setId("", parameters, getIpAddress(addressId), addressId, true);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -505,12 +490,17 @@ public class ElasticIP implements IpAddressSupport {
         }
 	}
 	
-    private void setId(@Nonnull String postfix, @Nonnull Map<String,String> parameters, @Nullable IpAddress address, @Nonnull String addressId) throws CloudException {
+    private void setId(@Nonnull String postfix, @Nonnull Map<String,String> parameters, @Nullable IpAddress address, @Nonnull String addressId, @Nullable Boolean disassociate) throws CloudException {
         if( address == null ) {
             throw new CloudException("Invalid IP address: " + addressId);
         }
+        String associationId = address.getProviderAssociationId();
         if( address.isForVlan() ) {
+          if( disassociate != null && disassociate ) {
+            parameters.put("AssociationId" + postfix, associationId);
+          } else {
             parameters.put("AllocationId" + postfix, addressId);
+          }
         }
         else {
             parameters.put("PublicIp" + postfix, addressId);
@@ -526,7 +516,7 @@ public class ElasticIP implements IpAddressSupport {
            NodeList blocks;
            Document doc;
 
-           setId("", parameters, getIpAddress(addressId), addressId);
+           setId("", parameters, getIpAddress(addressId), addressId, false);
            method = new EC2Method(provider, provider.getEc2Url(), parameters);
            try {
                doc = method.invoke();
@@ -634,126 +624,130 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     private @Nullable IpAddress toAddress(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException {
-        if( node == null ) {
-            return null;
-        }
-        String regionId = ctx.getRegionId();
-        
-        if( regionId == null ) {
-            throw new CloudException("No regionID was set in context");
-        }
-		NodeList attrs = node.getChildNodes();
-		IpAddress address = new IpAddress();
-		String instanceId = null,ip = null;
-        String ipAddressId = null, nicId = null;
-        boolean forVlan = false;
+      if( node == null ) {
+        return null;
+      }
+      String regionId = ctx.getRegionId();
 
-		for( int i=0; i<attrs.getLength(); i++ ) {
-			Node attr = attrs.item(i);
-			String name;
-			
-			name = attr.getNodeName();
-			if( name.equals("publicIp") ) {
-				ip = attr.getFirstChild().getNodeValue().trim();
-			}
-			else if( name.equals("instanceId") ) {
-				if( attr.getChildNodes().getLength() > 0 ) {
-					Node id = attr.getFirstChild();
-					
-					if( id != null ) {
-						String value = id.getNodeValue();
-						
-						if( value != null ) {
-							value = value.trim();
-							if( value.length() > 0 ) {
-								instanceId = value;
-							}
-						}
-					}
-				}
-			}
-            else if( name.equals("allocationId") && attr.hasChildNodes() ) {
-                ipAddressId = attr.getFirstChild().getNodeValue().trim();
-            }
-            else if( name.equals("domain") && attr.hasChildNodes() ) {
-                forVlan = attr.getFirstChild().getNodeValue().trim().equalsIgnoreCase("vpc");
-            }
-            else if( name.equals("networkInterfaceId") && attr.hasChildNodes() ) {
-                nicId = attr.getFirstChild().getNodeValue().trim();
-            }
-		}
-		if( ip == null ) {
-			throw new CloudException("Invalid address data, no IP.");
-		}
-        if( ipAddressId == null ) {
-            ipAddressId = ip;
+      if( regionId == null ) {
+        throw new CloudException("No regionID was set in context");
+      }
+      NodeList attrs = node.getChildNodes();
+      IpAddress address = new IpAddress();
+      String instanceId = null,ip = null;
+      String ipAddressId = null, nicId = null,associationId = null;
+      boolean forVlan = false;
+
+      for( int i=0; i<attrs.getLength(); i++ ) {
+        Node attr = attrs.item(i);
+        String name;
+
+        name = attr.getNodeName();
+        if( name.equals("publicIp") ) {
+          ip = attr.getFirstChild().getNodeValue().trim();
         }
-        address.setVersion(IPVersion.IPV4);
-		address.setAddressType(AddressType.PUBLIC);
-		address.setAddress(ip);
-		address.setIpAddressId(ipAddressId);
-		address.setRegionId(regionId);
-        address.setForVlan(forVlan);
-        address.setProviderNetworkInterfaceId(nicId);
-        if( instanceId != null && provider.getEC2Provider().isEucalyptus() ) {
-            if( instanceId.startsWith("available") ) {
-                instanceId = null;
-            }
-            else {
-                int idx = instanceId.indexOf(' ');
-                
-                if( idx > 0 ) {
-                    instanceId = instanceId.substring(0,idx);
+        else if( name.equals("instanceId") ) {
+          if( attr.getChildNodes().getLength() > 0 ) {
+            Node id = attr.getFirstChild();
+
+            if( id != null ) {
+              String value = id.getNodeValue();
+
+              if( value != null ) {
+                value = value.trim();
+                if( value.length() > 0 ) {
+                  instanceId = value;
                 }
+              }
             }
-		}
-		address.setServerId(instanceId);
-		return address;
-	}
+          }
+        }
+        else if( name.equals("allocationId") && attr.hasChildNodes() ) {
+          ipAddressId = attr.getFirstChild().getNodeValue().trim();
+        }
+        else if( name.equals("associationId") && attr.hasChildNodes() ) {
+          associationId = attr.getFirstChild().getNodeValue().trim();
+        }
+        else if( name.equals("domain") && attr.hasChildNodes() ) {
+          forVlan = attr.getFirstChild().getNodeValue().trim().equalsIgnoreCase("vpc");
+          if( !forVlan ) {
+            address.setAddressType(AddressType.PUBLIC);
+          } else {
+            address.setAddressType(AddressType.PRIVATE);
+          }
+        }
+        else if( name.equals("networkInterfaceId") && attr.hasChildNodes() ) {
+          nicId = attr.getFirstChild().getNodeValue().trim();
+        }
+      }
+      if( ip == null ) {
+        throw new CloudException("Invalid address data, no IP.");
+      }
+      if( ipAddressId == null ) {
+        ipAddressId = ip;
+      }
+      address.setVersion(IPVersion.IPV4);
+      address.setAddressType(AddressType.PUBLIC);
+      address.setAddress(ip);
+      address.setIpAddressId(ipAddressId);
+      address.setRegionId(regionId);
+      address.setForVlan(forVlan);
+      address.setProviderAssociationId(associationId);
+      address.setProviderNetworkInterfaceId(nicId);
+      if( instanceId != null && provider.getEC2Provider().isEucalyptus() ) {
+        if( instanceId.startsWith("available") ) {
+          instanceId = null;
+        }
+        else {
+          int idx = instanceId.indexOf(' ');
+          if( idx > 0 ) {
+            instanceId = instanceId.substring(0,idx);
+          }
+        }
+      }
+      address.setServerId(instanceId);
+      return address;
+	  }
 
     private @Nullable ResourceStatus toStatus(@Nullable Node node) throws CloudException {
         if( node == null ) {
-            return null;
+          return null;
         }
         NodeList attrs = node.getChildNodes();
         String instanceId = null, ipAddressId = null, nicId = null, ip = null;
-
         for( int i=0; i<attrs.getLength(); i++ ) {
-            Node attr = attrs.item(i);
-            String name;
-
-            name = attr.getNodeName();
-            if( name.equals("publicIp") ) {
-                ip = attr.getFirstChild().getNodeValue().trim();
-            }
-            else if( name.equals("instanceId") ) {
-                if( attr.getChildNodes().getLength() > 0 ) {
-                    Node id = attr.getFirstChild();
-
-                    if( id != null ) {
-                        String value = id.getNodeValue();
-
-                        if( value != null ) {
-                            value = value.trim();
-                            if( value.length() > 0 ) {
-                                instanceId = value;
-                            }
-                        }
-                    }
+          Node attr = attrs.item(i);
+          String name;
+          name = attr.getNodeName();
+          if( name.equals("publicIp") ) {
+            ip = attr.getFirstChild().getNodeValue().trim();
+          }
+          else if( name.equals("instanceId") ) {
+            if( attr.getChildNodes().getLength() > 0 ) {
+              Node id = attr.getFirstChild();
+              if( id != null ) {
+                String value = id.getNodeValue();
+                if( value != null ) {
+                  value = value.trim();
+                  if( value.length() > 0 ) {
+                    instanceId = value;
+                  }
                 }
+              }
             }
-            else if( name.equals("allocationId") && attr.hasChildNodes() ) {
-                ipAddressId = attr.getFirstChild().getNodeValue().trim();
-            }
-            else if( name.equals("networkInterfaceId") && attr.hasChildNodes() ) {
-                nicId = attr.getFirstChild().getNodeValue().trim();
-            }
+          }
+          else if( name.equals("allocationId") && attr.hasChildNodes() ) {
+            ipAddressId = attr.getFirstChild().getNodeValue().trim();
+          }
+          else if( name.equals("networkInterfaceId") && attr.hasChildNodes() ) {
+            nicId = attr.getFirstChild().getNodeValue().trim();
+          }
         }
         if( ipAddressId == null ) {
-            ipAddressId = ip;
+          ipAddressId = ip;
         }
         if( ipAddressId == null ) {
-            return null;
+          return null;
         }
         return new ResourceStatus(ipAddressId, instanceId == null && nicId == null);
     }
