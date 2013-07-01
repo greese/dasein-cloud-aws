@@ -1098,7 +1098,7 @@ public class EC2Instance extends AbstractVMSupport {
         return architectures;
     }
 	
-	private String guess(String privateDnsAddress) {
+	  private String guess(String privateDnsAddress) {
 	    String dnsAddress = privateDnsAddress;
 	    String[] parts = dnsAddress.split("\\.");
 	    
@@ -1470,10 +1470,10 @@ public class EC2Instance extends AbstractVMSupport {
         }
     }
 
-	@Override
-	public @Nonnull Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
-        return listVirtualMachinesWithParams(null, null);
-	}
+    @Override
+    public @Nonnull Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
+          return listVirtualMachinesWithParams(null, null);
+    }
 
     @Override
     public @Nonnull Iterable<VirtualMachine> listVirtualMachines(@Nullable VMFilterOptions options) throws InternalException, CloudException {
@@ -1562,7 +1562,7 @@ public class EC2Instance extends AbstractVMSupport {
         }
     }
 
-        @Override
+    @Override
     public void pause(@Nonnull String vmId) throws InternalException, CloudException {
         throw new OperationNotSupportedException("Pause/unpause not supported by the EC2 API");
     }
@@ -1639,7 +1639,7 @@ public class EC2Instance extends AbstractVMSupport {
     }
 
     @Override
-	public void reboot(@Nonnull String instanceId) throws CloudException, InternalException {
+	  public void reboot(@Nonnull String instanceId) throws CloudException, InternalException {
         APITrace.begin(provider, "rebootVM");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.REBOOT_INSTANCES);
