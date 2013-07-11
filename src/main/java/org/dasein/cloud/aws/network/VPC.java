@@ -174,8 +174,7 @@ public class VPC extends AbstractVLANSupport {
         }
     }
 
-    private @Nonnull String getMainRoutingTableAssociationIdForVlan(@Nonnull String vlanId) throws CloudException,
-            InternalException {
+    private @Nonnull String getMainRoutingTableAssociationIdForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
         APITrace.begin(provider, "VLAN.getMainRoutingTableAssociationIdForVlan");
         try {
             ProviderContext ctx = provider.getContext();
@@ -831,9 +830,7 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     @Deprecated
-    public @Nonnull VLAN createVlan(@Nonnull String cidr, @Nonnull String name, @Nonnull String description,
-                                    @Nullable String domainName, @Nonnull String[] dnsServers, @Nonnull String[] ntpServers)
-        throws CloudException, InternalException {
+    public @Nonnull VLAN createVlan(@Nonnull String cidr, @Nonnull String name, @Nonnull String description, @Nullable String domainName, @Nonnull String[] dnsServers, @Nonnull String[] ntpServers) throws CloudException, InternalException {
         VlanCreateOptions vco = VlanCreateOptions.getInstance(name, description, cidr, domainName, dnsServers, ntpServers);
         return createVlan(vco);
     }
@@ -1608,64 +1605,64 @@ public class VPC extends AbstractVLANSupport {
         PopulatorThread<Networkable> populator = new PopulatorThread<Networkable>(new JiteratorPopulator<Networkable>() {
             @Override
             public void populate(@Nonnull Jiterator<Networkable> iterator) throws Exception {
+            try {
+                APITrace.begin(getProvider(), "VLAN.listResources");
                 try {
-                    APITrace.begin(getProvider(), "VLAN.listResources");
-                    try {
-                        NetworkServices network = provider.getNetworkServices();
+                    NetworkServices network = provider.getNetworkServices();
 
-                        if( network != null ) {
-                            FirewallSupport fwSupport = network.getFirewallSupport();
+                    if( network != null ) {
+                        FirewallSupport fwSupport = network.getFirewallSupport();
 
-                            if( fwSupport != null ) {
-                                for( Firewall fw : fwSupport.list() ) {
-                                    if( inVlanId.equals(fw.getProviderVlanId()) ) {
-                                        iterator.push(fw);
-                                    }
+                        if( fwSupport != null ) {
+                            for( Firewall fw : fwSupport.list() ) {
+                                if( inVlanId.equals(fw.getProviderVlanId()) ) {
+                                    iterator.push(fw);
                                 }
                             }
+                        }
 
-                            IpAddressSupport ipSupport = network.getIpAddressSupport();
+                        IpAddressSupport ipSupport = network.getIpAddressSupport();
 
-                            if( ipSupport != null ) {
-                                for( IPVersion version : ipSupport.listSupportedIPVersions() ) {
-                                    for( IpAddress addr : ipSupport.listIpPool(version, false) ) {
-                                        if( inVlanId.equals(addr.getProviderVlanId()) ) {
-                                            iterator.push(addr);
-                                        }
+                        if( ipSupport != null ) {
+                            for( IPVersion version : ipSupport.listSupportedIPVersions() ) {
+                                for( IpAddress addr : ipSupport.listIpPool(version, false) ) {
+                                    if( inVlanId.equals(addr.getProviderVlanId()) ) {
+                                        iterator.push(addr);
                                     }
-
                                 }
-                            }
-                            for( RoutingTable table : listRoutingTables(inVlanId) ) {
-                                iterator.push(table);
-                            }
-                            ComputeServices compute = provider.getComputeServices();
-                            VirtualMachineSupport vmSupport = compute == null ? null : compute.getVirtualMachineSupport();
-                            Iterable<VirtualMachine> vms;
 
-                            if( vmSupport == null ) {
-                                vms = Collections.emptyList();
                             }
-                            else {
-                                vms = vmSupport.listVirtualMachines();
-                            }
-                            for( Subnet subnet : listSubnets(inVlanId) ) {
-                                iterator.push(subnet);
-                                for( VirtualMachine vm : vms ) {
-                                    if( subnet.getProviderSubnetId().equals(vm.getProviderVlanId()) ) {
-                                        iterator.push(vm);
-                                    }
+                        }
+                        for( RoutingTable table : listRoutingTables(inVlanId) ) {
+                            iterator.push(table);
+                        }
+                        ComputeServices compute = provider.getComputeServices();
+                        VirtualMachineSupport vmSupport = compute == null ? null : compute.getVirtualMachineSupport();
+                        Iterable<VirtualMachine> vms;
+
+                        if( vmSupport == null ) {
+                            vms = Collections.emptyList();
+                        }
+                        else {
+                            vms = vmSupport.listVirtualMachines();
+                        }
+                        for( Subnet subnet : listSubnets(inVlanId) ) {
+                            iterator.push(subnet);
+                            for( VirtualMachine vm : vms ) {
+                                if( subnet.getProviderSubnetId().equals(vm.getProviderVlanId()) ) {
+                                    iterator.push(vm);
                                 }
                             }
                         }
                     }
-                    finally {
-                        APITrace.end();
-                    }
                 }
                 finally {
-                    getProvider().release();
+                    APITrace.end();
                 }
+              }
+              finally {
+                  getProvider().release();
+              }
             }
         });
 
@@ -1695,7 +1692,7 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull Iterable<RoutingTable> listRoutingTablesForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.listRoutingTables");
+        APITrace.begin(provider, "VLAN.listRoutingTablesForVlan");
         try {
           Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
           parameters.put("Filter.1.Name", "vpc-id");
