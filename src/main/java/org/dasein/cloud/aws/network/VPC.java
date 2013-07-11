@@ -1691,12 +1691,14 @@ public class VPC extends AbstractVLANSupport {
     }
 
     @Override
-    public @Nonnull Iterable<RoutingTable> listRoutingTablesForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
+    public @Nonnull Iterable<RoutingTable> listRoutingTablesForVlan(@Nullable String vlanId) throws CloudException, InternalException {
         APITrace.begin(provider, "VLAN.listRoutingTablesForVlan");
         try {
           Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
-          parameters.put("Filter.1.Name", "vpc-id");
-          parameters.put("Filter.1.Value.1", vlanId);
+          if( vlanId != null ) {
+            parameters.put("Filter.1.Name", "vpc-id");
+            parameters.put("Filter.1.Value.1", vlanId);
+          }
           return listRoutingTablesForResource(parameters);
         }
         finally {
