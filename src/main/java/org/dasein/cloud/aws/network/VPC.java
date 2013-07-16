@@ -2062,6 +2062,37 @@ public class VPC extends AbstractVLANSupport {
         }
     }
 
+    @Override
+    public void removeInternetGatewayById(@Nonnull String id) throws CloudException, InternalException {
+      APITrace.begin(provider, "VLAN.removeInternetGatewayById");
+      try {
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DETACH_INTERNET_GATEWAY);
+        EC2Method method;
+
+        InternetGateway ig = getInternetGatewayById(id);
+
+        if(ig == null) {
+          throw new CloudException("No such internet gateway with id " + id);
+        }
+
+        parameters.put("InternetGatewayId", id);
+        parameters.put("VpcId", ig.getProviderVlanId());
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+          method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          e.printStackTrace();
+          throw new CloudException(e);
+        }
+        removeGateway(id);
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
     private void removeGateway(@Nonnull String gatewayId) throws CloudException, InternalException {
         Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_INTERNET_GATEWAY);
 
