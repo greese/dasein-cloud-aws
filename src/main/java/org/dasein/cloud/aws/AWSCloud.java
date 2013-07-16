@@ -18,37 +18,9 @@
 
 package org.dasein.cloud.aws;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URLEncoder;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
-import java.util.TimeZone;
-import java.util.TreeSet;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-
 import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
-import org.dasein.cloud.AbstractCloud;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.Tag;
-import org.dasein.cloud.Taggable;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.admin.AWSAdminServices;
 import org.dasein.cloud.aws.compute.EC2ComputeServices;
 import org.dasein.cloud.aws.compute.EC2Exception;
@@ -64,6 +36,20 @@ import org.dasein.cloud.storage.StorageServices;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URLEncoder;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 public class AWSCloud extends AbstractCloud {
     static private String getLastItem(String name) {
@@ -483,7 +469,7 @@ public class AWSCloud extends AbstractCloud {
 
     public String getEc2Version() {
         if( getEC2Provider().isAWS() ) {
-            return "2013-02-01";
+            return "2013-06-15";
         }
         else if( getEC2Provider().isEucalyptus() ) {
             return "2010-11-15";
