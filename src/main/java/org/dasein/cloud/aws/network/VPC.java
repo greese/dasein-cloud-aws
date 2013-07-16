@@ -1971,9 +1971,61 @@ public class VPC extends AbstractVLANSupport {
           throw new CloudException(e);
         }
         blocks = doc.getElementsByTagName("internetGatewaySet");
-
         Node set = blocks.item(0);
-        return toInternetGateway(ctx, set);
+        NodeList items = set.getChildNodes();
+        Node item = items.item(1);
+        return toInternetGateway(ctx, item);
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
+    public @Nonnull Collection<InternetGateway> listInternetGateways(@Nullable String forVlanId) throws CloudException, InternalException {
+      APITrace.begin(provider, "VLAN.listInternetGateways");
+      try {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+          throw new CloudException("No context was configured");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INTERNET_GATEWAYS);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        if (forVlanId != null) {
+          parameters.put("Filter.1.Name", "attachment.vpc-id");
+          parameters.put("Filter.1.Value.1", forVlanId);
+        }
+
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+          doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          if( logger.isDebugEnabled() ) {
+            e.printStackTrace();
+          }
+          throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("internetGatewaySet");
+        Node set = blocks.item(0);
+        NodeList items = set.getChildNodes();
+
+        ArrayList<InternetGateway> list = new ArrayList<InternetGateway>();
+
+        for( int i1=0; i1<items.getLength(); i1++ ) {
+          Node item = items.item(i1);
+          InternetGateway ig = toInternetGateway(ctx, item);
+
+          if( ig != null ) {
+            list.add(ig);
+          }
+        }
+        return list;
       }
       finally {
         APITrace.end();
@@ -2727,76 +2779,74 @@ public class VPC extends AbstractVLANSupport {
         return new ResourceStatus(vlanId, state);
     }
 
-    private @Nullable InternetGateway toInternetGateway(@Nonnull ProviderContext ctx, @Nullable Node set) throws CloudException, InternalException {
-      if( set == null ) {
+    private @Nullable InternetGateway toInternetGateway(@Nonnull ProviderContext ctx, @Nullable Node item) throws CloudException, InternalException {
+      if( item == null ) {
         return null;
       }
-      NodeList items = set.getChildNodes();
       InternetGateway ig = new InternetGateway();
 
       ig.setProviderOwnerId(ctx.getAccountNumber());
       ig.setProviderRegionId(ctx.getRegionId());
 
-      for( int i1=0; i1<items.getLength(); i1++ ) {
-        Node item = items.item(i1);
+      if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
+        NodeList childNodes = item.getChildNodes();
 
-        if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
-          NodeList childNodes = item.getChildNodes();
+        for( int j=0; j<childNodes.getLength(); j++ ) {
+          Node child = childNodes.item(j);
 
-          for( int j=0; j<childNodes.getLength(); j++ ) {
-            Node child = childNodes.item(j);
+          if( child.getNodeName().equalsIgnoreCase("internetGatewayId") && child.hasChildNodes() ) {
 
-            if( child.getNodeName().equalsIgnoreCase("internetGatewayId") && child.hasChildNodes() ) {
+            ig.setGatewayId(child.getFirstChild().getNodeValue().trim());
 
-              ig.setGatewayId(child.getFirstChild().getNodeValue().trim());
+          } else if( child.getNodeName().equalsIgnoreCase("attachmentSet") && child.hasChildNodes() ) {
+            NodeList attachmentChildren = child.getChildNodes();
 
-            } else if( child.getNodeName().equalsIgnoreCase("attachmentSet") && child.hasChildNodes() ) {
-              NodeList attachmentChildren = child.getChildNodes();
+            for( int x1=0; x1<attachmentChildren.getLength(); x1++ ) {
+              Node attachmentItem = attachmentChildren.item(x1);
 
-              for( int x1=0; x1<attachmentChildren.getLength(); x1++ ) {
-                Node attachmentItem = attachmentChildren.item(x1);
+              if( attachmentItem.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
+                NodeList attachmentChildNodes = attachmentItem.getChildNodes();
 
-                if( attachmentItem.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
-                  NodeList attachmentChildNodes = attachmentItem.getChildNodes();
+                for( int y1=0; y1<attachmentChildNodes.getLength(); y1++ ) {
+                  Node attachmentChild = attachmentChildNodes.item(y1);
 
-                  for( int y1=0; y1<attachmentChildNodes.getLength(); y1++ ) {
-                    Node attachmentChild = attachmentChildNodes.item(y1);
+                  if( attachmentChild.getNodeName().equalsIgnoreCase("vpcId") && child.hasChildNodes() ) {
 
-                    if( attachmentChild.getNodeName().equalsIgnoreCase("vpcId") && child.hasChildNodes() ) {
+                    ig.setProviderVlanId(attachmentChild.getFirstChild().getNodeValue().trim());
 
-                      ig.setProviderVlanId(attachmentChild.getFirstChild().getNodeValue().trim());
+                  } else if( attachmentChild.getNodeName().equalsIgnoreCase("state") && attachmentChild.hasChildNodes() ) {
+                    String value = attachmentChild.getFirstChild().getNodeValue().trim();
+                    InternetGatewayAttachmentState state;
 
-                    } else if( attachmentChild.getNodeName().equalsIgnoreCase("state") && attachmentChild.hasChildNodes() ) {
-                      String value = attachmentChild.getFirstChild().getNodeValue().trim();
-                      InternetGatewayAttachmentState state;
-
-                      if( value.equalsIgnoreCase("available") ) {
-                        state = InternetGatewayAttachmentState.AVAILABLE;
-                      }
-                      else if( value.equalsIgnoreCase("attaching") ) {
-                        state = InternetGatewayAttachmentState.ATTACHED;
-                      }
-                      else if( value.equalsIgnoreCase("attached") ) {
-                        state = InternetGatewayAttachmentState.ATTACHED;
-                      }
-                      else if( value.equalsIgnoreCase("detaching") ) {
-                        state = InternetGatewayAttachmentState.DETACHING;
-                      }
-                      else if( value.equalsIgnoreCase("detached") ) {
-                        state = InternetGatewayAttachmentState.DETACHED;
-                      }
-                      else {
-                        logger.warn("Unknown Internet Gateway state: " + value);
-                        state = null;
-                      }
-                      ig.setAttachmentState(state);
+                    if( value.equalsIgnoreCase("available") ) {
+                      state = InternetGatewayAttachmentState.AVAILABLE;
                     }
+                    else if( value.equalsIgnoreCase("attaching") ) {
+                      state = InternetGatewayAttachmentState.ATTACHED;
+                    }
+                    else if( value.equalsIgnoreCase("attached") ) {
+                      state = InternetGatewayAttachmentState.ATTACHED;
+                    }
+                    else if( value.equalsIgnoreCase("detaching") ) {
+                      state = InternetGatewayAttachmentState.DETACHING;
+                    }
+                    else if( value.equalsIgnoreCase("detached") ) {
+                      state = InternetGatewayAttachmentState.DETACHED;
+                    }
+                    else {
+                      logger.warn("Unknown Internet Gateway state: " + value);
+                      state = null;
+                    }
+                    ig.setAttachmentState(state);
                   }
                 }
               }
             }
           }
         }
+      }
+      if (ig.getGatewayId() == null) {
+        return null;
       }
       return ig;
     }
