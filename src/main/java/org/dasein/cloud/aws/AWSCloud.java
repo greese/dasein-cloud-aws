@@ -19,21 +19,29 @@
 
 package org.dasein.cloud.aws;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.SimpleTimeZone;
 import java.util.TimeZone;
 import java.util.TreeSet;
 
@@ -43,6 +51,9 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.codec.binary.Hex;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.AbstractCloud;
 import org.dasein.cloud.CloudException;
@@ -60,6 +71,7 @@ import org.dasein.cloud.aws.platform.AWSPlatformServices;
 import org.dasein.cloud.aws.storage.AWSCloudStorageServices;
 import org.dasein.cloud.compute.ComputeServices;
 import org.dasein.cloud.compute.VirtualMachineSupport;
+import org.dasein.cloud.platform.KeyValuePair;
 import org.dasein.cloud.storage.BlobStoreSupport;
 import org.dasein.cloud.storage.StorageServices;
 import org.dasein.cloud.util.APITrace;
@@ -112,6 +124,8 @@ public class AWSCloud extends AbstractCloud {
     static public final String EC2_ALGORITHM         = "HmacSHA256";
 	static public final String S3_ALGORITHM          = "HmacSHA1";
     static public final String SIGNATURE             = "2";
+    static public final String V4_ALGORITHM          = "AWS4-HMAC-SHA256";
+    static public final String V4_TERMINATION        = "aws4_request";
 
     static public String encode(String value, boolean encodePath) throws InternalException {
         String encoded;
@@ -148,6 +162,42 @@ public class AWSCloud extends AbstractCloud {
             }
         }
         return str.toString();
+    }
+
+    static public byte[] HmacSHA256(String data, byte[] key) throws InternalException  {
+
+        final String algorithm = "HmacSHA256";
+        Mac mac;
+        try {
+            mac = Mac.getInstance(algorithm);
+            mac.init(new SecretKeySpec(key, algorithm));
+            return mac.doFinal(data.getBytes("UTF-8"));
+        } catch (NoSuchAlgorithmException e) {
+            throw new InternalException(e);
+        } catch (InvalidKeyException e) {
+            throw new InternalException(e);
+        } catch (UnsupportedEncodingException e) {
+            throw new InternalException(e);
+        }
+    }
+
+    static public String computeSHA256Hash(String value) throws InternalException {
+        try {
+            byte[] valueBytes = value.getBytes("utf-8");
+            BufferedInputStream inputStream =
+                    new BufferedInputStream(new ByteArrayInputStream(valueBytes));
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[4096];
+            int read;
+            while ( (read = inputStream.read(buffer, 0, buffer.length)) != -1 ) {
+                digest.update(buffer, 0, read);
+            }
+            return new String(Hex.encodeHex(digest.digest(), true));
+        } catch (NoSuchAlgorithmException e) {
+            throw new InternalException(e);
+        } catch (IOException e) {
+            throw new InternalException(e);
+        }
     }
     
 	public AWSCloud() { }
@@ -474,6 +524,13 @@ public class AWSCloud extends AbstractCloud {
         }
     }
 
+    public String getGlacierUrl() throws InternalException, CloudException {
+        // TODO needs to be more robust?
+        ProviderContext ctx = getContext();
+        String regionId = ctx.getRegionId();
+        return "https://glacier." + regionId + ".amazonaws.com/-/";
+    }
+
     public String getAutoScaleVersion() {
         return "2009-05-15";
     }
@@ -713,7 +770,7 @@ public class AWSCloud extends AbstractCloud {
         }
         return 0L;
 	}
-	
+
     private String sign(byte[] key, String authString, String algorithm) throws InternalException {
         try {
             Mac mac = Mac.getInstance(algorithm);
@@ -735,7 +792,7 @@ public class AWSCloud extends AbstractCloud {
         	logger.error(e);
         	e.printStackTrace();
         	throw new InternalException(e);
-		} 
+		}
         catch( UnsupportedEncodingException e ) {
         	logger.error(e);
         	e.printStackTrace();
@@ -819,7 +876,204 @@ public class AWSCloud extends AbstractCloud {
             return ("AWS " + accessKey + ":" + signature);
         }
     }
-    
+
+    /**
+     * Generates an AWS v4 signature authorization string
+     * @param accessKey Amazon credential
+     * @param secretKey Amazon credential
+     * @param action the HTTP method (GET, POST, etc)
+     * @param url the full URL for the request, including any query parameters
+     * @param serviceId the canonical name of the service targeted in the request (e.g. "glacier")
+     * @param headers map of headers of request. MUST include x-amz-date or date header.
+     * @param bodyHash a hex-encoded sha256 hash of the body of the request
+     * @return a string suitable for including as the HTTP Authorization header
+     * @throws InternalException
+     */
+    public String getV4Authorization(String accessKey, String secretKey, String action, String url, String serviceId, Map<String, String> headers, String bodyHash) throws InternalException {
+
+        ProviderContext ctx = getContext();
+        if (ctx == null || ctx.getRegionId() == null) {
+            throw new InternalException("no region is configured");
+        }
+        String regionId = ctx.getRegionId();
+
+        serviceId = serviceId.toLowerCase();
+
+        String amzDate = extractV4Date(headers);
+        String credentialScope = getV4CredentialScope(amzDate, regionId, serviceId);
+        String signedHeaders = getV4SignedHeaders(headers);
+        String signature = signV4(secretKey, action, url, regionId, serviceId, headers, bodyHash);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(V4_ALGORITHM).append(" ");
+        sb.append("Credential=").append(accessKey).append("/").append(credentialScope).append(", ");
+        sb.append("SignedHeaders=").append(signedHeaders).append(", ");
+        sb.append("Signature=").append(signature);
+
+        return sb.toString();
+    }
+
+    private String signV4(String secretKey, String action, String serviceUrl, String regionId, String serviceId, Map<String, String> headers, String bodyHash) throws InternalException {
+        final String canonicalRequest = getV4CanonicalRequest(action, serviceUrl, headers, bodyHash);
+
+        String amzDate = extractV4Date(headers);
+        final String stringToSign = getV4StringToSign(amzDate, regionId, serviceId, canonicalRequest);
+
+        // signature uses YYYYMMDD
+        String dateStamp = amzDate.substring(0, 8);
+        final byte[] signingKey = getV4SigningKey(secretKey, dateStamp, regionId, serviceId);
+
+        return new String(Hex.encodeHex(HmacSHA256(stringToSign, signingKey), true));
+    }
+
+    private String extractV4Date(Map<String, String> headers) throws InternalException {
+
+        Map<String, String> lower = new HashMap<String, String>();
+        for (String key : headers.keySet()) {
+            lower.put(key.toLowerCase(), headers.get(key));
+        }
+        String amzDate = headers.get(P_AWS_DATE);
+        // expecting YYYYMMDDTHHMMSSZ
+        if (amzDate != null) {
+            if (amzDate.length() != 16) {
+                throw new InternalException("request has invalid " + P_AWS_DATE);
+            }
+            return amzDate;
+        }
+
+        String date = lower.get("date");
+        if (date == null) {
+            throw new InternalException("request is missing date header");
+        }
+        SimpleDateFormat parser = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz");
+        try {
+            return getV4HeaderDate(parser.parse(date));
+
+        } catch (ParseException e) {
+            throw new InternalException("request has invalid date header format");
+        }
+    }
+
+    private byte[] getV4SigningKey(String secretKey, String dateStamp, String regionId, String serviceId) throws InternalException {
+        byte[] withSecret  = ("AWS4" + secretKey).getBytes();
+        byte[] withDate    = HmacSHA256(dateStamp, withSecret);
+        byte[] withRegion  = HmacSHA256(regionId, withDate);
+        byte[] withService = HmacSHA256(serviceId, withRegion);
+        return HmacSHA256("aws4_request", withService);
+    }
+
+    private String getV4StringToSign(String dateStamp, String regionId, String serviceId, String canonicalRequest) throws InternalException {
+        StringBuilder sb = new StringBuilder();
+        sb.append(V4_ALGORITHM).append("\n");
+
+        sb.append(dateStamp).append("\n");
+        sb.append(getV4CredentialScope(dateStamp, regionId, serviceId)).append("\n");
+        sb.append(computeSHA256Hash(canonicalRequest));
+
+        return sb.toString();
+    }
+
+    private String getV4CredentialScope(String dateStamp, String regionId, String serviceId) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(dateStamp.substring(0, 8)).append("/").append(regionId).append("/");
+        sb.append(serviceId).append("/").append(V4_TERMINATION);
+        return sb.toString();
+    }
+
+    private String getV4CanonicalRequest(String action, String serviceUrl, Map<String, String> headers, String bodyHash) throws InternalException {
+    /*
+      CanonicalRequest =
+      HTTPRequestMethod + '\n' +
+      CanonicalURI + '\n' +
+      CanonicalQueryString + '\n' +
+      CanonicalHeaders + '\n' +
+      SignedHeaders + '\n' +
+      HexEncode(Hash(Payload))
+     */
+
+        final URI endpoint;
+        try {
+            endpoint = new URI(serviceUrl.replace(" ", "%20")).normalize();
+        }
+        catch( URISyntaxException e ) {
+            throw new InternalException(e);
+        }
+
+        final StringBuilder s = new StringBuilder();
+        s.append(action.toUpperCase()).append("\n");
+
+
+        String path = endpoint.getPath();
+        if( path == null || path.length() == 0) {
+            path = "/";
+        }
+        s.append(encode(path, true)).append("\n");
+        s.append(getV4CanonicalQueryString(endpoint)).append("\n");
+
+        List<String> sortedHeaders = new ArrayList<String>();
+        sortedHeaders.addAll(headers.keySet());
+        Collections.sort(sortedHeaders, String.CASE_INSENSITIVE_ORDER);
+
+        for ( String header : sortedHeaders) {
+            String value = headers.get(header).trim().replaceAll("\\s+", " ");
+            header = header.toLowerCase().replaceAll("\\s+", " ");
+            s.append(header).append(":").append(value).append("\n");
+        }
+        s.append("\n").append(getV4SignedHeaders(headers)).append("\n").append(bodyHash);
+
+        return s.toString();
+    }
+
+    private String getV4CanonicalQueryString(URI endpoint) throws InternalException {
+        // parse query params and translate to another form of tuple that is comparable on both key and value
+
+        List<NameValuePair> parsedParams = URLEncodedUtils.parse(endpoint, "UTF-8");
+        List<KeyValuePair> queryParams = new ArrayList<KeyValuePair>(parsedParams.size());
+        for (NameValuePair param : parsedParams) {
+            String key = encode(param.getName(), false);
+            String value = param.getValue() != null ? encode(param.getValue(), false) : "";
+            queryParams.add(new KeyValuePair(key, value));
+        }
+
+        // sort query parameters by key, then value
+        Collections.sort(queryParams);
+
+        StringBuilder sb = new StringBuilder();
+        for (KeyValuePair pair : queryParams) {
+            if (sb.length() > 0) sb.append("&");
+            sb.append(pair.getKey()).append("=").append(pair.getValue());
+        }
+        return sb.toString();
+    }
+
+    private String getV4SignedHeaders(Map<String, String> headers) {
+        // move to set to lower case and remove dupes
+        Set<String> sorted = new TreeSet<String>();
+        for (String header : headers.keySet()) {
+            sorted.add(header.toLowerCase());
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (String header : sorted) {
+            if (sb.length() > 0) sb.append(";");
+            sb.append(header.toLowerCase());
+        }
+
+        return sb.toString();
+    }
+
+    public String getV4HeaderDate(Date date) {
+        SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'");
+        Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
+        fmt.setCalendar(cal);
+        if (date == null) {
+            return fmt.format(new Date());
+        }
+        else {
+            return fmt.format(date);
+        }
+    }
+
     @Override
     public String testContext() {
         APITrace.begin(this, "Cloud.testContext");
