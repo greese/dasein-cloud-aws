@@ -525,7 +525,6 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public String getGlacierUrl() throws InternalException, CloudException {
-        // TODO needs to be more robust?
         ProviderContext ctx = getContext();
         String regionId = ctx.getRegionId();
         return "https://glacier." + regionId + ".amazonaws.com/-/";
