@@ -603,12 +603,11 @@ public class AutoScaling implements AutoScalingSupport {
       APITrace.begin(provider, "AutoScaling.getScalingPolicy");
       try {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_SCALING_POLICIES);
-        ArrayList<ScalingPolicy> list = new ArrayList<ScalingPolicy>();
         EC2Method method;
         NodeList blocks;
         Document doc;
 
-        parameters.put("PolicyNames.member.0", policyName);
+        parameters.put("PolicyNames.member.1", policyName);
 
         method = new EC2Method(provider, getAutoScalingUrl(), parameters);
         try {
@@ -628,6 +627,7 @@ public class AutoScaling implements AutoScalingSupport {
 
             if( item.getNodeName().equals("member") ) {
               sp = toScalingPolicy(item);
+              return sp;
             }
           }
         }
