@@ -907,11 +907,21 @@ public class AWSCloud extends AbstractCloud {
    * @param node the node to extract the value from
    * @return the text from the node
    */
-  public String getTextValue( Node node ) {
+  static public String getTextValue( Node node ) {
     if ( node.getChildNodes().getLength() == 0 ) {
       return null;
     }
     return node.getFirstChild().getNodeValue();
+  }
+
+  /**
+   * Returns the boolean value of the given node.
+   *
+   * @param node the node to extract the value from
+   * @return the boolean value of the node
+   */
+  static public boolean getBooleanValue( Node node ) {
+    return Boolean.valueOf( getTextValue( node ) );
   }
 
   /**
