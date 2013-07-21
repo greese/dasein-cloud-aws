@@ -648,20 +648,8 @@ public class EBSVolume extends AbstractVolumeSupport {
 				}				
 			}
 			else if( name.equals("status") ) {
-				String s = attr.getFirstChild().getNodeValue().trim();
-				VolumeState state;
-				
-		        if( s.equals("creating") || s.equals("attaching") || s.equals("attached") || s.equals("detaching") || s.equals("detached") ) {
-		            state = VolumeState.PENDING;
-		        }
-		        else if( s.equals("available") || s.equals("in-use") ) {
-		            state = VolumeState.AVAILABLE;
-		        }
-		        else {
-		            state = VolumeState.DELETED;
-		        }
-				volume.setCurrentState(state);
-			}
+        volume.setCurrentState( toVolumeState( attr ) );
+      }
             else if( name.equals("tagSet") ) {
                 provider.setTags(attr, volume);
 
@@ -717,4 +705,20 @@ public class EBSVolume extends AbstractVolumeSupport {
 		volume.setProviderRegionId(ctx.getRegionId());
 		return volume;
 	}
+
+  static public @Nullable VolumeState toVolumeState( Node node ) {
+    String s = AWSCloud.getTextValue( node );
+    VolumeState state;
+
+    if( s.equals("creating") || s.equals("attaching") || s.equals("attached") || s.equals("detaching") || s.equals("detached") ) {
+      state = VolumeState.PENDING;
+    }
+    else if( s.equals("available") || s.equals("in-use") ) {
+      state = VolumeState.AVAILABLE;
+    }
+    else {
+      state = VolumeState.DELETED;
+    }
+    return state;
+  }
 }

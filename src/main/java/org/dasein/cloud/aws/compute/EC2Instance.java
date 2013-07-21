@@ -1775,6 +1775,7 @@ public class EC2Instance extends AbstractVMSupport {
       if (instance == null) {
         return null;
       }
+      String rootDeviceName = null;
       NodeList attrs = instance.getChildNodes();
       VirtualMachine server = new VirtualMachine();
 
@@ -2046,6 +2047,58 @@ public class EC2Instance extends AbstractVMSupport {
           if (firewalls.size() > 0) {
             server.setProviderFirewallIds(firewalls.toArray(new String[firewalls.size()]));
           }
+        }        else if ( "blockDeviceMapping".equals( name ) && attr.hasChildNodes() ) {
+          List<Volume> volumes = new ArrayList<Volume>();
+          if ( attr.hasChildNodes() ) {
+            NodeList blockDeviceMapping = attr.getChildNodes();
+
+            for ( int j = 0; j < blockDeviceMapping.getLength(); j++ ) {
+              Node bdmItems = blockDeviceMapping.item( j );
+
+              if ( bdmItems.getNodeName().equals( "item" ) && bdmItems.hasChildNodes() ) {
+                NodeList items = bdmItems.getChildNodes();
+                Volume volume = new Volume();
+
+                for ( int k = 0; k < items.getLength(); k++ ) {
+                  Node item = items.item( k );
+                  String itemNodeName = item.getNodeName();
+
+                  if ( "deviceName".equals( itemNodeName ) ) {
+                    volume.setDeviceId( AWSCloud.getTextValue( item ) );
+                  }
+                  else if ( "ebs".equals( itemNodeName ) ) {
+                    NodeList ebsNodeList = item.getChildNodes();
+
+                    for ( int l = 0; l < ebsNodeList.getLength(); l++ ) {
+                      Node ebsNode = ebsNodeList.item( l );
+                      String ebsNodeName = ebsNode.getNodeName();
+
+                      if ( "volumeId".equals( ebsNodeName ) ) {
+                        volume.setProviderVolumeId( AWSCloud.getTextValue( ebsNode ) );
+                      }
+                      else if ( "status".equals( ebsNodeName ) ) {
+                        volume.setCurrentState( EBSVolume.toVolumeState( ebsNode ) );
+                      }
+                      else if ( "deleteOnTermination".equals( ebsNodeName ) ) {
+                        volume.setDeleteOnVirtualMachineTermination( AWSCloud.getBooleanValue( ebsNode ) );
+                      }
+                    }
+
+                  }
+                }
+
+                if ( volume.getDeviceId() != null ) {
+                  volumes.add( volume );
+                }
+              }
+            }
+          }
+          if ( volumes.size() > 0 ) {
+            server.setVolumes( volumes.toArray( new Volume[volumes.size()] ) );
+          }
+        }
+        else if ( "rootDeviceName".equals( name ) && attr.hasChildNodes() ) {
+          rootDeviceName = AWSCloud.getTextValue( attr );
         }
       }
       if (server.getPlatform() == null) {
@@ -2063,6 +2116,17 @@ public class EC2Instance extends AbstractVMSupport {
       } else if (server.getArchitecture() == null) {
         server.setArchitecture(Architecture.I64);
       }
+
+      // find the root device in the volumes list and set boolean value
+      if ( rootDeviceName != null && server.getVolumes() != null ) {
+        for ( Volume volume : server.getVolumes() ) {
+          if ( rootDeviceName.equals( volume.getDeviceId() ) ) {
+            volume.setRootVolume( true );
+            break;
+          }
+        }
+      }
+
       return server;
     }
 
