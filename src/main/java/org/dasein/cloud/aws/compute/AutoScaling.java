@@ -599,6 +599,46 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
+    public ScalingPolicy getScalingPolicy(@Nonnull String policyName) throws CloudException, InternalException {
+      APITrace.begin(provider, "AutoScaling.getScalingPolicy");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_SCALING_POLICIES);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("PolicyNames.member.1", policyName);
+
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+        ScalingPolicy sp = null;
+        blocks = doc.getElementsByTagName("ScalingPolicies");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+          NodeList items = blocks.item(i).getChildNodes();
+
+          for( int j=0; j<items.getLength(); j++ ) {
+            Node item = items.item(j);
+
+            if( item.getNodeName().equals("member") ) {
+              sp = toScalingPolicy(item);
+              return sp;
+            }
+          }
+        }
+        return sp;
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
     public @Nonnull Iterable<ResourceStatus> listLaunchConfigurationStatus() throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.listLaunchConfigurationStatus");
         try {
