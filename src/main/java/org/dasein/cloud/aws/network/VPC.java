@@ -2382,6 +2382,21 @@ public class VPC extends AbstractVLANSupport {
                                 active = attr.getFirstChild().getNodeValue().trim().equalsIgnoreCase("active");
                             }                            
                         }
+                        if( active && destination != null ) {
+                            if( gateway != null ) {
+                                routes.add(Route.getRouteToGateway(IPVersion.IPV4, destination, gateway));
+                            }
+                            if( instanceId != null && nicId != null ) {
+                                routes.add(Route.getRouteToVirtualMachineAndNetworkInterface(IPVersion.IPV4, destination, ownerId, instanceId, nicId));
+                            } else {
+                                if( nicId != null ) {
+                                    routes.add(Route.getRouteToNetworkInterface(IPVersion.IPV4, destination, nicId));
+                                } else if ( instanceId != null ) {
+                                    routes.add(Route.getRouteToVirtualMachine(IPVersion.IPV4, destination, ownerId, instanceId));
+                                }
+                            }
+                        }
+                        /* old code, remove after 2013.07
                         if( active && destination != null && (gateway != null || instanceId != null || nicId != null) ) {
                             if( gateway == null ) {
                                 if( instanceId == null ) {
@@ -2393,6 +2408,7 @@ public class VPC extends AbstractVLANSupport {
                             }
                             routes.add(Route.getRouteToGateway(IPVersion.IPV4, destination, gateway));
                         }
+                        */
                     }
                 }
                 table.setRoutes(routes.toArray(new Route[routes.size()]));
