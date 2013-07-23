@@ -483,7 +483,7 @@ public class AWSCloud extends AbstractCloud {
 
     public String getEc2Version() {
         if( getEC2Provider().isAWS() ) {
-            return "2012-12-01";
+            return "2013-06-15";
         }
         else if( getEC2Provider().isEucalyptus() ) {
             return "2010-11-15";
