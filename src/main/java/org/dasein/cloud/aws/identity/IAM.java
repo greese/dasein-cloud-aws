@@ -55,7 +55,7 @@ import org.dasein.cloud.network.IpAddressSupport;
 import org.dasein.cloud.network.LoadBalancerSupport;
 import org.dasein.cloud.platform.CDNSupport;
 import org.dasein.cloud.platform.KeyValueDatabaseSupport;
-import org.dasein.cloud.platform.MessageQueueSupport;
+import org.dasein.cloud.platform.MQSupport;
 import org.dasein.cloud.platform.PushNotificationSupport;
 import org.dasein.cloud.platform.RelationalDatabaseSupport;
 import org.dasein.cloud.storage.BlobStoreSupport;
@@ -1805,7 +1805,7 @@ public class IAM implements IdentityAndAccessSupport {
                     }
                     else if( svc.equals(EC2Method.SQS_PREFIX) ) {
                         if( action == null ) {
-                            serviceActions = new ServiceAction[] { MessageQueueSupport.ANY };
+                            serviceActions = new ServiceAction[] { MQSupport.ANY };
                         }
                         else {
                             serviceActions = SQS.asSQSServiceAction(action);
