@@ -1072,7 +1072,10 @@ public class AutoScaling implements AutoScalingSupport {
               group.setStatus(attr.getFirstChild().getNodeValue());
             }
             else if( name.equalsIgnoreCase("VPCZoneIdentifier") ) {
-              group.setSubnetIds(attr.getFirstChild().getNodeValue());
+              Node subnetChild = attr.getFirstChild();
+              if(subnetChild != null && subnetChild.hasChildNodes()) {
+                group.setSubnetIds(subnetChild.getNodeValue());
+              }
             }
             else if( name.equalsIgnoreCase("AutoScalingGroupName") ) {
                 String gname = attr.getFirstChild().getNodeValue();
