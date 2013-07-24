@@ -83,7 +83,7 @@ public class AutoScaling implements AutoScalingSupport {
             if(vpcZones != null) {
               parameters.put("VPCZoneIdentifier", vpcZones);
             }
-            if( loadBalancerIds != null ) {
+            if( zoneIds != null ) {
               int i = 1;
               for( String zoneId : zoneIds ) {
                   parameters.put("AvailabilityZones.member." + (i++), zoneId);
@@ -1072,14 +1072,10 @@ public class AutoScaling implements AutoScalingSupport {
               group.setStatus(attr.getFirstChild().getNodeValue());
             }
             else if( name.equalsIgnoreCase("VPCZoneIdentifier") ) {
-              String vlan = null;
-              try {
-                vlan = attr.getFirstChild().getNodeValue();
-                if(vlan != null) {
-                  group.setProviderVlanId(vlan);
-                }
+              Node subnetChild = attr.getFirstChild();
+              if(subnetChild != null && subnetChild.hasChildNodes()) {
+                group.setSubnetIds(subnetChild.getNodeValue());
               }
-              catch(Exception e) { /* vlan remains null */ }
             }
             else if( name.equalsIgnoreCase("AutoScalingGroupName") ) {
                 String gname = attr.getFirstChild().getNodeValue();
