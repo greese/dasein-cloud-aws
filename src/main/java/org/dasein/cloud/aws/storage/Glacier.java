@@ -27,22 +27,36 @@ import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.storage.AbstractBlobStoreSupport;
 import org.dasein.cloud.storage.Blob;
+import org.dasein.cloud.storage.BlobStoreSupport;
 import org.dasein.cloud.storage.FileTransfer;
+import org.dasein.cloud.storage.OfflineStoreRequest;
+import org.dasein.cloud.storage.OfflineStoreRequestAction;
+import org.dasein.cloud.storage.OfflineStoreRequestStatus;
+import org.dasein.cloud.storage.OfflineStoreSupport;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
 import org.dasein.util.PopulatorThread;
+import org.dasein.util.uom.storage.Byte;
 import org.dasein.util.uom.storage.Megabyte;
 import org.dasein.util.uom.storage.Storage;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
-import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.SimpleTimeZone;
 
 /**
  * Implements support for Amazon Glacier using the Dasein Cloud blob storage interface. Dasein Cloud buckets are
@@ -52,12 +66,15 @@ import java.util.Locale;
  * @version 2013.07 initial implementation (issue #45)
  * @since 2013.07
  */
-public class Glacier extends AbstractBlobStoreSupport {
+public class Glacier implements OfflineStoreSupport {
     static private final Logger logger = AWSCloud.getLogger(Glacier.class);
 
     static public final int                                       MAX_VAULTS       = 1000;
     static public final int                                       MAX_ARCHIVES     = -1;
     static public final Storage<Megabyte>                         MAX_OBJECT_SIZE  = new Storage<Megabyte>(100L, Storage.MEGABYTE);
+    public static final String ACTION_ARCHIVE_RETRIEVAL = "ArchiveRetrieval";
+    public static final String ACTION_INVENTORY_RETRIEVAL = "InventoryRetrieval";
+    public static final String HEADER_JOB_ID = "x-amz-job-id";
 
     private AWSCloud provider = null;
 
@@ -81,6 +98,11 @@ public class Glacier extends AbstractBlobStoreSupport {
     }
 
     @Override
+    public void clearBucket(@Nonnull String bucket) throws CloudException, InternalException {
+        throw new OperationNotSupportedException("bucket clearing is not supported by Glacier");
+    }
+
+    @Override
     public @Nonnull Blob createBucket(@Nonnull String bucketName, boolean findFreeName) throws InternalException, CloudException {
         APITrace.begin(provider, "Blob.createBucket");
         try {
@@ -97,8 +119,12 @@ public class Glacier extends AbstractBlobStoreSupport {
             if( regionId == null ) {
                 throw new InternalException("No region ID was specified for this request");
             }
-            // TODO: create vault
-            return null;
+
+            GlacierMethod method = GlacierMethod.build(
+                    provider, GlacierAction.CREATE_VAULT).vaultId(bucketName).toMethod();
+            method.invoke();
+            String url = method.getUrl();
+            return Blob.getInstance(regionId, url, bucketName, System.currentTimeMillis());
         }
         finally {
             APITrace.end();
@@ -106,11 +132,15 @@ public class Glacier extends AbstractBlobStoreSupport {
     }
 
     @Override
+    public FileTransfer download(@Nullable String bucket, @Nonnull String objectName, @Nonnull File toFile) throws InternalException, CloudException {
+        throw new OperationNotSupportedException("Glacier downloads must be performed using createDownloadRequest()");
+    }
+
+    @Override
     public boolean exists(@Nonnull String bucketName) throws InternalException, CloudException {
         APITrace.begin(provider, "Blob.exists");
         try {
-            // TODO: implement me
-            return false;
+            return getBucket(bucketName) != null;
         }
         finally {
             APITrace.end();
@@ -134,8 +164,24 @@ public class Glacier extends AbstractBlobStoreSupport {
             if( regionId == null ) {
                 throw new CloudException("No region was set for this request");
             }
-            // TODO: fetch bucket
-            return null;
+
+            try {
+                GlacierMethod method = GlacierMethod.build(provider, GlacierAction.DESCRIBE_VAULT)
+                        .vaultId(bucketName).toMethod();
+                JSONObject jsonObject = method.invokeJson();
+                if (jsonObject == null) {
+                    return null;
+                }
+                return loadVaultJson(jsonObject, regionId, method.getUrl());
+
+            } catch (GlacierException e) {
+                if (e.getHttpCode() == 404) {
+                    return null;
+                }
+                throw e;
+            } catch (JSONException e) {
+                throw new CloudException(e);
+            }
         }
         finally {
             APITrace.end();
@@ -144,83 +190,17 @@ public class Glacier extends AbstractBlobStoreSupport {
 
     @Override
     public Blob getObject(@Nullable String bucketName, @Nonnull String objectName) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.getObject");
-        try {
-            if( bucketName == null ) {
-                return null;
-            }
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was set for this request");
-            }
-            String regionId = ctx.getRegionId();
-
-            if( regionId == null ) {
-                throw new CloudException("No region was set for this request");
-            }
-            // TODO: get object
-            return null;
-        }
-        finally {
-            APITrace.end();
-        }
+        throw new OperationNotSupportedException("Glacier objects cannot be accessed synchronously");
     }
 
     @Override
     public @Nullable Storage<org.dasein.util.uom.storage.Byte> getObjectSize(@Nullable String bucket, @Nullable String object) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.getObjectSize");
-        try {
-            if( bucket == null ) {
-                throw new CloudException("Requested object size for object in null bucket");
-            }
-            if( object == null ) {
-                return null;
-            }
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was set for this request");
-            }
-            // TODO: return size
-            return null;
-        }
-        finally {
-            APITrace.end();
-        }
+        throw new OperationNotSupportedException("Glacier objects cannot be accessed synchronously");
     }
 
     @Override
     public int getMaxBuckets() throws CloudException, InternalException {
         return MAX_VAULTS;
-    }
-
-    @Override
-    protected void get(@Nullable String bucket, @Nonnull String object, @Nonnull File toFile, @Nullable FileTransfer transfer) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.get");
-        try {
-            if( bucket == null ) {
-                throw new CloudException("No bucket was specified");
-            }
-            IOException lastError = null;
-            int attempts = 0;
-
-            while( attempts < 5 ) {
-                // todo: FETCH IT
-            }
-            if( lastError != null ) {
-                logger.error(lastError);
-                lastError.printStackTrace();
-                throw new InternalException(lastError);
-            }
-            else {
-                logger.error("Unable to figure out error");
-                throw new InternalException("Unknown error");
-            }
-        }
-        finally {
-            APITrace.end();
-        }
     }
 
     @Override
@@ -252,8 +232,23 @@ public class Glacier extends AbstractBlobStoreSupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "Blob.isSubscribed");
         try {
-            // TODO: figure this out
-            return false;
+            final ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was specified for this request");
+            }
+            final String regionId = ctx.getRegionId();
+
+            if( regionId == null ) {
+                throw new CloudException("No region ID was specified");
+            }
+            try {
+                GlacierMethod method = GlacierMethod.build(provider, GlacierAction.LIST_VAULTS).toMethod();
+                method.invoke();
+                return true;
+            } catch (GlacierException e) {
+                return false;
+            }
         }
         finally {
             APITrace.end();
@@ -295,7 +290,7 @@ public class Glacier extends AbstractBlobStoreSupport {
                 loadVaults(regionId, iterator);
             }
             else {
-                loadArchives(regionId, bucket, iterator);
+                throw new OperationNotSupportedException("Glacier vault contents cannot be listed synchronously");
             }
         }
         finally {
@@ -304,151 +299,54 @@ public class Glacier extends AbstractBlobStoreSupport {
     }
 
     private void loadVaults(@Nonnull String regionId, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
-        // TODO: IMPLEMENT ME
-        /*
-    	S3Method method = new S3Method(provider, S3Action.LIST_BUCKETS);
-		S3Response response;
-		NodeList blocks;		
-		
-		try {
-			response = method.invoke(null, null);
-		}
-		catch( S3Exception e ) {
-			logger.error(e.getSummary());
-			throw new CloudException(e);
-		}
-		blocks = response.document.getElementsByTagName("Bucket");
-		for( int i=0; i<blocks.getLength(); i++ ) {
-			Node object = blocks.item(i);
-            String name = null;
-            NodeList attrs;
-            long ts = 0L;
 
-            attrs = object.getChildNodes();
-			for( int j=0; j<attrs.getLength(); j++ ) {
-				Node attr = attrs.item(j);
-				
-				if( attr.getNodeName().equals("Name") ) {
-					name = attr.getFirstChild().getNodeValue().trim();
-				}
-				else if( attr.getNodeName().equals("CreationDate") ) {
-                    ts = provider.parseTime(attr.getFirstChild().getNodeValue().trim());
-				}
-			}
-			if( name == null ) {
-				throw new CloudException("Bad response from server.");
+        GlacierMethod method = GlacierMethod.build(provider, GlacierAction.LIST_VAULTS).toMethod();
+        String baseUrl = method.getUrl();
+        JSONObject jsonObject;
+        jsonObject = method.invokeJson();
+
+        JSONArray vaultList;
+        try {
+            vaultList = jsonObject.getJSONArray("VaultList");
+
+            for (int i=0; i<vaultList.length(); i++) {
+                iterator.push(loadVaultJson(vaultList.getJSONObject(i), regionId, baseUrl));
             }
-            if( provider.getEC2Provider().isAWS() ) {
-                String location = null;
-
-                method = new S3Method(provider, S3Action.LOCATE_BUCKET);
-                try {
-                    response = method.invoke(name, "?location");
-                }
-                catch( S3Exception e ) {
-                    response = null;
-                }
-                if( response != null ) {
-                    NodeList constraints = response.document.getElementsByTagName("LocationConstraint");
-
-                    if( constraints.getLength() > 0 ) {
-                        Node constraint = constraints.item(0);
-
-                        if( constraint != null && constraint.hasChildNodes() ) {
-                            location = constraint.getFirstChild().getNodeValue().trim();
-                        }
-                    }
-                }
-                if( toRegion(location).equals(regionId) ) {
-                    iterator.push(Blob.getInstance(regionId, getLocation(name, null), name, ts));
-                }
-            }
-            else {
-                iterator.push(Blob.getInstance(regionId, getLocation(name, null), name, ts));
-            }
-		}
-		*/
+        } catch (JSONException e) {
+            throw new CloudException(e);
+        }
     }
-    
-    private void loadArchives(@Nonnull String regionId, @Nonnull String bucket, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
-        // TODO: IMPLEMENT ME
-        /*
-		HashMap<String,String> parameters = new HashMap<String,String>();
-		S3Response response;
-		String marker = null;
-		boolean done = false;
-		S3Method method;
-		
-		while( !done ) {
-			NodeList blocks;
-			
-			parameters.clear();
-			if( marker != null ) {
-				parameters.put("marker", marker);
-			}
-			parameters.put("max-keys", String.valueOf(30));
-			method = new S3Method(provider, S3Action.LIST_CONTENTS, parameters, null);
-			try {
-				response = method.invoke(bucket, null);
-			}
-			catch( S3Exception e ) {
-			    String code = e.getCode();
 
-			    if( code == null || !code.equals("SignatureDoesNotMatch") ) {
-			        throw new CloudException(e);
-			    }
-				logger.error(e.getSummary());
-				throw new CloudException(e);
-			}
-			blocks = response.document.getElementsByTagName("IsTruncated");
-			if( blocks.getLength() > 0 ) {
-				done = blocks.item(0).getFirstChild().getNodeValue().trim().equalsIgnoreCase("false");
-			}
-			blocks = response.document.getElementsByTagName("Contents");
-			for( int i=0; i<blocks.getLength(); i++ ) {
-				Node object = blocks.item(i);
-                Storage<org.dasein.util.uom.storage.Byte> size = null;
-                String name = null;
-                long ts = -1L;
+    private Blob loadVaultJson(JSONObject jsonObject, String regionId, String baseUrl) throws JSONException {
+        String vaultName = jsonObject.getString("VaultName");
+        String url;
+        if (baseUrl.endsWith(vaultName)) {
+            url = baseUrl;
+        } else {
+            url = baseUrl + "/" + vaultName;
+        }
 
-                if( object.hasChildNodes() ) {
-                    NodeList attrs = object.getChildNodes();
+        String creationDate = jsonObject.getString("CreationDate");
 
-                    for( int j=0; j<attrs.getLength(); j++ ) {
-                        Node attr = attrs.item(j);
+        long creationTs = parseTimestamp(creationDate);
 
-                        if( attr.getNodeName().equalsIgnoreCase("Key") ) {
-                            String key = attr.getFirstChild().getNodeValue().trim();
+        return Blob.getInstance(regionId, url, vaultName, creationTs);
+    }
 
-                            name = key;
-                            marker = key;
-                        }
-                        else if( attr.getNodeName().equalsIgnoreCase("Size") ) {
-                            size = new Storage<org.dasein.util.uom.storage.Byte>(Long.parseLong(attr.getFirstChild().getNodeValue().trim()), Storage.BYTE);
-                        }
-                        else if( attr.getNodeName().equalsIgnoreCase("LastModified") ) {
-                            SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-                            String dateString = attr.getFirstChild().getNodeValue().trim();
-
-                            try {
-                                ts = fmt.parse(dateString).getTime();
-                            }
-                            catch( ParseException e ) {
-                                logger.error(e);
-                                e.printStackTrace();
-                                throw new CloudException(e);
-                            }
-                        }
-                    }
-                }
-                if( name == null || size == null ) {
-                    continue;
-                }
-                iterator.push(Blob.getInstance(regionId, getLocation(bucket, name), bucket, name, ts, size));
-			}
-		}
-		 	*/
-
+    private static long parseTimestamp(String timestamp) {
+        if (timestamp == null) {
+            return -1;
+        }
+        long creationTs;
+        SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'");
+        Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
+        fmt.setCalendar(cal);
+        try {
+            creationTs = fmt.parse(timestamp).getTime();
+        } catch (ParseException e) {
+            creationTs = System.currentTimeMillis();
+        }
+        return creationTs;
     }
 
     @Override
@@ -463,32 +361,44 @@ public class Glacier extends AbstractBlobStoreSupport {
 
     @Override
     public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
-        // TODO: implement me
-        return new String[0]; 
+        if( action.equals(BlobStoreSupport.ANY) ) {
+            return new String[] { GlacierMethod.GLACIER_PREFIX + "*" };
+        }
+        else if( action.equals(BlobStoreSupport.CREATE_BUCKET) ) {
+            return new String[] { GlacierMethod.GLACIER_PREFIX + "CreateVault" };
+        }
+        else if( action.equals(BlobStoreSupport.GET_BUCKET) ) {
+            return new String[] { GlacierMethod.GLACIER_PREFIX + "DescribeVault" };
+        }
+        else if( action.equals(BlobStoreSupport.LIST_BUCKET) ) {
+            return new String[] { GlacierMethod.GLACIER_PREFIX + "ListVaults" };
+        }
+        else if ( action.equals(BlobStoreSupport.REMOVE_BUCKET) ) {
+            return new String[] { GlacierMethod.GLACIER_PREFIX + "DeleteVault"};
+        }
+        else if( action.equals(BlobStoreSupport.UPLOAD) ) {
+            return new String[] { GlacierMethod.GLACIER_PREFIX + "UploadArchive" };
+        }
+        else if ( action.equals(OfflineStoreSupport.CREATE_REQUEST) ) {
+            return new String[] { GlacierMethod.GLACIER_PREFIX + "InitiateJob" };
+        }
+        else if ( action.equals(OfflineStoreSupport.GET_REQUEST) ) {
+            return new String[] { GlacierMethod.GLACIER_PREFIX + "DescribeJob" };
+        }
+        else if ( action.equals(OfflineStoreSupport.LIST_REQUEST) ) {
+            return new String[] { GlacierMethod.GLACIER_PREFIX + "ListJobs" };
+        }
+        else if ( action.equals(OfflineStoreSupport.GET_REQUEST_RESULT) ) {
+            return new String[] { GlacierMethod.GLACIER_PREFIX + "GetJobOutput" };
+        }
+        return new String[0];
     }
 
     @Override
     public void move(@Nullable String sourceBucket, @Nullable String object, @Nullable String targetBucket) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.move");
-        try {
-            if( sourceBucket == null ) {
-                throw new CloudException("No source bucket was specified");
-            }
-            if( targetBucket == null ) {
-                throw new CloudException("No target bucket was specified");
-            }
-            if( object == null ) {
-                throw new CloudException("No source object was specified");
-            }
-            copy(sourceBucket, object, targetBucket, object);
-            removeObject(sourceBucket, object);
-        }
-        finally {
-            APITrace.end();
-        }
+        throw new OperationNotSupportedException("Cannot move vaults Glacier archives");
     }
 
-    @Override
     protected void put(@Nullable String bucket, @Nonnull String object, @Nonnull File file) throws CloudException, InternalException {
         APITrace.begin(provider, "Blob.putFile");
         try {
@@ -499,7 +409,6 @@ public class Glacier extends AbstractBlobStoreSupport {
         }
     }
 
-    @Override
     protected void put(@Nullable String bucket, @Nonnull String object, @Nonnull String content) throws CloudException, InternalException {
         APITrace.begin(provider, "Blob.putString");
         try {
@@ -514,7 +423,21 @@ public class Glacier extends AbstractBlobStoreSupport {
     public void removeBucket(@Nonnull String bucket) throws CloudException, InternalException {
         APITrace.begin(provider, "Blob.removeBucket");
         try {
-            // TODO: delete
+
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was set for this request");
+            }
+            String regionId = ctx.getRegionId();
+
+            if( regionId == null ) {
+                throw new CloudException("No region was set for this request");
+            }
+
+            GlacierMethod method = GlacierMethod.build(provider, GlacierAction.DELETE_VAULT)
+                    .vaultId(bucket).toMethod();
+            method.invoke();
         }
         finally {
             APITrace.end();
@@ -528,7 +451,20 @@ public class Glacier extends AbstractBlobStoreSupport {
             if( bucket == null ) {
                 throw new CloudException("No bucket was specified for this request");
             }
-            // TODO: delete
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was set for this request");
+            }
+            String regionId = ctx.getRegionId();
+
+            if( regionId == null ) {
+                throw new CloudException("No region was set for this request");
+            }
+
+            GlacierMethod method = GlacierMethod.build(provider, GlacierAction.DELETE_VAULT)
+                    .vaultId(bucket).toMethod();
+            method.invoke();
         }
         finally {
             APITrace.end();
@@ -537,57 +473,12 @@ public class Glacier extends AbstractBlobStoreSupport {
 
     @Override
     public @Nonnull String renameBucket(@Nonnull String oldName, @Nonnull String newName, boolean findFreeName) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.renameBucket");
-        try {
-            Blob bucket = createBucket(newName, findFreeName);
-
-            for( Blob file : list(oldName) ) {
-                int retries = 10;
-
-                while( true ) {
-                    retries--;
-                    try {
-                        move(oldName, file.getObjectName(), bucket.getBucketName());
-                        break;
-                    }
-                    catch( CloudException e ) {
-                        if( retries < 1 ) {
-                            throw e;
-                        }
-                    }
-                    try { Thread.sleep(retries * 10000L); }
-                    catch( InterruptedException ignore ) { }
-                }
-            }
-            boolean ok = true;
-            for( Blob file : list(oldName ) ) {
-                if( file != null ) {
-                    ok = false;
-                }
-            }
-            if( ok ) {
-                removeBucket(oldName);
-            }
-            return newName;
-        }
-        finally {
-            APITrace.end();
-        }
+        throw new OperationNotSupportedException();
     }
 
     @Override
     public void renameObject(@Nullable String bucket, @Nonnull String object, @Nonnull String newName) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.renameObject");
-        try {
-            if( bucket == null ) {
-                throw new CloudException("No bucket was specified");
-            }
-            copy(bucket, object, bucket, newName);
-            removeObject(bucket, object);
-        }
-        finally {
-            APITrace.end();
-        }
+        throw new OperationNotSupportedException();
     }
 
     @Override
@@ -616,5 +507,257 @@ public class Glacier extends AbstractBlobStoreSupport {
     @Override
     public @Nonnull NameRules getObjectNameRules() throws CloudException, InternalException {
         return NameRules.getInstance(1, 255, false, true, true, new char[] { '-', '.', ',', '#', '+' });
+    }
+
+    @Nonnull
+    @Override
+    public Iterable<OfflineStoreRequest> listRequests(@Nonnull final String bucket) throws CloudException, InternalException {
+        final ProviderContext ctx = provider.getContext();
+        PopulatorThread <OfflineStoreRequest> populator;
+
+        if( ctx == null ) {
+            throw new CloudException("No context was specified for this request");
+        }
+        final String regionId = ctx.getRegionId();
+
+        if( regionId == null ) {
+            throw new CloudException("No region ID was specified");
+        }
+        provider.hold();
+        populator = new PopulatorThread<OfflineStoreRequest>(new JiteratorPopulator<OfflineStoreRequest>() {
+            public void populate(@Nonnull Jiterator<OfflineStoreRequest> iterator) throws CloudException, InternalException {
+                try {
+                    listRequests(bucket, iterator);
+                }
+                finally {
+                    provider.release();
+                }
+            }
+        });
+        populator.populate();
+        return populator.getResult();
+    }
+    private void listRequests(@Nonnull String bucket, @Nonnull Jiterator<OfflineStoreRequest> iterator) throws CloudException, InternalException {
+        APITrace.begin(provider, "Blob.listRequests");
+        try {
+
+            final GlacierMethod method = GlacierMethod.build(provider, GlacierAction.LIST_JOBS)
+                    .vaultId(bucket).toMethod();
+
+            final JSONObject jsonObject = method.invokeJson();
+            JSONArray vaultList;
+            try {
+                vaultList = jsonObject.getJSONArray("JobList");
+
+                for (int i=0; i<vaultList.length(); i++) {
+                    iterator.push(loadRequestJson(vaultList.getJSONObject(i), bucket));
+                }
+            } catch (JSONException e) {
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    private OfflineStoreRequest loadRequestJson(JSONObject jsonObject, String bucket)
+            throws CloudException, JSONException {
+        String jobId = jsonObject.getString("JobId");
+        String actionDescription = jsonObject.getString("Action");
+
+
+        String archiveId = null;
+        if (jsonObject.has("ArchiveId") && !jsonObject.isNull("ArchiveId")) {
+            archiveId = jsonObject.getString("ArchiveId");
+        }
+
+        OfflineStoreRequestAction action = OfflineStoreRequestAction.UNKNOWN;
+        String sizeKey = null;
+        if (actionDescription == null) {
+            throw new CloudException("invalid glacier job action");
+        }
+        else if (actionDescription.equalsIgnoreCase(ACTION_ARCHIVE_RETRIEVAL)) {
+            action = OfflineStoreRequestAction.DOWNLOAD;
+            sizeKey = "ArchiveSizeInBytes";
+        } else if (actionDescription.equalsIgnoreCase(ACTION_INVENTORY_RETRIEVAL)) {
+            action = OfflineStoreRequestAction.LIST;
+            sizeKey = "InventorySizeInBytes";
+        }
+        long bytes = -1;
+        if (jsonObject.has(sizeKey) && !jsonObject.isNull(sizeKey)) {
+            bytes = jsonObject.getLong(sizeKey);
+        }
+
+        String jobDescription = jsonObject.getString("JobDescription");
+        if (jobDescription == null) {
+            jobDescription = "";
+        }
+
+        String statusCode = jsonObject.getString("StatusCode");
+        String statusDescription = jsonObject.getString("StatusMessage");
+        if (statusDescription == null) {
+            statusDescription = "";
+        }
+
+        long creationTs = parseTimestamp(jsonObject.getString("CreationDate"));
+        long completionTs = parseTimestamp(jsonObject.getString("CompletionDate"));
+
+        Storage<Byte> storage = bytes != -1 ? new Storage<Byte>(bytes, Storage.BYTE) : null;
+        OfflineStoreRequestStatus requestStatus = parseRequestStatus(statusCode);
+
+        return new OfflineStoreRequest(jobId, bucket, archiveId, action, actionDescription,
+                storage, jobDescription, requestStatus, statusDescription, creationTs, completionTs);
+    }
+
+    private static OfflineStoreRequestStatus parseRequestStatus(String statusCode) throws CloudException {
+        OfflineStoreRequestStatus requestStatus;
+        if (statusCode == null) {
+            throw new CloudException("invalid glacier job status");
+        }
+        else if (statusCode.equalsIgnoreCase("Succeeded")) {
+            requestStatus = OfflineStoreRequestStatus.SUCCEEDED;
+        }
+        else if (statusCode.equalsIgnoreCase("InProgress")) {
+            requestStatus = OfflineStoreRequestStatus.IN_PROGRESS;
+        }
+        else if (statusCode.equalsIgnoreCase("Failed")) {
+            requestStatus = OfflineStoreRequestStatus.FAILED;
+        }
+        else {
+            throw new CloudException("invalid glacier job status: " + statusCode);
+        }
+        return requestStatus;
+    }
+
+    @Nullable
+    @Override
+    public OfflineStoreRequest getRequest(@Nonnull String bucket, @Nonnull String requestId) throws CloudException, InternalException {
+        APITrace.begin(provider, "Blob.getRequest");
+        try {
+
+            final GlacierMethod method = GlacierMethod.build(provider, GlacierAction.DESCRIBE_JOB)
+                    .vaultId(bucket).jobId(requestId).toMethod();
+
+            try {
+                final JSONObject jsonObject = method.invokeJson();
+                return loadRequestJson(jsonObject, bucket);
+
+            } catch (GlacierException e) {
+                if (e.getHttpCode() == 404) {
+                    return null;
+                }
+                throw e;
+            } catch (JSONException e) {
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Nonnull
+    @Override
+    public OfflineStoreRequest createListRequest(@Nonnull String bucket) throws CloudException, InternalException {
+        APITrace.begin(provider, "Blob.createListRequest");
+        try {
+            try {
+
+                JSONObject bodyJson = new JSONObject();
+                bodyJson.put("Type", "inventory-retrieval");
+
+                final GlacierMethod method = GlacierMethod.build(provider, GlacierAction.CREATE_JOB)
+                        .vaultId(bucket).bodyText(bodyJson.toString()).toMethod();
+
+                Map<String,String> responseHeaders = method.invokeHeaders();
+                if (!responseHeaders.containsKey(HEADER_JOB_ID)) {
+                    throw new CloudException("Glacier response missing " + HEADER_JOB_ID + " header");
+                }
+                String jobId = responseHeaders.get(HEADER_JOB_ID);
+
+                return new OfflineStoreRequest(jobId, bucket, null, OfflineStoreRequestAction.LIST,
+                        ACTION_INVENTORY_RETRIEVAL, null, "", OfflineStoreRequestStatus.IN_PROGRESS, "",
+                        System.currentTimeMillis(), -1);
+
+            } catch (JSONException e) {
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Nonnull
+    @Override
+    public OfflineStoreRequest createDownloadRequest(@Nonnull String bucket, @Nonnull String object) throws CloudException, InternalException {
+        APITrace.begin(provider, "Blob.createDownloadRequest");
+        try {
+            // todo
+            throw new OperationNotSupportedException("glacier downloads are not yet supported");
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Nonnull
+    @Override
+    public Iterable<Blob> getListRequestResult(@Nonnull String bucket, @Nonnull String requestId)
+            throws InternalException, CloudException {
+        final ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was specified for this request");
+        }
+        final String regionId = ctx.getRegionId();
+
+        if( regionId == null ) {
+            throw new CloudException("No region ID was specified");
+        }
+        APITrace.begin(provider, "Blob.getListRequestResult");
+        try {
+
+            final GlacierMethod method = GlacierMethod.build(provider, GlacierAction.GET_JOB_OUTPUT)
+                    .vaultId(bucket).jobId(requestId).toMethod();
+
+            try {
+                JSONObject jsonObject = method.invokeJson();
+                JSONArray archives = jsonObject.getJSONArray("ArchiveList");
+
+                // not using thread here because there is no potential for pagination in the API
+                List<Blob> blobs = new ArrayList<Blob>(archives.length());
+                for (int i=0; i<archives.length(); i++) {
+                    blobs.add(loadArchiveJson(archives.getJSONObject(i), bucket, regionId));
+                }
+                return blobs;
+
+            } catch (JSONException e) {
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    private Blob loadArchiveJson(JSONObject jsonObject, String bucket, String regionId) throws JSONException {
+        String archiveId = jsonObject.getString("ArchiveId");
+        Storage<Byte> size = new Storage<Byte>(jsonObject.getLong("Size"), Storage.BYTE);
+        return Blob.getInstance(regionId, archiveId, bucket, archiveId,
+                parseTimestamp(jsonObject.getString("CreationDate")), size);
+    }
+
+    @Nonnull
+    @Override
+    public FileTransfer getDownloadRequestResult(@Nonnull String bucket, @Nonnull String requestId, @Nonnull File toFile) throws InternalException, CloudException {
+        APITrace.begin(provider, "Blob.getDownloadRequestResult");
+        try {
+            throw new OperationNotSupportedException("glacier downloads are not yet supported");
+        }
+        finally {
+            APITrace.end();
+        }
     }
 }
