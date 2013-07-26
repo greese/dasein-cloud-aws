@@ -17,18 +17,22 @@
  * ====================================================================
  */
 
-package org.dasein.cloud.aws.admin;
+package org.dasein.cloud.aws.storage;
 
-import org.dasein.cloud.admin.AbstractAdminServices;
-import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.CloudErrorType;
+import org.dasein.cloud.CloudException;
 
-public class AWSAdminServices extends AbstractAdminServices {
-    private AWSCloud cloud;
-    
-    public AWSAdminServices(AWSCloud cloud) { this.cloud = cloud; }
-    
-    @Override
-    public ReservedInstance getPrepaymentSupport() {
-        return new ReservedInstance(cloud);
+import javax.annotation.Nonnegative;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+public class GlacierException extends CloudException {
+
+    private static final long serialVersionUID = -3183996068568321636L;
+
+    public GlacierException(@Nonnull CloudErrorType type, @Nonnegative int httpCode,
+                            @Nullable String providerCode, @Nonnull String msg) {
+        super(type, httpCode, providerCode, msg);
     }
+
 }

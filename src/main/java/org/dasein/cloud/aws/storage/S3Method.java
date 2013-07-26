@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2009-2013 Enstratius, Inc.
+ * Copyright (C) 2009-2013 Dell, Inc.
+ * See annotations for authorship information
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -274,6 +275,8 @@ public class S3Method {
 
                 if( temporaryEndpoint == null ) {
                     boolean validDomainName = isValidDomainName(bucket);
+                    String regionId = provider.getContext().getRegionId();
+
                     if( bucket != null && validDomainName ) {
                         url.append(bucket);
                         if (regionId != null && !"us-east-1".equals(regionId)) {

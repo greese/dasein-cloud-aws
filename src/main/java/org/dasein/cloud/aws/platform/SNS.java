@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2009-2013 Enstratius, Inc.
+ * Copyright (C) 2009-2013 Dell, Inc.
+ * See annotations for authorship information
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -154,7 +155,7 @@ public class SNS implements PushNotificationSupport {
                         setTopicAttribute(topic, "DisplayName", name);
                     }
                     catch( Throwable t ) {
-                        logger.warn("Unable to set DisplayName for topic " + name + ": " + t.getMessage());
+                        logger.warn("Unable to set DisplayName for " + name + " [#" + topic.getProviderTopicId() + "]: " + t.getMessage());
                     }
                     topic.setName(name);
                     return topic;
@@ -360,7 +361,7 @@ public class SNS implements PushNotificationSupport {
             }
             catch( EC2Exception e ) {
                 throw new CloudException(e);
-            };
+            }
             blocks = doc.getElementsByTagName("PublishResult");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 Node item = blocks.item(i);
@@ -556,6 +557,9 @@ public class SNS implements PushNotificationSupport {
                 case AWS_SQS:
                     parameters.put("Protocol", "sqs");
                     break;
+                case SMS:
+                    parameters.put("Protocol", "sms");
+                    break;
             }
             parameters.put("Endpoint", endpoint);
             method = new EC2Method(provider, getSNSUrl(), parameters);
@@ -645,6 +649,10 @@ public class SNS implements PushNotificationSupport {
                     else if( proto.equals("sqs") ) {
                         subscription.setEndpointType(EndpointType.AWS_SQS);
                         subscription.setDataFormat(DataFormat.JSON);
+                    }
+                    else if( proto.equals("sms") ) {
+                        subscription.setEndpointType(EndpointType.SMS);
+                        subscription.setDataFormat(DataFormat.PLAINTEXT);
                     }
                 }
             }
