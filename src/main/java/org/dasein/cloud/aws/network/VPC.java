@@ -2666,9 +2666,13 @@ public class VPC extends AbstractVLANSupport {
                 provider.setTags(child, table);
                 if( table.getTags().get("name") != null ) {
                     name = table.getTags().get("name");
+                } else if( table.getTags().get("Name") != null ) {
+                  name = table.getTags().get("Name");
                 }
                 if( table.getTags().get("description") != null ) {
                     description = table.getTags().get("description");
+                } else if( table.getTags().get("Description") != null ) {
+                  description = table.getTags().get("Description");
                 }
             }
         }
