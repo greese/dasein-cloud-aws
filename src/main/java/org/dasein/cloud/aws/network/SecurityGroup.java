@@ -18,36 +18,15 @@
 
 package org.dasein.cloud.aws.network;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Locale;
-import java.util.Map;
-
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.Requirement;
-import org.dasein.cloud.ResourceStatus;
-import org.dasein.cloud.Tag;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.compute.ComputeServices;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.AbstractFirewallSupport;
-import org.dasein.cloud.network.FirewallCreateOptions;
-import org.dasein.cloud.network.RuleTargetType;
-import org.dasein.cloud.network.Direction;
-import org.dasein.cloud.network.Firewall;
-import org.dasein.cloud.network.FirewallRule;
-import org.dasein.cloud.network.FirewallSupport;
-import org.dasein.cloud.network.Permission;
-import org.dasein.cloud.network.Protocol;
-import org.dasein.cloud.network.RuleTarget;
+import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -56,6 +35,7 @@ import org.w3c.dom.NodeList;
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.*;
 
 public class SecurityGroup extends AbstractFirewallSupport {
 	static private final Logger logger = AWSCloud.getLogger(SecurityGroup.class);
@@ -747,7 +727,11 @@ public class SecurityGroup extends AbstractFirewallSupport {
             }
             else {
                 parameters.put("GroupId", firewallId);
-                parameters.put("IpPermissions.1.IpProtocol", protocol.name().toLowerCase());
+                if( protocol == Protocol.ANY ) {
+                  parameters.put("IpPermissions.1.IpProtocol", "-1");
+                } else {
+                  parameters.put("IpPermissions.1.IpProtocol", protocol.name().toLowerCase());
+                }
                 parameters.put("IpPermissions.1.FromPort", String.valueOf(beginPort));
                 parameters.put("IpPermissions.1.ToPort", endPort == -1 ? String.valueOf(beginPort) : String.valueOf(endPort));
                 if( group ) {
