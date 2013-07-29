@@ -802,10 +802,10 @@ public class SecurityGroup extends AbstractFirewallSupport {
             return null;
         }
         String fwName = null, fwId = null, fwDesc = null;
-		NodeList attrs = node.getChildNodes();
-		Firewall firewall = new Firewall();
+        NodeList attrs = node.getChildNodes();
+        Firewall firewall = new Firewall();
         String regionId = ctx.getRegionId();
-		String vpcId = null;
+        String vpcId = null;
 
         if( regionId == null ) {
             return null;
@@ -813,160 +813,160 @@ public class SecurityGroup extends AbstractFirewallSupport {
         firewall.setRegionId(regionId);
         firewall.setAvailable(true);
         firewall.setActive(true);
-		for( int i=0; i<attrs.getLength(); i++ ) {
-			Node attr = attrs.item(i);
-			String name;
-			
-			name = attr.getNodeName();
-			if( name.equals("groupName") ) {
-                fwName = attr.getFirstChild().getNodeValue().trim();
-			}
-			else if( name.equals("groupDescription") ) {
-				fwDesc = attr.getFirstChild().getNodeValue().trim();
-			}
-			else if( name.equals("groupId") ) {
-                fwId = attr.getFirstChild().getNodeValue().trim();			    
-			}
-			else if( name.equals("vpcId") ) {
-			    if( attr.hasChildNodes() ) {
-			        vpcId = attr.getFirstChild().getNodeValue();
-			        if( vpcId != null ) {
-			            vpcId = vpcId.trim();
-			        }
-			    }
-			}
-            else if ( name.equals("tagSet")) {
-                provider.setTags( attr, firewall );
+        for( int i=0; i<attrs.getLength(); i++ ) {
+          Node attr = attrs.item(i);
+          String name;
+
+          name = attr.getNodeName();
+          if( name.equals("groupName") ) {
+            fwName = attr.getFirstChild().getNodeValue().trim();
+          }
+          else if( name.equals("groupDescription") ) {
+            fwDesc = attr.getFirstChild().getNodeValue().trim();
+          }
+          else if( name.equals("groupId") ) {
+            fwId = attr.getFirstChild().getNodeValue().trim();
+          }
+          else if( name.equals("vpcId") ) {
+            if( attr.hasChildNodes() ) {
+              vpcId = attr.getFirstChild().getNodeValue();
+              if( vpcId != null ) {
+                vpcId = vpcId.trim();
+              }
             }
-		}
-        if( fwId == null ) {
-            if( fwName == null ) {
-                return null;
-            }
-            fwId = fwName;
+          }
+          else if ( name.equals("tagSet")) {
+            provider.setTags( attr, firewall );
+          }
         }
-		if( fwName == null ) {
-		    fwName = fwId;
-		}
+        if( fwId == null ) {
+          if( fwName == null ) {
+              return null;
+          }
+          fwId = fwName;
+        }
+        if( fwName == null ) {
+          fwName = fwId;
+        }
         firewall.setProviderFirewallId(fwId);
         firewall.setName(fwName);
         if( fwDesc == null ) {
             fwDesc = fwName;
         }
         firewall.setDescription(fwDesc);
-		if( vpcId != null ) {
-		    firewall.setName(firewall.getName() + " (VPC " + vpcId + ")");
-		    firewall.setProviderVlanId(vpcId);
-		}
-		return firewall;
-	}
-	
-	private @Nonnull Collection<FirewallRule> toFirewallRules(@Nonnull String securityGroupId, @Nullable Node node, @Nonnull Direction direction) {
-	    ArrayList<FirewallRule> rules = new ArrayList<FirewallRule>();
-        
-        if( node == null ) {
-            return rules;
+        if( vpcId != null ) {
+          firewall.setName(firewall.getName() + " (VPC " + vpcId + ")");
+          firewall.setProviderVlanId(vpcId);
         }
-        ArrayList<String> cidrs = new ArrayList<String>();
-        ArrayList<String> groups = new ArrayList<String>();
-        NodeList attrs = node.getChildNodes();
-        int startPort = -2, endPort = -2;
-		Protocol protocol = Protocol.TCP;
-		
-		for( int i=0; i<attrs.getLength(); i++ ) {
-			Node attr = attrs.item(i);
-			String name;
-			
-			name = attr.getNodeName();
-			if( name.equals("ipProtocol") ) {
-			    String val = attr.getFirstChild().getNodeValue().trim();
-			    
-			    if( !val.equals("") && !val.equals("-1") ) {
-			        protocol = Protocol.valueOf(attr.getFirstChild().getNodeValue().trim().toUpperCase());
-			    }
-			    else {
-			        protocol = Protocol.ICMP;
-			    }
-			}
-			else if( name.equals("fromPort") ) {
-				startPort = Integer.parseInt(attr.getFirstChild().getNodeValue().trim());
-			}
-			else if( name.equals("toPort") ) {
-				endPort = Integer.parseInt(attr.getFirstChild().getNodeValue().trim());
-			}
-            else if( name.equals("groups") && attr.hasChildNodes() ) {
-                NodeList children = attr.getChildNodes();
+        return firewall;
+    }
 
-                for( int j=0; j<children.getLength(); j++ ) {
-                    Node child = children.item(j);
+    private @Nonnull Collection<FirewallRule> toFirewallRules(@Nonnull String securityGroupId, @Nullable Node node, @Nonnull Direction direction) {
+      ArrayList<FirewallRule> rules = new ArrayList<FirewallRule>();
 
-                    if( child.getNodeName().equals("item") ) {
-                        if( child.hasChildNodes() ) {
-                            NodeList targets = child.getChildNodes();
-                            String groupId = null, groupName = null;
+      if( node == null ) {
+        return rules;
+      }
+      ArrayList<String> cidrs = new ArrayList<String>();
+      ArrayList<String> groups = new ArrayList<String>();
+      NodeList attrs = node.getChildNodes();
+      int startPort = -1, endPort = -1;
+      Protocol protocol = Protocol.TCP;
 
-                            for( int k=0; k<targets.getLength(); k++ ) {
-                                Node group = targets.item(k);
+      for( int i=0; i<attrs.getLength(); i++ ) {
+        Node attr = attrs.item(i);
+        String name;
 
-                                if( group.getNodeName().equals("groupId") ) {
-                                    groupId = group.getFirstChild().getNodeValue().trim();
-                                }
-                                if( group.getNodeName().equals("groupName") ) {
-                                    groupName = group.getFirstChild().getNodeValue().trim();
-                                }
-                            }
-                            if( groupId != null ) {
-                                groups.add(groupId);
-                            }
-                            else if( groupName != null ) {
-                                groups.add(groupName);
-                            }
-                        }
+        name = attr.getNodeName();
+        if( name.equals("ipProtocol") ) {
+          String val = attr.getFirstChild().getNodeValue().trim();
+
+          if( !val.equals("") && !val.equals("-1") ) {
+            protocol = Protocol.valueOf(attr.getFirstChild().getNodeValue().trim().toUpperCase());
+          }
+          else {
+            protocol = Protocol.ANY;
+          }
+        }
+        else if( name.equals("fromPort") ) {
+          startPort = Integer.parseInt(attr.getFirstChild().getNodeValue().trim());
+        }
+        else if( name.equals("toPort") ) {
+          endPort = Integer.parseInt(attr.getFirstChild().getNodeValue().trim());
+        }
+        else if( name.equals("groups") && attr.hasChildNodes() ) {
+          NodeList children = attr.getChildNodes();
+
+          for( int j=0; j<children.getLength(); j++ ) {
+            Node child = children.item(j);
+
+            if( child.getNodeName().equals("item") ) {
+              if( child.hasChildNodes() ) {
+                  NodeList targets = child.getChildNodes();
+                  String groupId = null, groupName = null;
+
+                  for( int k=0; k<targets.getLength(); k++ ) {
+                      Node group = targets.item(k);
+
+                      if( group.getNodeName().equals("groupId") ) {
+                          groupId = group.getFirstChild().getNodeValue().trim();
+                      }
+                      if( group.getNodeName().equals("groupName") ) {
+                          groupName = group.getFirstChild().getNodeValue().trim();
+                      }
+                  }
+                  if( groupId != null ) {
+                      groups.add(groupId);
+                  }
+                  else if( groupName != null ) {
+                      groups.add(groupName);
+                  }
+              }
+            }
+          }
+        }
+        else if( name.equals("ipRanges") ) {
+          if( attr.hasChildNodes() ) {
+            NodeList children = attr.getChildNodes();
+
+            for( int j=0; j<children.getLength(); j++ ) {
+              Node child = children.item(j);
+
+              if( child.getNodeName().equals("item") ) {
+                if( child.hasChildNodes() ) {
+                  NodeList targets = child.getChildNodes();
+
+                  for( int k=0; k<targets.getLength(); k++ ) {
+                    Node cidr = targets.item(k);
+
+                    if( cidr.getNodeName().equals("cidrIp") ) {
+                      cidrs.add(cidr.getFirstChild().getNodeValue());
                     }
+                  }
                 }
+              }
             }
-			else if( name.equals("ipRanges") ) {
-				if( attr.hasChildNodes() ) {
-					NodeList children = attr.getChildNodes();
-				
-					for( int j=0; j<children.getLength(); j++ ) {
-						Node child = children.item(j);
-					
-						if( child.getNodeName().equals("item") ) {
-						    if( child.hasChildNodes() ) { 
-						        NodeList targets = child.getChildNodes();
-						        
-						        for( int k=0; k<targets.getLength(); k++ ) {
-						            Node cidr = targets.item(k);
-
-						            if( cidr.getNodeName().equals("cidrIp") ) {
-						                cidrs.add(cidr.getFirstChild().getNodeValue());
-						            }
-						        }
-						    }
-						}
-					}
-				}
-			}
-		}
-        for( String gid : groups ) {
-            if( direction.equals(Direction.INGRESS) ) {
-                rules.add(FirewallRule.getInstance(null, securityGroupId, RuleTarget.getGlobal(gid), direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), startPort, endPort));
-            }
-            else {
-                rules.add(FirewallRule.getInstance(null, securityGroupId, RuleTarget.getGlobal(securityGroupId), direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(gid), startPort, endPort));
-            }
+          }
         }
-		for( String cidr : cidrs ) {
-            if( direction.equals(Direction.INGRESS) ) {
-                rules.add(FirewallRule.getInstance(null, securityGroupId, RuleTarget.getCIDR(cidr), direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), startPort, endPort));
-            }
-            else {
-                rules.add(FirewallRule.getInstance(null, securityGroupId, RuleTarget.getGlobal(securityGroupId), direction, protocol, Permission.ALLOW, RuleTarget.getCIDR(cidr), startPort, endPort));
-            }
+      }
+      for( String gid : groups ) {
+        if( direction.equals(Direction.INGRESS) ) {
+          rules.add(FirewallRule.getInstance(null, securityGroupId, RuleTarget.getGlobal(gid), direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), startPort, endPort));
         }
-		return rules;		
-	}
+        else {
+          rules.add(FirewallRule.getInstance(null, securityGroupId, RuleTarget.getGlobal(securityGroupId), direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(gid), startPort, endPort));
+        }
+      }
+      for( String cidr : cidrs ) {
+        if( direction.equals(Direction.INGRESS) ) {
+          rules.add(FirewallRule.getInstance(null, securityGroupId, RuleTarget.getCIDR(cidr), direction, protocol, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), startPort, endPort));
+        }
+        else {
+          rules.add(FirewallRule.getInstance(null, securityGroupId, RuleTarget.getGlobal(securityGroupId), direction, protocol, Permission.ALLOW, RuleTarget.getCIDR(cidr), startPort, endPort));
+        }
+      }
+    return rules;
+  }
 
     private @Nullable ResourceStatus toStatus(@Nullable Node node) {
         if( node == null ) {
