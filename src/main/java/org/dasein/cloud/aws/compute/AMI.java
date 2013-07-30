@@ -1575,6 +1575,7 @@ public class AMI extends AbstractImageSupport {
                     }
                     else {
                         image.setType(MachineImageType.STORAGE);
+                        image.setStorageFormat(MachineImageFormat.AWS);
                     }
                 }
             }
