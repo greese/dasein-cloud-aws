@@ -124,14 +124,7 @@ public class EBSVolume extends AbstractVolumeSupport {
             parameters.put("AvailabilityZone", az);
             if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
                 if( options.getVolumeProductId() != null ) {
-                    VolumeProduct prd = null;
-
-                    for( VolumeProduct p : listVolumeProducts() ) {
-                        if( p.getProviderProductId().equals(options.getVolumeProductId()) ) {
-                            prd = p;
-                            break;
-                        }
-                    }
+                    VolumeProduct prd = getVolumeProduct( options.getVolumeProductId() );
                     if( prd != null ) {
                         parameters.put("VolumeType", prd.getProviderProductId());
                         if( prd.getMaxIops() > 0 && options.getIops() > 0 ) {
@@ -549,6 +542,19 @@ public class EBSVolume extends AbstractVolumeSupport {
         finally {
             APITrace.end();
         }
+    }
+
+    public VolumeProduct getVolumeProduct(String volumeProductId) throws InternalException, CloudException{
+      VolumeProduct prd = null;
+
+      for ( VolumeProduct p : listVolumeProducts() ) {
+        if ( p.getProviderProductId().equals( volumeProductId ) ) {
+          prd = p;
+          break;
+        }
+      }
+
+      return prd;
     }
 
     private @Nullable ResourceStatus toStatus(@Nullable Node node) throws CloudException {

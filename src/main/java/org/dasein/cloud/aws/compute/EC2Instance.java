@@ -1219,7 +1219,15 @@ public class EC2Instance extends AbstractVMSupport {
                     }
                     if( a.existingVolumeId == null ) {
                         parameters.put("BlockDeviceMapping." + i + ".DeviceName", a.deviceId);
-                        if( a.volumeToCreate.getSnapshotId() != null ) {
+
+                        VolumeProduct prd = provider.getComputeServices().getVolumeSupport().getVolumeProduct( a.volumeToCreate.getVolumeProductId() );
+                        parameters.put( "BlockDeviceMapping." + i + ".Ebs.VolumeType", prd.getProviderProductId() );
+
+                        if ( a.volumeToCreate.getIops() > 0 ) {
+                          parameters.put( "BlockDeviceMapping." + i + ".Ebs.Iops", String.valueOf( a.volumeToCreate.getIops() ) );
+                        }
+
+                      if( a.volumeToCreate.getSnapshotId() != null ) {
                             parameters.put("BlockDeviceMapping." + i + ".Ebs.SnapshotId", a.volumeToCreate.getSnapshotId());
                         }
                         else {
