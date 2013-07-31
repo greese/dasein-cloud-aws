@@ -805,6 +805,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
             return null;
         }
         String fwName = null, fwId = null, fwDesc = null;
+        ArrayList<FirewallRule> list = new ArrayList<FirewallRule>();
         NodeList attrs = node.getChildNodes();
         Firewall firewall = new Firewall();
         String regionId = ctx.getRegionId();
@@ -841,6 +842,28 @@ public class SecurityGroup extends AbstractFirewallSupport {
           else if ( name.equals("tagSet")) {
             provider.setTags( attr, firewall );
           }
+          else if( attr.getNodeName().equals("ipPermissions") ) {
+            NodeList subList = attr.getChildNodes();
+
+            for( int l=0; l<subList.getLength(); l++ ) {
+              Node sub = subList.item(l);
+
+              if( sub.getNodeName().equals("item") ) {
+                list.addAll(toFirewallRules(fwId, sub, Direction.INGRESS));
+              }
+            }
+          }
+          else if( attr.getNodeName().equals("ipPermissionsEgress") ) {
+            NodeList subList = attr.getChildNodes();
+
+            for( int l=0; l<subList.getLength(); l++ ) {
+              Node sub = subList.item(l);
+
+              if( sub.getNodeName().equals("item") ) {
+                list.addAll(toFirewallRules(fwId, sub, Direction.EGRESS));
+              }
+            }
+          }
         }
         if( fwId == null ) {
           if( fwName == null ) {
@@ -860,6 +883,9 @@ public class SecurityGroup extends AbstractFirewallSupport {
         if( vpcId != null ) {
           firewall.setName(firewall.getName() + " (VPC " + vpcId + ")");
           firewall.setProviderVlanId(vpcId);
+        }
+        if( list.size() > 0 ) {
+          firewall.setRules( list );
         }
         return firewall;
     }
