@@ -99,7 +99,11 @@ public class SecurityGroup extends AbstractFirewallSupport {
             }
             else {
                 parameters.put("GroupId", firewallId);
-                parameters.put("IpPermissions.1.IpProtocol", protocol.name().toLowerCase());
+                if( protocol == Protocol.ANY ) {
+                  parameters.put("IpPermissions.1.IpProtocol", "-1");
+                } else {
+                  parameters.put("IpPermissions.1.IpProtocol", protocol.name().toLowerCase());
+                }
                 parameters.put("IpPermissions.1.FromPort", String.valueOf(beginPort));
                 parameters.put("IpPermissions.1.ToPort", endPort == -1 ? String.valueOf(beginPort) : String.valueOf(endPort));
                 if( group ) {
@@ -150,233 +154,233 @@ public class SecurityGroup extends AbstractFirewallSupport {
     }
 
     @Override
-	public @Nonnull String create(@Nonnull FirewallCreateOptions options) throws InternalException, CloudException {
-        APITrace.begin(provider, "Firewall.create");
-        try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_SECURITY_GROUP);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+    public @Nonnull String create(@Nonnull FirewallCreateOptions options) throws InternalException, CloudException {
+          APITrace.begin(provider, "Firewall.create");
+          try {
+              Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_SECURITY_GROUP);
+              EC2Method method;
+              NodeList blocks;
+              Document doc;
 
-            String name = getUniqueName(options.getName());
-            parameters.put("GroupName", name);
-            parameters.put("GroupDescription", options.getDescription());
-            String vlanId = options.getProviderVlanId();
+              String name = getUniqueName(options.getName());
+              parameters.put("GroupName", name);
+              parameters.put("GroupDescription", options.getDescription());
+              String vlanId = options.getProviderVlanId();
 
-            if( vlanId != null ) {
-                parameters.put("VpcId", vlanId);
-            }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            if( provider.getEC2Provider().isEucalyptus() ) {
-                return name;
-            }
-            else {
-                blocks = doc.getElementsByTagName("groupId");
-                if( blocks.getLength() > 0 ) {
-                    Map<String,String> metaData = options.getMetaData();
+              if( vlanId != null ) {
+                  parameters.put("VpcId", vlanId);
+              }
+              method = new EC2Method(provider, provider.getEc2Url(), parameters);
+              try {
+                  doc = method.invoke();
+              }
+              catch( EC2Exception e ) {
+                  logger.error(e.getSummary());
+                  throw new CloudException(e);
+              }
+              if( provider.getEC2Provider().isEucalyptus() ) {
+                  return name;
+              }
+              else {
+                  blocks = doc.getElementsByTagName("groupId");
+                  if( blocks.getLength() > 0 ) {
+                      Map<String,String> metaData = options.getMetaData();
 
-                    String id = blocks.item(0).getFirstChild().getNodeValue().trim();
+                      String id = blocks.item(0).getFirstChild().getNodeValue().trim();
 
-                    if( !metaData.isEmpty() ) {
-                        ArrayList<Tag> tags = new ArrayList<Tag>();
+                      if( !metaData.isEmpty() ) {
+                          ArrayList<Tag> tags = new ArrayList<Tag>();
 
-                        for( Map.Entry<String,String> entry : metaData.entrySet() ) {
-                            String key = entry.getKey();
-                            String value = entry.getValue();
+                          for( Map.Entry<String,String> entry : metaData.entrySet() ) {
+                              String key = entry.getKey();
+                              String value = entry.getValue();
 
-                            if( value != null ) {
-                                tags.add(new Tag(key, value));
-                            }
-                        }
-                        provider.createTags(id, tags.toArray(new Tag[tags.size()]));
-                    }
-                    return id;
-                }
-                throw new CloudException("Failed to create security group without explanation.");
-            }
-        }
-        finally {
-            APITrace.end();
-        }
-	}
+                              if( value != null ) {
+                                  tags.add(new Tag(key, value));
+                              }
+                          }
+                          provider.createTags(id, tags.toArray(new Tag[tags.size()]));
+                      }
+                      return id;
+                  }
+                  throw new CloudException("Failed to create security group without explanation.");
+              }
+          }
+          finally {
+              APITrace.end();
+          }
+    }
 
-	@Override
-	public void delete(@Nonnull String securityGroupId) throws InternalException, CloudException {
-        APITrace.begin(provider, "Firewall.delete");
-        try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_SECURITY_GROUP);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+    @Override
+    public void delete(@Nonnull String securityGroupId) throws InternalException, CloudException {
+          APITrace.begin(provider, "Firewall.delete");
+          try {
+              Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_SECURITY_GROUP);
+              EC2Method method;
+              NodeList blocks;
+              Document doc;
 
-            if( provider.getEC2Provider().isEucalyptus() ) {
-                parameters.put("GroupName", securityGroupId);
-            }
-            else {
-                parameters.put("GroupId", securityGroupId);
-            }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("return");
-            if( blocks.getLength() > 0 ) {
-                if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
-                    throw new CloudException("Failed to delete security group without explanation.");
-                }
-            }
-        }
-        finally {
-            APITrace.end();
-        }
-	}
+              if( provider.getEC2Provider().isEucalyptus() ) {
+                  parameters.put("GroupName", securityGroupId);
+              }
+              else {
+                  parameters.put("GroupId", securityGroupId);
+              }
+              method = new EC2Method(provider, provider.getEc2Url(), parameters);
+              try {
+                  doc = method.invoke();
+              }
+              catch( EC2Exception e ) {
+                  logger.error(e.getSummary());
+                  throw new CloudException(e);
+              }
+              blocks = doc.getElementsByTagName("return");
+              if( blocks.getLength() > 0 ) {
+                  if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                      throw new CloudException("Failed to delete security group without explanation.");
+                  }
+              }
+          }
+          finally {
+              APITrace.end();
+          }
+    }
 
-	@Override
-	public @Nullable Firewall getFirewall(@Nonnull String securityGroupId) throws InternalException, CloudException {
-        APITrace.begin(provider, "Firewall.getFirewall");
-        try {
-            ProviderContext ctx = provider.getContext();
+    @Override
+    public @Nullable Firewall getFirewall(@Nonnull String securityGroupId) throws InternalException, CloudException {
+          APITrace.begin(provider, "Firewall.getFirewall");
+          try {
+              ProviderContext ctx = provider.getContext();
 
-            if( ctx == null ) {
-                throw new CloudException("No context has been established for this request");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SECURITY_GROUPS);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+              if( ctx == null ) {
+                  throw new CloudException("No context has been established for this request");
+              }
+              Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SECURITY_GROUPS);
+              EC2Method method;
+              NodeList blocks;
+              Document doc;
 
-            if( provider.getEC2Provider().isEucalyptus() ) {
-                parameters.put("GroupName.1", securityGroupId);
-            }
-            else {
-                parameters.put("GroupId.1", securityGroupId);
-            }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                String code = e.getCode();
+              if( provider.getEC2Provider().isEucalyptus() ) {
+                  parameters.put("GroupName.1", securityGroupId);
+              }
+              else {
+                  parameters.put("GroupId.1", securityGroupId);
+              }
+              method = new EC2Method(provider, provider.getEc2Url(), parameters);
+              try {
+                  doc = method.invoke();
+              }
+              catch( EC2Exception e ) {
+                  String code = e.getCode();
 
-                if( code != null && code.startsWith("InvalidGroup") ) {
-                    return null;
-                }
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("securityGroupInfo");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
+                  if( code != null && code.startsWith("InvalidGroup") ) {
+                      return null;
+                  }
+                  logger.error(e.getSummary());
+                  throw new CloudException(e);
+              }
+              blocks = doc.getElementsByTagName("securityGroupInfo");
+              for( int i=0; i<blocks.getLength(); i++ ) {
+                  NodeList items = blocks.item(i).getChildNodes();
 
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
+                  for( int j=0; j<items.getLength(); j++ ) {
+                      Node item = items.item(j);
 
-                    if( item.getNodeName().equals("item") ) {
-                        Firewall firewall = toFirewall(ctx, item);
+                      if( item.getNodeName().equals("item") ) {
+                          Firewall firewall = toFirewall(ctx, item);
 
-                        if( firewall != null && securityGroupId.equals(firewall.getProviderFirewallId()) ) {
-                            return firewall;
-                        }
-                    }
-                }
-            }
-            return null;
-        }
-        finally {
-            APITrace.end();
-        }
-	}
+                          if( firewall != null && securityGroupId.equals(firewall.getProviderFirewallId()) ) {
+                              return firewall;
+                          }
+                      }
+                  }
+              }
+              return null;
+          }
+          finally {
+              APITrace.end();
+          }
+    }
 
-	@Override
-	public @Nonnull String getProviderTermForFirewall(@Nonnull Locale locale) {
-		return "security group";
-	}
+    @Override
+    public @Nonnull String getProviderTermForFirewall(@Nonnull Locale locale) {
+      return "security group";
+    }
 
-	@Override
-	public @Nonnull Collection<FirewallRule> getRules(@Nonnull String securityGroupId) throws InternalException, CloudException {
-        APITrace.begin(provider, "Firewall.getRules");
-        try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SECURITY_GROUPS);
-            ArrayList<FirewallRule> list = new ArrayList<FirewallRule>();
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+    @Override
+    public @Nonnull Collection<FirewallRule> getRules(@Nonnull String securityGroupId) throws InternalException, CloudException {
+          APITrace.begin(provider, "Firewall.getRules");
+          try {
+              Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SECURITY_GROUPS);
+              ArrayList<FirewallRule> list = new ArrayList<FirewallRule>();
+              EC2Method method;
+              NodeList blocks;
+              Document doc;
 
-            if( provider.getEC2Provider().isEucalyptus() ) {
-                parameters.put("GroupName.1", securityGroupId);
-            }
-            else {
-                parameters.put("GroupId.1", securityGroupId);
-            }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                String code = e.getCode();
+              if( provider.getEC2Provider().isEucalyptus() ) {
+                  parameters.put("GroupName.1", securityGroupId);
+              }
+              else {
+                  parameters.put("GroupId.1", securityGroupId);
+              }
+              method = new EC2Method(provider, provider.getEc2Url(), parameters);
+              try {
+                  doc = method.invoke();
+              }
+              catch( EC2Exception e ) {
+                  String code = e.getCode();
 
-                if( code != null && code.startsWith("InvalidGroup") ) {
-                    return Collections.emptyList();
-                }
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("securityGroupInfo");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
+                  if( code != null && code.startsWith("InvalidGroup") ) {
+                      return Collections.emptyList();
+                  }
+                  logger.error(e.getSummary());
+                  throw new CloudException(e);
+              }
+              blocks = doc.getElementsByTagName("securityGroupInfo");
+              for( int i=0; i<blocks.getLength(); i++ ) {
+                  NodeList items = blocks.item(i).getChildNodes();
 
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
+                  for( int j=0; j<items.getLength(); j++ ) {
+                      Node item = items.item(j);
 
-                    if( item.getNodeName().equals("item") ) {
-                        NodeList attrs = item.getChildNodes();
+                      if( item.getNodeName().equals("item") ) {
+                          NodeList attrs = item.getChildNodes();
 
-                        for( int k=0; k<attrs.getLength(); k++ ) {
-                            Node attr = attrs.item(k);
+                          for( int k=0; k<attrs.getLength(); k++ ) {
+                              Node attr = attrs.item(k);
 
-                            if( attr.getNodeName().equals("ipPermissions") ) {
-                                NodeList subList = attr.getChildNodes();
+                              if( attr.getNodeName().equals("ipPermissions") ) {
+                                  NodeList subList = attr.getChildNodes();
 
-                                for( int l=0; l<subList.getLength(); l++ ) {
-                                    Node sub = subList.item(l);
+                                  for( int l=0; l<subList.getLength(); l++ ) {
+                                      Node sub = subList.item(l);
 
-                                    if( sub.getNodeName().equals("item") ) {
-                                        list.addAll(toFirewallRules(securityGroupId, sub, Direction.INGRESS));
-                                    }
-                                }
-                            }
-                            else if( attr.getNodeName().equals("ipPermissionsEgress") ) {
-                                NodeList subList = attr.getChildNodes();
+                                      if( sub.getNodeName().equals("item") ) {
+                                          list.addAll(toFirewallRules(securityGroupId, sub, Direction.INGRESS));
+                                      }
+                                  }
+                              }
+                              else if( attr.getNodeName().equals("ipPermissionsEgress") ) {
+                                  NodeList subList = attr.getChildNodes();
 
-                                for( int l=0; l<subList.getLength(); l++ ) {
-                                    Node sub = subList.item(l);
+                                  for( int l=0; l<subList.getLength(); l++ ) {
+                                      Node sub = subList.item(l);
 
-                                    if( sub.getNodeName().equals("item") ) {
-                                        list.addAll(toFirewallRules(securityGroupId, sub, Direction.EGRESS));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return list;
-        }
-        finally {
-            APITrace.end();
-        }
-	}
+                                      if( sub.getNodeName().equals("item") ) {
+                                          list.addAll(toFirewallRules(securityGroupId, sub, Direction.EGRESS));
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+              return list;
+          }
+          finally {
+              APITrace.end();
+          }
+    }
 
     @Override
     public @Nonnull Requirement identifyPrecedenceRequirement(boolean inVlan) throws InternalException, CloudException {
@@ -475,50 +479,50 @@ public class SecurityGroup extends AbstractFirewallSupport {
     }
 
     @Override
-	public @Nonnull Collection<Firewall> list() throws InternalException, CloudException {
-        APITrace.begin(provider, "Firewall.list");
-        try {
-            ProviderContext ctx = provider.getContext();
+    public @Nonnull Collection<Firewall> list() throws InternalException, CloudException {
+          APITrace.begin(provider, "Firewall.list");
+          try {
+              ProviderContext ctx = provider.getContext();
 
-            if( ctx == null ) {
-                throw new CloudException("No context has been established for this request");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SECURITY_GROUPS);
-            ArrayList<Firewall> list = new ArrayList<Firewall>();
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+              if( ctx == null ) {
+                  throw new CloudException("No context has been established for this request");
+              }
+              Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_SECURITY_GROUPS);
+              ArrayList<Firewall> list = new ArrayList<Firewall>();
+              EC2Method method;
+              NodeList blocks;
+              Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("securityGroupInfo");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
+              method = new EC2Method(provider, provider.getEc2Url(), parameters);
+              try {
+                  doc = method.invoke();
+              }
+              catch( EC2Exception e ) {
+                  logger.error(e.getSummary());
+                  throw new CloudException(e);
+              }
+              blocks = doc.getElementsByTagName("securityGroupInfo");
+              for( int i=0; i<blocks.getLength(); i++ ) {
+                  NodeList items = blocks.item(i).getChildNodes();
 
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
+                  for( int j=0; j<items.getLength(); j++ ) {
+                      Node item = items.item(j);
 
-                    if( item.getNodeName().equals("item") ) {
-                        Firewall firewall = toFirewall(ctx, item);
+                      if( item.getNodeName().equals("item") ) {
+                          Firewall firewall = toFirewall(ctx, item);
 
-                        if( firewall != null ) {
-                            list.add(firewall);
-                        }
-                    }
-                }
-            }
-            return list;
-        }
-        finally {
-            APITrace.end();
-        }
-	}
+                          if( firewall != null ) {
+                              list.add(firewall);
+                          }
+                      }
+                  }
+              }
+              return list;
+          }
+          finally {
+              APITrace.end();
+          }
+    }
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listFirewallStatus() throws InternalException, CloudException {
@@ -621,7 +625,6 @@ public class SecurityGroup extends AbstractFirewallSupport {
         }
         return new String[0];
     }
-
 
     @Override
     public void removeTags(@Nonnull String firewallId, @Nonnull Tag... tags) throws CloudException, InternalException {
