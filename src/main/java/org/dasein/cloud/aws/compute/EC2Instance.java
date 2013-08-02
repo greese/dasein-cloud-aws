@@ -1177,11 +1177,18 @@ public class EC2Instance extends AbstractVMSupport {
       if (cfg.getVlanId() != null) {
         parameters.put("SubnetId", cfg.getVlanId());
       }
+      if (cfg.getPrivateIp() != null) {
+        parameters.put("PrivateIpAddress", cfg.getPrivateIp());
+      }
       if (provider.getEC2Provider().isAWS()) {
         parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
       }
       final ArrayList<VMLaunchOptions.VolumeAttachment> existingVolumes = new ArrayList<VMLaunchOptions.VolumeAttachment>();
       TreeSet<String> deviceIds = new TreeSet<String>();
+
+      if (cfg.isIoOptimized()) {
+        parameters.put("EbsOptimized", "true");
+      }
 
       if (cfg.getVolumes().length > 0) {
         Iterable<String> possibles = provider.getComputeServices().getVolumeSupport().listPossibleDeviceIds(img.getPlatform());
@@ -2073,6 +2080,8 @@ public class EC2Instance extends AbstractVMSupport {
         }
       } else if ("rootDeviceName".equals(name) && attr.hasChildNodes()) {
         rootDeviceName = AWSCloud.getTextValue(attr);
+      } else if ("ebsOptimized".equals(true)) {
+        server.setIoOptimized(true);
       }
     }
     if (server.getPlatform() == null) {
