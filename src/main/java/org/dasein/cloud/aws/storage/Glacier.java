@@ -338,7 +338,15 @@ public class Glacier implements OfflineStoreSupport {
             return -1;
         }
         long creationTs;
-        SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'");
+        SimpleDateFormat fmt;
+
+        // some response dates have MS component, some do not.
+        if (timestamp.contains(".")) {
+            fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+        }
+        else {
+            fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        }
         Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
         fmt.setCalendar(cal);
         try {
@@ -601,7 +609,7 @@ public class Glacier implements OfflineStoreSupport {
         }
 
         long creationTs = parseTimestamp(jsonObject.getString("CreationDate"));
-        long completionTs = parseTimestamp(jsonObject.getString("CompletionDate"));
+        long completionTs = jsonObject.isNull("CompletionDate") ? -1L : parseTimestamp(jsonObject.getString("CompletionDate"));
 
         Storage<Byte> storage = bytes != -1 ? new Storage<Byte>(bytes, Storage.BYTE) : null;
         OfflineStoreRequestStatus requestStatus = parseRequestStatus(statusCode);
