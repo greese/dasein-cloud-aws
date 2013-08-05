@@ -2080,8 +2080,10 @@ public class EC2Instance extends AbstractVMSupport {
         }
       } else if ("rootDeviceName".equals(name) && attr.hasChildNodes()) {
         rootDeviceName = AWSCloud.getTextValue(attr);
-      } else if ("ebsOptimized".equals(true)) {
-        server.setIoOptimized(true);
+      } else if ("ebsOptimized".equals(name) && attr.hasChildNodes()) {
+        if (attr.hasChildNodes()) {
+          server.setIoOptimized(Boolean.valueOf(attr.getFirstChild().getNodeValue()));
+        }
       }
     }
     if (server.getPlatform() == null) {
