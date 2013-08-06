@@ -470,8 +470,8 @@ public class Glacier implements OfflineStoreSupport {
                 throw new CloudException("No region was set for this request");
             }
 
-            GlacierMethod method = GlacierMethod.build(provider, GlacierAction.DELETE_VAULT)
-                    .vaultId(bucket).toMethod();
+            GlacierMethod method = GlacierMethod.build(provider, GlacierAction.DELETE_ARCHIVE)
+                    .vaultId(bucket).archiveId(name).toMethod();
             method.invoke();
         }
         finally {
