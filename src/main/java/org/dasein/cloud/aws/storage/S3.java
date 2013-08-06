@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2009-2013 Enstratius, Inc.
+ * Copyright (C) 2009-2013 Dell, Inc.
+ * See annotations for authorship information
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -219,8 +220,8 @@ public class S3 extends AbstractBlobStoreSupport {
                 if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
                     String code = e.getCode();
 
-                    if( code != null && code.equals("AccessDenied") ) {
-                        return true;
+                    if ( e.getStatus() == HttpServletResponse.SC_FORBIDDEN){
+                    	return true;
                     }
                     if( code == null || !code.equals("NoSuchBucket") ) {
                         logger.error(e.getSummary());
@@ -465,8 +466,8 @@ public class S3 extends AbstractBlobStoreSupport {
                 if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
                     String code = e.getCode();
 
-                    if( code != null && code.equals("AccessDenied") ) {
-                        return true;
+                    if ( e.getStatus() == HttpServletResponse.SC_FORBIDDEN){
+                    	return true;
                     }
                     if( code == null || !code.equals("NoSuchBucket") ) {
                         String message = e.getMessage();

@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2009-2013 Enstratius, Inc.
+ * Copyright (C) 2009-2013 Dell, Inc.
+ * See annotations for authorship information
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -57,6 +58,7 @@ public class SNS implements PushNotificationSupport {
     static public final String LIST_SUBSCRIPTIONS_BY_TOPIC = "ListSubscriptionsByTopic";
     static public final String LIST_TOPICS                 = "ListTopics";
     static public final String PUBLISH                     = "Publish";
+    static public final String SET_TOPIC_ATTRIBUTES        = "SetTopicAttributes";
     static public final String SUBSCRIBE                   = "Subscribe";
     static public final String UNSUBSCRIBE                 = "Unsubscribe";
 
@@ -149,6 +151,12 @@ public class SNS implements PushNotificationSupport {
 
                 topic = toTopic(item);
                 if( topic != null ) {
+                    try {
+                        setTopicAttribute(topic, "DisplayName", name);
+                    }
+                    catch( Throwable t ) {
+                        logger.warn("Unable to set DisplayName for " + name + " [#" + topic.getProviderTopicId() + "]: " + t.getMessage());
+                    }
                     topic.setName(name);
                     return topic;
                 }
@@ -353,7 +361,7 @@ public class SNS implements PushNotificationSupport {
             }
             catch( EC2Exception e ) {
                 throw new CloudException(e);
-            };
+            }
             blocks = doc.getElementsByTagName("PublishResult");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 Node item = blocks.item(i);
@@ -417,13 +425,36 @@ public class SNS implements PushNotificationSupport {
     }
   }
 
+    private void setTopicAttribute(Topic topic, final String attributeName, final String attributeValue) throws InternalException, CloudException {
+        APITrace.begin(provider, "Notifications.setTopicAttributes");
+        try {
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), SET_TOPIC_ATTRIBUTES);
+            EC2Method method;
+
+            parameters.put("TopicArn", topic.getProviderTopicId());
+            parameters.put("AttributeName", attributeName);
+            parameters.put("AttributeValue", attributeValue);
+
+            method = new EC2Method(provider, getSNSUrl(), parameters);
+            try {
+                method.invoke();
+            }
+            catch( EC2Exception e ) {
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
     private void setTopicAttributes(Topic topic) throws InternalException, CloudException {
         ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
         }
-        APITrace.begin(provider, "Notifications.setTopicAttributes");
+        APITrace.begin(provider, "Notifications.getTopicAttributes");
         try {
             topic.setProviderRegionId(ctx.getRegionId());
             topic.setProviderOwnerId(ctx.getAccountNumber());
@@ -526,6 +557,9 @@ public class SNS implements PushNotificationSupport {
                 case AWS_SQS:
                     parameters.put("Protocol", "sqs");
                     break;
+                case SMS:
+                    parameters.put("Protocol", "sms");
+                    break;
             }
             parameters.put("Endpoint", endpoint);
             method = new EC2Method(provider, getSNSUrl(), parameters);
@@ -615,6 +649,10 @@ public class SNS implements PushNotificationSupport {
                     else if( proto.equals("sqs") ) {
                         subscription.setEndpointType(EndpointType.AWS_SQS);
                         subscription.setDataFormat(DataFormat.JSON);
+                    }
+                    else if( proto.equals("sms") ) {
+                        subscription.setEndpointType(EndpointType.SMS);
+                        subscription.setDataFormat(DataFormat.PLAINTEXT);
                     }
                 }
             }

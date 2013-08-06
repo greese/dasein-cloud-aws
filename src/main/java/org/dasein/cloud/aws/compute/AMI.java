@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2009-2013 Enstratius, Inc.
+ * Copyright (C) 2009-2013 Dell, Inc.
+ * See annotations for authorship information
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -73,8 +74,20 @@ public class AMI extends AbstractImageSupport {
         }
     }
 
+
+
+    @Override
+    protected MachineImage capture(@Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was set for this request");
+        }
+        return captureImage(ctx, options, task);
+    }
+    
     private @Nonnull MachineImage captureImage(@Nonnull ProviderContext ctx, @Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
-        APITrace.begin(provider, "Image.captureImage");
+        APITrace.begin(provider, "captureImage");
         try {
             if( task != null ) {
                 task.setStartTime(System.currentTimeMillis());
@@ -90,12 +103,21 @@ public class AMI extends AbstractImageSupport {
                     if( vm == null || VmState.TERMINATED.equals(vm.getCurrentState()) ) {
                         break;
                     }
-                    if( !vm.isPersistent() ) {
-                        throw new OperationNotSupportedException("You cannot capture instance-backed virtual machines");
-                    }
+                    
                     if( VmState.RUNNING.equals(vm.getCurrentState()) || VmState.STOPPED.equals(vm.getCurrentState()) ) {
                         break;
                     }
+                    
+                    if( !vm.isPersistent() ) {
+                    	if( vm.getPlatform().isWindows() ) {
+                           	String bucket = provider.getStorageServices().getBlobStoreSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
+                            if( bucket == null ) {
+                                throw new CloudException("There is no bucket");
+                            }
+                            return captureWindows(provider.getContext(), options, bucket, task);
+                        }
+                    }
+
                 }
                 catch( Throwable ignore ) {
                     // ignore
@@ -172,17 +194,6 @@ public class AMI extends AbstractImageSupport {
             APITrace.end();
         }
     }
-
-    @Override
-    protected MachineImage capture(@Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was set for this request");
-        }
-        return captureImage(ctx, options, task);
-    }
-
     private MachineImage captureWindows(@Nonnull ProviderContext ctx, @Nonnull ImageCreateOptions options, @Nonnull String bucket, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
         APITrace.begin(provider, "Image.captureWindows");
         try {
@@ -1543,6 +1554,7 @@ public class AMI extends AbstractImageSupport {
                     }
                     else {
                         image.setType(MachineImageType.STORAGE);
+                        image.setStorageFormat(MachineImageFormat.AWS);
                     }
                 }
             }

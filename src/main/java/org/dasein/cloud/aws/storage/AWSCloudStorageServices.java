@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2009-2013 Enstratius, Inc.
+ * Copyright (C) 2009-2013 Dell, Inc.
+ * See annotations for authorship information
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,13 +24,24 @@ import org.dasein.cloud.storage.AbstractStorageServices;
 
 import javax.annotation.Nonnull;
 
+/**
+ * Provides access to Amazon S3 and Glacier as online and offline storage options, respectively.
+ * @author George Reese
+ * @version 2013.07 added support for Glacier
+ * @since unknown
+ */
 public class AWSCloudStorageServices extends AbstractStorageServices {
     private AWSCloud cloud;
     
     public AWSCloudStorageServices(AWSCloud cloud) { this.cloud = cloud; }
-    
+
     @Override
-    public @Nonnull S3 getBlobStoreSupport() {
+    public @Nonnull Glacier getOfflineStorageSupport() {
+        return new Glacier(cloud);
+    }
+
+    @Override
+    public @Nonnull S3 getOnlineStorageSupport() {
         return new S3(cloud);
     }
 }

@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2009-2013 Enstratius, Inc.
+ * Copyright (C) 2009-2013 Dell, Inc.
+ * See annotations for authorship information
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,116 +19,91 @@
 
 package org.dasein.cloud.aws.platform;
 
+import java.util.Locale;
 import java.util.Map;
 
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.platform.AbstractMQSupport;
+import org.dasein.cloud.platform.MQCreateOptions;
+import org.dasein.cloud.platform.MQMessageIdentifier;
+import org.dasein.cloud.platform.MQMessageReceipt;
+import org.dasein.cloud.platform.MQSupport;
+import org.dasein.cloud.platform.MessageQueue;
+import org.dasein.util.uom.time.Second;
+import org.dasein.util.uom.time.TimePeriod;
 
+import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-public class SQS {
+public class SQS extends AbstractMQSupport<AWSCloud> {
     static public final String SET_QUEUE_ATTRIBUTES = "SetQueueAttributes";
 
 
-    static public @Nonnull ServiceAction[] asSQSServiceAction(@Nonnull String action) {
-        return null; // TODO: implement me
-    }
-    
-    private AWSCloud provider;
-    
-    SQS(AWSCloud provider) {
-        this.provider = provider;
-    }
-    
-    public String createQueue(String name, String description, int timeoutInSeconds) throws InternalException, CloudException {
-        return null; // TODO: implement me
-    }
-    
-    public void getQueue(String queueId) throws InternalException, CloudException {
-        // TODO: implement me
-    }
-    
-    public Map<String,String> getQueueAttributes(String queueId, String attribute) throws InternalException, CloudException {
-        return null; // TODO: implement me
-    }
-    
-    public void listQueues() throws InternalException, CloudException {
-        // TODO: implement me
+    public static ServiceAction[] asSQSServiceAction(String action) {
+        return new ServiceAction[0];
     }
 
+    public SQS(AWSCloud provider) { super(provider); }
 
-    public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
-        return new String[0];     // TODO: implement me
+    @Override
+    public @Nonnull String createMessageQueue(@Nonnull MQCreateOptions options) throws CloudException, InternalException {
+        return null;  //To change body of implemented methods use File | Settings | File Templates.
     }
 
-    public void receiveMessages(String queueId, int maxMessages, int timeoutInSeconds) throws InternalException, CloudException {
-        // TODO: implement me
+    @Override
+    public @Nonnull String getProviderTermForMessageQueue(@Nonnull Locale locale) {
+        return "message queue";
     }
-    
-    public void removeMessage(String messageId) throws InternalException, CloudException {
-        // TODO: implement me
+
+    @Override
+    public boolean isSubscribed() throws CloudException, InternalException {
+        return false;  //To change body of implemented methods use File | Settings | File Templates.
     }
-    
-    public void removeQueue(String queueId) throws InternalException, CloudException {
-        // TODO: implement me
+
+    @Override
+    public @Nonnull Iterable<MessageQueue> listMessageQueues() throws CloudException, InternalException {
+        return null;  //To change body of implemented methods use File | Settings | File Templates.
     }
-    
-    public String sendMessage(String queueId, String message) throws InternalException, CloudException {
-        return null; // TODO: implement me
+
+    @Override
+    public @Nonnull Iterable<ResourceStatus> listMessageQueueStatus() throws CloudException, InternalException {
+        return null;  //To change body of implemented methods use File | Settings | File Templates.
     }
-    
-    public void setQueueAttribute(String queueId, String name, String value) throws InternalException, CloudException {
-        Map<String,String> parameters = provider.getStandardSqsParameters(provider.getContext(), SET_QUEUE_ATTRIBUTES);
+
+    @Override
+    public @Nonnull Iterable<MQMessageReceipt> receiveMessages(@Nonnull String mqId, @Nullable TimePeriod<Second> waitTime, @Nonnegative int count, @Nullable TimePeriod<Second> visibilityTimeout) throws CloudException, InternalException {
+        return null;  //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    @Override
+    public void removeMessageQueue(@Nonnull String mqId, @Nullable String reason) throws CloudException, InternalException {
+        //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    @Override
+    public @Nonnull MQMessageIdentifier sendMessage(@Nonnull String mqId, @Nonnull String message) throws CloudException, InternalException {
+        return null;  //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    private void setQueueAttribute(@Nonnull String endpoint, @Nonnull String name, @Nonnull String value) throws InternalException, CloudException {
+        Map<String,String> parameters = getProvider().getStandardSqsParameters(getContext(), SET_QUEUE_ATTRIBUTES);
         EC2Method method;
 
         parameters.put("Attribute.Name", name);
         parameters.put("Attribute.Value", value);
-        method = new EC2Method(provider, "https://queue.amazonaws.com/" + provider.getContext().getAccountNumber() + "/" + queueId + "/", parameters);
+        method = new EC2Method(getProvider(), endpoint, parameters);
         try {
             method.invoke();
         }
         catch( EC2Exception e ) {
             throw new CloudException(e);
-        };
-    }
-    
-    public void setTimeout(String messageId, int timeoutInMinutes) throws InternalException, CloudException {
-        // TODO: implement me
-    }
-    
-    /*
-     * stuff on how to configure SNS access
-        parameters.put("Attribute.Name", "Policy");
-        parameters.put("Attribute.Value", "");
-        method = new Ec2Method(provider, "https://queue.amazonaws.com/" + provider.getContext().getAccountNumber() + "/" + queueId + "/", parameters);
-        try {
-            method.invoke();
         }
-        catch( Ec2Exception e ) {
-            throw new CloudException(e);
-        };
-        parameters = provider.getStandardSqsParameters(provider.getContext(), SET_QUEUE_ATTRIBUTES);
-        parameters.put("Attribute.Name", "Policy");
-        parameters.put("Attribute.Value", getFile(others[4]));
-        method = new Ec2Method(provider, "https://queue.amazonaws.com/" + others[0] + "/" + others[3] + "/", parameters);
-        try {
-            method.invoke();
-        }
-        catch( Ec2Exception e ) {
-            throw new CloudException(e);
-        };
     }
-    
-    static private String getFile(String fileName) throws IOException {
-        File f= new File(fileName);
-        
-        BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(f)));
-        
-        return reader.readLine().trim();
-    }
-    */
 }

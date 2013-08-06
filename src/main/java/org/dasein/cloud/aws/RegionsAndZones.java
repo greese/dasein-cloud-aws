@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2009-2013 Enstratius, Inc.
+ * Copyright (C) 2009-2013 Dell, Inc.
+ * See annotations for authorship information
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,13 +18,6 @@
  */
 
 package org.dasein.cloud.aws;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
 
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
@@ -43,6 +37,7 @@ import org.w3c.dom.NodeList;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.*;
 
 public class RegionsAndZones implements DataCenterServices {
 	static private final Logger logger = Logger.getLogger(RegionsAndZones.class);
