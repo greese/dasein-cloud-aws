@@ -53,6 +53,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -75,6 +77,7 @@ public class Glacier implements OfflineStoreSupport {
     public static final String ACTION_ARCHIVE_RETRIEVAL = "ArchiveRetrieval";
     public static final String ACTION_INVENTORY_RETRIEVAL = "InventoryRetrieval";
     public static final String HEADER_JOB_ID = "x-amz-job-id";
+    public static final String MARKER = "Marker";
 
     private AWSCloud provider = null;
 
@@ -300,21 +303,49 @@ public class Glacier implements OfflineStoreSupport {
 
     private void loadVaults(@Nonnull String regionId, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
 
-        GlacierMethod method = GlacierMethod.build(provider, GlacierAction.LIST_VAULTS).toMethod();
-        String baseUrl = method.getUrl();
-        JSONObject jsonObject;
-        jsonObject = method.invokeJson();
+        boolean needQuery = true;
+        String marker = null;
+        Map<String, String> queryParameters = new HashMap<String, String>(1);
 
-        JSONArray vaultList;
-        try {
-            vaultList = jsonObject.getJSONArray("VaultList");
+        // glacier can paginate results. it returns a "marker" string in the JSON response
+        // which indicates you should make another query. The marker string should be passed
+        // as a query parameter in the next query.
 
-            for (int i=0; i<vaultList.length(); i++) {
-                iterator.push(loadVaultJson(vaultList.getJSONObject(i), regionId, baseUrl));
+        while (needQuery) {
+            if (marker != null) {
+                queryParameters.put("marker", marker);
             }
-        } catch (JSONException e) {
-            throw new CloudException(e);
+
+            GlacierMethod method = GlacierMethod.build(provider, GlacierAction.LIST_VAULTS)
+                    .queryParameters(queryParameters).toMethod();
+            String baseUrl = method.getUrl();
+            JSONObject jsonObject = method.invokeJson();
+
+            try {
+                JSONArray vaultList = jsonObject.getJSONArray("VaultList");
+
+                for (int i=0; i<vaultList.length(); i++) {
+                    iterator.push(loadVaultJson(vaultList.getJSONObject(i), regionId, baseUrl));
+                }
+
+                marker = getPaginationMarker(jsonObject);
+                if (marker == null) {
+                    needQuery = false;
+                }
+            } catch (JSONException e) {
+                throw new CloudException(e);
+            }
         }
+    }
+
+    private String getPaginationMarker(JSONObject jsonObject) throws JSONException {
+        if (jsonObject.has(MARKER) && !jsonObject.isNull(MARKER)) {
+            final String marker = jsonObject.getString(MARKER);
+            if (marker.length() > 0) {
+                return marker;
+            }
+        }
+        return null;
     }
 
     private Blob loadVaultJson(JSONObject jsonObject, String regionId, String baseUrl) throws JSONException {
@@ -338,7 +369,15 @@ public class Glacier implements OfflineStoreSupport {
             return -1;
         }
         long creationTs;
-        SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'");
+        SimpleDateFormat fmt;
+
+        // some response dates have MS component, some do not.
+        if (timestamp.contains(".")) {
+            fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+        }
+        else {
+            fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        }
         Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
         fmt.setCalendar(cal);
         try {
@@ -462,8 +501,8 @@ public class Glacier implements OfflineStoreSupport {
                 throw new CloudException("No region was set for this request");
             }
 
-            GlacierMethod method = GlacierMethod.build(provider, GlacierAction.DELETE_VAULT)
-                    .vaultId(bucket).toMethod();
+            GlacierMethod method = GlacierMethod.build(provider, GlacierAction.DELETE_ARCHIVE)
+                    .vaultId(bucket).archiveId(name).toMethod();
             method.invoke();
         }
         finally {
@@ -541,19 +580,37 @@ public class Glacier implements OfflineStoreSupport {
         APITrace.begin(provider, "Blob.listRequests");
         try {
 
-            final GlacierMethod method = GlacierMethod.build(provider, GlacierAction.LIST_JOBS)
-                    .vaultId(bucket).toMethod();
+            boolean needQuery = true;
+            String marker = null;
+            Map<String, String> queryParameters = new HashMap<String, String>(1);
 
-            final JSONObject jsonObject = method.invokeJson();
-            JSONArray vaultList;
-            try {
-                vaultList = jsonObject.getJSONArray("JobList");
+            // glacier can paginate results. it returns a "marker" string in the JSON response
+            // which indicates you should make another query. The marker string should be passed
+            // as a query parameter in the next query.
 
-                for (int i=0; i<vaultList.length(); i++) {
-                    iterator.push(loadRequestJson(vaultList.getJSONObject(i), bucket));
+            while (needQuery) {
+                if (marker != null) {
+                    queryParameters.put("marker", marker);
                 }
-            } catch (JSONException e) {
-                throw new CloudException(e);
+
+                GlacierMethod method = GlacierMethod.build(provider, GlacierAction.LIST_JOBS)
+                        .vaultId(bucket).queryParameters(queryParameters).toMethod();
+                final JSONObject jsonObject = method.invokeJson();
+
+                try {
+                    JSONArray vaultList = jsonObject.getJSONArray("JobList");
+
+                    for (int i=0; i<vaultList.length(); i++) {
+                        iterator.push(loadRequestJson(vaultList.getJSONObject(i), bucket));
+                    }
+
+                    marker = getPaginationMarker(jsonObject);
+                    if (marker == null) {
+                        needQuery = false;
+                    }
+                } catch (JSONException e) {
+                    throw new CloudException(e);
+                }
             }
         }
         finally {
@@ -601,7 +658,7 @@ public class Glacier implements OfflineStoreSupport {
         }
 
         long creationTs = parseTimestamp(jsonObject.getString("CreationDate"));
-        long completionTs = parseTimestamp(jsonObject.getString("CompletionDate"));
+        long completionTs = jsonObject.isNull("CompletionDate") ? -1L : parseTimestamp(jsonObject.getString("CompletionDate"));
 
         Storage<Byte> storage = bytes != -1 ? new Storage<Byte>(bytes, Storage.BYTE) : null;
         OfflineStoreRequestStatus requestStatus = parseRequestStatus(statusCode);
