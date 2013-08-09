@@ -1061,7 +1061,7 @@ public class AutoScaling implements AutoScalingSupport {
                 group.setProviderLaunchConfigurationId(attr.getFirstChild().getNodeValue());
             }
             else if( name.equalsIgnoreCase("AutoScalingGroupARN") ) {
-              group.setAutoScalingGroupARN(attr.getFirstChild().getNodeValue());
+              group.setId(attr.getFirstChild().getNodeValue());
             }
             else if( name.equalsIgnoreCase("HealthCheckGracePeriod") ) {
               group.setHealthCheckGracePeriod(Integer.parseInt(attr.getFirstChild().getNodeValue()));
