@@ -1335,7 +1335,7 @@ public class AutoScaling implements AutoScalingSupport {
         }
         else if( name.equalsIgnoreCase("PolicyARN") ) {
           if(attr.getFirstChild() != null){
-            sp.setPolicyARN(attr.getFirstChild().getNodeValue());
+            sp.setId(attr.getFirstChild().getNodeValue());
           }
         }
         else if( name.equalsIgnoreCase("PolicyName") ) {
