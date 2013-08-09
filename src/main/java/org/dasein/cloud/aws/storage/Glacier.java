@@ -361,6 +361,17 @@ public class Glacier implements OfflineStoreSupport {
 
         long creationTs = parseTimestamp(creationDate);
 
+        if (jsonObject.has("SizeInBytes") && !jsonObject.isNull("SizeInBytes")) {
+            Storage<Byte> storage = new Storage<Byte>(jsonObject.getLong("SizeInBytes"), Storage.BYTE);
+
+            // somewhat dangerous: we want to specify a size for the vault, but currently
+            // dasein-core only allows this specified on the Blob.getInstance() intended for
+            // objects. It has a @Nonnull decorator for objectName, but we pass a null value
+            // here. Currently in the implementation it does not matter.
+
+            //noinspection ConstantConditions
+            return Blob.getInstance(regionId, url, vaultName, null, creationTs, storage);
+        }
         return Blob.getInstance(regionId, url, vaultName, creationTs);
     }
 
