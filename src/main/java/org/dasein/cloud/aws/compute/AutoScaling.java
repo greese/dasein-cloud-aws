@@ -938,7 +938,7 @@ public class AutoScaling implements AutoScalingSupport {
             }
             else if( name.equalsIgnoreCase("LaunchConfigurationARN") ) {
               if(attr.getFirstChild() != null){
-                cfg.setProviderARN(attr.getFirstChild().getNodeValue());
+                cfg.setId(attr.getFirstChild().getNodeValue());
               }
             }
             else if( name.equalsIgnoreCase("UserData") ) {
