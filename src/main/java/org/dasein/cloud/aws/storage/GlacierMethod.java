@@ -57,7 +57,7 @@ import java.util.Properties;
  * @author George Reese
  */
 public class GlacierMethod {
-    static private final Logger logger = Logger.getLogger(S3Method.class);
+    static private final Logger logger = Logger.getLogger(GlacierMethod.class);
 
     static public final String GLACIER_PREFIX    = "glacier:";
     static public final String SERVICE_ID        = "glacier";
@@ -216,8 +216,7 @@ public class GlacierMethod {
             try {
                 httpResponse = client.execute(method);
             } catch (IOException e) {
-                logger.error(url + ": " + e.getMessage());
-                throw new InternalException(e);
+                throw new CloudException(e);
             }
             if( wire.isDebugEnabled() ) {
                 wire.debug(httpResponse.getStatusLine().toString());
