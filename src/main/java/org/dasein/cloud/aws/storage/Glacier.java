@@ -249,7 +249,7 @@ public class Glacier implements OfflineStoreSupport {
                 GlacierMethod method = GlacierMethod.build(provider, GlacierAction.LIST_VAULTS).toMethod();
                 method.invoke();
                 return true;
-            } catch (GlacierException e) {
+            } catch (CloudException e) {
                 return false;
             }
         }
