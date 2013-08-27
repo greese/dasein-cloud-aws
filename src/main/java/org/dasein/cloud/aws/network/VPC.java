@@ -2787,7 +2787,7 @@ public class VPC extends AbstractVLANSupport {
 
         if (child.getNodeName().equalsIgnoreCase("internetGatewayId") && child.hasChildNodes()) {
 
-          ig.setGatewayId(child.getFirstChild().getNodeValue().trim());
+          ig.setProviderInternetGatewayId(child.getFirstChild().getNodeValue().trim());
 
         } else if (child.getNodeName().equalsIgnoreCase("attachmentSet") && child.hasChildNodes()) {
           NodeList attachmentChildren = child.getChildNodes();
@@ -2831,7 +2831,7 @@ public class VPC extends AbstractVLANSupport {
         }
       }
     }
-    if (ig.getGatewayId() == null) {
+    if (ig.getProviderInternetGatewayId() == null) {
       return null;
     }
     return ig;
