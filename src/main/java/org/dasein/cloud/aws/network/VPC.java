@@ -2005,8 +2005,13 @@ public class VPC extends AbstractVLANSupport {
       try {
         doc = method.invoke();
       } catch (EC2Exception e) {
+        if (e.getCode() != null && e.getCode().startsWith("InvalidInternetGatewayID")) {
+          return null;
+        }
         logger.error(e.getSummary());
-        e.printStackTrace();
+        if (logger.isDebugEnabled()) {
+          e.printStackTrace();
+        }
         throw new CloudException(e);
       }
       blocks = doc.getElementsByTagName("internetGatewaySet");
