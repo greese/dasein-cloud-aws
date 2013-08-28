@@ -1987,7 +1987,7 @@ public class VPC extends AbstractVLANSupport {
 
   @Override
   public @Nullable InternetGateway getInternetGatewayById(@Nonnull String gatewayId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.getInternetGatewayId");
+    APITrace.begin(provider, "VLAN.getInternetGatewayById");
     try {
       ProviderContext ctx = provider.getContext();
 
