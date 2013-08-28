@@ -1276,7 +1276,7 @@ public class VPC extends AbstractVLANSupport {
 
   @Override
   public boolean isConnectedViaInternetGateway(@Nonnull String vlanId) throws CloudException, InternalException {
-    return (getInternetGatewayId(vlanId) != null);
+    return (getAttachedInternetGatewayId(vlanId) != null);
   }
 
   @Override
@@ -1933,8 +1933,8 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public @Nullable String getInternetGatewayId(@Nonnull String forVlanId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.getInternetGatewayId");
+  public @Nullable String getAttachedInternetGatewayId(@Nonnull String forVlanId) throws CloudException, InternalException {
+    APITrace.begin(provider, "VLAN.getAttachedInternetGatewayId");
     try {
       ProviderContext ctx = provider.getContext();
 
@@ -2073,7 +2073,7 @@ public class VPC extends AbstractVLANSupport {
     APITrace.begin(provider, "VLAN.removeInternetGateway");
     try {
       Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DETACH_INTERNET_GATEWAY);
-      String gatewayId = getInternetGatewayId(forVlanId);
+      String gatewayId = getAttachedInternetGatewayId(forVlanId);
 
       if (gatewayId == null) {
         return; // NO-OP
