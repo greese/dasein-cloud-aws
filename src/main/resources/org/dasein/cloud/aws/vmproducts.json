@@ -13,7 +13,7 @@
                 "ramSizeInMb":613
             },
             {
-                "architectures":["I32"],
+                "architectures":["I32","I64"],
                 "id":"m1.small",
                 "name":"Small Instance (m1.small)",
                 "description":"Small Instance (m1.small)",
