@@ -1798,53 +1798,6 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public @Nonnull Iterable<Subnet> listAllSubnets(@Nullable String providerVlanId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.listAllSubnets");
-
-    if (providerVlanId != null) {
-      return listSubnets(providerVlanId);
-    }
-
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_SUBNETS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("item");
-
-      ArrayList<Subnet> list = new ArrayList<Subnet>();
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        Subnet subnet = toSubnet(ctx, item);
-
-        if (subnet != null) {
-          list.add(subnet);
-        }
-      }
-      return list;
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
   public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
     return Collections.singletonList(IPVersion.IPV4);
   }
