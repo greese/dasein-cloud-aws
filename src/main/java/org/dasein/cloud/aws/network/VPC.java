@@ -1754,7 +1754,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public @Nonnull Iterable<Subnet> listSubnets(@Nonnull String providerVlanId) throws CloudException, InternalException {
+  public @Nonnull Iterable<Subnet> listSubnets(@Nullable String providerVlanId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listSubnets");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1767,8 +1767,10 @@ public class VPC extends AbstractVLANSupport {
       NodeList blocks;
       Document doc;
 
-      parameters.put("Filter.1.Name", "vpc-id");
-      parameters.put("Filter.1.Value.1", providerVlanId);
+      if( providerVlanId != null && !providerVlanId.equals("") ) {
+        parameters.put("Filter.1.Name", "vpc-id");
+        parameters.put("Filter.1.Value.1", providerVlanId);
+      }
       method = new EC2Method(provider, provider.getEc2Url(), parameters);
       try {
         doc = method.invoke();
