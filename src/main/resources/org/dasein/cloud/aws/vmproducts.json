@@ -156,7 +156,7 @@
                 "rootVolumeSizeInGb":49152,
                 "ramSizeInMb":119808
             },
-	    {
+	        {
                 "architectures":["I64"],
                 "id":"cc1.4xlarge",
                 "name":"Cluster Compute Quadruple Extra Large (cc1.4xlarge)",
