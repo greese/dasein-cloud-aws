@@ -115,9 +115,7 @@ public class VPC extends AbstractVLANSupport {
     }
   }
 
-  private
-  @Nonnull
-  String getRoutingTableAssociationIdForSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
+  private @Nonnull String getRoutingTableAssociationIdForSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.getRoutingTableAssociationIdForSubnet");
     try {
       ProviderContext ctx = provider.getContext();
@@ -171,9 +169,7 @@ public class VPC extends AbstractVLANSupport {
     }
   }
 
-  private
-  @Nonnull
-  String getMainRoutingTableAssociationIdForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
+  private @Nonnull String getMainRoutingTableAssociationIdForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.getMainRoutingTableAssociationIdForVlan");
     try {
       ProviderContext ctx = provider.getContext();
@@ -346,9 +342,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  String createRoutingTable(@Nonnull String forVlanId, @Nonnull String name, @Nonnull String description) throws CloudException, InternalException {
+  public @Nonnull String createRoutingTable(@Nonnull String forVlanId, @Nonnull String name, @Nonnull String description) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.createRoutingTable");
     try {
       ProviderContext ctx = provider.getContext();
@@ -403,9 +397,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  NetworkInterface createNetworkInterface(@Nonnull NICCreateOptions options) throws CloudException, InternalException {
+  public @Nonnull NetworkInterface createNetworkInterface(@Nonnull NICCreateOptions options) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.createNetworkInterface");
     try {
       ProviderContext ctx = provider.getContext();
@@ -734,9 +726,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Subnet createSubnet(@Nonnull SubnetCreateOptions options) throws CloudException, InternalException {
+  public @Nonnull Subnet createSubnet(@Nonnull SubnetCreateOptions options) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.createSubnet");
     try {
       ProviderContext ctx = provider.getContext();
@@ -802,17 +792,13 @@ public class VPC extends AbstractVLANSupport {
 
   @Override
   @Deprecated
-  public
-  @Nonnull
-  VLAN createVlan(@Nonnull String cidr, @Nonnull String name, @Nonnull String description, @Nullable String domainName, @Nonnull String[] dnsServers, @Nonnull String[] ntpServers) throws CloudException, InternalException {
+  public @Nonnull VLAN createVlan(@Nonnull String cidr, @Nonnull String name, @Nonnull String description, @Nullable String domainName, @Nonnull String[] dnsServers, @Nonnull String[] ntpServers) throws CloudException, InternalException {
     VlanCreateOptions vco = VlanCreateOptions.getInstance(name, description, cidr, domainName, dnsServers, ntpServers);
     return createVlan(vco);
   }
 
   @Override
-  public
-  @Nonnull
-  VLAN createVlan(final @Nonnull VlanCreateOptions options) throws CloudException, InternalException {
+  public @Nonnull VLAN createVlan(final @Nonnull VlanCreateOptions options) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.createVLAN");
     try {
       ProviderContext ctx = provider.getContext();
@@ -877,9 +863,7 @@ public class VPC extends AbstractVLANSupport {
     public String virtualMachineId;
   }
 
-  private
-  @Nonnull
-  Collection<Attachment> getAttachments(@Nonnull String nicId) throws CloudException, InternalException {
+  private @Nonnull Collection<Attachment> getAttachments(@Nonnull String nicId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.getAttachments");
     try {
       ProviderContext ctx = provider.getContext();
@@ -976,23 +960,17 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  String getProviderTermForNetworkInterface(@Nonnull Locale locale) {
+  public @Nonnull String getProviderTermForNetworkInterface(@Nonnull Locale locale) {
     return "network interface";
   }
 
   @Override
-  public
-  @Nonnull
-  String getProviderTermForSubnet(@Nonnull Locale locale) {
+  public @Nonnull String getProviderTermForSubnet(@Nonnull Locale locale) {
     return "subnet";
   }
 
   @Override
-  public
-  @Nonnull
-  String getProviderTermForVlan(@Nonnull Locale locale) {
+  public @Nonnull String getProviderTermForVlan(@Nonnull Locale locale) {
     return "VPC";
   }
 
@@ -1089,9 +1067,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Requirement getRoutingTableSupport() throws CloudException, InternalException {
+  public @Nonnull Requirement getRoutingTableSupport() throws CloudException, InternalException {
     return Requirement.REQUIRED;
   }
 
@@ -1169,9 +1145,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nullable
-  Subnet getSubnet(@Nonnull String providerSubnetId) throws CloudException, InternalException {
+  public @Nullable Subnet getSubnet(@Nonnull String providerSubnetId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.getSubnet");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1215,16 +1189,12 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Requirement getSubnetSupport() throws CloudException, InternalException {
+  public @Nonnull Requirement getSubnetSupport() throws CloudException, InternalException {
     return Requirement.REQUIRED;
   }
 
   @Override
-  public
-  @Nullable
-  VLAN getVlan(@Nonnull String providerVlanId) throws CloudException, InternalException {
+  public @Nullable VLAN getVlan(@Nonnull String providerVlanId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.getVlan");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1268,9 +1238,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Requirement identifySubnetDCRequirement() {
+  public @Nonnull Requirement identifySubnetDCRequirement() {
     return Requirement.OPTIONAL;
   }
 
@@ -1321,9 +1289,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Collection<String> listFirewallIdsForNIC(@Nonnull String nicId) throws CloudException, InternalException {
+  public @Nonnull Collection<String> listFirewallIdsForNIC(@Nonnull String nicId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listFirewallIdsForNIC");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1395,9 +1361,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Iterable<ResourceStatus> listNetworkInterfaceStatus() throws CloudException, InternalException {
+  public @Nonnull Iterable<ResourceStatus> listNetworkInterfaceStatus() throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listNetworkInterfaceStatus");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1435,9 +1399,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Iterable<NetworkInterface> listNetworkInterfaces() throws CloudException, InternalException {
+  public @Nonnull Iterable<NetworkInterface> listNetworkInterfaces() throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listNetworkInterfaces");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1476,9 +1438,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Iterable<NetworkInterface> listNetworkInterfacesForVM(@Nonnull String forVmId) throws CloudException, InternalException {
+  public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesForVM(@Nonnull String forVmId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listNetworkInterfacesForVM");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1519,9 +1479,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Iterable<NetworkInterface> listNetworkInterfacesInSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
+  public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesInSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listNetworkInterfacesInSubnet");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1562,9 +1520,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Iterable<NetworkInterface> listNetworkInterfacesInVLAN(@Nonnull String vlanId) throws CloudException, InternalException {
+  public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesInVLAN(@Nonnull String vlanId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listNetworkInterfacesInVLAN");
     try {
       ProviderContext ctx = provider.getContext();
