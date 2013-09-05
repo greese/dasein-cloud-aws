@@ -576,6 +576,11 @@ public class VPC extends AbstractVLANSupport {
     return true;
   }
 
+  @Override
+  public boolean allowsNewRoutingTableCreation() throws CloudException, InternalException {
+    return true;
+  }
+
   private void assignDHCPOptions(VLAN vlan, String domainName, String[] dnsServers, String[] ntpServers) throws CloudException, InternalException {
     boolean differs = false;
 
