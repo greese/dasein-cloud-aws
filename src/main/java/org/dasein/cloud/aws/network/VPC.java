@@ -115,9 +115,7 @@ public class VPC extends AbstractVLANSupport {
     }
   }
 
-  private
-  @Nonnull
-  String getRoutingTableAssociationIdForSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
+  private @Nonnull String getRoutingTableAssociationIdForSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.getRoutingTableAssociationIdForSubnet");
     try {
       ProviderContext ctx = provider.getContext();
@@ -171,9 +169,7 @@ public class VPC extends AbstractVLANSupport {
     }
   }
 
-  private
-  @Nonnull
-  String getMainRoutingTableAssociationIdForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
+  private @Nonnull String getMainRoutingTableAssociationIdForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.getMainRoutingTableAssociationIdForVlan");
     try {
       ProviderContext ctx = provider.getContext();
@@ -290,7 +286,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public String createInternetGateway(@Nonnull String forVlanId) throws CloudException, InternalException {
+  public String createInternetGateway(@Nonnull String vlanId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.createInternetGateway");
     try {
       ProviderContext ctx = provider.getContext();
@@ -327,7 +323,7 @@ public class VPC extends AbstractVLANSupport {
         throw new CloudException("No internet gateway was created, but no error was reported");
       }
       parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ATTACH_INTERNET_GATEWAY);
-      parameters.put("VpcId", forVlanId);
+      parameters.put("VpcId", vlanId);
       parameters.put("InternetGatewayId", gatewayId);
       method = new EC2Method(provider, provider.getEc2Url(), parameters);
       try {
@@ -346,9 +342,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  String createRoutingTable(@Nonnull String forVlanId, @Nonnull String name, @Nonnull String description) throws CloudException, InternalException {
+  public @Nonnull String createRoutingTable(@Nonnull String vlanId, @Nonnull String name, @Nonnull String description) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.createRoutingTable");
     try {
       ProviderContext ctx = provider.getContext();
@@ -361,7 +355,7 @@ public class VPC extends AbstractVLANSupport {
       NodeList blocks;
       Document doc;
 
-      parameters.put("VpcId", forVlanId);
+      parameters.put("VpcId", vlanId);
       method = new EC2Method(provider, provider.getEc2Url(), parameters);
       try {
         doc = method.invoke();
@@ -403,9 +397,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  NetworkInterface createNetworkInterface(@Nonnull NICCreateOptions options) throws CloudException, InternalException {
+  public @Nonnull NetworkInterface createNetworkInterface(@Nonnull NICCreateOptions options) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.createNetworkInterface");
     try {
       ProviderContext ctx = provider.getContext();
@@ -467,12 +459,12 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public Route addRouteToAddress(@Nonnull String toRoutingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String address) throws CloudException, InternalException {
+  public Route addRouteToAddress(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String address) throws CloudException, InternalException {
     throw new OperationNotSupportedException("You cannot route to a raw IP address in " + provider.getCloudName() + ".");
   }
 
   @Override
-  public Route addRouteToGateway(@Nonnull String toRoutingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String gatewayId) throws CloudException, InternalException {
+  public Route addRouteToGateway(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String gatewayId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.addRouteToGateway");
     try {
       if (!version.equals(IPVersion.IPV4)) {
@@ -487,7 +479,7 @@ public class VPC extends AbstractVLANSupport {
       EC2Method method;
 
       parameters.put("GatewayId", gatewayId);
-      parameters.put("RouteTableId", toRoutingTableId);
+      parameters.put("RouteTableId", routingTableId);
       parameters.put("DestinationCidrBlock", destinationCidr);
       method = new EC2Method(provider, provider.getEc2Url(), parameters);
       try {
@@ -506,7 +498,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public Route addRouteToNetworkInterface(@Nonnull String toRoutingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String nicId) throws CloudException, InternalException {
+  public Route addRouteToNetworkInterface(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String nicId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.addRouteToNetworkInterface");
     try {
       if (!version.equals(IPVersion.IPV4)) {
@@ -521,7 +513,7 @@ public class VPC extends AbstractVLANSupport {
       EC2Method method;
 
       parameters.put("NetworkInterfaceId", nicId);
-      parameters.put("RouteTableId", toRoutingTableId);
+      parameters.put("RouteTableId", routingTableId);
       parameters.put("DestinationCidrBlock", destinationCidr);
       method = new EC2Method(provider, provider.getEc2Url(), parameters);
       try {
@@ -540,7 +532,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public Route addRouteToVirtualMachine(@Nonnull String toRoutingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String vmId) throws CloudException, InternalException {
+  public Route addRouteToVirtualMachine(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String vmId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.addRouteToVirtualMachine");
     try {
       if (!version.equals(IPVersion.IPV4)) {
@@ -555,7 +547,7 @@ public class VPC extends AbstractVLANSupport {
       EC2Method method;
 
       parameters.put("InstanceId", vmId);
-      parameters.put("RouteTableId", toRoutingTableId);
+      parameters.put("RouteTableId", routingTableId);
       parameters.put("DestinationCidrBlock", destinationCidr);
       method = new EC2Method(provider, provider.getEc2Url(), parameters);
       try {
@@ -581,6 +573,11 @@ public class VPC extends AbstractVLANSupport {
 
   @Override
   public boolean allowsNewVlanCreation() throws CloudException, InternalException {
+    return true;
+  }
+
+  @Override
+  public boolean allowsNewRoutingTableCreation() throws CloudException, InternalException {
     return true;
   }
 
@@ -734,9 +731,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Subnet createSubnet(@Nonnull SubnetCreateOptions options) throws CloudException, InternalException {
+  public @Nonnull Subnet createSubnet(@Nonnull SubnetCreateOptions options) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.createSubnet");
     try {
       ProviderContext ctx = provider.getContext();
@@ -802,17 +797,13 @@ public class VPC extends AbstractVLANSupport {
 
   @Override
   @Deprecated
-  public
-  @Nonnull
-  VLAN createVlan(@Nonnull String cidr, @Nonnull String name, @Nonnull String description, @Nullable String domainName, @Nonnull String[] dnsServers, @Nonnull String[] ntpServers) throws CloudException, InternalException {
+  public @Nonnull VLAN createVlan(@Nonnull String cidr, @Nonnull String name, @Nonnull String description, @Nullable String domainName, @Nonnull String[] dnsServers, @Nonnull String[] ntpServers) throws CloudException, InternalException {
     VlanCreateOptions vco = VlanCreateOptions.getInstance(name, description, cidr, domainName, dnsServers, ntpServers);
     return createVlan(vco);
   }
 
   @Override
-  public
-  @Nonnull
-  VLAN createVlan(final @Nonnull VlanCreateOptions options) throws CloudException, InternalException {
+  public @Nonnull VLAN createVlan(final @Nonnull VlanCreateOptions options) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.createVLAN");
     try {
       ProviderContext ctx = provider.getContext();
@@ -877,9 +868,7 @@ public class VPC extends AbstractVLANSupport {
     public String virtualMachineId;
   }
 
-  private
-  @Nonnull
-  Collection<Attachment> getAttachments(@Nonnull String nicId) throws CloudException, InternalException {
+  private @Nonnull Collection<Attachment> getAttachments(@Nonnull String nicId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.getAttachments");
     try {
       ProviderContext ctx = provider.getContext();
@@ -976,23 +965,17 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  String getProviderTermForNetworkInterface(@Nonnull Locale locale) {
+  public @Nonnull String getProviderTermForNetworkInterface(@Nonnull Locale locale) {
     return "network interface";
   }
 
   @Override
-  public
-  @Nonnull
-  String getProviderTermForSubnet(@Nonnull Locale locale) {
+  public @Nonnull String getProviderTermForSubnet(@Nonnull Locale locale) {
     return "subnet";
   }
 
   @Override
-  public
-  @Nonnull
-  String getProviderTermForVlan(@Nonnull Locale locale) {
+  public @Nonnull String getProviderTermForVlan(@Nonnull Locale locale) {
     return "VPC";
   }
 
@@ -1089,9 +1072,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Requirement getRoutingTableSupport() throws CloudException, InternalException {
+  public @Nonnull Requirement getRoutingTableSupport() throws CloudException, InternalException {
     return Requirement.REQUIRED;
   }
 
@@ -1169,9 +1150,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nullable
-  Subnet getSubnet(@Nonnull String providerSubnetId) throws CloudException, InternalException {
+  public @Nullable Subnet getSubnet(@Nonnull String providerSubnetId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.getSubnet");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1215,16 +1194,12 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Requirement getSubnetSupport() throws CloudException, InternalException {
+  public @Nonnull Requirement getSubnetSupport() throws CloudException, InternalException {
     return Requirement.REQUIRED;
   }
 
   @Override
-  public
-  @Nullable
-  VLAN getVlan(@Nonnull String providerVlanId) throws CloudException, InternalException {
+  public @Nullable VLAN getVlan(@Nonnull String providerVlanId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.getVlan");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1268,9 +1243,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Requirement identifySubnetDCRequirement() {
+  public @Nonnull Requirement identifySubnetDCRequirement() {
     return Requirement.OPTIONAL;
   }
 
@@ -1321,9 +1294,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Collection<String> listFirewallIdsForNIC(@Nonnull String nicId) throws CloudException, InternalException {
+  public @Nonnull Collection<String> listFirewallIdsForNIC(@Nonnull String nicId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listFirewallIdsForNIC");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1395,9 +1366,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Iterable<ResourceStatus> listNetworkInterfaceStatus() throws CloudException, InternalException {
+  public @Nonnull Iterable<ResourceStatus> listNetworkInterfaceStatus() throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listNetworkInterfaceStatus");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1435,9 +1404,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Iterable<NetworkInterface> listNetworkInterfaces() throws CloudException, InternalException {
+  public @Nonnull Iterable<NetworkInterface> listNetworkInterfaces() throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listNetworkInterfaces");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1476,9 +1443,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Iterable<NetworkInterface> listNetworkInterfacesForVM(@Nonnull String forVmId) throws CloudException, InternalException {
+  public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesForVM(@Nonnull String forVmId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listNetworkInterfacesForVM");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1519,9 +1484,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Iterable<NetworkInterface> listNetworkInterfacesInSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
+  public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesInSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listNetworkInterfacesInSubnet");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1562,9 +1525,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public
-  @Nonnull
-  Iterable<NetworkInterface> listNetworkInterfacesInVLAN(@Nonnull String vlanId) throws CloudException, InternalException {
+  public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesInVLAN(@Nonnull String vlanId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listNetworkInterfacesInVLAN");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1607,7 +1568,7 @@ public class VPC extends AbstractVLANSupport {
   @Override
   public
   @Nonnull
-  Iterable<Networkable> listResources(final @Nonnull String inVlanId) throws CloudException, InternalException {
+  Iterable<Networkable> listResources(final @Nonnull String vlanId) throws CloudException, InternalException {
     getProvider().hold();
     PopulatorThread<Networkable> populator = new PopulatorThread<Networkable>(new JiteratorPopulator<Networkable>() {
       @Override
@@ -1622,7 +1583,7 @@ public class VPC extends AbstractVLANSupport {
 
               if (fwSupport != null) {
                 for (Firewall fw : fwSupport.list()) {
-                  if (inVlanId.equals(fw.getProviderVlanId())) {
+                  if (vlanId.equals(fw.getProviderVlanId())) {
                     iterator.push(fw);
                   }
                 }
@@ -1633,14 +1594,14 @@ public class VPC extends AbstractVLANSupport {
               if (ipSupport != null) {
                 for (IPVersion version : ipSupport.listSupportedIPVersions()) {
                   for (IpAddress addr : ipSupport.listIpPool(version, false)) {
-                    if (inVlanId.equals(addr.getProviderVlanId())) {
+                    if (vlanId.equals(addr.getProviderVlanId())) {
                       iterator.push(addr);
                     }
                   }
 
                 }
               }
-              for (RoutingTable table : listRoutingTables(inVlanId)) {
+              for (RoutingTable table : listRoutingTables(vlanId)) {
                 iterator.push(table);
               }
               ComputeServices compute = provider.getComputeServices();
@@ -1652,7 +1613,7 @@ public class VPC extends AbstractVLANSupport {
               } else {
                 vms = vmSupport.listVirtualMachines();
               }
-              for (Subnet subnet : listSubnets(inVlanId)) {
+              for (Subnet subnet : listSubnets(vlanId)) {
                 iterator.push(subnet);
                 for (VirtualMachine vm : vms) {
                   if (subnet.getProviderSubnetId().equals(vm.getProviderVlanId())) {
@@ -1689,8 +1650,8 @@ public class VPC extends AbstractVLANSupport {
 
   @Override
   @Deprecated
-  public @Nonnull Iterable<RoutingTable> listRoutingTables(@Nonnull String inVlanId) throws CloudException, InternalException {
-    return listRoutingTablesForVlan(inVlanId);
+  public @Nonnull Iterable<RoutingTable> listRoutingTables(@Nonnull String vlanId) throws CloudException, InternalException {
+    return listRoutingTablesForVlan(vlanId);
   }
 
   @Override
@@ -1888,7 +1849,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public @Nullable String getAttachedInternetGatewayId(@Nonnull String forVlanId) throws CloudException, InternalException {
+  public @Nullable String getAttachedInternetGatewayId(@Nonnull String vlanId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.getAttachedInternetGatewayId");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1902,7 +1863,7 @@ public class VPC extends AbstractVLANSupport {
       Document doc;
 
       parameters.put("Filter.1.Name", "attachment.vpc-id");
-      parameters.put("Filter.1.Value.1", forVlanId);
+      parameters.put("Filter.1.Value.1", vlanId);
 
       method = new EC2Method(provider, provider.getEc2Url(), parameters);
       try {
@@ -1980,7 +1941,7 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public @Nonnull Collection<InternetGateway> listInternetGateways(@Nullable String forVlanId) throws CloudException, InternalException {
+  public @Nonnull Collection<InternetGateway> listInternetGateways(@Nullable String vlanId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.listInternetGateways");
     try {
       ProviderContext ctx = provider.getContext();
@@ -1993,9 +1954,9 @@ public class VPC extends AbstractVLANSupport {
       NodeList blocks;
       Document doc;
 
-      if (forVlanId != null) {
+      if (vlanId != null) {
         parameters.put("Filter.1.Name", "attachment.vpc-id");
-        parameters.put("Filter.1.Value.1", forVlanId);
+        parameters.put("Filter.1.Value.1", vlanId);
       }
 
       method = new EC2Method(provider, provider.getEc2Url(), parameters);
@@ -2029,11 +1990,11 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public void removeInternetGateway(@Nonnull String forVlanId) throws CloudException, InternalException {
+  public void removeInternetGateway(@Nonnull String vlanId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.removeInternetGateway");
     try {
       Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DETACH_INTERNET_GATEWAY);
-      String gatewayId = getAttachedInternetGatewayId(forVlanId);
+      String gatewayId = getAttachedInternetGatewayId(vlanId);
 
       if (gatewayId == null) {
         return; // NO-OP
@@ -2041,7 +2002,7 @@ public class VPC extends AbstractVLANSupport {
       EC2Method method;
 
       parameters.put("InternetGatewayId", gatewayId);
-      parameters.put("VpcId", forVlanId);
+      parameters.put("VpcId", vlanId);
       method = new EC2Method(provider, provider.getEc2Url(), parameters);
       try {
         method.invoke();
