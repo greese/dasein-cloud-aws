@@ -57,7 +57,7 @@ import java.util.Properties;
  * @author George Reese
  */
 public class GlacierMethod {
-    static private final Logger logger = Logger.getLogger(S3Method.class);
+    static private final Logger logger = Logger.getLogger(GlacierMethod.class);
 
     static public final String GLACIER_PREFIX    = "glacier:";
     static public final String SERVICE_ID        = "glacier";
@@ -65,6 +65,7 @@ public class GlacierMethod {
 
     private GlacierAction action           = null;
     private Map<String,String> headers     = null;
+    private Map<String,String> queryParameters = null;
     private AWSCloud provider              = null;
     private String vaultId                 = null;
     private String archiveId               = null;
@@ -79,6 +80,7 @@ public class GlacierMethod {
         this.archiveId = builder.archiveId;
         this.jobId = builder.jobId;
         this.headers = builder.headers == null ? new HashMap<String,String>() : builder.headers;
+        this.queryParameters = builder.queryParameters == null ? new HashMap<String, String>() : builder.queryParameters;
         this.bodyText = builder.bodyText;
         this.bodyFile = builder.bodyFile;
     }
@@ -158,7 +160,7 @@ public class GlacierMethod {
             wire.debug("----------------------------------------------------------------------------------");
         }
         try {
-            final String url = getUrl();
+            final String url = getUrlWithParameters();
             final String host;
             try {
                 host = new URI(url).getHost();
@@ -214,8 +216,7 @@ public class GlacierMethod {
             try {
                 httpResponse = client.execute(method);
             } catch (IOException e) {
-                logger.error(url + ": " + e.getMessage());
-                throw new InternalException(e);
+                throw new CloudException(e);
             }
             if( wire.isDebugEnabled() ) {
                 wire.debug(httpResponse.getStatusLine().toString());
@@ -278,6 +279,36 @@ public class GlacierMethod {
         } else {
             throw new OperationNotSupportedException("glacier file handling not implemented");
         }
+    }
+
+    private String getUrlWithParameters() throws InternalException, CloudException {
+        if (queryParameters == null || queryParameters.size() == 0) {
+            return getUrl();
+        }
+
+        final StringBuilder sb = new StringBuilder();
+        sb.append(getUrl()).append("?");
+        boolean first = true;
+        for (Map.Entry<String, String> entry : queryParameters.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            if (key == null || value == null) {
+                throw new InternalException("Invalid query parameter: " + key);
+            }
+            key = AWSCloud.encode(key.trim(), false);
+            value = AWSCloud.encode(value.trim(), false);
+            if (key.length() == 0) {
+                throw new InternalException("Empty query parameter key");
+            }
+
+            if (!first) {
+                sb.append("&");
+            } else {
+                first = false;
+            }
+            sb.append(key).append("=").append(value);
+        }
+        return sb.toString();
     }
 
     public String getUrl() throws InternalException, CloudException {
@@ -366,6 +397,7 @@ public class GlacierMethod {
         private String archiveId;
         private String jobId;
         public Map<String, String> headers;
+        public Map<String, String> queryParameters;
         public String bodyText;
         public File bodyFile;
 
@@ -391,6 +423,11 @@ public class GlacierMethod {
 
         public Builder headers(@Nonnull Map<String, String> value) {
             headers = value;
+            return this;
+        }
+
+        public Builder queryParameters(@Nonnull Map<String, String> value) {
+            queryParameters = value;
             return this;
         }
 
