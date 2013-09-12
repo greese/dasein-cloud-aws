@@ -142,7 +142,7 @@
           <configuration>
               <encoding>utf-8</encoding>
               <quiet>true</quiet>
-              <skip>true</skip>
+              <skip>false</skip>
               <links>
                   <link>http://java.sun.com/javase/6/docs/api/</link>
                   <link>http://java.sun.com/javaee/6/docs/api/</link>
