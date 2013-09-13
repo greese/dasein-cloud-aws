@@ -19,24 +19,13 @@
 
 package org.dasein.cloud.aws.compute;
 
-import java.io.UnsupportedEncodingException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.compute.AutoScalingSupport;
-import org.dasein.cloud.compute.LaunchConfiguration;
-import org.dasein.cloud.compute.ScalingGroup;
-import org.dasein.cloud.compute.VirtualMachineProduct;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
@@ -46,6 +35,13 @@ import org.w3c.dom.NodeList;
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.UnsupportedEncodingException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 public class AutoScaling implements AutoScalingSupport {
     static private final Logger logger = Logger.getLogger(AutoScaling.class);
@@ -57,7 +53,7 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
-    public String createAutoScalingGroup(String name, String launchConfigurationId, int minServers, int maxServers, int cooldown, String ... zoneIds) throws InternalException, CloudException {
+    public String createAutoScalingGroup(@Nonnull String name, @Nonnull String launchConfigurationId, @Nonnull Integer minServers, @Nonnull Integer maxServers, @Nullable Integer cooldown, @Nullable String[] loadBalancerIds, @Nullable Integer desiredCapacity, @Nullable Integer healthCheckGracePeriod, @Nullable String healthCheckType, @Nullable String vpcZones, @Nullable String ... zoneIds) throws InternalException, CloudException {
         APITrace.begin(provider, "AutoScaling.createAutoScalingGroup");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_AUTO_SCALING_GROUP);
@@ -73,10 +69,32 @@ public class AutoScaling implements AutoScalingSupport {
             parameters.put("LaunchConfigurationName", launchConfigurationId);
             parameters.put("MinSize", String.valueOf(minServers));
             parameters.put("MaxSize", String.valueOf(maxServers));
-            parameters.put("Cooldown", String.valueOf(cooldown));
-            int i = 1;
-            for( String zoneId : zoneIds ) {
-                parameters.put("AvailabilityZones.member." + (i++), zoneId);
+            if(cooldown != null) {
+              parameters.put("DefaultCooldown", String.valueOf(cooldown));
+            }
+            if(desiredCapacity != null) {
+              parameters.put("DesiredCapacity", String.valueOf(desiredCapacity));
+            }
+            if(healthCheckGracePeriod != null) {
+              parameters.put("HealthCheckGracePeriod", String.valueOf(healthCheckGracePeriod));
+            }
+            if(healthCheckType != null) {
+              parameters.put("HealthCheckType", healthCheckType);
+            }
+            if(vpcZones != null) {
+              parameters.put("VPCZoneIdentifier", vpcZones);
+            }
+            if( zoneIds != null ) {
+              int i = 1;
+              for( String zoneId : zoneIds ) {
+                  parameters.put("AvailabilityZones.member." + (i++), zoneId);
+              }
+            }
+            if( loadBalancerIds != null ) {
+              int x = 1;
+              for( String lbId : loadBalancerIds ) {
+                parameters.put("LoadBalancerNames.member." + (x++), lbId);
+              }
             }
             method = new EC2Method(provider, getAutoScalingUrl(), parameters);
             try {
@@ -94,7 +112,67 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
-    public String createLaunchConfiguration(String name, String imageId, VirtualMachineProduct size, String ... firewalls) throws InternalException, CloudException {
+    public void updateAutoScalingGroup(@Nonnull String scalingGroupId, @Nullable String launchConfigurationId, @Nonnegative Integer minServers, @Nonnegative Integer maxServers, @Nullable Integer cooldown, @Nullable Integer desiredCapacity, @Nullable Integer healthCheckGracePeriod, @Nullable String healthCheckType, @Nullable String vpcZones, @Nullable String ... zoneIds) throws InternalException, CloudException {
+      APITrace.begin(provider, "AutoScaling.updateAutoScalingGroup");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.UPDATE_AUTO_SCALING_GROUP);
+        EC2Method method;
+
+        if(scalingGroupId != null) {
+          parameters.put("AutoScalingGroupName", scalingGroupId);
+        }
+        if(launchConfigurationId != null) {
+          parameters.put("LaunchConfigurationName", launchConfigurationId);
+        }
+        if(minServers != null) {
+          if( minServers < 0 ) {
+            minServers = 0;
+          }
+          parameters.put("MinSize", String.valueOf(minServers));
+        }
+        if(maxServers != null) {
+          if( minServers != null && maxServers < minServers ) {
+            maxServers = minServers;
+          }
+          parameters.put("MaxSize", String.valueOf(maxServers));
+        }
+        if(cooldown != null) {
+          parameters.put("DefaultCooldown", String.valueOf(cooldown));
+        }
+        if(desiredCapacity != null) {
+          parameters.put("DesiredCapacity", String.valueOf(desiredCapacity));
+        }
+        if(healthCheckGracePeriod != null) {
+          parameters.put("HealthCheckGracePeriod", String.valueOf(healthCheckGracePeriod));
+        }
+        if(healthCheckType != null) {
+          parameters.put("HealthCheckType", healthCheckType);
+        }
+        if(vpcZones != null) {
+          parameters.put("VPCZoneIdentifier", vpcZones);
+        }
+        if(zoneIds != null) {
+          int i = 1;
+          for( String zoneId : zoneIds ) {
+            parameters.put("AvailabilityZones.member." + (i++), zoneId);
+          }
+        }
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
+    public String createLaunchConfiguration(String name, String imageId, VirtualMachineProduct size, String keyPairName, String userData, String ... firewalls) throws InternalException, CloudException {
         APITrace.begin(provider, "AutoScaling.createLaunchConfigursation");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_LAUNCH_CONFIGURATION);
@@ -102,10 +180,16 @@ public class AutoScaling implements AutoScalingSupport {
 
             parameters.put("LaunchConfigurationName", name);
             parameters.put("ImageId", imageId);
+            if(keyPairName != null) {
+              parameters.put("KeyName", keyPairName);
+            }
+            if(userData != null) {
+              parameters.put("UserData", userData);
+            }
             parameters.put("InstanceType", size.getProviderProductId());
             int i = 1;
             for( String fw : firewalls ) {
-                parameters.put("SecurityGroup.member." + (i++), fw);
+                parameters.put("SecurityGroups.member." + (i++), fw);
             }
             method = new EC2Method(provider, getAutoScalingUrl(), parameters);
             try {
@@ -353,6 +437,209 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
+    public void suspendAutoScaling(String providerScalingGroupId, String[] processesToSuspend) throws CloudException, InternalException {
+      APITrace.begin(provider, "AutoScaling.suspendAutoScaling");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.SUSPEND_AUTO_SCALING_GROUP);
+        EC2Method method;
+
+        parameters.put("AutoScalingGroupName", providerScalingGroupId);
+        int x = 1;
+        if(processesToSuspend != null) {
+          for( String process : processesToSuspend ) {
+            parameters.put("ScalingProcesses.member." + (x++), process);
+          }
+        }
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
+    public void resumeAutoScaling(String providerScalingGroupId, String[] processesToResume) throws CloudException, InternalException {
+      APITrace.begin(provider, "AutoScaling.resumeAutoScaling");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.RESUME_AUTO_SCALING_GROUP);
+        EC2Method method;
+
+        parameters.put("AutoScalingGroupName", providerScalingGroupId);
+        int x = 1;
+        if(processesToResume != null) {
+          for( String process : processesToResume ) {
+            parameters.put("ScalingProcesses.member." + (x++), process);
+          }
+        }
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
+    public String updateScalingPolicy(String policyName, String adjustmentType, String autoScalingGroupName, Integer cooldown, Integer minAdjustmentStep, Integer scalingAdjustment) throws CloudException, InternalException {
+      APITrace.begin(provider, "AutoScaling.updateScalingPolicy");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.PUT_SCALING_POLICY);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("PolicyName", policyName);
+        parameters.put("AdjustmentType", adjustmentType);
+        parameters.put("AutoScalingGroupName", autoScalingGroupName);
+        if(cooldown != null){
+          parameters.put("Cooldown", String.valueOf(cooldown));
+        }
+        if(minAdjustmentStep != null){
+          parameters.put("MinAdjustmentStep", String.valueOf(minAdjustmentStep));
+        }
+        parameters.put("ScalingAdjustment", String.valueOf(scalingAdjustment));
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("PolicyARN");
+        if( blocks.getLength() > 0 ) {
+          return blocks.item(0).getFirstChild().getNodeValue().trim();
+        }
+        throw new CloudException("Successful POST, but no Policy information was provided");
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
+    public void deleteScalingPolicy(@Nonnull String policyName, @Nullable String autoScalingGroupName) throws InternalException, CloudException {
+      APITrace.begin(provider, "AutoScaling.deleteScalingPolicy");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DELETE_SCALING_POLICY);
+        EC2Method method;
+
+        parameters.put("PolicyName", policyName);
+        if(autoScalingGroupName != null) {
+          parameters.put("AutoScalingGroupName", autoScalingGroupName);
+        }
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
+    public Collection<ScalingPolicy> listScalingPolicies(@Nullable String autoScalingGroupName) throws CloudException, InternalException {
+      APITrace.begin(provider, "AutoScaling.getScalingPolicies");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_SCALING_POLICIES);
+        ArrayList<ScalingPolicy> list = new ArrayList<ScalingPolicy>();
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        if(autoScalingGroupName != null) {
+          parameters.put("AutoScalingGroupName", autoScalingGroupName);
+        }
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("ScalingPolicies");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+          NodeList items = blocks.item(i).getChildNodes();
+
+          for( int j=0; j<items.getLength(); j++ ) {
+            Node item = items.item(j);
+
+            if( item.getNodeName().equals("member") ) {
+              ScalingPolicy sp = toScalingPolicy(item);
+
+              if( sp != null ) {
+                list.add(sp);
+              }
+            }
+          }
+        }
+        return list;
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
+    public ScalingPolicy getScalingPolicy(@Nonnull String policyName) throws CloudException, InternalException {
+      APITrace.begin(provider, "AutoScaling.getScalingPolicy");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_SCALING_POLICIES);
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("PolicyNames.member.1", policyName);
+
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+        ScalingPolicy sp = null;
+        blocks = doc.getElementsByTagName("ScalingPolicies");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+          NodeList items = blocks.item(i).getChildNodes();
+
+          for( int j=0; j<items.getLength(); j++ ) {
+            Node item = items.item(j);
+
+            if( item.getNodeName().equals("member") ) {
+              sp = toScalingPolicy(item);
+              return sp;
+            }
+          }
+        }
+        return sp;
+      }
+      finally {
+        APITrace.end();
+      }
+    }
+
+    @Override
     public @Nonnull Iterable<ResourceStatus> listLaunchConfigurationStatus() throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.listLaunchConfigurationStatus");
         try {
@@ -480,6 +767,7 @@ public class AutoScaling implements AutoScalingSupport {
             APITrace.end();
         }
     }
+
     @Override
     public Collection<ScalingGroup> listScalingGroups() throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.listScalingGroups");
@@ -565,6 +853,21 @@ public class AutoScaling implements AutoScalingSupport {
         else if( action.equals(AutoScalingSupport.UPDATE_SCALING_GROUP) ) {
             return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.UPDATE_AUTO_SCALING_GROUP };
         }
+        else if( action.equals(AutoScalingSupport.SUSPEND_AUTO_SCALING_GROUP) ) {
+          return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.SUSPEND_AUTO_SCALING_GROUP };
+        }
+        else if( action.equals(AutoScalingSupport.RESUME_AUTO_SCALING_GROUP) ) {
+          return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.RESUME_AUTO_SCALING_GROUP };
+        }
+        else if( action.equals(AutoScalingSupport.PUT_SCALING_POLICY) ) {
+          return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.PUT_SCALING_POLICY };
+        }
+        else if( action.equals(AutoScalingSupport.DELETE_SCALING_POLICY) ) {
+          return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.DELETE_SCALING_POLICY };
+        }
+        else if( action.equals(AutoScalingSupport.LIST_SCALING_POLICIES) ) {
+          return new String[] { EC2Method.AUTOSCALING_PREFIX + EC2Method.DESCRIBE_SCALING_POLICIES };
+        }
         return new String[0];
     }
 
@@ -611,7 +914,6 @@ public class AutoScaling implements AutoScalingSupport {
         return new ResourceStatus(groupId, true);
     }
 
-
     private @Nullable LaunchConfiguration toLaunchConfiguration(@Nullable Node item) {
         if( item == null ) {
             return null;
@@ -625,16 +927,37 @@ public class AutoScaling implements AutoScalingSupport {
 
             name = attr.getNodeName();
             if( name.equalsIgnoreCase("ImageId") ) {
+              if(attr.getFirstChild() != null){
                 cfg.setProviderImageId(attr.getFirstChild().getNodeValue());
+              }
+            }
+            else if( name.equalsIgnoreCase("KeyName") ) {
+              if(attr.getFirstChild() != null){
+                cfg.setProviderKeypairName(attr.getFirstChild().getNodeValue());
+              }
+            }
+            else if( name.equalsIgnoreCase("LaunchConfigurationARN") ) {
+              if(attr.getFirstChild() != null){
+                cfg.setId(attr.getFirstChild().getNodeValue());
+              }
+            }
+            else if( name.equalsIgnoreCase("UserData") ) {
+              if(attr.getFirstChild() != null){
+                cfg.setUserData(attr.getFirstChild().getNodeValue());
+              }
             }
             else if( name.equalsIgnoreCase("InstanceType") ) {
+              if(attr.getFirstChild() != null){
                 cfg.setServerSizeId(attr.getFirstChild().getNodeValue());
+              }
             }
             else if( name.equalsIgnoreCase("LaunchConfigurationName") ) {
+              if(attr.getFirstChild() != null){
                 String lcname = attr.getFirstChild().getNodeValue();
 
                 cfg.setProviderLaunchConfigurationId(lcname);
                 cfg.setName(lcname);
+              }
             }
             else if( name.equalsIgnoreCase("CreatedTime") ) {
                 SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
@@ -651,30 +974,22 @@ public class AutoScaling implements AutoScalingSupport {
                 String[] ids;
 
                 if( attr.hasChildNodes() ) {
-                    ArrayList<String> instanceIds = new ArrayList<String>();
-                    NodeList instances = attr.getChildNodes();
+                    ArrayList<String> securityIds = new ArrayList<String>();
+                    NodeList securityGroups = attr.getChildNodes();
 
-                    for( int j=0; j<instances.getLength(); j++ ) {
-                        Node instance = instances.item(j);
+                    for( int j=0; j<securityGroups.getLength(); j++ ) {
+                        Node securityGroup = securityGroups.item(j);
 
-                        if( instance.getNodeName().equalsIgnoreCase("member") ) {
-                            if( instance.hasChildNodes() ) {
-                                NodeList items = instance.getChildNodes();
-
-                                for( int k=0; k<items.getLength(); k++ ) {
-                                    Node val = items.item(k);
-
-                                    if( val.getNodeName().equalsIgnoreCase("InstanceId") ) {
-                                        instanceIds.add(val.getFirstChild().getNodeValue());
-                                    }
-                                }
+                        if( securityGroup.getNodeName().equalsIgnoreCase("member") ) {
+                            if( securityGroup.hasChildNodes() ) {
+                              securityIds.add(securityGroup.getFirstChild().getNodeValue());
                             }
                         }
                     }
-                    ids = new String[instanceIds.size()];
+                    ids = new String[securityIds.size()];
                     int j=0;
-                    for( String id : instanceIds ) {
-                        ids[j++] = id;
+                    for( String securityId : securityIds ) {
+                        ids[j++] = securityId;
                     }
                 }
                 else {
@@ -725,8 +1040,8 @@ public class AutoScaling implements AutoScalingSupport {
             else if( name.equalsIgnoreCase("MaxSize") ) {
                 group.setMaxServers(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
-            else if( name.equalsIgnoreCase("Cooldown") ) {
-                group.setCooldown(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+            else if( name.equalsIgnoreCase("DefaultCooldown") ) {
+                group.setDefaultCoolcown(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
             else if( name.equalsIgnoreCase("CreatedTime") ) {
                 SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
@@ -744,6 +1059,24 @@ public class AutoScaling implements AutoScalingSupport {
             }
             else if( name.equalsIgnoreCase("LaunchConfigurationName") ) {
                 group.setProviderLaunchConfigurationId(attr.getFirstChild().getNodeValue());
+            }
+            else if( name.equalsIgnoreCase("AutoScalingGroupARN") ) {
+              group.setId(attr.getFirstChild().getNodeValue());
+            }
+            else if( name.equalsIgnoreCase("HealthCheckGracePeriod") ) {
+              group.setHealthCheckGracePeriod(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+            }
+            else if( name.equalsIgnoreCase("HealthCheckType") ) {
+              group.setHealthCheckType(attr.getFirstChild().getNodeValue());
+            }
+            else if( name.equalsIgnoreCase("Status") ) {
+              group.setStatus(attr.getFirstChild().getNodeValue());
+            }
+            else if( name.equalsIgnoreCase("VPCZoneIdentifier") ) {
+              Node subnetChild = attr.getFirstChild();
+              if(subnetChild != null) {
+                group.setSubnetIds(subnetChild.getNodeValue());
+              }
             }
             else if( name.equalsIgnoreCase("AutoScalingGroupName") ) {
                 String gname = attr.getFirstChild().getNodeValue();
@@ -812,43 +1145,211 @@ public class AutoScaling implements AutoScalingSupport {
                 }
                 group.setProviderDataCenterIds(ids);
             }
+            else if( name.equalsIgnoreCase("EnabledMetrics") ) {
+              String[] names;
+
+              if( attr.hasChildNodes() ) {
+                ArrayList<String> metricNames = new ArrayList<String>();
+                NodeList metrics = attr.getChildNodes();
+
+                for( int j=0; j< metrics.getLength(); j++ ) {
+                  Node metric = metrics.item(j);
+
+                  if( metric.getNodeName().equalsIgnoreCase("Metric") ) {
+                    metricNames.add(metric.getFirstChild().getNodeValue());
+                  }
+                }
+                names = new String[metricNames.size()];
+                int j=0;
+                for( String metricName : metricNames ) {
+                  names[j++] = metricName;
+                }
+              }
+              else {
+                names = new String[0];
+              }
+              group.setEnabledMetrics(names);
+            }
+            else if( name.equalsIgnoreCase("LoadBalancerNames") ) {
+              String[] names;
+
+              if( attr.hasChildNodes() ) {
+                ArrayList<String> lbNames = new ArrayList<String>();
+                NodeList loadBalancers = attr.getChildNodes();
+
+                for( int j=0; j< loadBalancers.getLength(); j++ ) {
+                  Node lb = loadBalancers.item(j);
+
+                  if( lb.getNodeName().equalsIgnoreCase("member") ) {
+                    lbNames.add(lb.getFirstChild().getNodeValue());
+                  }
+                }
+                names = new String[lbNames.size()];
+                int j=0;
+                for( String lbName : lbNames ) {
+                  names[j++] = lbName;
+                }
+              }
+              else {
+                names = new String[0];
+              }
+              group.setProviderLoadBalancerNames(names);
+            }
+            else if( name.equalsIgnoreCase("SuspendedProcesses") ) {
+              Collection<String[]> processes;
+
+              if( attr.hasChildNodes() ) {
+                ArrayList<String[]> processList = new ArrayList<String[]>();
+                NodeList processesList = attr.getChildNodes();
+
+                for( int j=0; j< processesList.getLength(); j++ ) {
+                  Node processParent = processesList.item(j);
+                  ArrayList<String> theProcess = new ArrayList<String>();
+
+                  if( processParent.getNodeName().equals("member") ) {
+                    if( processParent.hasChildNodes() ) {
+                      NodeList items = processParent.getChildNodes();
+
+                      for( int k=0; k<items.getLength(); k++ ) {
+                        Node val = items.item(k);
+                        if( val.getNodeName().equalsIgnoreCase("SuspensionReason") ) {
+                          theProcess.add(val.getFirstChild().getNodeValue());
+                        }
+                        // seems to come second...
+                        if( val.getNodeName().equalsIgnoreCase("ProcessName") ) {
+                          theProcess.add(val.getFirstChild().getNodeValue());
+                        }
+                      }
+                    }
+                  }
+                  if(theProcess.size() > 0){
+                    String[] stringArr = new String[theProcess.size()];
+                    stringArr = theProcess.toArray(stringArr);
+                    processList.add(stringArr);
+                  }
+                }
+                processes = processList;
+              }
+              else {
+                processes = new ArrayList<String[]>();
+              }
+              group.setSuspendedProcesses(processes);
+            }
+            else if( name.equalsIgnoreCase("TerminationPolicies") ) {
+              String[] policies;
+
+              if( attr.hasChildNodes() ) {
+                ArrayList<String> subPolicies = new ArrayList<String>();
+                NodeList policyList = attr.getChildNodes();
+
+                for( int j=0; j< policyList.getLength(); j++ ) {
+                  Node lb = policyList.item(j);
+
+                  if( lb.getNodeName().equalsIgnoreCase("member") ) {
+                    subPolicies.add(lb.getFirstChild().getNodeValue());
+                  }
+                }
+                policies = new String[subPolicies.size()];
+                int j=0;
+                for( String policyString : subPolicies ) {
+                  policies[j++] = policyString;
+                }
+              }
+              else {
+                policies = new String[0];
+              }
+              group.setTerminationPolicies(policies);
+            }
         }
         return group;
     }
 
-    @Override
-    public void updateAutoScalingGroup(@Nonnull String scalingGroupId, @Nonnull String launchConfigurationId, @Nonnegative int minServers, @Nonnegative int maxServers, @Nonnegative int cooldown, @Nonnull String ... zoneIds) throws InternalException, CloudException {
-        APITrace.begin(provider, "AutoScaling.updateAutoScalingGroup");
-        try {
-            Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.UPDATE_AUTO_SCALING_GROUP);
-            EC2Method method;
+    private @Nullable ScalingPolicy toScalingPolicy(@Nullable Node item) {
+      if( item == null ) {
+        return null;
+      }
+      ScalingPolicy sp = new ScalingPolicy();
+      NodeList attrs = item.getChildNodes();
 
-            if( minServers < 0 ) {
-                minServers = 0;
-            }
-            if( maxServers < minServers ) {
-                maxServers = minServers;
-            }
-            parameters.put("AutoScalingGroupName", scalingGroupId);
-            parameters.put("LaunchConfigurationName", launchConfigurationId);
-            parameters.put("MinSize", String.valueOf(minServers));
-            parameters.put("MaxSize", String.valueOf(maxServers));
-            parameters.put("Cooldown", String.valueOf(cooldown));
-            int i = 1;
-            for( String zoneId : zoneIds ) {
-                parameters.put("AvailabilityZones.member." + (i++), zoneId);
-            }
-            method = new EC2Method(provider, getAutoScalingUrl(), parameters);
-            try {
-                method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+      for( int i=0; i<attrs.getLength(); i++ ) {
+        Node attr = attrs.item(i);
+        String name;
+
+        name = attr.getNodeName();
+        if( name.equalsIgnoreCase("AdjustmentType") ) {
+          if(attr.getFirstChild() != null){
+            sp.setAdjustmentType(attr.getFirstChild().getNodeValue());
+          }
         }
-        finally {
-            APITrace.end();
+        else if( name.equalsIgnoreCase("Alarms") ) {
+          Collection<Alarm> alarms;
+
+          if( attr.hasChildNodes() ) {
+            ArrayList<Alarm> alarmList = new ArrayList<Alarm>();
+            NodeList alarmsList = attr.getChildNodes();
+
+            for( int j=0; j< alarmsList.getLength(); j++ ) {
+              Node alarmParent = alarmsList.item(j);
+              Alarm anAlarm = new Alarm();
+
+              if( alarmParent.getNodeName().equals("member") ) {
+                if( alarmParent.hasChildNodes() ) {
+                  NodeList items = alarmParent.getChildNodes();
+
+                  for( int k=0; k<items.getLength(); k++ ) {
+                    Node val = items.item(k);
+                    if( val.getNodeName().equalsIgnoreCase("AlarmARN") ) {
+                      anAlarm.setId(val.getFirstChild().getNodeValue());
+                    }
+                    if( val.getNodeName().equalsIgnoreCase("AlarmName") ) {
+                      anAlarm.setName(val.getFirstChild().getNodeValue());
+                    }
+                  }
+                  alarmList.add(anAlarm);
+                }
+              }
+            }
+            alarms = alarmList;
+          }
+          else {
+            alarms = new ArrayList<Alarm>();
+          }
+          Alarm[] alarmArr = new Alarm[alarms.size()];
+          alarmArr = alarms.toArray(alarmArr);
+          sp.setAlarms(alarmArr);
         }
+        else if( name.equalsIgnoreCase("AutoScalingGroupName") ) {
+          if(attr.getFirstChild() != null){
+            sp.setAutoScalingGroupName(attr.getFirstChild().getNodeValue());
+          }
+        }
+        else if( name.equalsIgnoreCase("Cooldown") ) {
+          if(attr.getFirstChild() != null){
+            sp.setCoolDown(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+          }
+        }
+        else if( name.equalsIgnoreCase("MinAdjustmentStep") ) {
+          if(attr.getFirstChild() != null){
+            sp.setMinAdjustmentStep(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+          }
+        }
+        else if( name.equalsIgnoreCase("PolicyARN") ) {
+          if(attr.getFirstChild() != null){
+            sp.setId(attr.getFirstChild().getNodeValue());
+          }
+        }
+        else if( name.equalsIgnoreCase("PolicyName") ) {
+          if(attr.getFirstChild() != null){
+            sp.setName(attr.getFirstChild().getNodeValue());
+          }
+        }
+        else if( name.equalsIgnoreCase("ScalingAdjustment") ) {
+          if(attr.getFirstChild() != null){
+            sp.setScalingAdjustment(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+          }
+        }
+      }
+      return sp;
     }
+
 }

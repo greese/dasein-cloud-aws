@@ -125,14 +125,7 @@ public class EBSVolume extends AbstractVolumeSupport {
             parameters.put("AvailabilityZone", az);
             if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
                 if( options.getVolumeProductId() != null ) {
-                    VolumeProduct prd = null;
-
-                    for( VolumeProduct p : listVolumeProducts() ) {
-                        if( p.getProviderProductId().equals(options.getVolumeProductId()) ) {
-                            prd = p;
-                            break;
-                        }
-                    }
+                    VolumeProduct prd = getVolumeProduct( options.getVolumeProductId() );
                     if( prd != null ) {
                         parameters.put("VolumeType", prd.getProviderProductId());
                         if( prd.getMaxIops() > 0 && options.getIops() > 0 ) {
@@ -552,6 +545,19 @@ public class EBSVolume extends AbstractVolumeSupport {
         }
     }
 
+    public VolumeProduct getVolumeProduct(String volumeProductId) throws InternalException, CloudException{
+      VolumeProduct prd = null;
+
+      for ( VolumeProduct p : listVolumeProducts() ) {
+        if ( p.getProviderProductId().equals( volumeProductId ) ) {
+          prd = p;
+          break;
+        }
+      }
+
+      return prd;
+    }
+
     private @Nullable ResourceStatus toStatus(@Nullable Node node) throws CloudException {
         if( node == null ) {
             return null;
@@ -592,8 +598,8 @@ public class EBSVolume extends AbstractVolumeSupport {
         if( node == null ) {
             return null;
         }
-		NodeList attrs = node.getChildNodes();
-		Volume volume = new Volume();
+        NodeList attrs = node.getChildNodes();
+        Volume volume = new Volume();
 
         volume.setProviderProductId("standard");
         volume.setType( VolumeType.HDD );
@@ -616,19 +622,19 @@ public class EBSVolume extends AbstractVolumeSupport {
 				int size = Integer.parseInt(attr.getFirstChild().getNodeValue().trim());
 				
                 volume.setSize(new Storage<Gigabyte>(size, Storage.GIGABYTE));
-			}
-			else if( name.equals("snapshotId") ) {
-				NodeList values = attr.getChildNodes();
-				
-				if( values != null && values.getLength() > 0 ) {
-					volume.setProviderSnapshotId(values.item(0).getNodeValue().trim());
-				}
-			}
-			else if( name.equals("availabilityZone") ) {
-				String zoneId = attr.getFirstChild().getNodeValue().trim();
-				
-				volume.setProviderDataCenterId(zoneId);
-			}
+            }
+            else if( name.equals("snapshotId") ) {
+                NodeList values = attr.getChildNodes();
+
+                if( values != null && values.getLength() > 0 ) {
+                    volume.setProviderSnapshotId(values.item(0).getNodeValue().trim());
+                }
+            }
+            else if( name.equals("availabilityZone") ) {
+                String zoneId = attr.getFirstChild().getNodeValue().trim();
+
+                volume.setProviderDataCenterId(zoneId);
+            }
             else if( name.equalsIgnoreCase("volumeType") && attr.hasChildNodes() ) {
                 volume.setProviderProductId(attr.getFirstChild().getNodeValue().trim());
             }
@@ -649,20 +655,8 @@ public class EBSVolume extends AbstractVolumeSupport {
 				}				
 			}
 			else if( name.equals("status") ) {
-				String s = attr.getFirstChild().getNodeValue().trim();
-				VolumeState state;
-				
-		        if( s.equals("creating") || s.equals("attaching") || s.equals("attached") || s.equals("detaching") || s.equals("detached") ) {
-		            state = VolumeState.PENDING;
-		        }
-		        else if( s.equals("available") || s.equals("in-use") ) {
-		            state = VolumeState.AVAILABLE;
-		        }
-		        else {
-		            state = VolumeState.DELETED;
-		        }
-				volume.setCurrentState(state);
-			}
+        volume.setCurrentState( toVolumeState( attr ) );
+      }
             else if( name.equals("tagSet") ) {
                 provider.setTags(attr, volume);
 
@@ -718,4 +712,20 @@ public class EBSVolume extends AbstractVolumeSupport {
 		volume.setProviderRegionId(ctx.getRegionId());
 		return volume;
 	}
+
+  static public @Nullable VolumeState toVolumeState( Node node ) {
+    String s = AWSCloud.getTextValue( node );
+    VolumeState state;
+
+    if( s.equals("creating") || s.equals("attaching") || s.equals("attached") || s.equals("detaching") || s.equals("detached") ) {
+      state = VolumeState.PENDING;
+    }
+    else if( s.equals("available") || s.equals("in-use") ) {
+      state = VolumeState.AVAILABLE;
+    }
+    else {
+      state = VolumeState.DELETED;
+    }
+    return state;
+  }
 }
