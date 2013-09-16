@@ -90,7 +90,7 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     private AWSCloud provider = null;
-    
+
     public S3(AWSCloud provider) {
         this.provider = provider;
     }
@@ -584,19 +584,19 @@ public class S3 extends AbstractBlobStoreSupport {
     			try {
     			    x = Integer.parseInt(postfix) + 1;
                     rawName = rawName.substring(0,idx) + "-" + x;
-    			}
-    			catch( NumberFormatException e ) {
-    			    rawName = rawName + "-1";
-    			}
-    		}
-    		if( prefix == null) {
-    			bucket = rawName;
-    		}
-    		else {
-    			bucket = prefix + "." + rawName;
-    		}
-    	}
-    	return bucket;
+                }
+                catch( NumberFormatException e ) {
+                    rawName = rawName + "-1";
+                }
+            }
+            if( prefix == null) {
+                bucket = rawName;
+            }
+            else {
+                bucket = prefix + "." + rawName;
+            }
+        }
+        return bucket;
     }
 
     @Override
@@ -656,18 +656,18 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     private @Nullable Document getAcl(@Nonnull String bucket, @Nullable String object) throws CloudException, InternalException {
-		S3Method method;
-	
-		method = new S3Method(provider, S3Action.GET_ACL);
-		try {
-			S3Response response = method.invoke(bucket, object == null ? "?acl" : object + "?acl");
-			
-			return (response == null ? null : response.document);
-		}
-		catch( S3Exception e ) {
-			logger.error(e.getSummary());
-			throw new CloudException(e);
-		}      	
+        S3Method method;
+
+        method = new S3Method(provider, S3Action.GET_ACL);
+        try {
+            S3Response response = method.invoke(bucket, object == null ? "?acl" : object + "?acl");
+
+            return (response == null ? null : response.document);
+        }
+        catch( S3Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
     }
 
     @Override
@@ -825,7 +825,7 @@ public class S3 extends AbstractBlobStoreSupport {
             APITrace.end();
         }
     }
-    
+
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "Blob.isSubscribed");
@@ -870,10 +870,10 @@ public class S3 extends AbstractBlobStoreSupport {
                 finally {
                     provider.release();
                 }
-    		}
-    	});
-    	populator.populate();
-    	return populator.getResult();
+            }
+        });
+        populator.populate();
+        return populator.getResult();
     }
 
     private void list(@Nonnull String regionId, @Nullable String bucket, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
@@ -905,32 +905,32 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     private void loadBuckets(@Nonnull String regionId, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
-    	S3Method method = new S3Method(provider, S3Action.LIST_BUCKETS);
-		S3Response response;
-		NodeList blocks;		
-		
-		try {
-			response = method.invoke(null, null);
-		}
-		catch( S3Exception e ) {
-			logger.error(e.getSummary());
-			throw new CloudException(e);
-		}
-		blocks = response.document.getElementsByTagName("Bucket");
-		for( int i=0; i<blocks.getLength(); i++ ) {
-			Node object = blocks.item(i);
+        S3Method method = new S3Method(provider, S3Action.LIST_BUCKETS);
+        S3Response response;
+        NodeList blocks;
+
+        try {
+            response = method.invoke(null, null);
+        }
+        catch( S3Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = response.document.getElementsByTagName("Bucket");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            Node object = blocks.item(i);
             String name = null;
             NodeList attrs;
             long ts = 0L;
 
             attrs = object.getChildNodes();
-			for( int j=0; j<attrs.getLength(); j++ ) {
-				Node attr = attrs.item(j);
-				
-				if( attr.getNodeName().equals("Name") ) {
-					name = attr.getFirstChild().getNodeValue().trim();
-				}
-				else if( attr.getNodeName().equals("CreationDate") ) {
+            for( int j=0; j<attrs.getLength(); j++ ) {
+                Node attr = attrs.item(j);
+
+                if( attr.getNodeName().equals("Name") ) {
+                    name = attr.getFirstChild().getNodeValue().trim();
+                }
+                else if( attr.getNodeName().equals("CreationDate") ) {
                     ts = provider.parseTime(attr.getFirstChild().getNodeValue().trim());
 				}
 			}
@@ -967,42 +967,42 @@ public class S3 extends AbstractBlobStoreSupport {
             }
 		}
     }
-    
-    private void loadObjects(@Nonnull String regionId, @Nonnull String bucket, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
-		HashMap<String,String> parameters = new HashMap<String,String>();
-		S3Response response;
-		String marker = null;
-		boolean done = false;
-		S3Method method;
-		
-		while( !done ) {
-			NodeList blocks;
-			
-			parameters.clear();
-			if( marker != null ) {
-				parameters.put("marker", marker);
-			}
-			parameters.put("max-keys", String.valueOf(30));
-			method = new S3Method(provider, S3Action.LIST_CONTENTS, parameters, null);
-			try {
-				response = method.invoke(bucket, null);
-			}
-			catch( S3Exception e ) {
-			    String code = e.getCode();
 
-			    if( code == null || !code.equals("SignatureDoesNotMatch") ) {
-			        throw new CloudException(e);
-			    }
-				logger.error(e.getSummary());
-				throw new CloudException(e);
-			}
-			blocks = response.document.getElementsByTagName("IsTruncated");
-			if( blocks.getLength() > 0 ) {
-				done = blocks.item(0).getFirstChild().getNodeValue().trim().equalsIgnoreCase("false");
-			}
-			blocks = response.document.getElementsByTagName("Contents");
-			for( int i=0; i<blocks.getLength(); i++ ) {
-				Node object = blocks.item(i);
+    private void loadObjects(@Nonnull String regionId, @Nonnull String bucket, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
+        HashMap<String,String> parameters = new HashMap<String,String>();
+        S3Response response;
+        String marker = null;
+        boolean done = false;
+        S3Method method;
+
+        while( !done ) {
+            NodeList blocks;
+
+            parameters.clear();
+            if( marker != null ) {
+                parameters.put("marker", marker);
+            }
+            parameters.put("max-keys", String.valueOf(30));
+            method = new S3Method(provider, S3Action.LIST_CONTENTS, parameters, null);
+            try {
+                response = method.invoke(bucket, null);
+            }
+            catch( S3Exception e ) {
+                String code = e.getCode();
+
+                if( code == null || !code.equals("SignatureDoesNotMatch") ) {
+                    throw new CloudException(e);
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = response.document.getElementsByTagName("IsTruncated");
+            if( blocks.getLength() > 0 ) {
+                done = blocks.item(0).getFirstChild().getNodeValue().trim().equalsIgnoreCase("false");
+            }
+            blocks = response.document.getElementsByTagName("Contents");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node object = blocks.item(i);
                 Storage<org.dasein.util.uom.storage.Byte> size = null;
                 String name = null;
                 long ts = -1L;
@@ -1041,13 +1041,13 @@ public class S3 extends AbstractBlobStoreSupport {
                     continue;
                 }
                 iterator.push(Blob.getInstance(regionId, getLocation(bucket, name), bucket, name, ts, size));
-			}
-		}    	
+            }
+        }
     }
 
     @Override
     public void makePublic(@Nonnull String bucket) throws InternalException, CloudException {
-    	makePublic(bucket, null);
+        makePublic(bucket, null);
     }
 
     @Override
@@ -1205,7 +1205,7 @@ public class S3 extends AbstractBlobStoreSupport {
         else if( action.equals(BlobStoreSupport.UPLOAD) ) {
             return new String[] { S3Method.S3_PREFIX + "PutObject" };
         }
-        return new String[0]; 
+        return new String[0];
     }
 
     @Override
@@ -1406,7 +1406,7 @@ public class S3 extends AbstractBlobStoreSupport {
             APITrace.end();
         }
     }
-    
+
     private void setAcl(@Nonnull String bucket, @Nullable String object, @Nonnull String body) throws CloudException, InternalException {
         APITrace.begin(provider, "Blob.setAcl");
         try {

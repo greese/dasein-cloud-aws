@@ -19,13 +19,6 @@
 
 package org.dasein.cloud.aws.admin;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Locale;
-import java.util.Map;
-
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
@@ -48,6 +41,12 @@ import org.w3c.dom.NodeList;
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Locale;
+import java.util.Map;
 
 public class ReservedInstance implements PrepaymentSupport {
     static private final Logger logger = AWSCloud.getLogger(ReservedInstance.class);
@@ -399,7 +398,7 @@ public class ReservedInstance implements PrepaymentSupport {
 				String start = attr.getFirstChild().getNodeValue().trim();
 
 				try {
-					prepayment.setPeriodStartTimestamp(fmt.parse(start).getTime());				
+					prepayment.setPeriodStartTimestamp(fmt.parse(start).getTime());
 				} 
 				catch( ParseException e ) {
 					logger.error(e);
@@ -423,9 +422,47 @@ public class ReservedInstance implements PrepaymentSupport {
 					prepayment.setPrepaymentState(PrepaymentState.PENDING);
 				}
 			}
+      // Valid values: Linux/UNIX | Linux/UNIX (Amazon VPC) | Windows | Windows (Amazon VPC)
+      else if( name.equals("productDescription") ) {
+        String productDesc = attr.getFirstChild().getNodeValue().trim();
+        if( productDesc.toLowerCase().contains( "linux" ) ) {
+          prepayment.setPlatform( Platform.UNIX );
+        } else if ( productDesc.toLowerCase().contains( "windows" ) ) {
+          prepayment.setPlatform( Platform.WINDOWS );
+        }
+        if ( productDesc.toLowerCase().contains( "vpc" ) ) {
+          prepayment.setForVlan( true );
+        }
+      }
+      else if( name.equals("recurringCharges") ) {
+        NodeList chargeNodes = attr.getChildNodes();
+        boolean hrly = false;
+        for( int ff=0; ff<chargeNodes.getLength(); ff++ ) {
+          Node chargeAttr = chargeNodes.item(ff);
+          String subName = chargeAttr.getNodeName();
+          if( subName.equals("item") ) {
+            NodeList itemNodes = chargeAttr.getChildNodes();
+            for( int xx=0; xx<itemNodes.getLength(); xx++ ) {
+              Node itemAttr = itemNodes.item(xx);
+              String itemName = itemAttr.getNodeName();
+              if( itemName.equals("frequency") ) {
+                String frequency = itemAttr.getFirstChild().getNodeValue().trim();
+                if( frequency.equalsIgnoreCase( "hourly" ) ) {
+                  hrly = true;
+                }
+              }
+              if( itemName.equals("amount") ) {
+                String amount = itemAttr.getFirstChild().getNodeValue().trim();
+                if( hrly ) {
+                  prepayment.setHourlyFee( Double.valueOf( amount ) );
+                }
+              }
+            }
+          }
+        }
+      }
 		}
 		prepayment.setCurrencyCode("USD");
-		prepayment.setPlatform(Platform.UNIX);
 		prepayment.setSoftware(null);
 		return prepayment;
 	}

@@ -498,20 +498,8 @@ public class CloudWatch extends AbstractMonitoringSupport {
 
     Map<String, String> parameters = new HashMap<String, String>();
 
-    String stateValue = null;
-    if ( options.getStateValue() != null ) {
-      if ( options.getStateValue() == AlarmState.OK ) {
-        stateValue = STATE_OK;
-      }
-      else if ( options.getStateValue() == AlarmState.OK ) {
-        stateValue = STATE_ALARM;
-      }
-      else if ( options.getStateValue() == AlarmState.OK ) {
-        stateValue = STATE_INSUFFICIENT_DATA;
-      }
-    }
-
-    provider.putValueIfNotNull( parameters, "StateValue", stateValue );
+    if(options.getStateValue() != null)
+        provider.putValueIfNotNull( parameters, "StateValue", options.getStateValue().name());
     provider.putIndexedParameters( parameters, "AlarmNames.member.", options.getAlarmNames() );
 
     if ( parameters.size() == 0 ) {
