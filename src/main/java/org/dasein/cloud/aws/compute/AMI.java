@@ -74,8 +74,6 @@ public class AMI extends AbstractImageSupport {
         }
     }
 
-
-
     @Override
     protected MachineImage capture(@Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
@@ -137,6 +135,17 @@ public class AMI extends AbstractImageSupport {
                 EC2Method method;
                 Document doc;
 
+                /* need to perform the opposite of "reboot" as Amazon's API takes "NoReboot"
+                  Therefore:
+                  If reboot == false, then NoReboot = true
+                  If reboot == true, then NoReboot = false
+                 */
+                Boolean reboot = options.getReboot();
+                if( reboot != null ) {
+                  reboot = !reboot;
+                  parameters.put("NoReboot", reboot.toString());
+                }
+
                 parameters.put("InstanceId", options.getVirtualMachineId());
                 parameters.put("Name", options.getName());
                 parameters.put("Description", options.getDescription());
@@ -194,6 +203,7 @@ public class AMI extends AbstractImageSupport {
             APITrace.end();
         }
     }
+
     private MachineImage captureWindows(@Nonnull ProviderContext ctx, @Nonnull ImageCreateOptions options, @Nonnull String bucket, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
         APITrace.begin(provider, "Image.captureWindows");
         try {
@@ -425,10 +435,10 @@ public class AMI extends AbstractImageSupport {
         }
     }
 	
-	@Override
-	public @Nonnull String getProviderTermForImage(@Nonnull Locale locale) {
-        return getProviderTermForImage(locale, ImageClass.MACHINE);
-    }
+    @Override
+    public @Nonnull String getProviderTermForImage(@Nonnull Locale locale) {
+          return getProviderTermForImage(locale, ImageClass.MACHINE);
+      }
 
     @Override
     public @Nonnull String getProviderTermForImage(@Nonnull Locale locale, @Nonnull ImageClass cls) {
@@ -902,60 +912,60 @@ public class AMI extends AbstractImageSupport {
         }
     }
 
-  @Override
-  public void remove( @Nonnull String providerImageId, boolean checkState ) throws CloudException, InternalException {
-      APITrace.begin(getProvider(), "Image.remove");
-      try {
-          if ( checkState ) {
-              long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
+    @Override
+    public void remove( @Nonnull String providerImageId, boolean checkState ) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Image.remove");
+        try {
+            if ( checkState ) {
+                long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30L);
 
-              while ( timeout > System.currentTimeMillis() ) {
-                  try {
-                      MachineImage img = getMachineImage( providerImageId );
+                while ( timeout > System.currentTimeMillis() ) {
+                    try {
+                        MachineImage img = getMachineImage( providerImageId );
 
-                      if ( img == null || MachineImageState.DELETED.equals( img.getCurrentState() ) ) {
-                          return;
-                      }
-                      if ( MachineImageState.ACTIVE.equals( img.getCurrentState() ) ) {
-                          break;
-                      }
-                  } catch ( Throwable ignore ) {
-                      // ignore
-                  }
-                  try {
-                      Thread.sleep( 15000L );
-                  }
-                  catch ( InterruptedException ignore ) {
-                  }
-              }
-          }
+                        if ( img == null || MachineImageState.DELETED.equals( img.getCurrentState() ) ) {
+                            return;
+                        }
+                        if ( MachineImageState.ACTIVE.equals( img.getCurrentState() ) ) {
+                            break;
+                        }
+                    } catch ( Throwable ignore ) {
+                        // ignore
+                    }
+                    try {
+                        Thread.sleep( 15000L );
+                    }
+                    catch ( InterruptedException ignore ) {
+                    }
+                }
+            }
 
-          Map<String, String> parameters = provider.getStandardParameters( provider.getContext(), EC2Method.DEREGISTER_IMAGE );
-          NodeList blocks;
-          EC2Method method;
-          Document doc;
+            Map<String, String> parameters = provider.getStandardParameters( provider.getContext(), EC2Method.DEREGISTER_IMAGE );
+            NodeList blocks;
+            EC2Method method;
+            Document doc;
 
-          parameters.put( "ImageId", providerImageId );
-          method = new EC2Method( provider, provider.getEc2Url(), parameters );
-          try {
-              doc = method.invoke();
-          } catch ( EC2Exception e ) {
-              logger.error( e.getSummary() );
-              throw new CloudException( e );
-          }
-          blocks = doc.getElementsByTagName( "return" );
-          if ( blocks.getLength() > 0 ) {
-              Node imageIdNode = blocks.item( 0 );
+            parameters.put( "ImageId", providerImageId );
+            method = new EC2Method( provider, provider.getEc2Url(), parameters );
+            try {
+                doc = method.invoke();
+            } catch ( EC2Exception e ) {
+                logger.error( e.getSummary() );
+                throw new CloudException( e );
+            }
+            blocks = doc.getElementsByTagName( "return" );
+            if ( blocks.getLength() > 0 ) {
+                Node imageIdNode = blocks.item( 0 );
 
-              if ( !imageIdNode.getFirstChild().getNodeValue().trim().equals( "true" ) ) {
-                  throw new CloudException( "Failed to de-register image " + providerImageId );
-              }
-          }
-      }
-      finally {
-          APITrace.end();
-      }
-  }
+                if ( !imageIdNode.getFirstChild().getNodeValue().trim().equals( "true" ) ) {
+                    throw new CloudException( "Failed to de-register image " + providerImageId );
+                }
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
 
     @Override
     public void removeAllImageShares(@Nonnull String providerImageId) throws CloudException, InternalException {
