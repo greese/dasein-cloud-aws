@@ -364,8 +364,15 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         getProvider().getEc2Url()
       );
       return callable.call();
-    } catch (Throwable t) {
-      throw new CloudException("Unable to retrieve password for " + instanceId + " : " + t.getMessage());
+    } catch (EC2Exception e) {
+      logger.error(e.getSummary());
+      throw new CloudException(e);
+    } catch (CloudException ce) {
+      ce.printStackTrace();
+      throw ce;
+    } catch (Exception e) {
+      e.printStackTrace();
+      throw new InternalException(e);
     } finally {
       APITrace.end();
     }
@@ -391,7 +398,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
       params.put("InstanceId", instanceId);
       try {
-      method = new EC2Method(awsProvider, ec2url, params);
+        method = new EC2Method(awsProvider, ec2url, params);
       } catch(InternalException e) {
         logger.error(e.getMessage());
         throw new CloudException(e);
