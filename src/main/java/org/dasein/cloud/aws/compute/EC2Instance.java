@@ -353,6 +353,81 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
   @Override
   public
+  @Nullable
+  String getPassword(@Nonnull String instanceId) throws InternalException, CloudException {
+    APITrace.begin(getProvider(), "getPassword");
+    try {
+      Callable<String> callable = new GetPassCallable(
+        instanceId,
+        getProvider().getStandardParameters(getProvider().getContext(), EC2Method.GET_PASSWORD_DATA),
+        getProvider(),
+        getProvider().getEc2Url()
+      );
+      return callable.call();
+    } catch (EC2Exception e) {
+      logger.error(e.getSummary());
+      throw new CloudException(e);
+    } catch (CloudException ce) {
+      ce.printStackTrace();
+      throw ce;
+    } catch (Exception e) {
+      e.printStackTrace();
+      throw new InternalException(e);
+    } finally {
+      APITrace.end();
+    }
+  }
+
+  public static class GetPassCallable implements Callable {
+    private String instanceId;
+    private Map<String, String> params;
+    private AWSCloud awsProvider;
+    private String ec2url;
+
+    public GetPassCallable( String iId, Map<String, String> p, AWSCloud ap, String eUrl ) {
+      instanceId = iId;
+      params = p;
+      awsProvider = ap;
+      ec2url = eUrl;
+    }
+
+    public String call() throws CloudException {
+      EC2Method method;
+      NodeList blocks;
+      Document doc;
+
+      params.put("InstanceId", instanceId);
+      try {
+        method = new EC2Method(awsProvider, ec2url, params);
+      } catch(InternalException e) {
+        logger.error(e.getMessage());
+        throw new CloudException(e);
+      }
+      try {
+        doc = method.invoke();
+      } catch (EC2Exception e) {
+        logger.error(e.getSummary());
+        throw new CloudException(e);
+      } catch(InternalException e) {
+        logger.error(e.getMessage());
+        throw new CloudException(e);
+      }
+      blocks = doc.getElementsByTagName("passwordData");
+
+      if (blocks.getLength() > 0) {
+        Node pw = blocks.item(0);
+
+        if (pw.hasChildNodes()) {
+          return pw.getFirstChild().getNodeValue();
+        }
+        return null;
+      }
+      return null;
+    }
+  }
+
+  @Override
+  public
   @Nonnull
   String getConsoleOutput(@Nonnull String instanceId) throws InternalException, CloudException {
     APITrace.begin(getProvider(), "getConsoleOutput");
@@ -1320,40 +1395,18 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       if (server != null && cfg.getBootstrapKey() != null) {
         try {
           final String sid = server.getProviderVirtualMachineId();
-
-          final Callable<String> pwMethod = new Callable<String>() {
-            public String call() throws CloudException {
-              try {
-                Map<String, String> params = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.GET_PASSWORD_DATA);
-                EC2Method m;
-
-                params.put("InstanceId", sid);
-                m = new EC2Method(getProvider(), getProvider().getEc2Url(), params);
-
-                Document doc = m.invoke();
-                NodeList blocks = doc.getElementsByTagName("passwordData");
-
-                if (blocks.getLength() > 0) {
-                  Node pw = blocks.item(0);
-
-                  if (pw.hasChildNodes()) {
-                    return pw.getFirstChild().getNodeValue();
-                  }
-                  return null;
-                }
-                return null;
-              } catch (Throwable t) {
-                throw new CloudException("Unable to retrieve password for " + sid + ", Let's hope it's Unix: " + t.getMessage());
-              }
-            }
-          };
-
           try {
-            String password = pwMethod.call();
+            Callable<String> callable = new GetPassCallable(
+              sid,
+              getProvider().getStandardParameters(getProvider().getContext(), EC2Method.GET_PASSWORD_DATA),
+              getProvider(),
+              getProvider().getEc2Url()
+            );
+            String password = callable.call();
 
             if (password == null) {
               server.setRootPassword(null);
-              server.setPasswordCallback(pwMethod);
+              server.setPasswordCallback(callable);
             } else {
               server.setRootPassword(password);
             }
