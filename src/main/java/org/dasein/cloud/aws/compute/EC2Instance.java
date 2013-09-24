@@ -2192,17 +2192,13 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       } else if ("rootDeviceName".equals(name) && attr.hasChildNodes()) {
         rootDeviceName = AWSCloud.getTextValue(attr);
       } else if ("ebsOptimized".equals(name) && attr.hasChildNodes()) {
-        if (attr.hasChildNodes()) {
-          server.setIoOptimized(Boolean.valueOf(attr.getFirstChild().getNodeValue()));
-        }
+        server.setIoOptimized(Boolean.valueOf(attr.getFirstChild().getNodeValue()));
       } else if ( "sourceDestCheck".equals( name ) && attr.hasChildNodes() ) {
-        if ( attr.hasChildNodes() ) {
-          /**
-           * note: a value of <sourceDestCheck>true</sourceDestCheck> means this instance cannot
-           * function as a NAT instance, so we negate the value to indicate if it is allowed
-           */
-          server.setIpForwardingAllowed( !Boolean.valueOf( attr.getFirstChild().getNodeValue() ) );
-        }
+        /**
+         * note: a value of <sourceDestCheck>true</sourceDestCheck> means this instance cannot
+         * function as a NAT instance, so we negate the value to indicate if it is allowed
+         */
+        server.setIpForwardingAllowed( !Boolean.valueOf( attr.getFirstChild().getNodeValue() ) );
       }
     }
     if (server.getPlatform() == null) {
