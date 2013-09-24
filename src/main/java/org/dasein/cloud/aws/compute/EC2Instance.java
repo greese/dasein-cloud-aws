@@ -1444,7 +1444,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             EC2Method m;
 
             params.put( "InstanceId", instanceId );
-            params.put( "SourceDestCheck.Value", "true" );
+            params.put( "SourceDestCheck.Value", "false" );
             m = new EC2Method( getProvider(), getProvider().getEc2Url(), params );
 
             m.invoke();
@@ -2144,7 +2144,11 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
       } else if ( "sourceDestCheck".equals( name ) && attr.hasChildNodes() ) {
         if ( attr.hasChildNodes() ) {
-          server.setIpForwardingAllowed( Boolean.valueOf( attr.getFirstChild().getNodeValue() ) );
+          /**
+           * note: a value of <sourceDestCheck>true</sourceDestCheck> means this instance cannot
+           * function as a NAT instance, so we negate the value to indicate if it is allowed
+           */
+          server.setIpForwardingAllowed( !Boolean.valueOf( attr.getFirstChild().getNodeValue() ) );
         }
       }
     }
