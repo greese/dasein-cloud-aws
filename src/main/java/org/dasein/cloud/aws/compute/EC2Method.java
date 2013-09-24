@@ -171,6 +171,7 @@ public class EC2Method {
     static public final String STOP_INSTANCES        = "StopInstances";
     static public final String TERMINATE_INSTANCES   = "TerminateInstances";
     static public final String UNMONITOR_INSTANCES   = "UnmonitorInstances";
+    static public final String MODIFY_INSTANCE_ATTRIBUTE     = "ModifyInstanceAttribute";
 
     // Keypair operations
     static public final String CREATE_KEY_PAIR    = "CreateKeyPair";
