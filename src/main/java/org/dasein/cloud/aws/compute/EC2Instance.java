@@ -1392,6 +1392,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
           }
         }
       }
+      if ( cfg.isIpForwardingAllowed() ) {
+        enableIpForwarding( server.getProviderVirtualMachineId() );
+      }
       if (server != null && cfg.getBootstrapKey() != null) {
         try {
           final String sid = server.getProviderVirtualMachineId();
@@ -1478,6 +1481,56 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     } finally {
       APITrace.end();
     }
+  }
+
+  private void enableIpForwarding( final String instanceId ) throws CloudException {
+
+    Thread t = new Thread() {
+      public void run() {
+        APITrace.begin( getProvider(), "enableIpForwarding" );
+
+        long timeout = System.currentTimeMillis() + CalendarWrapper.MINUTE;
+
+        while ( timeout > System.currentTimeMillis() ) {
+          try {
+            Map<String, String> params = getProvider().getStandardParameters( getProvider().getContext(), EC2Method.MODIFY_INSTANCE_ATTRIBUTE );
+            EC2Method m;
+
+            params.put( "InstanceId", instanceId );
+            params.put( "SourceDestCheck.Value", "true" );
+            m = new EC2Method( getProvider(), getProvider().getEc2Url(), params );
+
+            m.invoke();
+            return;
+          }
+          catch ( EC2Exception ex ) {
+            if ( ex.getStatus() != 404 ) {
+              logger.error( "Unable to modify instance attributes on " + instanceId + ".", ex );
+              return;
+            }
+          }
+          catch ( Throwable ex ) {
+            logger.error( "Unable to modify instance attributes on " + instanceId + ".", ex );
+            return;
+          }
+          finally {
+            APITrace.end();
+          }
+
+          try {
+            Thread.sleep( 5000L );
+          }
+          catch ( InterruptedException ignore ) {
+          }
+        }
+
+      }
+    };
+
+    t.setName( EC2Method.MODIFY_INSTANCE_ATTRIBUTE + " thread" );
+    t.setDaemon( true );
+    t.start();
+
   }
 
   @Override
@@ -2141,6 +2194,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       } else if ("ebsOptimized".equals(name) && attr.hasChildNodes()) {
         if (attr.hasChildNodes()) {
           server.setIoOptimized(Boolean.valueOf(attr.getFirstChild().getNodeValue()));
+        }
+      } else if ( "sourceDestCheck".equals( name ) && attr.hasChildNodes() ) {
+        if ( attr.hasChildNodes() ) {
+          server.setIpForwardingAllowed( Boolean.valueOf( attr.getFirstChild().getNodeValue() ) );
         }
       }
     }
