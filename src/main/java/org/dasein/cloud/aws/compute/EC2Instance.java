@@ -64,7 +64,27 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
   @Override
   public VirtualMachine alterVirtualMachine(@Nonnull String vmId, @Nonnull VMScalingOptions options) throws InternalException, CloudException {
-    throw new OperationNotSupportedException("AWS does not support vertical scaling of instances");
+    APITrace.begin(getProvider(), "alterVirtualMachine");
+    try {
+      Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.MODIFY_INSTANCE_ATTRIBUTE);
+      EC2Method method;
+
+      parameters.put("InstanceId", vmId);
+      parameters.put("InstanceType.Value", options.getProviderProductId());
+
+      method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+      try {
+        method.invoke();
+      } catch ( EC2Exception e ) {
+        logger.error(e.getSummary());
+        throw new CloudException(e);
+      } catch ( Throwable ex ) {
+        throw new CloudException(ex);
+      }
+      return getVirtualMachine(vmId);
+    } finally {
+      APITrace.end();
+    }
   }
 
   @Override
