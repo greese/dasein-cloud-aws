@@ -96,8 +96,8 @@
             {
                 "architectures":["I32","I64"],
                 "id":"c1.medium",
-                "name":"High-CPU Medium Instance (c1.medium)",
-                "description":"High-CPU Medium Instance (c1.medium)",
+                "name":"Compute Optimized Medium Instance (Previous Generation) (c1.medium)",
+                "description":"Compute Optimized Medium Instance (Previous Generation) (c1.medium)",
                 "cpuCount":2,
                 "rootVolumeSizeInGb":350,
                 "ramSizeInMb":1700
@@ -105,8 +105,8 @@
              {
                 "architectures":["I64"],
                 "id":"c1.xlarge",
-                "name":"High-CPU Extra Large Instance (c1.xlarge)",
-                "description":"High-CPU Extra Large Instance (c1.xlarge)",
+                "name":"Compute Optimized Extra Large Instance (Previous Generation) (c1.xlarge)",
+                "description":"Compute Optimized Extra Large Instance (Previous Generation) (c1.xlarge)",
                 "cpuCount":8,
                 "rootVolumeSizeInGb":1690,
                 "ramSizeInMb":7000
@@ -156,7 +156,7 @@
                 "rootVolumeSizeInGb":49152,
                 "ramSizeInMb":119808
             },
-	    {
+            {
                 "architectures":["I64"],
                 "id":"cc1.4xlarge",
                 "name":"Cluster Compute Quadruple Extra Large (cc1.4xlarge)",
@@ -164,6 +164,51 @@
                 "cpuCount":16,
                 "rootVolumeSizeInGb":1690,
                 "ramSizeInMb":23000
+            },
+            {
+                "architectures":["I64"],
+                "id":"c3.large",
+                "name":"Compute Optimized Large (c3.large)",
+                "description":"Compute Optimized Large (c3.large)",
+                "cpuCount":2,
+                "rootVolumeSizeInGb":32,
+                "ramSizeInMb":3750
+            },
+            {
+                "architectures":["I64"],
+                "id":"c3.xlarge",
+                "name":"Compute Optimized Extra Large (c3.xlarge)",
+                "description":"Compute Optimized Extra Large (c3.xlarge)",
+                "cpuCount":4,
+                "rootVolumeSizeInGb":80,
+                "ramSizeInMb":7000
+            },
+            {
+                "architectures":["I64"],
+                "id":"c3.2xlarge",
+                "name":"Compute Optimized Double Extra Large (c3.2xlarge)",
+                "description":"Compute Optimized Double Extra Large (c3.2xlarge)",
+                "cpuCount":8,
+                "rootVolumeSizeInGb":160,
+                "ramSizeInMb":15000
+            },
+            {
+                "architectures":["I64"],
+                "id":"c3.4xlarge",
+                "name":"Compute Optimized Quadruple Extra Large (c3.4xlarge)",
+                "description":"Compute Optimized Quadruple Extra Large (c3.4xlarge)",
+                "cpuCount":16,
+                "rootVolumeSizeInGb":320,
+                "ramSizeInMb":30000
+            },
+            {
+                "architectures":["I64"],
+                "id":"c3.8xlarge",
+                "name":"Compute Optimized Eight Extra Large (c3.2xlarge)",
+                "description":"Compute Optimized Eight Extra Large (c3.8xlarge)",
+                "cpuCount":32,
+                "rootVolumeSizeInGb":640,
+                "ramSizeInMb":60000
             }
 
         ]
