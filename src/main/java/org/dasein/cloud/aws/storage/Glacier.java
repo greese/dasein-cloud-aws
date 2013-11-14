@@ -179,7 +179,7 @@ public class Glacier implements OfflineStoreSupport {
     }
 
     @Override
-    public String getSignedObjectUrl(@Nonnull String bucketPublicKey, @Nonnull String bucketPrivateKey, @Nonnull String bucket, @Nonnull String object, @Nonnull String expireEpoch) throws InternalException, CloudException {
+    public String getSignedObjectUrl(@Nonnull String bucket, @Nonnull String object, @Nonnull String expireEpoch) throws InternalException, CloudException {
       throw new OperationNotSupportedException("Glacier URLs are not yet supported");
     }
 

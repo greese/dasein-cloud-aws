@@ -447,17 +447,17 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     @Override
-    public String getSignedObjectUrl(@Nonnull String bucketPublicKey, @Nonnull String bucketPrivateKey, @Nonnull String bucket, @Nonnull String object, @Nonnull String expiresEpochInSeconds) throws InternalException, CloudException {
+    public String getSignedObjectUrl(@Nonnull String bucket, @Nonnull String object, @Nonnull String expiresEpochInSeconds) throws InternalException, CloudException {
       String signedUrl;
       try {
-        SecretKeySpec signingKey = new SecretKeySpec(bucketPrivateKey.getBytes(), HMAC_SHA1_ALGORITHM);
+        SecretKeySpec signingKey = new SecretKeySpec(provider.getContext().getAccessPrivate(), HMAC_SHA1_ALGORITHM);
         Mac mac = Mac.getInstance(HMAC_SHA1_ALGORITHM);
         mac.init(signingKey);
         String data = "GET\n\n\n" + expiresEpochInSeconds + "\n/" + bucket + "/" + object;
         byte[] rawHmac = mac.doFinal(data.getBytes());
         String signature = URLEncoder.encode( DatatypeConverter.printBase64Binary(rawHmac), "UTF-8");
         signedUrl = "https://" + bucket + ".s3.amazonaws.com/" + object + "?AWSAccessKeyId=" +
-          bucketPublicKey + "&Signature=" + signature + "&Expires=" + expiresEpochInSeconds;
+          new String(provider.getContext().getAccessPublic(), "UTF-8") + "&Signature=" + signature + "&Expires=" + expiresEpochInSeconds;
       }
       catch( NullPointerException e ) {
         logger.error(e);
