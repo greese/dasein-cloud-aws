@@ -64,7 +64,27 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
   @Override
   public VirtualMachine alterVirtualMachine(@Nonnull String vmId, @Nonnull VMScalingOptions options) throws InternalException, CloudException {
-    throw new OperationNotSupportedException("AWS does not support vertical scaling of instances");
+    APITrace.begin(getProvider(), "alterVirtualMachine");
+    try {
+      Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.MODIFY_INSTANCE_ATTRIBUTE);
+      EC2Method method;
+
+      parameters.put("InstanceId", vmId);
+      parameters.put("InstanceType.Value", options.getProviderProductId());
+
+      method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+      try {
+        method.invoke();
+      } catch ( EC2Exception e ) {
+        logger.error(e.getSummary());
+        throw new CloudException(e);
+      } catch ( Throwable ex ) {
+        throw new CloudException(ex);
+      }
+      return getVirtualMachine(vmId);
+    } finally {
+      APITrace.end();
+    }
   }
 
   @Override
@@ -2192,17 +2212,13 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       } else if ("rootDeviceName".equals(name) && attr.hasChildNodes()) {
         rootDeviceName = AWSCloud.getTextValue(attr);
       } else if ("ebsOptimized".equals(name) && attr.hasChildNodes()) {
-        if (attr.hasChildNodes()) {
-          server.setIoOptimized(Boolean.valueOf(attr.getFirstChild().getNodeValue()));
-        }
+        server.setIoOptimized(Boolean.valueOf(attr.getFirstChild().getNodeValue()));
       } else if ( "sourceDestCheck".equals( name ) && attr.hasChildNodes() ) {
-        if ( attr.hasChildNodes() ) {
-          /**
-           * note: a value of <sourceDestCheck>true</sourceDestCheck> means this instance cannot
-           * function as a NAT instance, so we negate the value to indicate if it is allowed
-           */
-          server.setIpForwardingAllowed( !Boolean.valueOf( attr.getFirstChild().getNodeValue() ) );
-        }
+        /**
+         * note: a value of <sourceDestCheck>true</sourceDestCheck> means this instance cannot
+         * function as a NAT instance, so we negate the value to indicate if it is allowed
+         */
+        server.setIpForwardingAllowed( !Boolean.valueOf( attr.getFirstChild().getNodeValue() ) );
       }
     }
     if (server.getPlatform() == null) {
