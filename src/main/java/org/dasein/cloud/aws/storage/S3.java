@@ -19,28 +19,9 @@
 
 package org.dasein.cloud.aws.storage;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Locale;
-import java.util.Random;
-
 import org.apache.http.Header;
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.NameRules;
-import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.storage.S3Method.S3Response;
 import org.dasein.cloud.identity.ServiceAction;
@@ -64,7 +45,17 @@ import org.w3c.dom.NodeList;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import javax.servlet.http.HttpServletResponse;
+import javax.xml.bind.DatatypeConverter;
+import java.io.*;
+import java.net.URLEncoder;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 public class S3 extends AbstractBlobStoreSupport {
     static private final Logger logger = AWSCloud.getLogger(S3.class);
@@ -72,8 +63,10 @@ public class S3 extends AbstractBlobStoreSupport {
     static public final int                                       MAX_BUCKETS     = 100;
     static public final int                                       MAX_OBJECTS     = -1;
     static public final Storage<org.dasein.util.uom.storage.Byte> MAX_OBJECT_SIZE = new Storage<org.dasein.util.uom.storage.Byte>(5000000000L, Storage.BYTE);
+    static private final String HMAC_SHA1_ALGORITHM = "HmacSHA1";
 
-    static private final Random random = new Random();
+
+  static private final Random random = new Random();
 
     static private class Constraint {
         public String regionId;
@@ -451,6 +444,42 @@ public class S3 extends AbstractBlobStoreSupport {
         finally {
             APITrace.end();
         }
+    }
+
+    @Override
+    public String getSignedObjectUrl(@Nonnull String bucket, @Nonnull String object, @Nonnull String expiresEpochInSeconds) throws InternalException, CloudException {
+      String signedUrl;
+      try {
+        SecretKeySpec signingKey = new SecretKeySpec(provider.getContext().getAccessPrivate(), HMAC_SHA1_ALGORITHM);
+        Mac mac = Mac.getInstance(HMAC_SHA1_ALGORITHM);
+        mac.init(signingKey);
+        String data = "GET\n\n\n" + expiresEpochInSeconds + "\n/" + bucket + "/" + object;
+        byte[] rawHmac = mac.doFinal(data.getBytes());
+        String signature = URLEncoder.encode( DatatypeConverter.printBase64Binary(rawHmac), "UTF-8");
+        signedUrl = "https://" + bucket + ".s3.amazonaws.com/" + object + "?AWSAccessKeyId=" +
+          new String(provider.getContext().getAccessPublic(), "UTF-8") + "&Signature=" + signature + "&Expires=" + expiresEpochInSeconds;
+      }
+      catch( NullPointerException e ) {
+        logger.error(e);
+        e.printStackTrace();
+        throw new InternalException(e);
+      }
+      catch ( NoSuchAlgorithmException e ) {
+        logger.error(e);
+        e.printStackTrace();
+        throw new InternalException(e);
+      }
+      catch ( InvalidKeyException e ) {
+        logger.error(e);
+        e.printStackTrace();
+        throw new InternalException(e);
+      }
+      catch ( UnsupportedEncodingException e ) {
+        logger.error(e);
+        e.printStackTrace();
+        throw new InternalException(e);
+      }
+      return signedUrl;
     }
 
     private boolean belongsToAnother(@Nonnull String bucketName) throws InternalException, CloudException {
