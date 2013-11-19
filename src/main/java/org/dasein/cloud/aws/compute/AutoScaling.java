@@ -932,7 +932,70 @@ public class AutoScaling implements AutoScalingSupport {
         }
     }
 
-    private @Nullable ResourceStatus toGroupStatus( @Nullable Node item) {
+  @Override
+  public void updateTags( @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
+    APITrace.begin( provider, "AutoScaling.removeTags" );
+    try {
+      handleTagRequest( EC2Method.UPDATE_AUTO_SCALING_GROUP_TAGS, providerScalingGroupIds, tags );
+    }
+    finally {
+      APITrace.end();
+    }
+  }
+
+  @Override
+  public void removeTags( @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
+    APITrace.begin( provider, "AutoScaling.removeTags" );
+    try {
+      handleTagRequest( EC2Method.DELETE_AUTO_SCALING_GROUP_TAGS, providerScalingGroupIds, tags );
+    }
+    finally {
+      APITrace.end();
+    }
+  }
+
+  private void handleTagRequest( @Nonnull String methodName, @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
+    Map<String, String> parameters = getAutoScalingParameters( provider.getContext(), methodName );
+    EC2Method method;
+
+    addAutoScalingTagParameters( parameters, providerScalingGroupIds, tags );
+
+    if ( parameters.size() == 0 ) {
+      return;
+    }
+
+    method = new EC2Method( provider, getAutoScalingUrl(), parameters );
+    try {
+      method.invoke();
+    }
+    catch ( EC2Exception e ) {
+      logger.error( e.getSummary() );
+      throw new CloudException( e );
+    }
+  }
+
+  static private void addAutoScalingTagParameters( @Nonnull Map<String, String> parameters, @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) {
+    /**
+     * unlike EC2's regular CreateTags call, for autoscaling we must add a set of tag parameters for each auto scaling group
+     * http://docs.aws.amazon.com/AutoScaling/latest/APIReference/API_CreateOrUpdateTags.html
+     */
+    int tagCounter = 1;
+    for ( int i = 0; i < providerScalingGroupIds.length; i++ ) {
+      for ( AutoScalingTag tag : tags ) {
+        parameters.put( "Tags.member." + tagCounter + ".ResourceType", "auto-scaling-group" );
+        parameters.put( "Tags.member." + tagCounter + ".ResourceId", providerScalingGroupIds[i] );
+        parameters.put( "Tags.member." + tagCounter + ".Key", tag.getKey() );
+        if ( tag.getValue() != null ) {
+          parameters.put( "Tags.member." + tagCounter + ".Value", tag.getValue() );
+        }
+        parameters.put( "Tags.member." + tagCounter + ".PropagateAtLaunch", String.valueOf( tag.isPropagateAtLaunch() ) );
+
+        tagCounter++;
+      }
+    }
+  }
+
+  private @Nullable ResourceStatus toGroupStatus( @Nullable Node item) {
         if( item == null ) {
             return null;
         }
