@@ -80,6 +80,8 @@ public class EC2Method {
     static public final String DESCRIBE_LAUNCH_CONFIGURATIONS   = "DescribeLaunchConfigurations";
     static public final String SET_DESIRED_CAPACITY             = "SetDesiredCapacity";
     static public final String UPDATE_AUTO_SCALING_GROUP        = "UpdateAutoScalingGroup";
+    static public final String UPDATE_AUTO_SCALING_GROUP_TAGS   = "CreateOrUpdateTags";
+    static public final String DELETE_AUTO_SCALING_GROUP_TAGS   = "DeleteTags";
 
 
     static public @Nonnull ServiceAction[] asAutoScalingServiceAction(@Nonnull String action) {
