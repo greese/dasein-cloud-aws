@@ -1235,6 +1235,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       if (kernelImage != null) {
         parameters.put("kernelId", kernelImage);
       }
+      if (cfg.getRoleId() != null) {
+        parameters.put("IamInstanceProfile.Arn", cfg.getRoleId());
+      }
       if (cfg.getUserData() != null) {
         try {
           parameters.put("UserData", Base64.encodeBase64String(cfg.getUserData().getBytes("utf-8")));
@@ -2219,6 +2222,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
          * function as a NAT instance, so we negate the value to indicate if it is allowed
          */
         server.setIpForwardingAllowed( !Boolean.valueOf( attr.getFirstChild().getNodeValue() ) );
+      } else if ( "iamInstanceProfile".equals(name) && attr.hasChildNodes() ) {
+        server.setProviderRoleId( attr.getFirstChild().getNodeValue().trim() );
       }
     }
     if (server.getPlatform() == null) {
