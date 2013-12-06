@@ -2223,7 +2223,19 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
          */
         server.setIpForwardingAllowed( !Boolean.valueOf( attr.getFirstChild().getNodeValue() ) );
       } else if ( "iamInstanceProfile".equals(name) && attr.hasChildNodes() ) {
-        server.setProviderRoleId( attr.getFirstChild().getNodeValue().trim() );
+        NodeList details = attr.getChildNodes();
+
+        for (int j = 0; j < details.getLength(); j++) {
+          Node detail = details.item(j);
+
+          name = detail.getNodeName();
+          if (name.equals("arn")) {
+            if (detail.hasChildNodes()) {
+              String value = detail.getFirstChild().getNodeValue().trim();
+              server.setProviderRoleId( value );
+            }
+          }
+        }
       }
     }
     if (server.getPlatform() == null) {
