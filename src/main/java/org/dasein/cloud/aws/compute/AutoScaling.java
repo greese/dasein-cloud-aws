@@ -210,7 +210,7 @@ public class AutoScaling implements AutoScalingSupport {
     }
 
     @Override
-    public String createLaunchConfiguration(String name, String imageId, VirtualMachineProduct size, String keyPairName, String userData, String ... firewalls) throws InternalException, CloudException {
+    public String createLaunchConfiguration(String name, String imageId, VirtualMachineProduct size, String keyPairName, String userData, String providerRoleId, Boolean detailedMonitoring, String ... firewalls) throws InternalException, CloudException {
         APITrace.begin(provider, "AutoScaling.createLaunchConfigursation");
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_LAUNCH_CONFIGURATION);
@@ -223,6 +223,12 @@ public class AutoScaling implements AutoScalingSupport {
             }
             if(userData != null) {
               parameters.put("UserData", userData);
+            }
+            if(providerRoleId != null) {
+              parameters.put("IamInstanceProfile", providerRoleId);
+            }
+            if(detailedMonitoring != null) {
+              parameters.put("InstanceMonitoring", detailedMonitoring.toString());
             }
             parameters.put("InstanceType", size.getProviderProductId());
             int i = 1;
@@ -1097,6 +1103,27 @@ public class AutoScaling implements AutoScalingSupport {
                     ids = new String[0];
                 }
                 cfg.setProviderFirewallIds(ids);
+            }
+            else if( name.equalsIgnoreCase("IamInstanceProfile") ) {
+              if(attr.getFirstChild() != null){
+                String providerId = attr.getFirstChild().getNodeValue();
+                cfg.setProviderRoleId(providerId);
+              }
+            }
+            else if ( "InstanceMonitoring".equals(name) && attr.hasChildNodes() ) {
+              NodeList details = attr.getChildNodes();
+
+              for (int j = 0; j < details.getLength(); j++) {
+                Node detail = details.item(j);
+
+                name = detail.getNodeName();
+                if (name.equals("Enabled")) {
+                  if (detail.hasChildNodes()) {
+                    String value = detail.getFirstChild().getNodeValue().trim();
+                    cfg.setDetailedMonitoring( Boolean.valueOf( value ) );
+                  }
+                }
+              }
             }
         }
         return cfg;
