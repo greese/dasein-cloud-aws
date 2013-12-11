@@ -38,7 +38,10 @@ import javax.annotation.Nullable;
 import java.io.UnsupportedEncodingException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 public class AutoScaling implements AutoScalingSupport {
     static private final Logger logger = Logger.getLogger(AutoScaling.class);
@@ -228,7 +231,7 @@ public class AutoScaling implements AutoScalingSupport {
               parameters.put("IamInstanceProfile", providerRoleId);
             }
             if(detailedMonitoring != null) {
-              parameters.put("InstanceMonitoring", detailedMonitoring.toString());
+              parameters.put("InstanceMonitoring.Enabled", detailedMonitoring.toString());
             }
             parameters.put("InstanceType", size.getProviderProductId());
             int i = 1;
