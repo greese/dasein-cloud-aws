@@ -127,6 +127,9 @@ public class AWSCloud extends AbstractCloud {
     static public final String V4_ALGORITHM          = "AWS4-HMAC-SHA256";
     static public final String V4_TERMINATION        = "aws4_request";
 
+    static public final String EC2Classic = "EC2";
+    static public final String EC2VPC     = "VPC";
+
     static public String encode(String value, boolean encodePath) throws InternalException {
         String encoded;
         
@@ -475,7 +478,7 @@ public class AWSCloud extends AbstractCloud {
         }
     }
     
-    @Nullable String getEc2Url(@Nullable String regionId) throws InternalException, CloudException {
+    public @Nullable String getEc2Url(@Nullable String regionId) throws InternalException, CloudException {
         ProviderContext ctx = getContext();
         String url;
         
