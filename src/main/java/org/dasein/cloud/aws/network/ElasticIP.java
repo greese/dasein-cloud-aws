@@ -510,11 +510,24 @@ public class ElasticIP implements IpAddressSupport {
         if( address == null ) {
             throw new CloudException("Invalid IP address: " + addressId);
         }
-        if( address.isForVlan() ) {
-            parameters.put("AllocationId" + postfix, addressId);
+        String ec2Type = AWSCloud.EC2Classic;
+        try{
+            ec2Type = provider.getDataCenterServices().isRegionEC2VPC(provider.getContext().getRegionId());
         }
-        else {
-            parameters.put("PublicIp" + postfix, addressId);
+        catch(InternalException ex){
+            logger.error(ex.getMessage());
+        }
+
+        if(ec2Type.equals(AWSCloud.EC2Classic)){
+            if( address.isForVlan() ) {
+                parameters.put("AllocationId" + postfix, addressId);
+            }
+            else {
+                parameters.put("PublicIp" + postfix, addressId);
+            }
+        }
+        else{
+            parameters.put("AllocationId" + postfix, addressId);
         }
     }
     
@@ -563,24 +576,49 @@ public class ElasticIP implements IpAddressSupport {
             if( !version.equals(IPVersion.IPV4) ) {
                 throw new OperationNotSupportedException(provider.getCloudName() + " does not support " + version);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ALLOCATE_ADDRESS);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
+            String ec2Type = provider.getDataCenterServices().isRegionEC2VPC(provider.getContext().getRegionId());
+            if(ec2Type.equals(AWSCloud.EC2Classic)){
+                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ALLOCATE_ADDRESS);
+                EC2Method method;
+                NodeList blocks;
+                Document doc;
+
+                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                blocks = doc.getElementsByTagName("publicIp");
+                if( blocks.getLength() > 0 ) {
+                    return blocks.item(0).getFirstChild().getNodeValue().trim();
+                }
+                throw new CloudException("Unable to create an address.");
             }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
+            else{
+                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ALLOCATE_ADDRESS);
+                EC2Method method;
+                NodeList blocks;
+                Document doc;
+
+                parameters.put("Domain","vpc");
+                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                blocks = doc.getElementsByTagName("allocationId");
+                if( blocks.getLength() > 0 ) {
+                    return blocks.item(0).getFirstChild().getNodeValue().trim();
+                }
+                throw new CloudException("Unable to create an address.");
             }
-            blocks = doc.getElementsByTagName("publicIp");
-            if( blocks.getLength() > 0 ) {
-                return blocks.item(0).getFirstChild().getNodeValue().trim();
-            }
-            throw new CloudException("Unable to create an address.");
         }
         finally {
             APITrace.end();

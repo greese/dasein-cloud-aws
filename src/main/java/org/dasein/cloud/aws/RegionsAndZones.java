@@ -401,6 +401,63 @@ public class RegionsAndZones implements DataCenterServices {
             APITrace.end();
         }
 	}
+
+    public String isRegionEC2VPC(String regionId) throws CloudException, InternalException{
+        ProviderContext ctx = provider.getContext();
+
+        Cache<HashMap> cache = Cache.getInstance(provider, "ec2-types", HashMap.class, CacheLevel.CLOUD_ACCOUNT);
+        Collection<HashMap> region2Ec2Types = (Collection<HashMap>)cache.get(ctx);
+        HashMap<String, String> platformMap = null;
+
+        if(region2Ec2Types == null){
+            region2Ec2Types = new ArrayList<HashMap>();
+            Collection<Region> regions = listRegions();
+            platformMap = new HashMap<String, String>();
+
+            for(Region r : regions){
+                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ACCOUNT_ATTRIBUTES);
+                parameters.put("AttributeName.1", "supported-platforms");
+                EC2Method method = new EC2Method(provider, provider.getEc2Url(r.getProviderRegionId()), parameters);
+                try{
+                    Document doc = method.invoke();
+
+                    String supportedPlatform = null;
+                    NodeList attributes = doc.getElementsByTagName("attributeValueSet").item(0).getChildNodes();
+                    for(int i=0;i<attributes.getLength();i++){
+                        Node attribute = attributes.item(i);
+                        if(attribute.getNodeType() == Node.TEXT_NODE)continue;
+
+                        if(attribute.getNodeName().equals("item")){
+                            NodeList data = attribute.getChildNodes();
+
+                            for(int j=0;j<data.getLength();j++){
+                                Node value = data.item(j);
+                                if(value.getNodeType() == Node.TEXT_NODE)continue;
+
+                                if(supportedPlatform != null){
+                                    supportedPlatform = AWSCloud.EC2Classic;//For now if it can be either we'll use EC2-Classic
+                                }
+                                else{
+                                    supportedPlatform = value.getFirstChild().getNodeValue().trim();
+                                }
+                                platformMap.put(r.getProviderRegionId(), supportedPlatform);
+                            }
+                        }
+                    }
+                }
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+            }
+            region2Ec2Types.add(platformMap);
+            cache.put(ctx, region2Ec2Types);
+        }
+        else{
+            platformMap = region2Ec2Types.iterator().next();
+        }
+        return platformMap.get(regionId);
+    }
 	
 	private DataCenter toDataCenter(String regionId, Node zone) throws CloudException {
 		NodeList data = zone.getChildNodes();

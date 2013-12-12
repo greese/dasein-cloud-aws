@@ -259,6 +259,9 @@ public class EC2Method {
     static public final String ENABLE_ALARM_ACTIONS = "EnableAlarmActions";
     static public final String DISABLE_ALARM_ACTIONS = "DisableAlarmActions";
 
+    // Account operations
+    static public final String DESCRIBE_ACCOUNT_ATTRIBUTES = "DescribeAccountAttributes";
+
     static public @Nonnull ServiceAction[] asEC2ServiceAction(@Nonnull String action) {
         // TODO: implement me
         // AMI operations
