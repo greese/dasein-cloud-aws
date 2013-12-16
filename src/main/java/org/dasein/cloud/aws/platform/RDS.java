@@ -66,6 +66,7 @@ public class RDS implements RelationalDatabaseSupport {
     static public final String CREATE_DB_INSTANCE                  = "CreateDBInstance";
     static public final String CREATE_DB_PARAMETER_GROUP           = "CreateDBParameterGroup";
     static public final String CREATE_DB_SECURITY_GROUP            = "CreateDBSecurityGroup";
+    static public final String CREATE_SECURITY_GROUP               = "CreateSecurityGroup";
     static public final String CREATE_DB_SNAPSHOT                  = "CreateDBSnapshot"; 
     static public final String DELETE_DB_INSTANCE                  = "DeleteDBInstance";
     static public final String DELETE_DB_PARAMETER_GROUP           = "DeleteDBParameterGroup";
@@ -253,8 +254,6 @@ public class RDS implements RelationalDatabaseSupport {
             if( size < 5 ) {
                 size = 5;
             }
-            
-            String securityGroupId = createSecurityGroup(id);
 
             parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_INSTANCE);
             parameters.put("DBInstanceIdentifier", id);
@@ -265,7 +264,12 @@ public class RDS implements RelationalDatabaseSupport {
             parameters.put("MasterUsername", withAdminUser);
             parameters.put("MasterUserPassword", withAdminPassword);
             parameters.put("Port", String.valueOf(hostPort));
-            parameters.put("DBSecurityGroups.member.1", securityGroupId);
+
+            String ec2Type = provider.getDataCenterServices().isRegionEC2VPC(provider.getContext().getRegionId());
+            if(ec2Type.equals(AWSCloud.EC2Classic)){
+                String securityGroupId = createSecurityGroup(id);
+                parameters.put("DBSecurityGroups.member.1", securityGroupId);
+            }
             
             if( product.getEngine().isMySQL() ) {
                 parameters.put("LicenseModel", "general-public-license");

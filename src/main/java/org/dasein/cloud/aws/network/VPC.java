@@ -2211,6 +2211,38 @@ public class VPC extends AbstractVLANSupport {
         return false;
     }
 
+    public String getDefaultVPCIDForRegion(String regionId) throws CloudException, InternalException{
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ACCOUNT_ATTRIBUTES);
+        parameters.put("AttributeName.1", "supported-platforms");
+        EC2Method method = new EC2Method(provider, provider.getEc2Url(provider.getContext().getRegionId()), parameters);
+        try{
+            Document doc = method.invoke();
+
+            NodeList attributes = doc.getElementsByTagName("attributeValueSet").item(0).getChildNodes();
+            for(int i=0;i<attributes.getLength();i++){
+                Node attribute = attributes.item(i);
+                if(attribute.getNodeType() == Node.TEXT_NODE)continue;
+
+                if(attribute.getNodeName().equals("item")){
+                    NodeList data = attribute.getChildNodes();
+
+                    for(int j=0;j<data.getLength();j++){
+                        Node value = data.item(j);
+                        if(value.getNodeType() == Node.TEXT_NODE)continue;
+
+                        return value.getFirstChild().getNodeValue().trim();
+                    }
+                }
+            }
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+
+        throw new InternalException("An error occurred finding the default VPC for the region");
+    }
+
     private @Nullable NetworkInterface toNIC(@Nonnull ProviderContext ctx, @Nullable Node item) throws CloudException, InternalException {
         if( item == null ) {
             return null;
