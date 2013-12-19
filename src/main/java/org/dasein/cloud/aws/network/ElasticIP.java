@@ -519,12 +519,12 @@ public class ElasticIP implements IpAddressSupport {
         }
 
         if(ec2Type.equals(AWSCloud.EC2Classic)){
-            if( address.isForVlan() ) {
+            /*if( address.isForVlan() ) {
                 parameters.put("AllocationId" + postfix, addressId);
             }
-            else {
+            else {*/
                 parameters.put("PublicIp" + postfix, addressId);
-            }
+            //}
         }
         else{
             parameters.put("AllocationId" + postfix, addressId);
