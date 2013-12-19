@@ -493,7 +493,7 @@ public class SNS implements PushNotificationSupport {
                                     if( node.getNodeName().equals("key") ) {
                                         name = node.getFirstChild().getNodeValue().trim();
                                     }
-                                    else if( node.getNodeName().equals("value") ) {
+                                    else if( node.getNodeName().equals("value") && node.hasChildNodes() ) {
                                         value = node.getFirstChild().getNodeValue().trim();
                                     }
                                 }
