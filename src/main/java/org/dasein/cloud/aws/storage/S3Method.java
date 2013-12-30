@@ -405,7 +405,7 @@ public class S3Method {
             else {
                 headers.put(AWSCloud.P_AWS_DATE, getDate());
             }
-            method = action.getMethod(url.toString());
+            method = action.getMethod(url.toString().replace(" ", "%20"));
             if( headers != null ) {
                 for( Map.Entry<String, String> entry : headers.entrySet() ) {
                     method.addHeader(entry.getKey(), entry.getValue());
