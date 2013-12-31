@@ -224,6 +224,61 @@ public class ElasticIP implements IpAddressSupport {
         }
 	}
 
+    private @Nullable String getVPCAddressAssociationId(@Nonnull String addressId) throws InternalException, CloudException {
+        APITrace.begin(provider, "IpAddress.getVPCAddressAssociationId");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was set for this request");
+            }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ADDRESSES);
+            IpAddress address = null;
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("AllocationId.1", addressId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( code != null && (code.equals("InvalidAllocationID.NotFound") || code.equals("InvalidAddress.NotFound") || e.getMessage().contains("Invalid value") || e.getMessage().startsWith("InvalidAllocation")) ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("addressesSet");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j=0; j<items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+
+                        NodeList attrs = item.getChildNodes();
+
+                        for( int k=0; k<attrs.getLength(); k++ ) {
+                            Node attr = attrs.item(k);
+                            String name = attr.getNodeName();
+                            if( name.equals("associationId") && attr.hasChildNodes() ) {
+                                return attr.getFirstChild().getNodeValue().trim();
+                            }
+                        }
+                    }
+                }
+            }
+            return null;
+        } finally {
+            APITrace.end();
+        }
+    }
+
     private @Nullable IpAddress getVPCAddress(@Nonnull String addressId) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.getVPCAddress");
         try {
@@ -485,7 +540,22 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
-            setId("", parameters, getIpAddress(addressId), addressId);
+            if( getIpAddress(addressId) == null ) {
+                throw new CloudException("Invalid IP address: " + addressId);
+            }
+            String ec2Type = provider.getDataCenterServices().isRegionEC2VPC(provider.getContext().getRegionId());
+            if(ec2Type.equals(AWSCloud.EC2Classic)){
+                parameters.put("PublicIp", addressId);
+            } else if (ec2Type.equals(AWSCloud.EC2VPC)) {
+                String associationId = getVPCAddressAssociationId(addressId);
+                if (associationId == null) {
+                    throw new CloudException("Cannot release address '" + addressId + "', problem getting associationId");
+                }
+                parameters.put("AssociationId", associationId);
+            } else {
+                throw new InternalException("Unknown ec2Type: " + ec2Type);
+            }
+
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
