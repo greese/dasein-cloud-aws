@@ -88,6 +88,33 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
   }
 
   @Override
+  public VirtualMachine modifyInstance(@Nonnull String vmId, @Nonnull String[] firewalls) throws InternalException, CloudException {
+    APITrace.begin(getProvider(), "alterVirtualMachine");
+    try {
+      Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.MODIFY_INSTANCE_ATTRIBUTE);
+      EC2Method method;
+
+      parameters.put("InstanceId", vmId);
+      for (int i = 0; i < firewalls.length; i++) {
+        parameters.put("GroupId."+i, firewalls[i]);
+      }
+
+      method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+      try {
+        method.invoke();
+      } catch ( EC2Exception e ) {
+        logger.error(e.getSummary());
+        throw new CloudException(e);
+      } catch ( Throwable ex ) {
+        throw new CloudException(ex);
+      }
+      return getVirtualMachine(vmId);
+    } finally {
+      APITrace.end();
+    }
+  }
+
+  @Override
   public void start(@Nonnull String instanceId) throws InternalException, CloudException {
     APITrace.begin(getProvider(), "startVM");
     try {
