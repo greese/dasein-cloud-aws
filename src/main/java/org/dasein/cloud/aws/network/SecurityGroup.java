@@ -55,6 +55,30 @@ public class SecurityGroup extends AbstractFirewallSupport {
             if( Permission.DENY.equals(permission) ) {
                 throw new OperationNotSupportedException("AWS does not support DENY rules");
             }
+            FirewallRuleCreateOptions options = FirewallRuleCreateOptions.getInstance(direction, permission, sourceEndpoint, protocol, destinationEndpoint, beginPort, endPort, precedence);
+
+            return authorize(firewallId, options);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull FirewallRuleCreateOptions options) throws CloudException, InternalException {
+        APITrace.begin(provider, "Firewall.authorizeWithOptions");
+        try {
+            Permission permission = options.getPermission();
+            Direction direction = options.getDirection();
+            RuleTarget sourceEndpoint = options.getSourceEndpoint();
+            RuleTarget destinationEndpoint = options.getDestinationEndpoint();
+            Protocol protocol = options.getProtocol();
+            int beginPort = options.getPortRangeStart();
+            int endPort = options.getPortRangeEnd();
+
+            if( Permission.DENY.equals(permission) ) {
+                throw new OperationNotSupportedException("AWS does not support DENY rules");
+            }
             //if( !destinationEndpoint.getRuleTargetType().equals(RuleTargetType.GLOBAL) ) {
             //    throw new OperationNotSupportedException("AWS does not support discreet routing of rules");
             //}
@@ -101,9 +125,9 @@ public class SecurityGroup extends AbstractFirewallSupport {
             else {
                 parameters.put("GroupId", firewallId);
                 if( protocol == Protocol.ANY ) {
-                  parameters.put("IpPermissions.1.IpProtocol", "-1");
+                    parameters.put("IpPermissions.1.IpProtocol", "-1");
                 } else {
-                  parameters.put("IpPermissions.1.IpProtocol", protocol.name().toLowerCase());
+                    parameters.put("IpPermissions.1.IpProtocol", protocol.name().toLowerCase());
                 }
                 parameters.put("IpPermissions.1.FromPort", String.valueOf(beginPort));
                 parameters.put("IpPermissions.1.ToPort", endPort == -1 ? String.valueOf(beginPort) : String.valueOf(endPort));
@@ -153,8 +177,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
             APITrace.end();
         }
     }
-
-    @Override
+                                     @Override
     public @Nonnull String create(@Nonnull FirewallCreateOptions options) throws InternalException, CloudException {
           APITrace.begin(provider, "Firewall.create");
           try {
@@ -248,6 +271,11 @@ public class SecurityGroup extends AbstractFirewallSupport {
     }
 
     @Override
+    public @Nonnull Map<FirewallConstraints.Constraint, Object> getActiveConstraintsForFirewall(@Nonnull String firewallId) throws CloudException, InternalException {
+        return new HashMap<FirewallConstraints.Constraint, Object>();
+    }
+
+    @Override
     public @Nullable Firewall getFirewall(@Nonnull String securityGroupId) throws InternalException, CloudException {
           APITrace.begin(provider, "Firewall.getFirewall");
           try {
@@ -301,6 +329,11 @@ public class SecurityGroup extends AbstractFirewallSupport {
           finally {
               APITrace.end();
           }
+    }
+
+    @Override
+    public @Nonnull FirewallConstraints getFirewallConstraintsForCloud() throws CloudException, InternalException {
+        return FirewallConstraints.getInstance();
     }
 
     @Override
