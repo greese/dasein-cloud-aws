@@ -30,8 +30,10 @@ import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.AbstractNetworkFirewallSupport;
 import org.dasein.cloud.network.Direction;
 import org.dasein.cloud.network.Firewall;
+import org.dasein.cloud.network.FirewallConstraints;
 import org.dasein.cloud.network.FirewallCreateOptions;
 import org.dasein.cloud.network.FirewallRule;
+import org.dasein.cloud.network.FirewallRuleCreateOptions;
 import org.dasein.cloud.network.FirewallSupport;
 import org.dasein.cloud.network.NetworkFirewallSupport;
 import org.dasein.cloud.network.NetworkServices;
@@ -50,6 +52,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeSet;
@@ -196,6 +199,8 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
+            String firewallId;
+
             blocks = doc.getElementsByTagName("networkAclId");
             if( blocks.getLength() > 0 ) {
                 String id = blocks.item(0).getFirstChild().getNodeValue().trim();
@@ -215,13 +220,28 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
                     }
                 }
                 ((AWSCloud)getProvider()).createTags(id, tags.toArray(new Tag[tags.size()]));
-                return id;
+                firewallId = id;
             }
-            throw new CloudException("Failed to create network ACL without explanation.");
+            else {
+                throw new CloudException("Failed to create network ACL without explanation.");
+            }
+            FirewallRuleCreateOptions[] ruleOptions = options.getInitialRules();
+
+            if( ruleOptions != null && ruleOptions.length > 0 ) {
+                for( FirewallRuleCreateOptions option : ruleOptions ) {
+                    authorize(firewallId, option);
+                }
+            }
+            return firewallId;
         }
         finally {
             APITrace.end();
         }
+    }
+
+    @Override
+    public @Nonnull Map<FirewallConstraints.Constraint, Object> getActiveConstraintsForFirewall(@Nonnull String firewallId) throws CloudException, InternalException {
+        return new HashMap<FirewallConstraints.Constraint, Object>();
     }
 
     private @Nullable String getCurrentAssociation(@Nonnull String subnetId) throws InternalException, CloudException {
@@ -320,6 +340,11 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
         finally {
             APITrace.end();
         }
+    }
+
+    @Override
+    public @Nonnull FirewallConstraints getFirewallConstraintsForCloud() throws CloudException, InternalException {
+        return FirewallConstraints.getInstance();
     }
 
     @Override
