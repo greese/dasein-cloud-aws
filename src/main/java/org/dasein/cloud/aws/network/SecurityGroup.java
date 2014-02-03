@@ -182,6 +182,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
           APITrace.begin(provider, "Firewall.create");
           try {
               Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_SECURITY_GROUP);
+              String firewallId;
               EC2Method method;
               NodeList blocks;
               Document doc;
@@ -203,7 +204,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
                   throw new CloudException(e);
               }
               if( provider.getEC2Provider().isEucalyptus() ) {
-                  return name;
+                  firewallId = name;
               }
               else {
                   blocks = doc.getElementsByTagName("groupId");
@@ -225,10 +226,20 @@ public class SecurityGroup extends AbstractFirewallSupport {
                           }
                           provider.createTags(id, tags.toArray(new Tag[tags.size()]));
                       }
-                      return id;
+                      firewallId = id;
                   }
-                  throw new CloudException("Failed to create security group without explanation.");
+                  else {
+                      throw new CloudException("Failed to create security group without explanation.");
+                  }
               }
+              FirewallRuleCreateOptions[] ruleOptions = options.getInitialRules();
+
+              if( ruleOptions != null && ruleOptions.length > 0 ) {
+                  for( FirewallRuleCreateOptions option : ruleOptions ) {
+                      authorize(firewallId, option);
+                  }
+              }
+              return firewallId;
           }
           finally {
               APITrace.end();
