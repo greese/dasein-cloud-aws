@@ -76,6 +76,12 @@ public class SecurityGroup extends AbstractFirewallSupport {
             int beginPort = options.getPortRangeStart();
             int endPort = options.getPortRangeEnd();
 
+            if( sourceEndpoint == null ) {
+                sourceEndpoint = RuleTarget.getGlobal(firewallId);
+            }
+            if( destinationEndpoint == null ) {
+                destinationEndpoint = RuleTarget.getGlobal(firewallId);
+            }
             if( Permission.DENY.equals(permission) ) {
                 throw new OperationNotSupportedException("AWS does not support DENY rules");
             }
