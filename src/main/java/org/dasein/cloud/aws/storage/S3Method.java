@@ -52,6 +52,7 @@ import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
+import java.net.URLEncoder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
@@ -236,7 +237,8 @@ public class S3Method {
 
     static private final Logger wire = AWSCloud.getWireLogger(S3.class);
 
-	S3Response invoke(@Nullable String bucket, @Nullable String object, @Nullable String temporaryEndpoint) throws S3Exception, CloudException, InternalException {
+	// TODO(stas): This method screams for some heavy refactoring
+    S3Response invoke(@Nullable String bucket, @Nullable String object, @Nullable String temporaryEndpoint) throws S3Exception, CloudException, InternalException {
         if( wire.isDebugEnabled() ) {
             wire.debug("");
             wire.debug("----------------------------------------------------------------------------------");
@@ -248,6 +250,10 @@ public class S3Method {
             HttpClient client;
             int status;
 
+            // Sanitise the parameters as they may have spaces and who knows what else
+            bucket = URLEncoder.encode(bucket, "UTF-8");
+            object = URLEncoder.encode(object, "UTF-8");
+            temporaryEndpoint = URLEncoder.encode(temporaryEndpoint, "UTF-8");
             if( provider.getEC2Provider().isAWS() ) {
                 url.append("https://");
                 if( temporaryEndpoint == null ) {
@@ -403,8 +409,6 @@ public class S3Method {
             } 
             catch (UnsupportedEncodingException e) {
                 logger.error(e);
-                e.printStackTrace();
-                throw new InternalException(e);
             }
             if( body != null ) {
                 try {
@@ -625,8 +629,9 @@ public class S3Method {
                     }
                 }
             }
-        }
-        finally {
+        } catch (UnsupportedEncodingException e) {
+            throw new InternalException(e);
+        } finally {
             if( wire.isDebugEnabled() ) {
                 wire.debug("----------------------------------------------------------------------------------");
                 wire.debug("");
