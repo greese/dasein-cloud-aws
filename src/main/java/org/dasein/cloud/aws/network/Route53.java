@@ -19,6 +19,8 @@
 
 package org.dasein.cloud.aws.network;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.TreeSet;
@@ -353,7 +355,7 @@ public class Route53 implements DNSSupport {
     }
     
     private @Nonnull String getResourceUrl(@Nonnull String zoneId) {
-        return "https://route53.amazonaws.com/" + provider.getRoute53Version()+ "/hostedzone/" + zoneId + "/rrset";
+        return "https://route53.amazonaws.com/" + provider.getRoute53Version() + "/hostedzone/" + zoneId + "/rrset";
     }
     
     @Override
@@ -396,22 +398,19 @@ public class Route53 implements DNSSupport {
             NodeList blocks;
             Document doc;
 
+            if( name == null ) {
+                name = zone.getDomainName();
+            }
+            try {
+                name = URLEncoder.encode(name, "UTF-8");
+            } catch ( UnsupportedEncodingException e ) {
+                throw new InternalException(e);
+            }
             if( forType == null ) {
-                if( name != null ) {
-                    url = url + "?name=" + name;
-                }
-                else {
-                    url = url + "&name=" + zone.getDomainName();
-                }
+                url = url + "?name=" + name;
             }
             else {
-                url = url + "?type=" + forType.toString();
-                if( name != null ) {
-                    url = url + "&name=" + name;
-                }
-                else {
-                    url = url + "&name=" + zone.getDomainName();
-                }
+                url = url + "?type=" + forType.toString() + "&name=" + name;
             }
             method = new Route53Method(Route53Method.LIST_RESOURCE_RECORD_SETS, provider, url);
             try {
@@ -493,7 +492,7 @@ public class Route53 implements DNSSupport {
             }
         });        
         populator.populate();
-        return populator.getResult();        
+        return populator.getResult();
     }
 
     @Override
