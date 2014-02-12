@@ -19,18 +19,6 @@
 
 package org.dasein.cloud.aws.network;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.util.ArrayList;
-import java.util.Locale;
-import java.util.TreeSet;
-import java.util.UUID;
-
-import javax.annotation.Nonnegative;
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.servlet.http.HttpServletResponse;
-
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
@@ -49,6 +37,15 @@ import org.dasein.util.PopulatorThread;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+
+import javax.annotation.Nonnegative;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.servlet.http.HttpServletResponse;
+import java.util.ArrayList;
+import java.util.Locale;
+import java.util.TreeSet;
+import java.util.UUID;
 
 public class Route53 implements DNSSupport {
     
@@ -296,7 +293,7 @@ public class Route53 implements DNSSupport {
             catch( EC2Exception e ) {
                 String code = e.getCode();
 
-                if( code != null && code.equals("AccessDenied") || code.equals("InvalidInput") ) {
+                if( code != null && ( code.equals("AccessDenied") || code.equals("InvalidInput") ) ) {
                     for( DNSZone zone : listDnsZones() ) {
                         if( zone.getProviderDnsZoneId().equals(providerDnsZoneId) ) {
                             return zone;
@@ -401,16 +398,11 @@ public class Route53 implements DNSSupport {
             if( name == null ) {
                 name = zone.getDomainName();
             }
-            try {
-                name = URLEncoder.encode(name, "UTF-8");
-            } catch ( UnsupportedEncodingException e ) {
-                throw new InternalException(e);
-            }
             if( forType == null ) {
-                url = url + "?name=" + name;
+                url += "?name=" + AWSCloud.encode(name, false);
             }
             else {
-                url = url + "?type=" + forType.toString() + "&name=" + name;
+                url += "?type=" + AWSCloud.encode(forType.toString(), false) + "&name=" + AWSCloud.encode(name, false);
             }
             method = new Route53Method(Route53Method.LIST_RESOURCE_RECORD_SETS, provider, url);
             try {
@@ -708,11 +700,10 @@ public class Route53 implements DNSSupport {
             
             name = attr.getNodeName();
             if( name.equalsIgnoreCase("id") ) {
-                String value = attr.getFirstChild().getNodeValue().trim();
-                
-                if( value == null ) {
+                if (attr.getFirstChild() == null || attr.getFirstChild().getNodeValue() == null) {
                     return null;
                 }
+                String value = attr.getFirstChild().getNodeValue().trim();
                 int idx = value.lastIndexOf('/');
                 
                 value = value.substring(idx+1);
@@ -759,11 +750,10 @@ public class Route53 implements DNSSupport {
 
             name = attr.getNodeName();
             if( name.equalsIgnoreCase("id") ) {
-                String value = attr.getFirstChild().getNodeValue().trim();
-
-                if( value == null ) {
+                if (attr.getFirstChild() == null || attr.getFirstChild().getNodeValue() == null) {
                     return null;
                 }
+                String value = attr.getFirstChild().getNodeValue().trim();
                 int idx = value.lastIndexOf('/');
 
                 value = value.substring(idx+1);
