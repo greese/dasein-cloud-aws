@@ -53,10 +53,14 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class EC2Instance extends AbstractVMSupport<AWSCloud> {
   static private final Logger logger = Logger.getLogger(EC2Instance.class);
   static private final Calendar UTC_CALENDAR = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
+  static private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
 
   EC2Instance(AWSCloud provider) {
     super(provider);
@@ -614,11 +618,19 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
   @Override
   public
   @Nullable
-  VirtualMachine getVirtualMachine(@Nonnull String instanceId) throws InternalException, CloudException {
+  VirtualMachine getVirtualMachine(@Nonnull final String instanceId) throws InternalException, CloudException {
     APITrace.begin(getProvider(), "getVirtualMachine");
     try {
+      // get vm status
+      final Future<VirtualMachine[]> futureVmStatus = getVMStatus(
+        new GetVMStatusCallable(
+          new String[]{ instanceId },
+          getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCE_STATUS),
+          getProvider(),
+          getProvider().getEc2Url()
+        )
+      );
       ProviderContext ctx = getProvider().getContext();
-
       if (ctx == null) {
         throw new CloudException("No context was established for this request");
       }
@@ -633,7 +645,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         doc = method.invoke();
       } catch (EC2Exception e) {
         String code = e.getCode();
-
         if (code != null && code.startsWith("InvalidInstanceID")) {
           return null;
         }
@@ -665,12 +676,32 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             VirtualMachine server = toVirtualMachine(ctx, instance, addresses);
 
             if (server != null && server.getProviderVirtualMachineId().equals(instanceId)) {
+              // get vm status from off other thread
+              long startTime = System.currentTimeMillis();
+              long timeToWait = 1000 * 10; // 10 seconds
+              while (!futureVmStatus.isDone()) {
+                Thread.sleep(1000);
+                if (((System.currentTimeMillis() - startTime) > timeToWait)) {
+                  futureVmStatus.cancel(true);
+                }
+              }
+              VirtualMachine[] vmStatuses = futureVmStatus.get();
+              if( vmStatuses != null && vmStatuses[0] != null ) {
+                VirtualMachine vmWithStatus = vmStatuses[0];
+                if( vmWithStatus.getProviderVirtualMachineId().equalsIgnoreCase(server.getProviderVirtualMachineId()) ) {
+                  server.setProviderHostStatus( vmWithStatus.getProviderHostStatus() );
+                  server.setProviderVmStatus( vmWithStatus.getProviderVmStatus() );
+                }
+              }
               return server;
             }
           }
         }
       }
       return null;
+    } catch (Exception e) {
+      e.printStackTrace();
+      throw new InternalException(e);
     } finally {
       APITrace.end();
     }
@@ -883,6 +914,143 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       return list;
     } finally {
       APITrace.end();
+    }
+  }
+
+  @Nullable
+  @Override
+  public Iterable<VirtualMachine> getVMStatus(String... vmIds) throws InternalException, CloudException {
+    APITrace.begin(getProvider(), "getVMStatus");
+    try {
+      ProviderContext ctx = getProvider().getContext();
+      if (ctx == null) {
+        throw new CloudException("No context was established for this request");
+      }
+      final Future<VirtualMachine[]> futureVmStatus = getVMStatus(
+        new GetVMStatusCallable(
+          vmIds,
+          getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCE_STATUS),
+          getProvider(),
+          getProvider().getEc2Url()
+        )
+      );
+      long startTime = System.currentTimeMillis();
+      long timeToWait = 1000 * 10; // 10 seconds
+      while (!futureVmStatus.isDone()) {
+        Thread.sleep(1000);
+        if (((System.currentTimeMillis() - startTime) > timeToWait)) {
+          futureVmStatus.cancel(true);
+        }
+      }
+      return new ArrayList<VirtualMachine>(Arrays.asList(futureVmStatus.get()));
+    } catch (CloudException ce) {
+      ce.printStackTrace();
+      throw ce;
+    } catch (Exception e) {
+      e.printStackTrace();
+      throw new InternalException(e);
+    } finally {
+      APITrace.end();
+    }
+  }
+
+  public Future<VirtualMachine[]> getVMStatus(GetVMStatusCallable vmStatusCallable) throws IOException {
+    return threadPool.submit(vmStatusCallable);
+  }
+
+  public class GetVMStatusCallable implements Callable {
+    private String[] vmIds;
+    private Map<String, String> params;
+    private AWSCloud awsProvider;
+    private String ec2url;
+
+    public GetVMStatusCallable( String[] ids, Map<String, String> p, AWSCloud ap, String eUrl ) {
+      vmIds = ids;
+      params = p;
+      awsProvider = ap;
+      ec2url = eUrl;
+    }
+
+    public VirtualMachine[] call() throws CloudException {
+      EC2Method method;
+      NodeList blocks;
+      Document doc;
+      if( vmIds != null ) {
+        for ( int y = 0; y < vmIds.length; y++ ) {
+          params.put( "InstanceId." + String.valueOf( y + 1 ) , vmIds[y] );
+        }
+      }
+      try {
+        method = new EC2Method(awsProvider, ec2url, params);
+      } catch(InternalException e) {
+        logger.error(e.getMessage());
+        throw new CloudException(e);
+      }
+      try {
+        doc = method.invoke();
+      } catch (EC2Exception e) {
+        logger.error(e.getSummary());
+        throw new CloudException(e);
+      } catch(InternalException e) {
+        logger.error(e.getMessage());
+        throw new CloudException(e);
+      }
+      ArrayList<VirtualMachine> list = new ArrayList<VirtualMachine>();
+      blocks = doc.getElementsByTagName("instanceStatusSet");
+      for (int i = 0; i < blocks.getLength(); i++) {
+        NodeList instances = blocks.item(i).getChildNodes();
+        for (int j = 0; j < instances.getLength(); j++) {
+          Node instance = instances.item(j);
+          if (instance.getNodeName().equals("item")) {
+            NodeList attrs = instance.getChildNodes();
+            VirtualMachine vm = new VirtualMachine();
+            for (int k = 0; k < attrs.getLength(); k++) {
+              Node attr = attrs.item(k);
+              String name;
+              name = attr.getNodeName();
+              if (name.equals("instanceId")) {
+                String value = attr.getFirstChild().getNodeValue().trim();
+                vm.setProviderVirtualMachineId(value);
+              } else if (name.equals("availabilityZone")) {
+                String value = attr.getFirstChild().getNodeValue().trim();
+                vm.setProviderDataCenterId(value);
+              } else if (name.equals("instanceState")) {
+                NodeList details = attr.getChildNodes();
+                for (int l = 0; l < details.getLength(); l++) {
+                  Node detail = details.item(l);
+                  name = detail.getNodeName();
+                  if (name.equals("name")) {
+                    String value = detail.getFirstChild().getNodeValue().trim();
+                    vm.setCurrentState(getServerState(value));
+                  }
+                }
+              } else if (name.equals("systemStatus")) {
+                NodeList details = attr.getChildNodes();
+                for (int l = 0; l < details.getLength(); l++) {
+                  Node detail = details.item(l);
+                  name = detail.getNodeName();
+                  if (name.equals("status")) {
+                    String value = detail.getFirstChild().getNodeValue().trim();
+                    vm.setProviderHostStatus(toVmStatus(value));
+                  }
+                }
+              } else if (name.equals("instanceStatus")) {
+                NodeList details = attr.getChildNodes();
+                for (int l = 0; l < details.getLength(); l++) {
+                  Node detail = details.item(l);
+                  name = detail.getNodeName();
+                  if (name.equals("status")) {
+                    String value = detail.getFirstChild().getNodeValue().trim();
+                    vm.setProviderVmStatus(toVmStatus(value));
+                  }
+                }
+              }
+            }
+            list.add(vm);
+          }
+        }
+      }
+      return list.toArray(new VirtualMachine[list.size()]);
     }
   }
 
@@ -1914,6 +2082,23 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       return null;
     }
     return new ResourceStatus(vmId, state);
+  }
+
+  private
+  @Nullable
+  VmStatus toVmStatus(@Nonnull String status) {
+    // ok | impaired | insufficient-data | not-applicable
+    if( status.equalsIgnoreCase( "ok" ) )
+      return VmStatus.OK;
+    else if( status.equalsIgnoreCase( "impaired" ) ) {
+      return VmStatus.IMPAIRED;
+    } else if( status.equalsIgnoreCase( "insufficient-data" ) ) {
+      return VmStatus.INSUFFICIENT_DATA;
+    } else if( status.equalsIgnoreCase( "not-applicable" ) ) {
+      return VmStatus.NOT_APPLICABLE;
+    } else {
+      return VmStatus.INSUFFICIENT_DATA;
+    }
   }
 
   private
