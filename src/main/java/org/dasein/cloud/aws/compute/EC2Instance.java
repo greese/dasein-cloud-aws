@@ -53,14 +53,10 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 public class EC2Instance extends AbstractVMSupport<AWSCloud> {
   static private final Logger logger = Logger.getLogger(EC2Instance.class);
   static private final Calendar UTC_CALENDAR = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
-  static private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
 
   EC2Instance(AWSCloud provider) {
     super(provider);
@@ -621,15 +617,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
   VirtualMachine getVirtualMachine(@Nonnull final String instanceId) throws InternalException, CloudException {
     APITrace.begin(getProvider(), "getVirtualMachine");
     try {
-      // get vm status
-      final Future<VirtualMachine[]> futureVmStatus = getVMStatus(
-        new GetVMStatusCallable(
-          new String[]{ instanceId },
-          getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCE_STATUS),
-          getProvider(),
-          getProvider().getEc2Url()
-        )
-      );
       ProviderContext ctx = getProvider().getContext();
       if (ctx == null) {
         throw new CloudException("No context was established for this request");
@@ -673,28 +660,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 }
               }
             }
-            VirtualMachine server = toVirtualMachine(ctx, instance, addresses);
-
-            if (server != null && server.getProviderVirtualMachineId().equals(instanceId)) {
-              // get vm status from off other thread
-              long startTime = System.currentTimeMillis();
-              long timeToWait = 1000 * 10; // 10 seconds
-              while (!futureVmStatus.isDone()) {
-                Thread.sleep(1000);
-                if (((System.currentTimeMillis() - startTime) > timeToWait)) {
-                  futureVmStatus.cancel(true);
-                }
-              }
-              VirtualMachine[] vmStatuses = futureVmStatus.get();
-              if( vmStatuses != null && vmStatuses[0] != null ) {
-                VirtualMachine vmWithStatus = vmStatuses[0];
-                if( vmWithStatus.getProviderVirtualMachineId().equalsIgnoreCase(server.getProviderVirtualMachineId()) ) {
-                  server.setProviderHostStatus( vmWithStatus.getProviderHostStatus() );
-                  server.setProviderVmStatus( vmWithStatus.getProviderVmStatus() );
-                }
-              }
-              return server;
-            }
+            return toVirtualMachine(ctx, instance, addresses);
           }
         }
       }
@@ -919,59 +885,14 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
   @Nullable
   @Override
-  public Iterable<VirtualMachine> getVMStatus(String... vmIds) throws InternalException, CloudException {
+  public Iterable<VirtualMachineStatus> getVMStatus(String... vmIds) throws InternalException, CloudException {
     APITrace.begin(getProvider(), "getVMStatus");
     try {
       ProviderContext ctx = getProvider().getContext();
       if (ctx == null) {
         throw new CloudException("No context was established for this request");
       }
-      final Future<VirtualMachine[]> futureVmStatus = getVMStatus(
-        new GetVMStatusCallable(
-          vmIds,
-          getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCE_STATUS),
-          getProvider(),
-          getProvider().getEc2Url()
-        )
-      );
-      long startTime = System.currentTimeMillis();
-      long timeToWait = 1000 * 10; // 10 seconds
-      while (!futureVmStatus.isDone()) {
-        Thread.sleep(1000);
-        if (((System.currentTimeMillis() - startTime) > timeToWait)) {
-          futureVmStatus.cancel(true);
-        }
-      }
-      return new ArrayList<VirtualMachine>(Arrays.asList(futureVmStatus.get()));
-    } catch (CloudException ce) {
-      ce.printStackTrace();
-      throw ce;
-    } catch (Exception e) {
-      e.printStackTrace();
-      throw new InternalException(e);
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  public Future<VirtualMachine[]> getVMStatus(GetVMStatusCallable vmStatusCallable) throws IOException {
-    return threadPool.submit(vmStatusCallable);
-  }
-
-  public class GetVMStatusCallable implements Callable {
-    private String[] vmIds;
-    private Map<String, String> params;
-    private AWSCloud awsProvider;
-    private String ec2url;
-
-    public GetVMStatusCallable( String[] ids, Map<String, String> p, AWSCloud ap, String eUrl ) {
-      vmIds = ids;
-      params = p;
-      awsProvider = ap;
-      ec2url = eUrl;
-    }
-
-    public VirtualMachine[] call() throws CloudException {
+      Map<String, String> params = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCE_STATUS);
       EC2Method method;
       NodeList blocks;
       Document doc;
@@ -981,7 +902,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
       }
       try {
-        method = new EC2Method(awsProvider, ec2url, params);
+        method = new EC2Method(getProvider(), getProvider().getEc2Url(), params);
       } catch(InternalException e) {
         logger.error(e.getMessage());
         throw new CloudException(e);
@@ -995,7 +916,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         logger.error(e.getMessage());
         throw new CloudException(e);
       }
-      ArrayList<VirtualMachine> list = new ArrayList<VirtualMachine>();
+      ArrayList<VirtualMachineStatus> list = new ArrayList<VirtualMachineStatus>();
       blocks = doc.getElementsByTagName("instanceStatusSet");
       for (int i = 0; i < blocks.getLength(); i++) {
         NodeList instances = blocks.item(i).getChildNodes();
@@ -1003,7 +924,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
           Node instance = instances.item(j);
           if (instance.getNodeName().equals("item")) {
             NodeList attrs = instance.getChildNodes();
-            VirtualMachine vm = new VirtualMachine();
+            VirtualMachineStatus vm = new VirtualMachineStatus();
             for (int k = 0; k < attrs.getLength(); k++) {
               Node attr = attrs.item(k);
               String name;
@@ -1050,7 +971,15 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
           }
         }
       }
-      return list.toArray(new VirtualMachine[list.size()]);
+      return list;
+    } catch (CloudException ce) {
+      ce.printStackTrace();
+      throw ce;
+    } catch (Exception e) {
+      e.printStackTrace();
+      throw new InternalException(e);
+    } finally {
+      APITrace.end();
     }
   }
 
