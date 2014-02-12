@@ -52,7 +52,6 @@ import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
-import java.net.URLEncoder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
@@ -251,9 +250,9 @@ public class S3Method {
             int status;
 
             // Sanitise the parameters as they may have spaces and who knows what else
-            bucket = URLEncoder.encode(bucket, "UTF-8");
-            object = URLEncoder.encode(object, "UTF-8");
-            temporaryEndpoint = URLEncoder.encode(temporaryEndpoint, "UTF-8");
+            bucket = AWSCloud.encode(bucket, false);
+            object = AWSCloud.encode(object, false);
+            temporaryEndpoint = AWSCloud.encode(temporaryEndpoint, false);
             if( provider.getEC2Provider().isAWS() ) {
                 url.append("https://");
                 if( temporaryEndpoint == null ) {
@@ -629,9 +628,8 @@ public class S3Method {
                     }
                 }
             }
-        } catch (UnsupportedEncodingException e) {
-            throw new InternalException(e);
-        } finally {
+        }
+        finally {
             if( wire.isDebugEnabled() ) {
                 wire.debug("----------------------------------------------------------------------------------");
                 wire.debug("");
