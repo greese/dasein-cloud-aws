@@ -614,11 +614,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
   @Override
   public
   @Nullable
-  VirtualMachine getVirtualMachine(@Nonnull String instanceId) throws InternalException, CloudException {
+  VirtualMachine getVirtualMachine(@Nonnull final String instanceId) throws InternalException, CloudException {
     APITrace.begin(getProvider(), "getVirtualMachine");
     try {
       ProviderContext ctx = getProvider().getContext();
-
       if (ctx == null) {
         throw new CloudException("No context was established for this request");
       }
@@ -633,7 +632,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         doc = method.invoke();
       } catch (EC2Exception e) {
         String code = e.getCode();
-
         if (code != null && code.startsWith("InvalidInstanceID")) {
           return null;
         }
@@ -662,15 +660,14 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 }
               }
             }
-            VirtualMachine server = toVirtualMachine(ctx, instance, addresses);
-
-            if (server != null && server.getProviderVirtualMachineId().equals(instanceId)) {
-              return server;
-            }
+            return toVirtualMachine(ctx, instance, addresses);
           }
         }
       }
       return null;
+    } catch (Exception e) {
+      e.printStackTrace();
+      throw new InternalException(e);
     } finally {
       APITrace.end();
     }
@@ -881,6 +878,106 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
       }
       return list;
+    } finally {
+      APITrace.end();
+    }
+  }
+
+  @Nullable
+  @Override
+  public Iterable<VirtualMachineStatus> getVMStatus(@Nullable String... vmIds) throws InternalException, CloudException {
+    APITrace.begin(getProvider(), "getVMStatus");
+    try {
+      ProviderContext ctx = getProvider().getContext();
+      if (ctx == null) {
+        throw new CloudException("No context was established for this request");
+      }
+      Map<String, String> params = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCE_STATUS);
+      EC2Method method;
+      NodeList blocks;
+      Document doc;
+      if( vmIds != null ) {
+        for ( int y = 0; y < vmIds.length; y++ ) {
+          params.put( "InstanceId." + String.valueOf( y + 1 ) , vmIds[y] );
+        }
+      }
+      try {
+        method = new EC2Method(getProvider(), getProvider().getEc2Url(), params);
+      } catch(InternalException e) {
+        logger.error(e.getMessage());
+        throw new CloudException(e);
+      }
+      try {
+        doc = method.invoke();
+      } catch (EC2Exception e) {
+        logger.error(e.getSummary());
+        throw new CloudException(e);
+      } catch(InternalException e) {
+        logger.error(e.getMessage());
+        throw new CloudException(e);
+      }
+      ArrayList<VirtualMachineStatus> list = new ArrayList<VirtualMachineStatus>();
+      blocks = doc.getElementsByTagName("instanceStatusSet");
+      for (int i = 0; i < blocks.getLength(); i++) {
+        NodeList instances = blocks.item(i).getChildNodes();
+        for (int j = 0; j < instances.getLength(); j++) {
+          Node instance = instances.item(j);
+          if (instance.getNodeName().equals("item")) {
+            NodeList attrs = instance.getChildNodes();
+            VirtualMachineStatus vm = new VirtualMachineStatus();
+            for (int k = 0; k < attrs.getLength(); k++) {
+              Node attr = attrs.item(k);
+              String name;
+              name = attr.getNodeName();
+              if (name.equals("instanceId")) {
+                String value = attr.getFirstChild().getNodeValue().trim();
+                vm.setProviderVirtualMachineId(value);
+              } else if (name.equals("availabilityZone")) {
+                String value = attr.getFirstChild().getNodeValue().trim();
+                vm.setProviderDataCenterId(value);
+              } else if (name.equals("instanceState")) {
+                NodeList details = attr.getChildNodes();
+                for (int l = 0; l < details.getLength(); l++) {
+                  Node detail = details.item(l);
+                  name = detail.getNodeName();
+                  if (name.equals("name")) {
+                    String value = detail.getFirstChild().getNodeValue().trim();
+                    vm.setCurrentState(getServerState(value));
+                  }
+                }
+              } else if (name.equals("systemStatus")) {
+                NodeList details = attr.getChildNodes();
+                for (int l = 0; l < details.getLength(); l++) {
+                  Node detail = details.item(l);
+                  name = detail.getNodeName();
+                  if (name.equals("status")) {
+                    String value = detail.getFirstChild().getNodeValue().trim();
+                    vm.setProviderHostStatus(toVmStatus(value));
+                  }
+                }
+              } else if (name.equals("instanceStatus")) {
+                NodeList details = attr.getChildNodes();
+                for (int l = 0; l < details.getLength(); l++) {
+                  Node detail = details.item(l);
+                  name = detail.getNodeName();
+                  if (name.equals("status")) {
+                    String value = detail.getFirstChild().getNodeValue().trim();
+                    vm.setProviderVmStatus(toVmStatus(value));
+                  }
+                }
+              }
+            }
+            list.add(vm);
+          }
+        }
+      }
+      return list;
+    } catch (CloudException ce) {
+      ce.printStackTrace();
+      throw ce;
+    } catch (Exception e) {
+      e.printStackTrace();
+      throw new InternalException(e);
     } finally {
       APITrace.end();
     }
@@ -1914,6 +2011,23 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       return null;
     }
     return new ResourceStatus(vmId, state);
+  }
+
+  private
+  @Nullable
+  VmStatus toVmStatus(@Nonnull String status) {
+    // ok | impaired | insufficient-data | not-applicable
+    if( status.equalsIgnoreCase( "ok" ) )
+      return VmStatus.OK;
+    else if( status.equalsIgnoreCase( "impaired" ) ) {
+      return VmStatus.IMPAIRED;
+    } else if( status.equalsIgnoreCase( "insufficient-data" ) ) {
+      return VmStatus.INSUFFICIENT_DATA;
+    } else if( status.equalsIgnoreCase( "not-applicable" ) ) {
+      return VmStatus.NOT_APPLICABLE;
+    } else {
+      return VmStatus.INSUFFICIENT_DATA;
+    }
   }
 
   private

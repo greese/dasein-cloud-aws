@@ -162,18 +162,19 @@ public class EC2Method {
     static public final String RELEASE_ADDRESS      = "ReleaseAddress";
 
     // Instance operations
-    static public final String DESCRIBE_INSTANCES    = "DescribeInstances";
-    static public final String GET_CONSOLE_OUTPUT    = "GetConsoleOutput";
-    static public final String GET_METRIC_STATISTICS = "GetMetricStatistics";
-    static public final String GET_PASSWORD_DATA     = "GetPasswordData";
-    static public final String MONITOR_INSTANCES     = "MonitorInstances";
-    static public final String REBOOT_INSTANCES      = "RebootInstances";
-    static public final String RUN_INSTANCES         = "RunInstances";
-    static public final String START_INSTANCES       = "StartInstances";
-    static public final String STOP_INSTANCES        = "StopInstances";
-    static public final String TERMINATE_INSTANCES   = "TerminateInstances";
-    static public final String UNMONITOR_INSTANCES   = "UnmonitorInstances";
-    static public final String MODIFY_INSTANCE_ATTRIBUTE     = "ModifyInstanceAttribute";
+    static public final String DESCRIBE_INSTANCES        = "DescribeInstances";
+    static public final String GET_CONSOLE_OUTPUT        = "GetConsoleOutput";
+    static public final String GET_METRIC_STATISTICS     = "GetMetricStatistics";
+    static public final String GET_PASSWORD_DATA         = "GetPasswordData";
+    static public final String MONITOR_INSTANCES         = "MonitorInstances";
+    static public final String REBOOT_INSTANCES          = "RebootInstances";
+    static public final String RUN_INSTANCES             = "RunInstances";
+    static public final String START_INSTANCES           = "StartInstances";
+    static public final String STOP_INSTANCES            = "StopInstances";
+    static public final String TERMINATE_INSTANCES       = "TerminateInstances";
+    static public final String UNMONITOR_INSTANCES       = "UnmonitorInstances";
+    static public final String MODIFY_INSTANCE_ATTRIBUTE = "ModifyInstanceAttribute";
+    static public final String DESCRIBE_INSTANCE_STATUS  = "DescribeInstanceStatus";
 
     // Keypair operations
     static public final String CREATE_KEY_PAIR    = "CreateKeyPair";
