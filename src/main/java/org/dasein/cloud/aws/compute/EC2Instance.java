@@ -910,6 +910,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       try {
         doc = method.invoke();
       } catch (EC2Exception e) {
+        String code = e.getCode();
+        if (code != null && code.startsWith("InvalidInstanceID")) {
+          return null;
+        }
         logger.error(e.getSummary());
         throw new CloudException(e);
       } catch(InternalException e) {
