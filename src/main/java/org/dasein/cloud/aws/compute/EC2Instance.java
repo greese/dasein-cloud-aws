@@ -885,7 +885,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
   @Nullable
   @Override
-  public Iterable<VirtualMachineStatus> getVMStatus(String... vmIds) throws InternalException, CloudException {
+  public Iterable<VirtualMachineStatus> getVMStatus(@Nullable String... vmIds) throws InternalException, CloudException {
     APITrace.begin(getProvider(), "getVMStatus");
     try {
       ProviderContext ctx = getProvider().getContext();
