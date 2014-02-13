@@ -17,7 +17,7 @@
                 "id":"m1.medium",
                 "name":"Medium Instance (m1.medium)",
                 "description":"Medium Instance (m1.medium)",
-                "cpuCount":2,
+                "cpuCount":1,
                 "rootVolumeSizeInGb":410,
                 "ramSizeInMb":3750
             },
@@ -26,8 +26,8 @@
                 "id":"m1.large",
                 "name":"Large Instance (m1.large)",
                 "description":"Large Instance (m1.large)",
-                "cpuCount":4,
-                "rootVolumeSizeInGb":850,
+                "cpuCount":2,
+                "rootVolumeSizeInGb":840,
                 "ramSizeInMb":7500
             },
             {
@@ -35,27 +35,45 @@
                 "id":"m1.xlarge",
                 "name":"Extra Large Instance (m1.xlarge)",
                 "description":"Extra Large Instance (m1.xlarge)",
-                "cpuCount":8,
-                "rootVolumeSizeInGb":1690,
+                "cpuCount":4,
+                "rootVolumeSizeInGb":1680,
                 "ramSizeInMb":15000
+            },
+            {
+                "architectures":["I64"],
+                "id":"m3.medium",
+                "name":"M3 Medium Instance (m3.medium)",
+                "description":"M3 Medium Instance (m3.medium)",
+                "cpuCount":1,
+                "rootVolumeSizeInGb":4,
+                "ramSizeInMb":3750
+            },
+            {
+                "architectures":["I64"],
+                "id":"m3.large",
+                "name":"M3 Large Instance (m3.large)",
+                "description":"M3 Large Instance (m3.large)",
+                "cpuCount":2,
+                "rootVolumeSizeInGb":32,
+                "ramSizeInMb":7500
             },
             {
                 "architectures":["I64"],
                 "id":"m3.xlarge",
                 "name":"M3 Extra Large Instance (m3.xlarge)",
                 "description":"13 EC2 Compute Units (4 virtual cores with 3.25 EC2 Compute Units each)",
-                "cpuCount":13,
-                "rootVolumeSizeInGb":1,
-                "ramSizeInMb":15360
+                "cpuCount":4,
+                "rootVolumeSizeInGb":7.5,
+                "ramSizeInMb":15000
             },
             {
                 "architectures":["I64"],
                 "id":"m3.2xlarge",
                 "name":"M3 Double Extra Large Instance (m3.2xlarge)",
                 "description":"26 EC2 Compute Units (8 virtual cores with 3.25 EC2 Compute Units each)",
-                "cpuCount":26,
-                "rootVolumeSizeInGb":1,
-                "ramSizeInMb":15360
+                "cpuCount":8,
+                "rootVolumeSizeInGb":160,
+                "ramSizeInMb":30000
             },
             {
                 "architectures":["I32","I64"],
@@ -64,14 +82,14 @@
                 "description":"Micro Instance (t1.micro)",
                 "cpuCount":2,
                 "rootVolumeSizeInGb":1,
-                "ramSizeInMb":613
+                "ramSizeInMb":615
             },
             {
                 "architectures":["I64"],
                 "id":"m2.xlarge",
                 "name":"High-Memory Extra Large Instance (m2.xlarge)",
                 "description":"High-Memory Extra Large Instance (m2.xlarge)",
-                "cpuCount":7,
+                "cpuCount":2,
                 "rootVolumeSizeInGb":420,
                 "ramSizeInMb":17100
             },
@@ -80,7 +98,7 @@
                 "id":"m2.2xlarge",
                 "name":"High-Memory Double Extra Large Instance (m2.2xlarge)",
                 "description":"High-Memory Double Extra Large Instance (m2.2xlarge)",
-                "cpuCount":13,
+                "cpuCount":4,
                 "rootVolumeSizeInGb":850,
                 "ramSizeInMb":34200
             },
@@ -89,8 +107,8 @@
                 "id":"m2.4xlarge",
                 "name":"High-Memory Quadruple Extra Large Instance (m2.4xlarge)",
                 "description":"High-Memory Quadruple Extra Large Instance (m2.4xlarge)",
-                "cpuCount":26,
-                "rootVolumeSizeInGb":1690,
+                "cpuCount":8,
+                "rootVolumeSizeInGb":1680,
                 "ramSizeInMb":68400
             },
             {
@@ -98,72 +116,153 @@
                 "id":"c1.medium",
                 "name":"High-CPU Medium Instance (c1.medium)",
                 "description":"High-CPU Medium Instance (c1.medium)",
-                "cpuCount":5,
+                "cpuCount":2,
                 "rootVolumeSizeInGb":350,
                 "ramSizeInMb":1700
             },
-             {
+            {
                 "architectures":["I64"],
                 "id":"c1.xlarge",
                 "name":"High-CPU Extra Large Instance (c1.xlarge)",
                 "description":"High-CPU Extra Large Instance (c1.xlarge)",
-                "cpuCount":20,
-                "rootVolumeSizeInGb":1690,
+                "cpuCount":8,
+                "rootVolumeSizeInGb":1680,
                 "ramSizeInMb":7000
+            },
+            {
+                "architectures":["I64"],
+                "id":"c3.large",
+                "name":"Compute Optimized Large Instance (c3.large)",
+                "description":"Compute Optimized Large Instance (c3.large)",
+                "cpuCount":2,
+                "rootVolumeSizeInGb":32,
+                "ramSizeInMb":3750
+            },
+            {
+                "architectures":["I64"],
+                "id":"c3.xlarge",
+                "name":"Compute Optimized Extra Large Instance (c3.xlarge)",
+                "description":"Compute Optimized Extra Large Instance (c3.xlarge)",
+                "cpuCount":4,
+                "rootVolumeSizeInGb":80,
+                "ramSizeInMb":7500
+            },
+            {
+                "architectures":["I64"],
+                "id":"c3.2xlarge",
+                "name":"Compute Optimized Double Extra Large Instance (c3.2xlarge)",
+                "description":"Compute Optimized Double Extra Large Instance (c3.2xlarge)",
+                "cpuCount":8,
+                "rootVolumeSizeInGb":160,
+                "ramSizeInMb":15000
+            },
+            {
+                "architectures":["I64"],
+                "id":"c3.4xlarge",
+                "name":"Compute Optimized Quadruple Extra Large Instance (c3.4xlarge)",
+                "description":"Compute Optimized Quadruple Extra Large Instance (c3.4xlarge)",
+                "cpuCount":16,
+                "rootVolumeSizeInGb":320,
+                "ramSizeInMb":30000
+            },
+            {
+                "architectures":["I64"],
+                "id":"c3.8xlarge",
+                "name":"Compute Optimized Octuple Extra Large Instance (c3.8xlarge)",
+                "description":"Compute Optimized Octuple Extra Large Instance (c3.8xlarge)",
+                "cpuCount":32,
+                "rootVolumeSizeInGb":640,
+                "ramSizeInMb":60000
             },
             {
                 "architectures":["I64"],
                 "id":"cc2.8xlarge",
                 "name":"Cluster Compute Eight Extra Large (cc2.8xlarge)",
                 "description":"88 EC2 Compute Units (2 x Intel Xeon E5-2670, eight-core 'Sandy Bridge' architecture)",
-                "cpuCount":88,
-                "rootVolumeSizeInGb":3370,
-                "ramSizeInMb":61952
+                "cpuCount":32,
+                "rootVolumeSizeInGb":3360,
+                "ramSizeInMb":60500
             },
             {
                 "architectures":["I64"],
                 "id":"cr1.8xlarge",
                 "name":"High Memory Cluster Eight Extra Large Instance (cr1.8xlarge)",
                 "description":"88 EC2 Compute Units (2 x Intel Xeon E5-2670, eight-core. Intel Turbo, NUMA)",
-                "cpuCount":88,
+                "cpuCount":32,
                 "rootVolumeSizeInGb":240,
-                "ramSizeInMb":249856
+                "ramSizeInMb":24400
             },
             {
                 "architectures":["I64"],
                 "id":"cg1.4xlarge",
                 "name":"Cluster GPU Quadruple Extra Large Instance (cg1.4xlarge)",
                 "description":"33.5 EC2 Compute Units (2 x Intel Xeon X5570, quad-core 'Nehalem' architecture)",
-                "cpuCount":34,
-                "rootVolumeSizeInGb":1690,
-                "ramSizeInMb":22528
+                "cpuCount":16,
+                "rootVolumeSizeInGb":1680,
+                "ramSizeInMb":22500
             },
             {
                 "architectures":["I64"],
                 "id":"hi1.4xlarge",
                 "name":"High I/O Instance (hi1.4xlarge)",
                 "description":"35 EC2 Compute Units (16 virtual cores)",
-                "cpuCount":35,
+                "cpuCount":16,
                 "rootVolumeSizeInGb":2048,
-                "ramSizeInMb":61952
+                "ramSizeInMb":60500
             },
             {
                 "architectures":["I64"],
                 "id":"hs1.8xlarge",
                 "name":"High Storage Instance (hs1.8xlarge)",
                 "description":"35 EC2 Compute Units (16 virtual cores)",
-                "cpuCount":35,
+                "cpuCount":16,
                 "rootVolumeSizeInGb":49152,
-                "ramSizeInMb":119808
+                "ramSizeInMb":117000
             },
-	        {
+            {
                 "architectures":["I64"],
-                "id":"cc1.4xlarge",
-                "name":"Cluster Compute Quadruple Extra Large (cc1.4xlarge)",
-                "description":"Cluster Compute Quadruple Extra Large (cc1.4xlarge)",
-                "cpuCount":34,
-                "rootVolumeSizeInGb":1690,
-                "ramSizeInMb":23000
+                "id":"g2.2xlarge",
+                "name":"GPU Backed Double Extra Large (g2.2xlarge)",
+                "description":"GPU Backed Double Extra Large (g2.2xlarge)",
+                "cpuCount":8,
+                "rootVolumeSizeInGb":60,
+                "ramSizeInMb":15000
+            },
+            {
+                "architectures":["I64"],
+                "id":"i2.xlarge",
+                "name":"Storage Optimized Extra Large (i2.xlarge)",
+                "description":"Storage Optimized Extra Large (i2.xlarge)",
+                "cpuCount":4,
+                "rootVolumeSizeInGb":800,
+                "ramSizeInMb":30500
+            },
+            {
+                "architectures":["I64"],
+                "id":"i2.2xlarge",
+                "name":"Storage Optimized Double Extra Large (i2.2xlarge)",
+                "description":"Storage Optimized Double Extra Large (i2.2xlarge)",
+                "cpuCount":8,
+                "rootVolumeSizeInGb":1600,
+                "ramSizeInMb":61000
+            },
+            {
+                "architectures":["I64"],
+                "id":"i2.4xlarge",
+                "name":"Storage Optimized Quadruple Extra Large (i2.4xlarge)",
+                "description":"Storage Optimized Quadruple Extra Large (i2.4xlarge)",
+                "cpuCount":16,
+                "rootVolumeSizeInGb":3200,
+                "ramSizeInMb":122000
+            },
+            {
+                "architectures":["I64"],
+                "id":"i2.8xlarge",
+                "name":"Storage Optimized Octuple Extra Large (i2.8xlarge)",
+                "description":"Storage Optimized Octuple Extra Large (i2.8xlarge)",
+                "cpuCount":32,
+                "rootVolumeSizeInGb":6400,
+                "ramSizeInMb":244000
             }
 
         ]

@@ -45,6 +45,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.conn.params.ConnRoutePNames;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.params.BasicHttpParams;
@@ -146,7 +147,7 @@ public class Route53Method {
         return invoke(new HttpDelete(url));
     }
 	   
-   private Document get() throws EC2Exception, CloudException, InternalException {
+    private Document get() throws EC2Exception, CloudException, InternalException {
         return invoke(new HttpGet(url));
     }
 	   
@@ -154,12 +155,7 @@ public class Route53Method {
 	    HttpPost post = new HttpPost(url);
 
         if( body != null ) {
-            try {
-                post.setEntity(new StringEntity(body, "text/xml", "utf-8"));
-            }
-            catch( UnsupportedEncodingException e ) {
-                throw new InternalException(e);
-            }
+            post.setEntity(new StringEntity(body, ContentType.TEXT_XML));
         }
 	    return invoke(post);
 	}
