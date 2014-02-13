@@ -2098,7 +2098,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 prd.setCpuCount(1);
             }
             if( json.has("rootVolumeSizeInGb") ) {
-                prd.setRootVolumeSize(new Storage<Gigabyte>(json.getInt("rootVolumeSizeInGb"), Storage.GIGABYTE));
+                prd.setRootVolumeSize(new Storage<Gigabyte>(json.getDouble("rootVolumeSizeInGb"), Storage.GIGABYTE));
             }
             else {
                 prd.setRootVolumeSize(new Storage<Gigabyte>(1, Storage.GIGABYTE));
