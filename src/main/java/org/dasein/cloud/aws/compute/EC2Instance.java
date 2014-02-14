@@ -936,19 +936,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
               if (name.equals("instanceId")) {
                 String value = attr.getFirstChild().getNodeValue().trim();
                 vm.setProviderVirtualMachineId(value);
-              } else if (name.equals("availabilityZone")) {
-                String value = attr.getFirstChild().getNodeValue().trim();
-                vm.setProviderDataCenterId(value);
-              } else if (name.equals("instanceState")) {
-                NodeList details = attr.getChildNodes();
-                for (int l = 0; l < details.getLength(); l++) {
-                  Node detail = details.item(l);
-                  name = detail.getNodeName();
-                  if (name.equals("name")) {
-                    String value = detail.getFirstChild().getNodeValue().trim();
-                    vm.setCurrentState(getServerState(value));
-                  }
-                }
               } else if (name.equals("systemStatus")) {
                 NodeList details = attr.getChildNodes();
                 for (int l = 0; l < details.getLength(); l++) {
