@@ -633,11 +633,13 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             if( endTimestamp < 1L ) {
                 endTimestamp = System.currentTimeMillis() + 1000L;
             }
-            if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
+            if( startTimestamp < (System.currentTimeMillis() - (2L * CalendarWrapper.DAY)) ) {
+               startTimestamp = System.currentTimeMillis() - (2L * CalendarWrapper.DAY);
+               if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
+                  endTimestamp = startTimestamp + (2L * CalendarWrapper.MINUTE);
+              }
+            } else if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
                 startTimestamp = endTimestamp - (2L * CalendarWrapper.MINUTE);
-            }
-            else if( startTimestamp < (System.currentTimeMillis() - (2L * CalendarWrapper.DAY)) ) {
-                startTimestamp = System.currentTimeMillis() - (2L * CalendarWrapper.DAY);
             }
 
             calculateCpuUtilization(statistics, instanceId, startTimestamp, endTimestamp);
@@ -661,11 +663,13 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             if( endTimestamp < 1L ) {
                 endTimestamp = System.currentTimeMillis() + 1000L;
             }
-            if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
+            if( startTimestamp < (System.currentTimeMillis() - CalendarWrapper.DAY) ) {
+               startTimestamp = System.currentTimeMillis() - CalendarWrapper.DAY;
+               if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
+                  endTimestamp = startTimestamp + (2L * CalendarWrapper.MINUTE);
+              }
+            } else if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
                 startTimestamp = endTimestamp - (2L * CalendarWrapper.MINUTE);
-            }
-            else if( startTimestamp < (System.currentTimeMillis() - CalendarWrapper.DAY) ) {
-                startTimestamp = System.currentTimeMillis() - CalendarWrapper.DAY;
             }
             TreeMap<Integer,VmStatistics> statMap = new TreeMap<Integer,VmStatistics>();
             int minutes = (int)((endTimestamp-startTimestamp)/CalendarWrapper.MINUTE);
