@@ -275,9 +275,15 @@ public class S3Method {
             int status;
 
             // Sanitise the parameters as they may have spaces and who knows what else
-            bucket = URLEncoder.encode(bucket, "UTF-8");
-            object = URLEncoder.encode(object, "UTF-8");
-            temporaryEndpoint = URLEncoder.encode(temporaryEndpoint, "UTF-8");
+            if (bucket != null ){
+                bucket = URLEncoder.encode(bucket, "UTF-8");
+            }
+            if (object != null && !object.startsWith("?")){
+                object = URLEncoder.encode(object, "UTF-8");
+            }
+            if (temporaryEndpoint != null){
+                temporaryEndpoint = URLEncoder.encode(temporaryEndpoint, "UTF-8");
+            }
             if( provider.getEC2Provider().isAWS() ) {
                 url.append("https://");
                 if( temporaryEndpoint == null ) {
@@ -546,6 +552,9 @@ public class S3Method {
                 else if( status == HttpServletResponse.SC_NO_CONTENT ) {
                     return response;
                 }
+                if( status == HttpServletResponse.SC_FORBIDDEN ) {
+                    throw new S3Exception(status, "", "AccessForbidden", "Access was denied : " + (url != null ? url.toString() : "" ));
+                }
                 else if( status == HttpServletResponse.SC_NOT_FOUND ) {
                     throw new S3Exception(status, null, null, "Object not found.");
                 }
@@ -582,7 +591,9 @@ public class S3Method {
                             doc = parseResponse(input);
                         }
                         finally {
-                            input.close();
+                            if (input != null){
+                                input.close();
+                            }
                         }
                         if( doc != null ) {
                             String endpoint = null, code = null, message = null, requestId = null;

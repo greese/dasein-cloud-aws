@@ -191,7 +191,7 @@ public class Keypairs implements ShellKeySupport {
             if( blocks.getLength() > 0 ) {
                 return blocks.item(0).getFirstChild().getNodeValue().trim();
             }
-            throw new CloudException("Unable to identify key fingerprint.");
+            return null;
         }
         finally {
             APITrace.end();
