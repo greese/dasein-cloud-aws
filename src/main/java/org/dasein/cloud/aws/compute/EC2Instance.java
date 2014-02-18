@@ -633,11 +633,13 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             if( endTimestamp < 1L ) {
                 endTimestamp = System.currentTimeMillis() + 1000L;
             }
-            if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
+            if( startTimestamp < (System.currentTimeMillis() - (2L * CalendarWrapper.DAY)) ) {
+               startTimestamp = System.currentTimeMillis() - (2L * CalendarWrapper.DAY);
+               if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
+                  endTimestamp = startTimestamp + (2L * CalendarWrapper.MINUTE);
+              }
+            } else if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
                 startTimestamp = endTimestamp - (2L * CalendarWrapper.MINUTE);
-            }
-            else if( startTimestamp < (System.currentTimeMillis() - (2L * CalendarWrapper.DAY)) ) {
-                startTimestamp = System.currentTimeMillis() - (2L * CalendarWrapper.DAY);
             }
 
             calculateCpuUtilization(statistics, instanceId, startTimestamp, endTimestamp);
@@ -661,11 +663,13 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             if( endTimestamp < 1L ) {
                 endTimestamp = System.currentTimeMillis() + 1000L;
             }
-            if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
+            if( startTimestamp < (System.currentTimeMillis() - CalendarWrapper.DAY) ) {
+               startTimestamp = System.currentTimeMillis() - CalendarWrapper.DAY;
+               if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
+                  endTimestamp = startTimestamp + (2L * CalendarWrapper.MINUTE);
+              }
+            } else if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
                 startTimestamp = endTimestamp - (2L * CalendarWrapper.MINUTE);
-            }
-            else if( startTimestamp < (System.currentTimeMillis() - CalendarWrapper.DAY) ) {
-                startTimestamp = System.currentTimeMillis() - CalendarWrapper.DAY;
             }
             TreeMap<Integer,VmStatistics> statMap = new TreeMap<Integer,VmStatistics>();
             int minutes = (int)((endTimestamp-startTimestamp)/CalendarWrapper.MINUTE);
@@ -2014,6 +2018,41 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
           server.setProviderFirewallIds( firewalls.toArray(new String[firewalls.size()]) );
         }
       }
+      else if ( name.equals( "blockDeviceMapping" ) ) {
+         ArrayList<String> volumes = new ArrayList<String>();
+         if ( attr.hasChildNodes() ) {
+           NodeList tags = attr.getChildNodes();
+
+           for ( int j = 0; j < tags.getLength(); j++ ) {
+             Node tag = tags.item( j );
+
+             if ( tag.getNodeName().equals( "item" ) && tag.hasChildNodes() ) {
+               NodeList parts = tag.getChildNodes();
+
+               for ( int k = 0; k < parts.getLength(); k++ ) {
+                 Node part = parts.item( k );
+
+                 if ( part.getNodeName().equalsIgnoreCase( "ebs" ) ) {
+                   String volumeId = null;
+                   NodeList subparts = part.getChildNodes();
+                   for ( int l = 0; l < subparts.getLength(); l++ ) {
+                     Node subpart = subparts.item( l );
+                     if ( subpart.getNodeName().equals( "volumeId" ) && subpart.hasChildNodes() ) {
+                       volumeId = subpart.getFirstChild().getNodeValue().trim();
+                     }
+                   }
+                   if ( volumeId != null ) {
+                     volumes.add( volumeId );
+                   }
+                 }
+               }
+             }
+           }
+         }
+         if ( volumes.size() > 0 ) {
+           server.setProviderVolumeIds( volumes.toArray(new String[volumes.size()]) );
+         }
+       }
     }
       if( server.getPlatform() == null ) {
 		    server.setPlatform(Platform.UNKNOWN);
