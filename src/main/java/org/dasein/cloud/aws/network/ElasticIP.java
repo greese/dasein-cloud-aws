@@ -62,8 +62,8 @@ public class ElasticIP implements IpAddressSupport {
         throw new CloudException("Instances are not supported in " + provider.getCloudName());
     }
 
-	@Override
-	public void assign(@Nonnull String addressId, @Nonnull String instanceId) throws InternalException,	CloudException {
+    @Override
+    public void assign(@Nonnull String addressId, @Nonnull String instanceId) throws InternalException,	CloudException {
         APITrace.begin(provider, "IpAddress.assignAddressToServer");
         try {
             long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
@@ -108,7 +108,7 @@ public class ElasticIP implements IpAddressSupport {
         finally {
             APITrace.end();
         }
-	}
+    }
 
     @Override
     public void assignToNetworkInterface(@Nonnull String addressId, @Nonnull String nicId) throws InternalException, CloudException {
@@ -141,13 +141,13 @@ public class ElasticIP implements IpAddressSupport {
         }
     }
 
-	@Override
+    @Override
     public @Nonnull String forward(@Nonnull String addressId, int publicPort, @Nonnull Protocol protocol, int privatePort, @Nonnull String serverId) throws InternalException, CloudException {
         throw new OperationNotSupportedException();
     }
 
-	@Override
-	public @Nullable IpAddress getIpAddress(@Nonnull String addressId) throws InternalException, CloudException {
+    @Override
+    public @Nullable IpAddress getIpAddress(@Nonnull String addressId) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.getIpAddress");
         try {
             IpAddress address = getEC2Address(addressId);
@@ -259,8 +259,8 @@ public class ElasticIP implements IpAddressSupport {
         }
     }
     
-	@Override
-	public @Nonnull String getProviderTermForIpAddress(@Nonnull Locale locale) {
+    @Override
+    public @Nonnull String getProviderTermForIpAddress(@Nonnull Locale locale) {
 		return "elastic IP";
 	}
 
@@ -269,8 +269,8 @@ public class ElasticIP implements IpAddressSupport {
         return Requirement.NONE;
     }
 
-	@Override
-	public boolean isAssigned(@Nonnull AddressType type) {
+    @Override
+    public boolean isAssigned(@Nonnull AddressType type) {
 		return type.equals(AddressType.PUBLIC);
 	}
 
@@ -285,7 +285,7 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     @Override
-	public boolean isForwarding() {
+    public boolean isForwarding() {
 		return false;
 	}
 
@@ -309,13 +309,13 @@ public class ElasticIP implements IpAddressSupport {
         return true;
     }
     
-	@Override
-	public @Nonnull Iterable<IpAddress> listPrivateIpPool(boolean unassignedOnly) throws InternalException, CloudException {
+    @Override
+    public @Nonnull Iterable<IpAddress> listPrivateIpPool(boolean unassignedOnly) throws InternalException, CloudException {
 	    return Collections.emptyList();
 	}
-	
-	@Override
-	public @Nonnull Iterable<IpAddress> listPublicIpPool(boolean unassignedOnly) throws InternalException, CloudException {
+
+    @Override
+    public @Nonnull Iterable<IpAddress> listPublicIpPool(boolean unassignedOnly) throws InternalException, CloudException {
         return listIpPool(IPVersion.IPV4, unassignedOnly);
     }
 
@@ -418,7 +418,7 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     @Override
-	public @Nonnull Collection<IpForwardingRule> listRules(@Nonnull String addressId)	throws InternalException, CloudException {
+    public @Nonnull Collection<IpForwardingRule> listRules(@Nonnull String addressId)	throws InternalException, CloudException {
         return Collections.emptyList();
 	}
 
@@ -461,8 +461,8 @@ public class ElasticIP implements IpAddressSupport {
         return new String[0];
     }
 
-	@Override
-	public void releaseFromServer(@Nonnull String addressId) throws InternalException, CloudException {
+    @Override
+    public void releaseFromServer(@Nonnull String addressId) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.releaseFromServer");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DISASSOCIATE_ADDRESS);
@@ -489,8 +489,8 @@ public class ElasticIP implements IpAddressSupport {
         finally {
             APITrace.end();
         }
-	}
-	
+    }
+
     private void setId(@Nonnull String postfix, @Nonnull Map<String,String> parameters, @Nullable IpAddress address, @Nonnull String addressId, @Nullable Boolean disassociate) throws CloudException {
         if( address == null ) {
             throw new CloudException("Invalid IP address: " + addressId);
@@ -507,9 +507,9 @@ public class ElasticIP implements IpAddressSupport {
             parameters.put("PublicIp" + postfix, addressId);
         }
     }
-    
-   @Override
-   public void releaseFromPool(@Nonnull String addressId) throws InternalException, CloudException {
+
+    @Override
+    public void releaseFromPool(@Nonnull String addressId) throws InternalException, CloudException {
        APITrace.begin(provider, "IpAddress.releaseFromPool");
        try {
            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.RELEASE_ADDRESS);
@@ -538,7 +538,7 @@ public class ElasticIP implements IpAddressSupport {
        }
    }
 
-   @Override
+    @Override
     public @Nonnull String request(@Nonnull AddressType betterBePublic) throws InternalException, CloudException {
         if( !betterBePublic.equals(AddressType.PUBLIC) ) {
             throw new OperationNotSupportedException("AWS supports only public IP address requests.");
