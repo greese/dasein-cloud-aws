@@ -39,11 +39,17 @@ import org.w3c.dom.NodeList;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class ElasticIP implements IpAddressSupport {
 	static private final Logger logger = AWSCloud.getLogger(ElasticIP.class);
 
 	private AWSCloud provider = null;
+
+  static private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
 	
 	ElasticIP(AWSCloud provider) {
 		this.provider = provider;
@@ -323,49 +329,76 @@ public class ElasticIP implements IpAddressSupport {
     public @Nonnull Iterable<IpAddress> listIpPool(@Nonnull IPVersion version, boolean unassignedOnly) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.listIpPool");
         try {
-            if( !version.equals(IPVersion.IPV4) ) {
-                return Collections.emptyList();
-            }
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was set for this request");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ADDRESSES);
-            ArrayList<IpAddress> list = new ArrayList<IpAddress>();
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("addressesSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
-
-                for( int j=0; j<items.getLength(); j++ ) {
-                    Node item = items.item(j);
-
-                    if( item.getNodeName().equals("item") ) {
-                        IpAddress address = toAddress(ctx, item);
-
-                        if( address != null && (!unassignedOnly || (address.getServerId() == null && address.getProviderLoadBalancerId() == null)) ) {
-                            list.add(address);
-                        }
-                    }
-                }
-            }
-            return list;
+          Future<Iterable<IpAddress>> ipPoolFuture = listIpPoolConcurrently( IPVersion.IPV4, false );
+          return ipPoolFuture.get();
+        } catch (CloudException ce) {
+          throw ce;
+        } catch (Exception e) {
+          throw new InternalException(e);
         }
         finally {
             APITrace.end();
         }
+    }
+
+    public Future<Iterable<IpAddress>> listIpPoolConcurrently(IPVersion version, boolean unassignedOnly) throws CloudException, InternalException {
+      return threadPool.submit(
+        new ListIpPoolCallable(
+          version,
+          unassignedOnly
+        )
+      );
+    }
+
+    public class ListIpPoolCallable implements Callable {
+      IPVersion version;
+      boolean unassignedOnly;
+
+      public ListIpPoolCallable( IPVersion version, boolean unassignedOnly ) {
+        this.version = version;
+        this.unassignedOnly = unassignedOnly;
+      }
+
+      public Iterable<IpAddress> call() throws CloudException, InternalException {
+        if( !version.equals(IPVersion.IPV4) ) {
+          return Collections.emptyList();
+        }
+        ProviderContext ctx = provider.getContext();
+        if( ctx == null ) {
+          throw new CloudException("No context was set for this request");
+        }
+        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ADDRESSES);
+        ArrayList<IpAddress> list = new ArrayList<IpAddress>();
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        try {
+          doc = method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("addressesSet");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+          NodeList items = blocks.item(i).getChildNodes();
+
+          for( int j=0; j<items.getLength(); j++ ) {
+            Node item = items.item(j);
+
+            if( item.getNodeName().equals("item") ) {
+              IpAddress address = toAddress(ctx, item);
+
+              if( address != null && (!unassignedOnly || (address.getServerId() == null && address.getProviderLoadBalancerId() == null)) ) {
+                list.add(address);
+              }
+            }
+          }
+        }
+        return list;
+      }
     }
 
     @Override
