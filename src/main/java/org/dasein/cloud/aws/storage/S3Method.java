@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -236,7 +236,8 @@ public class S3Method {
 
     static private final Logger wire = AWSCloud.getWireLogger(S3.class);
 
-	S3Response invoke(@Nullable String bucket, @Nullable String object, @Nullable String temporaryEndpoint) throws S3Exception, CloudException, InternalException {
+	// TODO(stas): This method screams for some heavy refactoring
+    S3Response invoke(@Nullable String bucket, @Nullable String object, @Nullable String temporaryEndpoint) throws S3Exception, CloudException, InternalException {
         if( wire.isDebugEnabled() ) {
             wire.debug("");
             wire.debug("----------------------------------------------------------------------------------");
@@ -248,6 +249,10 @@ public class S3Method {
             HttpClient client;
             int status;
 
+            // Sanitise the parameters as they may have spaces and who knows what else
+            bucket = AWSCloud.encode(bucket, false);
+            object = AWSCloud.encode(object, false);
+            temporaryEndpoint = AWSCloud.encode(temporaryEndpoint, false);
             if( provider.getEC2Provider().isAWS() ) {
                 url.append("https://");
                 if( temporaryEndpoint == null ) {
@@ -403,8 +408,6 @@ public class S3Method {
             } 
             catch (UnsupportedEncodingException e) {
                 logger.error(e);
-                e.printStackTrace();
-                throw new InternalException(e);
             }
             if( body != null ) {
                 try {

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -47,8 +47,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -1901,26 +1899,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     throw new OperationNotSupportedException("Suspend/resume not supported by the EC2 API");
   }
 
-  private String resolve(String dnsName) {
-    if (dnsName != null && dnsName.length() > 0) {
-      InetAddress[] addresses;
-
-      try {
-        addresses = InetAddress.getAllByName(dnsName);
-      } catch (UnknownHostException e) {
-        addresses = null;
-      }
-      if (addresses != null && addresses.length > 0) {
-        dnsName = addresses[0].getHostAddress();
-      } else {
-        dnsName = dnsName.split("\\.")[0];
-        dnsName = dnsName.replaceAll("-", "\\.");
-        dnsName = dnsName.substring(4);
-      }
-    }
-    return dnsName;
-  }
-
   @Override
   public boolean supportsPauseUnpause(@Nonnull VirtualMachine vm) {
     return false;
@@ -2105,9 +2083,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
           RawAddress[] addrs = server.getPublicAddresses();
 
           server.setPublicDnsAddress(value);
-          if (addrs == null || addrs.length < 1) {
-            server.setPublicAddresses(new RawAddress(resolve(value)));
-          }
         }
       } else if (name.equals("privateIpAddress")) {
         if (attr.hasChildNodes()) {

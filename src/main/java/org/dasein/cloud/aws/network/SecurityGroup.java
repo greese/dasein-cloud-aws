@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -55,6 +55,36 @@ public class SecurityGroup extends AbstractFirewallSupport {
             if( Permission.DENY.equals(permission) ) {
                 throw new OperationNotSupportedException("AWS does not support DENY rules");
             }
+            FirewallRuleCreateOptions options = FirewallRuleCreateOptions.getInstance(direction, permission, sourceEndpoint, protocol, destinationEndpoint, beginPort, endPort, precedence);
+
+            return authorize(firewallId, options);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull FirewallRuleCreateOptions options) throws CloudException, InternalException {
+        APITrace.begin(provider, "Firewall.authorizeWithOptions");
+        try {
+            Permission permission = options.getPermission();
+            Direction direction = options.getDirection();
+            RuleTarget sourceEndpoint = options.getSourceEndpoint();
+            RuleTarget destinationEndpoint = options.getDestinationEndpoint();
+            Protocol protocol = options.getProtocol();
+            int beginPort = options.getPortRangeStart();
+            int endPort = options.getPortRangeEnd();
+
+            if( sourceEndpoint == null ) {
+                sourceEndpoint = RuleTarget.getGlobal(firewallId);
+            }
+            if( destinationEndpoint == null ) {
+                destinationEndpoint = RuleTarget.getGlobal(firewallId);
+            }
+            if( Permission.DENY.equals(permission) ) {
+                throw new OperationNotSupportedException("AWS does not support DENY rules");
+            }
             //if( !destinationEndpoint.getRuleTargetType().equals(RuleTargetType.GLOBAL) ) {
             //    throw new OperationNotSupportedException("AWS does not support discreet routing of rules");
             //}
@@ -101,9 +131,9 @@ public class SecurityGroup extends AbstractFirewallSupport {
             else {
                 parameters.put("GroupId", firewallId);
                 if( protocol == Protocol.ANY ) {
-                  parameters.put("IpPermissions.1.IpProtocol", "-1");
+                    parameters.put("IpPermissions.1.IpProtocol", "-1");
                 } else {
-                  parameters.put("IpPermissions.1.IpProtocol", protocol.name().toLowerCase());
+                    parameters.put("IpPermissions.1.IpProtocol", protocol.name().toLowerCase());
                 }
                 parameters.put("IpPermissions.1.FromPort", String.valueOf(beginPort));
                 parameters.put("IpPermissions.1.ToPort", endPort == -1 ? String.valueOf(beginPort) : String.valueOf(endPort));
@@ -153,12 +183,12 @@ public class SecurityGroup extends AbstractFirewallSupport {
             APITrace.end();
         }
     }
-
-    @Override
+                                     @Override
     public @Nonnull String create(@Nonnull FirewallCreateOptions options) throws InternalException, CloudException {
           APITrace.begin(provider, "Firewall.create");
           try {
               Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_SECURITY_GROUP);
+              String firewallId;
               EC2Method method;
               NodeList blocks;
               Document doc;
@@ -180,7 +210,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
                   throw new CloudException(e);
               }
               if( provider.getEC2Provider().isEucalyptus() ) {
-                  return name;
+                  firewallId = name;
               }
               else {
                   blocks = doc.getElementsByTagName("groupId");
@@ -202,10 +232,20 @@ public class SecurityGroup extends AbstractFirewallSupport {
                           }
                           provider.createTags(id, tags.toArray(new Tag[tags.size()]));
                       }
-                      return id;
+                      firewallId = id;
                   }
-                  throw new CloudException("Failed to create security group without explanation.");
+                  else {
+                      throw new CloudException("Failed to create security group without explanation.");
+                  }
               }
+              FirewallRuleCreateOptions[] ruleOptions = options.getInitialRules();
+
+              if( ruleOptions != null && ruleOptions.length > 0 ) {
+                  for( FirewallRuleCreateOptions option : ruleOptions ) {
+                      authorize(firewallId, option);
+                  }
+              }
+              return firewallId;
           }
           finally {
               APITrace.end();
@@ -245,6 +285,11 @@ public class SecurityGroup extends AbstractFirewallSupport {
           finally {
               APITrace.end();
           }
+    }
+
+    @Override
+    public @Nonnull Map<FirewallConstraints.Constraint, Object> getActiveConstraintsForFirewall(@Nonnull String firewallId) throws CloudException, InternalException {
+        return new HashMap<FirewallConstraints.Constraint, Object>();
     }
 
     @Override
@@ -301,6 +346,11 @@ public class SecurityGroup extends AbstractFirewallSupport {
           finally {
               APITrace.end();
           }
+    }
+
+    @Override
+    public @Nonnull FirewallConstraints getFirewallConstraintsForCloud() throws CloudException, InternalException {
+        return FirewallConstraints.getInstance();
     }
 
     @Override

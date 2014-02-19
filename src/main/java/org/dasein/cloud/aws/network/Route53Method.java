@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -45,6 +45,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.conn.params.ConnRoutePNames;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.params.BasicHttpParams;
@@ -143,25 +144,20 @@ public class Route53Method {
     }
 
     private Document delete() throws EC2Exception, CloudException, InternalException {
-        return invoke(new HttpDelete(url));
+        return invokeMethod(new HttpDelete(url));
     }
 	   
-   private Document get() throws EC2Exception, CloudException, InternalException {
-        return invoke(new HttpGet(url));
+    private Document get() throws EC2Exception, CloudException, InternalException {
+        return invokeMethod(new HttpGet(url));
     }
 	   
 	private Document post(String body) throws EC2Exception, CloudException, InternalException {
 	    HttpPost post = new HttpPost(url);
 
         if( body != null ) {
-            try {
-                post.setEntity(new StringEntity(body, "text/xml", "utf-8"));
-            }
-            catch( UnsupportedEncodingException e ) {
-                throw new InternalException(e);
-            }
+            post.setEntity(new StringEntity(body, ContentType.TEXT_XML));
         }
-	    return invoke(post);
+	    return invokeMethod(post);
 	}
 	
 	public Document invoke(String body) throws EC2Exception, CloudException, InternalException {
@@ -178,16 +174,7 @@ public class Route53Method {
 	}
 	
 	public Document invoke() throws EC2Exception, CloudException, InternalException {
-	    if( method.equals("GET") ) {
-	        return get();
-	    }
-	    else if( method.equals("DELETE") ) {
-	        return delete();
-	    }
-	    else if( method.equals("POST") ) {
-	        return post(null);
-	    }
-	    throw new InternalException("No such method: " + method);
+	    return invoke( null );
 	}
 
     protected @Nonnull HttpClient getClient() throws InternalException {
@@ -199,9 +186,6 @@ public class Route53Method {
         boolean ssl = url.startsWith("https");
         HttpParams params = new BasicHttpParams();
 
-        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
-        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
         HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
         HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
         HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
@@ -224,7 +208,7 @@ public class Route53Method {
         return new DefaultHttpClient(params);
     }
     
-	private Document invoke(HttpRequestBase method) throws EC2Exception, CloudException, InternalException {
+	private Document invokeMethod(HttpRequestBase method) throws EC2Exception, CloudException, InternalException {
 		if( logger.isDebugEnabled() ) {
 			logger.debug("Talking to server at " + url);
 		}
@@ -264,7 +248,6 @@ public class Route53Method {
                 }
                 catch( IOException e ) {
                     logger.error(e);
-                    e.printStackTrace();
                     throw new InternalException(e);
                 }
                 try {
@@ -283,7 +266,6 @@ public class Route53Method {
                 }
                 catch( IOException e ) {
                     logger.error("Failed to read response error due to a cloud I/O error: " + e.getMessage());
-                    e.printStackTrace();
                     throw new CloudException(e);
                 }
             }
@@ -309,9 +291,7 @@ public class Route53Method {
 
                             if( blocks.getLength() > 0 ) {
                                 Node error = blocks.item(0);
-                                NodeList attrs;
-
-                                attrs = error.getChildNodes();
+                                NodeList attrs = error.getChildNodes();
                                 for( int i=0; i<attrs.getLength(); i++ ) {
                                     Node attr = attrs.item(i);
 
@@ -371,7 +351,7 @@ public class Route53Method {
     					try { Thread.sleep(5000L); }
     					catch( InterruptedException ignore ) { }
     					try {
-    					    return invoke(method.getClass().newInstance());
+    					    return invokeMethod(method.getClass().newInstance());
     					}
     					catch( Throwable t ) {
     					    throw new InternalException(t);
@@ -387,9 +367,7 @@ public class Route53Method {
 
                     if( blocks.getLength() > 0 ) {
                         Node error = blocks.item(0);
-                        NodeList attrs;
-
-                        attrs = error.getChildNodes();
+                        NodeList attrs = error.getChildNodes();
                         for( int i=0; i<attrs.getLength(); i++ ) {
                             Node attr = attrs.item(i);
 
