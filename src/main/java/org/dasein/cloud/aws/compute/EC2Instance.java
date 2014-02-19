@@ -138,7 +138,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
 	}
 	
-	private Set<Metric> calculate(String metric, String unit, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+	private Set<Metric> calculate(String metric, String unit, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "calculateVMAnalytics");
         try {
             if( !getProvider().getEC2Provider().isAWS() ) {
@@ -154,10 +154,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             parameters.put("EndTime", fmt.format(new Date(endTimestamp)));
             parameters.put("StartTime", fmt.format(new Date(startTimestamp)));
             parameters.put("MetricName", metric);
-            parameters.put("Namespace", "AWS/EC2");
+            parameters.put("Namespace", idIsVolumeId ? "AWS/EBS" : "AWS/EC2");
             parameters.put("Unit", unit);
-            parameters.put("Dimensions.member.Name.1", "InstanceId");
-            parameters.put("Dimensions.member.Value.1", instanceId);
+            parameters.put("Dimensions.member.Name.1", idIsVolumeId ? "VolumeId" :"InstanceId");
+            parameters.put("Dimensions.member.Value.1", id);
             parameters.put("Statistics.member.1", "Average");
             parameters.put("Statistics.member.2", "Minimum");
             parameters.put("Statistics.member.3", "Maximum");
@@ -219,8 +219,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 	    public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum);
 	}
 	
-    private void calculate(VmStatistics stats, String metricName, String unit, String instanceId, long startTimestamp, long endTimestamp, ApplyCalcs apply) throws CloudException, InternalException {
-        Set<Metric> metrics = calculate(metricName, unit, instanceId, startTimestamp, endTimestamp);
+    private void calculate(VmStatistics stats, String metricName, String unit, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp, ApplyCalcs apply) throws CloudException, InternalException {
+        Set<Metric> metrics = calculate(metricName, unit, id, idIsVolumeId, startTimestamp, endTimestamp);
         double minimum = -1.0, maximum = 0.0, sum = 0.0;
         long start = -1L, end = 0L;
         int samples = 0;
@@ -267,10 +267,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 	            stats.setEndTimestamp(end);
 	        }
 	    };
-	    calculate(statistics, "CPUUtilization", "Percent", instanceId, startTimestamp, endTimestamp, apply);
+	    calculate(statistics, "CPUUtilization", "Percent", instanceId, false, startTimestamp, endTimestamp, apply);
 	}
 	   
-    private void calculateDiskReadBytes(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+    private void calculateDiskReadBytes(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
                 stats.setMinimumDiskReadBytes(minimum);
@@ -278,10 +278,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setMaximumDiskReadBytes(maximum);
             }
         };
-        calculate(statistics, "DiskReadBytes", "Bytes", instanceId, startTimestamp, endTimestamp, apply);
+        calculate(statistics, idIsVolumeId ? "VolumeReadBytes" : "DiskReadBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
     }
     
-    private void calculateDiskReadOps(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+    private void calculateDiskReadOps(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
                 stats.setMinimumDiskReadOperations(minimum);
@@ -289,10 +289,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setMaximumDiskReadOperations(maximum);
             }
         };
-        calculate(statistics, "DiskReadOps", "Count", instanceId, startTimestamp, endTimestamp, apply);
+        calculate(statistics, idIsVolumeId ? "VolumeReadOps" : "DiskReadOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
     }
     
-    private void calculateDiskWriteBytes(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+    private void calculateDiskWriteBytes(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
                 stats.setMinimumDiskWriteBytes(minimum);
@@ -300,10 +300,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setMaximumDiskWriteBytes(maximum);
             }
         };
-        calculate(statistics, "DiskWriteBytes", "Bytes", instanceId, startTimestamp, endTimestamp, apply);
+        calculate(statistics, idIsVolumeId ? "VolumeWriteBytes" : "DiskWriteBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
     }
     
-    private void calculateDiskWriteOps(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+    private void calculateDiskWriteOps(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
                 stats.setMinimumDiskWriteOperations(minimum);
@@ -311,7 +311,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setMaximumDiskWriteOperations(maximum);
             }
         };
-        calculate(statistics, "DiskWriteOps", "Count", instanceId, startTimestamp, endTimestamp, apply);
+        calculate(statistics, idIsVolumeId ? "VolumeWriteOps" : "DiskWriteOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
     }
 
     private void calculateNetworkIn(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
@@ -322,7 +322,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setMaximumNetworkIn(maximum);
             }
         };
-        calculate(statistics, "NetworkIn", "Bytes", instanceId, startTimestamp, endTimestamp, apply);
+        calculate(statistics, "NetworkIn", "Bytes", instanceId, false, startTimestamp, endTimestamp, apply);
     }
     
     private void calculateNetworkOut(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
@@ -333,7 +333,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setMaximumNetworkOut(maximum);
             }
         };
-        calculate(statistics, "NetworkOut", "Bytes", instanceId, startTimestamp, endTimestamp, apply);
+        calculate(statistics, "NetworkOut", "Bytes", instanceId, false, startTimestamp, endTimestamp, apply);
     }
 
     @Override
@@ -642,13 +642,24 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 startTimestamp = endTimestamp - (2L * CalendarWrapper.MINUTE);
             }
 
-            calculateCpuUtilization(statistics, instanceId, startTimestamp, endTimestamp);
-            calculateDiskReadBytes(statistics, instanceId, startTimestamp, endTimestamp);
-            calculateDiskReadOps(statistics, instanceId, startTimestamp, endTimestamp);
-            calculateDiskWriteBytes(statistics, instanceId, startTimestamp, endTimestamp);
-            calculateDiskWriteOps(statistics, instanceId, startTimestamp, endTimestamp);
-            calculateNetworkIn(statistics, instanceId, startTimestamp, endTimestamp);
-            calculateNetworkOut(statistics, instanceId, startTimestamp, endTimestamp);
+            String id = instanceId;
+            boolean idIsVolumeId = false;
+            VirtualMachine vm = getVirtualMachine(instanceId);
+            if (vm != null) {
+                if (vm.isPersistent()) {
+                    if (vm.getProviderVolumeIds().length > 0) {
+                       id = vm.getProviderVolumeIds()[0];
+                       idIsVolumeId = true;
+                    }
+                }
+                calculateCpuUtilization(statistics, instanceId, startTimestamp, endTimestamp);
+                calculateNetworkIn(statistics, instanceId, startTimestamp, endTimestamp);
+                calculateNetworkOut(statistics, instanceId, startTimestamp, endTimestamp);
+                calculateDiskReadBytes(statistics, id, idIsVolumeId, startTimestamp, endTimestamp);
+                calculateDiskReadOps(statistics, id, idIsVolumeId, startTimestamp, endTimestamp);
+                calculateDiskWriteBytes(statistics, id, idIsVolumeId, startTimestamp, endTimestamp);
+                calculateDiskWriteOps(statistics, id, idIsVolumeId, startTimestamp, endTimestamp);
+            }
             return statistics;
         }
         finally {
@@ -677,7 +688,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             for( int i =1; i<=minutes; i++ ) {
                 statMap.put(i, new VmStatistics());
             }
-            Set<Metric> metrics = calculate("CPUUtilization", "Percent", instanceId, startTimestamp, endTimestamp);
+            Set<Metric> metrics = calculate("CPUUtilization", "Percent", instanceId, false, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -693,7 +704,16 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setEndTimestamp(m.timestamp);
                 stats.setSamples(m.samples);
             }
-            metrics = calculate("DiskReadBytes", "Bytes", instanceId, startTimestamp, endTimestamp);
+            String id = instanceId;
+            boolean idIsVolumeId = false;
+            VirtualMachine vm = getVirtualMachine(instanceId);
+            if (vm.isPersistent()) {
+                if (vm.getProviderVolumeIds().length > 0) {
+                   id = vm.getProviderVolumeIds()[0];
+                   idIsVolumeId = true;
+                }
+            }
+            metrics = calculate(idIsVolumeId ? "VolumeReadBytes" : "DiskReadBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -709,7 +729,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     stats.setSamples(m.samples);
                 }
             }
-            metrics = calculate("DiskReadOps", "Count", instanceId, startTimestamp, endTimestamp);
+            metrics = calculate(idIsVolumeId ? "VolumeReadOps" : "DiskReadOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -725,7 +745,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     stats.setSamples(m.samples);
                 }
             }
-            metrics = calculate("DiskWriteBytes", "Bytes", instanceId, startTimestamp, endTimestamp);
+            metrics = calculate(idIsVolumeId ? "VolumeWriteBytes" : "DiskWriteBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -741,7 +761,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     stats.setSamples(m.samples);
                 }
             }
-            metrics = calculate("DiskWriteOps", "Count", instanceId, startTimestamp, endTimestamp);
+            metrics = calculate(idIsVolumeId ? "VolumeWriteOps" : "DiskWriteOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -757,7 +777,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     stats.setSamples(m.samples);
                 }
             }
-            metrics = calculate("NetworkIn", "Bytes", instanceId, startTimestamp, endTimestamp);
+            metrics = calculate("NetworkIn", "Bytes", instanceId, false, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -773,7 +793,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     stats.setSamples(m.samples);
                 }
             }
-            metrics = calculate("NetworkOut", "Bytes", instanceId, startTimestamp, endTimestamp);
+            metrics = calculate("NetworkOut", "Bytes", instanceId, false, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -2018,6 +2038,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
           server.setProviderFirewallIds( firewalls.toArray(new String[firewalls.size()]) );
         }
       }
+      // BEGIN Unisys changes
       else if ( name.equals( "blockDeviceMapping" ) ) {
          ArrayList<String> volumes = new ArrayList<String>();
          if ( attr.hasChildNodes() ) {
@@ -2053,6 +2074,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
            server.setProviderVolumeIds( volumes.toArray(new String[volumes.size()]) );
          }
        }
+       // END Unisys changes
     }
       if( server.getPlatform() == null ) {
 		    server.setPlatform(Platform.UNKNOWN);
@@ -2137,7 +2159,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 prd.setCpuCount(1);
             }
             if( json.has("rootVolumeSizeInGb") ) {
-                prd.setRootVolumeSize(new Storage<Gigabyte>(json.getDouble("rootVolumeSizeInGb"), Storage.GIGABYTE));
+                prd.setRootVolumeSize(new Storage<Gigabyte>(json.getInt("rootVolumeSizeInGb"), Storage.GIGABYTE));
             }
             else {
                 prd.setRootVolumeSize(new Storage<Gigabyte>(1, Storage.GIGABYTE));
