@@ -2038,7 +2038,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
           server.setProviderFirewallIds( firewalls.toArray(new String[firewalls.size()]) );
         }
       }
-      // BEGIN Unisys changes
       else if ( name.equals( "blockDeviceMapping" ) ) {
          ArrayList<String> volumes = new ArrayList<String>();
          if ( attr.hasChildNodes() ) {
@@ -2074,7 +2073,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
            server.setProviderVolumeIds( volumes.toArray(new String[volumes.size()]) );
          }
        }
-       // END Unisys changes
     }
       if( server.getPlatform() == null ) {
 		    server.setPlatform(Platform.UNKNOWN);
@@ -2159,7 +2157,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 prd.setCpuCount(1);
             }
             if( json.has("rootVolumeSizeInGb") ) {
-                prd.setRootVolumeSize(new Storage<Gigabyte>(json.getInt("rootVolumeSizeInGb"), Storage.GIGABYTE));
+                prd.setRootVolumeSize(new Storage<Gigabyte>(json.getDouble("rootVolumeSizeInGb"), Storage.GIGABYTE));
             }
             else {
                 prd.setRootVolumeSize(new Storage<Gigabyte>(1, Storage.GIGABYTE));
