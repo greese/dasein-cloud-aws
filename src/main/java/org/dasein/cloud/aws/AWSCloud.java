@@ -867,7 +867,7 @@ public class AWSCloud extends AbstractCloud {
     		toSign.append("/");
     	}
     	if( object != null ) {
-    		toSign.append(object.toLowerCase());
+    		toSign.append(object);
     	}
     	String signature = sign(secretKey, toSign.toString(), S3_ALGORITHM);
 
