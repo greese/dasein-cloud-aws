@@ -2757,4 +2757,44 @@ public class VPC extends AbstractVLANSupport {
     }
     return ig;
   }
+
+    @Override
+    public void updateSubnetTags(@Nonnull String subnetId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).createTags(subnetId, tags);
+    }
+
+    @Override
+    public void updateSubnetTags(@Nonnull String[] subnetIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).createTags(subnetIds, tags);
+    }
+
+    @Override
+    public void updateVLANTags(@Nonnull String vlanId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).createTags(vlanId, tags);
+    }
+
+    @Override
+    public void updateVLANTags(@Nonnull String[] vlanIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).createTags(vlanIds, tags);
+    }
+
+    @Override
+    public void removeSubnetTags(@Nonnull String subnetId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).removeTags(subnetId, tags);
+    }
+
+    @Override
+    public void removeSubnetTags(@Nonnull String[] subnetIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).removeTags(subnetIds, tags);
+    }
+
+    @Override
+    public void removeVLANTags(@Nonnull String vlanId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).removeTags(vlanId, tags);
+    }
+
+    @Override
+    public void removeVLANTags(@Nonnull String[] vlanIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        ((AWSCloud)getProvider()).removeTags(vlanIds, tags);
+    }
 }
