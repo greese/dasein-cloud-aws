@@ -2049,9 +2049,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
              }
            }
          }
-         if ( volumes.size() > 0 ) {
+         //This change should've gone into develop as it required a signature change for core
+         /*if ( volumes.size() > 0 ) {
            server.setProviderVolumeIds( volumes.toArray(new String[volumes.size()]) );
-         }
+         }*/
        }
     }
       if( server.getPlatform() == null ) {
