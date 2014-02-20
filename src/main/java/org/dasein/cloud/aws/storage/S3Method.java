@@ -253,7 +253,7 @@ public class S3Method {
             if ( bucket != null ) {
               bucket = AWSCloud.encode( bucket, false );
             }
-            if ( object != null ) {
+            if ( object != null && !"?location".equalsIgnoreCase( object ) ) {
               object = AWSCloud.encode( object, false );
             }
             if (temporaryEndpoint != null ) {
