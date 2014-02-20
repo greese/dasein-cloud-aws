@@ -20,7 +20,7 @@
 
   <groupId>org.dasein</groupId>
   <artifactId>dasein-cloud-aws</artifactId>
-  <version>2013.07.8-SNAPSHOT</version>
+  <version>2013.07.8</version>
   <packaging>jar</packaging>
 
   <name>dasein-cloud-aws</name>
