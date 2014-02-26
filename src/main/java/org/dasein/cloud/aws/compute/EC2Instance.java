@@ -1275,12 +1275,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       if (cfg.getBootstrapKey() != null) {
         parameters.put("KeyName", cfg.getBootstrapKey());
       }
-      if (cfg.getVlanId() != null) {
-        parameters.put("SubnetId", cfg.getVlanId());
-      }
-      if (cfg.getPrivateIp() != null) {
-        parameters.put("PrivateIpAddress", cfg.getPrivateIp());
-      }
       if (getProvider().getEC2Provider().isAWS()) {
         parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
       }
@@ -1362,6 +1356,17 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
           }
           i++;
         }
+      }
+      else {
+          int i = 0;
+          parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
+          parameters.put("NetworkInterface." + i + ".AssociatePublicIpAddress", (cfg.isProvisionPublicIp() == true ? "true" : "false"));
+          if (cfg.getVlanId() != null) {
+              parameters.put("NetworkInterface." + i + ".SubnetId", cfg.getVlanId());
+          }
+          if (cfg.getPrivateIp() != null) {
+              parameters.put("NetworkInterface." + i + ".PrivateIpAddress", cfg.getPrivateIp());
+          }
       }
       method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
       try {
