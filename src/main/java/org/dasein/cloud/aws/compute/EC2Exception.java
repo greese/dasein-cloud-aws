@@ -20,44 +20,40 @@
 package org.dasein.cloud.aws.compute;
 
 import org.dasein.cloud.CloudErrorType;
+import org.dasein.cloud.CloudException;
 
 @SuppressWarnings("serial")
-public class EC2Exception extends Exception {
-	private String         code      = null;
-	private CloudErrorType errorType = null;
-	private String         requestId = null;
-	private int            status    = 0;
-	
-	public EC2Exception(int status, String requestId, String code, String message) {
-		super(message);
-		this.requestId = requestId;
-		this.code = code;
-		this.status = status;
-		if( code.equals("Throttling") ) {
-		    errorType = CloudErrorType.THROTTLING;
-		}
-		else if( code.equals("TooManyBuckets") ) {
-		    errorType = CloudErrorType.QUOTA;
-		}
-	}
-	   
-	public String getCode() {
-		return code;
-	}
-	
-	public CloudErrorType getErrorType() {
-	    return (errorType == null ? CloudErrorType.GENERAL : errorType);
-	}
-	
-	public String getRequestId() {
-		return requestId;
-	}
-	
-	public int getStatus() {
-		return status;
-	}
-	
-	public String getSummary() { 
-		return (status + "/" + requestId + "/" + code + ": " + getMessage());
-	}
+public class EC2Exception extends CloudException {
+    private String requestId = null;
+
+    public EC2Exception(int status, String requestId, String code, String message) {
+        super(toCloudErrorType(code), status, code, message);
+        this.requestId = requestId;
+    }
+
+    private static CloudErrorType toCloudErrorType(String code) {
+        if ("Throttling".equals(code)) {
+            return CloudErrorType.THROTTLING;
+        } else if ("TooManyBuckets".equals(code)) {
+            return CloudErrorType.QUOTA;
+        } else {
+            return CloudErrorType.GENERAL;
+        }
+    }
+
+    public String getCode() {
+        return getProviderCode();
+    }
+
+    public String getRequestId() {
+        return requestId;
+    }
+
+    public int getStatus() {
+        return getHttpCode();
+    }
+
+    public String getSummary() {
+        return (getStatus() + "/" + requestId + "/" + getCode() + ": " + getMessage());
+    }
 }
