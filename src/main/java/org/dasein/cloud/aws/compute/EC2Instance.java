@@ -327,13 +327,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
   }
 
   @Override
-  public
-  @Nullable
-  VMScalingCapabilities describeVerticalScalingCapabilities() throws CloudException, InternalException {
-    return null;
-  }
-
-  @Override
   public void enableAnalytics(@Nonnull String instanceId) throws InternalException, CloudException {
     APITrace.begin(getProvider(), "enableVMAnalytics");
     try {
@@ -363,11 +356,18 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
   }
 
-  private
-  @Nonnull
-  String getCloudWatchUrl(@Nonnull ProviderContext ctx) {
-    return ("https://monitoring." + ctx.getRegionId() + ".amazonaws.com");
-  }
+    private transient volatile EC2InstanceCapabilities capabilities;
+
+    public @Nonnull EC2InstanceCapabilities getCapabilities() {
+        if( capabilities == null ) {
+            capabilities = new EC2InstanceCapabilities(getProvider());
+        }
+        return capabilities;
+    }
+
+    private @Nonnull String getCloudWatchUrl(@Nonnull ProviderContext ctx) {
+        return ("https://monitoring." + ctx.getRegionId() + ".amazonaws.com");
+    }
 
   @Override
   public
@@ -514,16 +514,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
   }
 
   @Override
-  public int getCostFactor(@Nonnull VmState vmState) throws InternalException, CloudException {
-    return (vmState.equals(VmState.STOPPED) ? 0 : 100);
-  }
-
-  @Override
-  public int getMaximumVirtualMachineCount() throws CloudException, InternalException {
-    return -2;
-  }
-
-  @Override
   public
   @Nonnull
   Iterable<String> listFirewalls(@Nonnull String instanceId) throws InternalException, CloudException {
@@ -573,13 +563,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     } finally {
       APITrace.end();
     }
-  }
-
-  @Override
-  public
-  @Nonnull
-  String getProviderTermForServer(@Nonnull Locale locale) {
-    return "instance";
   }
 
   @Override
@@ -858,63 +841,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
   }
 
   @Override
-  public
-  @Nonnull
-  Requirement identifyImageRequirement(@Nonnull ImageClass cls) throws CloudException, InternalException {
-    return (ImageClass.MACHINE.equals(cls) ? Requirement.REQUIRED : Requirement.OPTIONAL);
-  }
-
-  @Override
-  public
-  @Nonnull
-  Requirement identifyPasswordRequirement(Platform platform) throws CloudException, InternalException {
-    return Requirement.NONE;
-  }
-
-  @Override
-  public
-  @Nonnull
-  Requirement identifyRootVolumeRequirement() {
-    return Requirement.NONE;
-  }
-
-  @Override
-  public
-  @Nonnull
-  Requirement identifyShellKeyRequirement(Platform platform) throws CloudException, InternalException {
-    return Requirement.OPTIONAL;
-  }
-
-  @Override
-  public
-  @Nonnull
-  Requirement identifyStaticIPRequirement() throws CloudException, InternalException {
-    return Requirement.NONE; // TODO: make this optional and fake it during provisioning
-  }
-
-  @Override
-  public
-  @Nonnull
-  Requirement identifyVlanRequirement() {
-    return (getProvider().getEC2Provider().isEucalyptus() ? Requirement.NONE : Requirement.OPTIONAL);
-  }
-
-  @Override
-  public boolean isAPITerminationPreventable() {
-    return getProvider().getEC2Provider().isAWS();
-  }
-
-  @Override
-  public boolean isBasicAnalyticsSupported() {
-    return (getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus());
-  }
-
-  @Override
-  public boolean isExtendedAnalyticsSupported() {
-    return (getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus());
-  }
-
-  @Override
   public boolean isSubscribed() throws InternalException, CloudException {
     APITrace.begin(getProvider(), "isSubscribedVirtualMachine");
     try {
@@ -939,11 +865,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     } finally {
       APITrace.end();
     }
-  }
-
-  @Override
-  public boolean isUserDataSupported() {
-    return true;
   }
 
   @Override
@@ -1171,20 +1092,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       }
     }
     return products;
-  }
-
-  static private volatile Collection<Architecture> architectures;
-
-  @Override
-  public Iterable<Architecture> listSupportedArchitectures() {
-    if (architectures == null) {
-      ArrayList<Architecture> list = new ArrayList<Architecture>();
-
-      list.add(Architecture.I64);
-      list.add(Architecture.I32);
-      architectures = Collections.unmodifiableCollection(list);
-    }
-    return architectures;
   }
 
   private String guess(String privateDnsAddress) {
@@ -1787,21 +1694,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
   @Override
   public void resume(@Nonnull String vmId) throws CloudException, InternalException {
     throw new OperationNotSupportedException("Suspend/resume not supported by the EC2 API");
-  }
-
-  @Override
-  public boolean supportsPauseUnpause(@Nonnull VirtualMachine vm) {
-    return false;
-  }
-
-  @Override
-  public boolean supportsStartStop(@Nonnull VirtualMachine vm) {
-    return vm.isPersistent();
-  }
-
-  @Override
-  public boolean supportsSuspendResume(@Nonnull VirtualMachine vm) {
-    return false;
   }
 
   @Override
