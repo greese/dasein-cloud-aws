@@ -255,35 +255,18 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public void deleteAutoScalingGroup(String providerAutoScalingGroupId) throws InternalException, CloudException {
-        APITrace.begin(provider, "AutoScaling.deleteAutoScalingGroup");
-        try {
-            Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DELETE_AUTO_SCALING_GROUP);
-            EC2Method method;
-
-            parameters.put("AutoScalingGroupName", providerAutoScalingGroupId);
-            method = new EC2Method(provider, getAutoScalingUrl(), parameters);
-            try {
-                method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-        }
-        finally {
-            APITrace.end();
-        }
+      deleteAutoScalingGroup( new AutoScalingGroupDeleteOptions( providerAutoScalingGroupId ) );
     }
 
     @Override
-    public void forcefullyDeleteAutoScalingGroup(@Nonnull String providerAutoScalingGroupId) throws InternalException, CloudException {
-      APITrace.begin(provider, "AutoScaling.forcefullyDeleteAutoScalingGroup");
+    public void deleteAutoScalingGroup( @Nonnull AutoScalingGroupDeleteOptions options ) throws InternalException, CloudException {
+      APITrace.begin(provider, "AutoScaling.deleteAutoScalingGroup");
       try {
         Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DELETE_AUTO_SCALING_GROUP);
         EC2Method method;
 
-        parameters.put("AutoScalingGroupName", providerAutoScalingGroupId);
-        parameters.put("ForceDelete", "true");
+        parameters.put( "AutoScalingGroupName", options.getProviderAutoScalingGroupId() );
+        parameters.put( "ForceDelete", options.getForceDelete().toString() );
         method = new EC2Method(provider, getAutoScalingUrl(), parameters);
         try {
           method.invoke();
