@@ -108,7 +108,7 @@ public class AWSCloud extends AbstractCloud {
     static public final String V4_ALGORITHM = "AWS4-HMAC-SHA256";
     static public final String V4_TERMINATION = "aws4_request";
 
-    static public String encode(String value, boolean encodePath) throws InternalException {
+    static public @Nonnull String encode(@Nonnull String value, boolean encodePath) throws InternalException {
         String encoded;
 
         try {
@@ -443,22 +443,16 @@ public class AWSCloud extends AbstractCloud {
     }
 
     static public final String DSN_ACCESS_KEY = "accessKey";
-    static public final String DSN_X509       = "x509Certificate";
 
     @Override
     public @Nonnull ContextRequirements getContextRequirements() {
         return new ContextRequirements(
-                new ContextRequirements.Field(DSN_ACCESS_KEY, ContextRequirements.FieldType.KEYPAIR, ContextRequirements.Field.ACCESS_KEYS),
-                new ContextRequirements.Field(DSN_X509, ContextRequirements.FieldType.KEYPAIR, ContextRequirements.Field.X509)
+                new ContextRequirements.Field(DSN_ACCESS_KEY, "AWS API access keys", ContextRequirements.FieldType.KEYPAIR, ContextRequirements.Field.ACCESS_KEYS, true)
         );
     }
 
     public byte[][] getAccessKey(ProviderContext ctx) {
         return (byte[][])ctx.getConfigurationValue(DSN_ACCESS_KEY);
-    }
-
-    public byte[][] getX509Certificate(ProviderContext ctx) {
-        return (byte[][])ctx.getConfigurationValue(DSN_X509);
     }
 
     @Override
