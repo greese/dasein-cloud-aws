@@ -51,6 +51,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     static private final Logger logger = Logger.getLogger(ElasticLoadBalancer.class);
     
     private AWSCloud provider = null;
+    private volatile transient ElasticLoadBalancerCapabilities capabilities;
 
     ElasticLoadBalancer(AWSCloud provider) {
         super(provider);
@@ -228,10 +229,20 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         return createLoadBalancer(options);
     }
 
+    @Override
     public @Nonnull LoadBalancerAddressType getAddressType() {
         return LoadBalancerAddressType.DNS;
     }
-    
+
+    @Nonnull
+    @Override
+    public LoadBalancerCapabilities getCapabilities() throws CloudException, InternalException {
+        if( capabilities == null ) {
+            capabilities = new ElasticLoadBalancerCapabilities(provider);
+        }
+        return capabilities;
+    }
+
     private @Nonnull Map<String,String> getELBParameters(@Nonnull ProviderContext ctx, @Nonnull String action) throws InternalException {
         APITrace.begin(provider, "LB.getELBParameters");
         try {
