@@ -61,7 +61,7 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
 
     @Override
     public boolean isZeroPrecedenceHighest() throws InternalException, CloudException {
-        return false; // TODO(stas): ?
+        return true; // Doesn't matter as AWS doesn't support rule precedence, previously we also returned true.
     }
 
     @Nonnull
@@ -103,12 +103,13 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
 
     @Override
     public boolean requiresRulesOnCreation() throws CloudException, InternalException {
-        return true;
+        // Rules will be implied if not set upon create() call
+        return false;
     }
 
     @Override
     public Requirement requiresVLAN() throws CloudException, InternalException {
-        return Requirement.OPTIONAL; // TODO(stas):?
+        return Requirement.OPTIONAL;
     }
 
     @Override
@@ -123,6 +124,6 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
 
     @Override
     public boolean supportsFirewallDeletion() throws CloudException, InternalException {
-        return true; // TODO(stas): ?
+        return true;
     }
 }
