@@ -32,7 +32,7 @@ import java.util.Locale;
 
 /**
  * Describes the capabilities of AWS with respect to Dasein firewall operations.
- * <p>Created by Danielle Mayne: 3/03/14 10:00 PM</p>
+ * <p>Created by Stas Maksimov: 3/03/14 10:00 PM</p>
  * @author Stas Maksimov
  * @version 2014.03 initial version
  * @since 2014.03
