@@ -46,6 +46,7 @@ public class VPC extends AbstractVLANSupport {
   static private final Logger logger = Logger.getLogger(VPC.class);
 
   private AWSCloud provider;
+  private NetworkCapabilities capabilities;
 
   VPC(AWSCloud provider) {
     super(provider);
@@ -953,6 +954,14 @@ public class VPC extends AbstractVLANSupport {
       APITrace.end();
     }
   }
+
+    @Override
+    public VLANCapabilities getCapabilities() throws CloudException, InternalException {
+        if( capabilities == null ) {
+            capabilities = new NetworkCapabilities(provider);
+        }
+        return capabilities;
+    }
 
   @Override
   public int getMaxNetworkInterfaceCount() throws CloudException, InternalException {
