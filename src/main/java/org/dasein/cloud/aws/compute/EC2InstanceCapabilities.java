@@ -44,6 +44,7 @@ import java.util.Locale;
  * @since 2014.03
  */
 public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> implements VirtualMachineCapabilities {
+
     public EC2InstanceCapabilities(@Nonnull AWSCloud cloud) { super(cloud); }
 
     @Override
@@ -88,7 +89,7 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
 
     @Override
     public boolean canTerminate(@Nonnull VmState fromState) throws CloudException, InternalException {
-        return !fromState.equals(VmState.TERMINATED);
+        return !VmState.TERMINATED.equals(fromState);
     }
 
     @Override
@@ -116,6 +117,12 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
         return null;
     }
 
+    @Nonnull
+    @Override
+    public Requirement identifyDataCenterLaunchRequirement() throws CloudException, InternalException {
+        return Requirement.OPTIONAL;
+    }
+
     @Override
     public @Nonnull Requirement identifyImageRequirement(@Nonnull ImageClass cls) throws CloudException, InternalException {
         return (ImageClass.MACHINE.equals(cls) ? Requirement.REQUIRED : Requirement.OPTIONAL);
@@ -139,6 +146,12 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
     @Override
     public @Nonnull Requirement identifyStaticIPRequirement() throws CloudException, InternalException {
         return Requirement.NONE;
+    }
+
+    @Nonnull
+    @Override
+    public Requirement identifySubnetRequirement() throws CloudException, InternalException {
+        return (getProvider().getEC2Provider().isEucalyptus() ? Requirement.NONE : Requirement.OPTIONAL);
     }
 
     @Override

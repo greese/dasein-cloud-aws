@@ -42,7 +42,8 @@ public class SecurityGroup extends AbstractFirewallSupport {
 	static private final Logger logger = AWSCloud.getLogger(SecurityGroup.class);
 
 	private AWSCloud provider = null;
-	
+    private transient volatile SecurityGroupCapabilities capabilities;
+
 	SecurityGroup(AWSCloud provider) {
         super(provider);
 		this.provider = provider;
@@ -183,7 +184,8 @@ public class SecurityGroup extends AbstractFirewallSupport {
             APITrace.end();
         }
     }
-                                     @Override
+
+    @Override
     public @Nonnull String create(@Nonnull FirewallCreateOptions options) throws InternalException, CloudException {
           APITrace.begin(provider, "Firewall.create");
           try {
@@ -292,6 +294,15 @@ public class SecurityGroup extends AbstractFirewallSupport {
         return new HashMap<FirewallConstraints.Constraint, Object>();
     }
 
+    @Nonnull
+    @Override
+    public FirewallCapabilities getCapabilities() throws CloudException, InternalException {
+        if( capabilities == null ) {
+            capabilities = new SecurityGroupCapabilities(provider);
+        }
+        return capabilities;
+    }
+
     @Override
     public @Nullable Firewall getFirewall(@Nonnull String securityGroupId) throws InternalException, CloudException {
           APITrace.begin(provider, "Firewall.getFirewall");
@@ -353,7 +364,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
         return FirewallConstraints.getInstance();
     }
 
-    @Override
+    @Deprecated
     public @Nonnull String getProviderTermForFirewall(@Nonnull Locale locale) {
       return "security group";
     }
@@ -621,12 +632,12 @@ public class SecurityGroup extends AbstractFirewallSupport {
         }
     }
 
-    @Override
+    @Deprecated
     public @Nonnull Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan) throws InternalException, CloudException {
         return Collections.singletonList(RuleTargetType.GLOBAL);
     }
 
-    @Override
+    @Deprecated
     public @Nonnull Iterable<Direction> listSupportedDirections(boolean inVlan) throws InternalException, CloudException {
         if( inVlan ) {
             ArrayList<Direction>  list = new ArrayList<Direction>();

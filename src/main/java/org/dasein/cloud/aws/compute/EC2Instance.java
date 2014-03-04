@@ -56,6 +56,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
   static private final Logger logger = Logger.getLogger(EC2Instance.class);
   static private final Calendar UTC_CALENDAR = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
 
+    private transient volatile EC2InstanceCapabilities capabilities;
+
   EC2Instance(AWSCloud provider) {
     super(provider);
   }
@@ -355,8 +357,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       return Architecture.I64;
     }
   }
-
-    private transient volatile EC2InstanceCapabilities capabilities;
 
     public @Nonnull EC2InstanceCapabilities getCapabilities() {
         if( capabilities == null ) {
