@@ -44,7 +44,7 @@ public class ElasticIP implements IpAddressSupport {
 	static private final Logger logger = AWSCloud.getLogger(ElasticIP.class);
 
 	private AWSCloud provider = null;
-    private ElasticIPAddressCapabilities capabilities;
+    private transient volatile ElasticIPAddressCapabilities capabilities;
 
     ElasticIP(AWSCloud provider) {
 		this.provider = provider;

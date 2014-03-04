@@ -46,7 +46,7 @@ public class VPC extends AbstractVLANSupport {
   static private final Logger logger = Logger.getLogger(VPC.class);
 
   private AWSCloud provider;
-  private NetworkCapabilities capabilities;
+  private transient volatile NetworkCapabilities capabilities;
 
   VPC(AWSCloud provider) {
     super(provider);
