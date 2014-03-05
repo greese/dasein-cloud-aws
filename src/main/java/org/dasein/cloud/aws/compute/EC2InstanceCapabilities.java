@@ -28,6 +28,7 @@ import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.VMScalingCapabilities;
 import org.dasein.cloud.compute.VirtualMachineCapabilities;
 import org.dasein.cloud.compute.VmState;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -110,6 +111,11 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
     @Override
     public @Nonnull String getProviderTermForVirtualMachine(@Nonnull Locale locale) throws CloudException, InternalException {
         return "instance";
+    }
+
+    @Override
+    public @Nonnull NamingConstraints getVirtualMachineNamingConstraints() {
+        return NamingConstraints.getAlphaNumeric(1, 100);
     }
 
     @Override
