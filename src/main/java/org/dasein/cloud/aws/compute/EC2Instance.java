@@ -1395,7 +1395,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       } else if (cfg.getVolumes().length > 0) {
         String dc = null;
 
-        for (VMLaunchOptions.VolumeAttachment a : cfg.getVolumes()) {
+        for (VolumeAttachment a : cfg.getVolumes()) {
           if (a.volumeToCreate != null) {
             dc = a.volumeToCreate.getDataCenterId();
             if (dc != null) {
@@ -1419,7 +1419,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       if (getProvider().getEC2Provider().isAWS()) {
         parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
       }
-      final ArrayList<VMLaunchOptions.VolumeAttachment> existingVolumes = new ArrayList<VMLaunchOptions.VolumeAttachment>();
+      final ArrayList<VolumeAttachment> existingVolumes = new ArrayList<VolumeAttachment>();
       TreeSet<String> deviceIds = new TreeSet<String>();
 
       if (cfg.isIoOptimized()) {
@@ -1430,7 +1430,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         Iterable<String> possibles = getProvider().getComputeServices().getVolumeSupport().listPossibleDeviceIds(img.getPlatform());
         int i = 1;
 
-        for (VMLaunchOptions.VolumeAttachment a : cfg.getVolumes()) {
+        for (VolumeAttachment a : cfg.getVolumes()) {
           if (a.deviceId != null) {
             deviceIds.add(a.deviceId);
           } else if (a.volumeToCreate != null && a.volumeToCreate.getDeviceId() != null) {
@@ -1438,7 +1438,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             a.deviceId = a.volumeToCreate.getDeviceId();
           }
         }
-        for (VMLaunchOptions.VolumeAttachment a : cfg.getVolumes()) {
+        for (VolumeAttachment a : cfg.getVolumes()) {
           if (a.deviceId == null) {
             for (String id : possibles) {
               if (!deviceIds.contains(id)) {
@@ -1617,7 +1617,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         Thread thread = new Thread() {
           public void run() {
             try {
-              for (VMLaunchOptions.VolumeAttachment a : existingVolumes) {
+              for (VolumeAttachment a : existingVolumes) {
                 try {
                   getProvider().getComputeServices().getVolumeSupport().attach(a.existingVolumeId, vm.getProviderMachineImageId(), a.deviceId);
                 } catch (Throwable t) {
