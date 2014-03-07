@@ -28,6 +28,8 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.util.uom.storage.Gigabyte;
+import org.dasein.util.uom.storage.Storage;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -52,8 +54,8 @@ public class AutoScaling implements AutoScalingSupport {
         this.provider = provider;
     }
 
-  @Override
-  public String createAutoScalingGroup(@Nonnull AutoScalingGroupOptions autoScalingGroupOptions) throws InternalException, CloudException {
+    @Override
+    public String createAutoScalingGroup(@Nonnull AutoScalingGroupOptions autoScalingGroupOptions) throws InternalException, CloudException {
     APITrace.begin(provider, "AutoScaling.createAutoScalingGroup");
     try {
       Map<String, String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_AUTO_SCALING_GROUP);
@@ -130,8 +132,8 @@ public class AutoScaling implements AutoScalingSupport {
     }
   }
 
-  @Override
-  public String createAutoScalingGroup(@Nonnull String name, @Nonnull String launchConfigurationId, @Nonnull Integer minServers, @Nonnull Integer maxServers,
+    @Override
+    public String createAutoScalingGroup(@Nonnull String name, @Nonnull String launchConfigurationId, @Nonnull Integer minServers, @Nonnull Integer maxServers,
                                        @Nullable Integer cooldown, @Nullable String[] loadBalancerIds, @Nullable Integer desiredCapacity,
                                        @Nullable Integer healthCheckGracePeriod, @Nullable String healthCheckType, @Nullable String vpcZones,
                                        @Nullable String... zoneIds) throws InternalException, CloudException {
@@ -214,43 +216,93 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public String createLaunchConfiguration(String name, String imageId, VirtualMachineProduct size, String keyPairName, String userData, String providerRoleId, Boolean detailedMonitoring, String ... firewalls) throws InternalException, CloudException {
-        APITrace.begin(provider, "AutoScaling.createLaunchConfigursation");
-        try {
-            Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_LAUNCH_CONFIGURATION);
-            EC2Method method;
+        return createLaunchConfiguration(new LaunchConfigurationCreateOptions(name, imageId, size, keyPairName, userData, providerRoleId, detailedMonitoring, firewalls));
+    }
 
-            parameters.put("LaunchConfigurationName", name);
-            parameters.put("ImageId", imageId);
-            if(keyPairName != null) {
-              parameters.put("KeyName", keyPairName);
-            }
-            if(userData != null) {
-              parameters.put("UserData", userData);
-            }
-            if(providerRoleId != null) {
-              parameters.put("IamInstanceProfile", providerRoleId);
-            }
-            if(detailedMonitoring != null) {
-              parameters.put("InstanceMonitoring.Enabled", detailedMonitoring.toString());
-            }
-            parameters.put("InstanceType", size.getProviderProductId());
-            int i = 1;
-            for( String fw : firewalls ) {
-                parameters.put("SecurityGroups.member." + (i++), fw);
-            }
-            method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+    @Override
+    public String createLaunchConfiguration(@Nonnull LaunchConfigurationCreateOptions options) throws InternalException, CloudException {
+      APITrace.begin(provider, "AutoScaling.createLaunchConfigursation");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_LAUNCH_CONFIGURATION);
+        EC2Method method;
+
+        parameters.put("LaunchConfigurationName", options.getName());
+        if(options.getImageId() != null) {
+          parameters.put("ImageId", options.getImageId());
+        }
+        if(options.getKeypairName() != null) {
+          parameters.put("KeyName", options.getKeypairName());
+        }
+        if(options.getUserData() != null) {
+          parameters.put("UserData", options.getUserData());
+        }
+        if(options.getProviderRoleId() != null) {
+          parameters.put("IamInstanceProfile", options.getProviderRoleId());
+        }
+        if(options.getDetailedMonitoring() != null) {
+          parameters.put("InstanceMonitoring.Enabled", options.getDetailedMonitoring().toString());
+        }
+        if(options.getSize() != null) {
+          parameters.put("InstanceType", options.getSize().getProviderProductId());
+        }
+        int i = 1;
+        for( String fw : options.getFirewallIds() ) {
+          parameters.put("SecurityGroups.member." + (i++), fw);
+        }
+        if(options.getAssociatePublicIPAddress() != null) {
+          parameters.put("AssociatePublicIpAddress", options.getAssociatePublicIPAddress().toString());
+        }
+        if(options.getIOOptimized() != null) {
+          parameters.put("EbsOptimized", options.getIOOptimized().toString());
+        }
+        if( options.getVolumeAttachment() != null ) {
+          int z = 1;
+          for( VolumeAttachment va : options.getVolumeAttachment() ) {
+            parameters.put("BlockDeviceMappings.member." + z + ".DeviceName", va.deviceId);
+            EBSVolume ebsv = new EBSVolume( provider );
+            String volType = null;
             try {
-                method.invoke();
+              VolumeProduct prd = ebsv.getVolumeProduct( va.volumeToCreate.getVolumeProductId() );
+              volType = prd.getProviderProductId();
+            } catch ( Exception e ) {
+              // toss it
             }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
+            if( volType == null ) {
+              if( options.getIOOptimized() && va.volumeToCreate.getIops() > 0 ) {
+                parameters.put("BlockDeviceMappings.member." + z + ".Ebs.VolumeType", "io1");
+              }
+            } else {
+              parameters.put("BlockDeviceMappings.member." + z + ".Ebs.VolumeType", volType);
             }
-            return name;
+            if(va.volumeToCreate.getIops() > 0) {
+              parameters.put("BlockDeviceMappings.member." + z + ".Ebs.Iops", String.valueOf(va.volumeToCreate.getIops()));
+            }
+            if(va.volumeToCreate.getSnapshotId() != null) {
+              parameters.put("BlockDeviceMappings.member." + z + ".Ebs.SnapshotId", va.volumeToCreate.getSnapshotId());
+            }
+            if(va.volumeToCreate.getVolumeSize().getQuantity().intValue() > 0) {
+              parameters.put("BlockDeviceMappings.member." + z + ".Ebs.VolumeSize", String.valueOf(va.volumeToCreate.getVolumeSize().getQuantity().intValue()));
+            }
+            z++;
+          }
         }
-        finally {
-            APITrace.end();
+        if(options.getVirtualMachineIdToClone() != null) {
+          parameters.put("InstanceId", options.getVirtualMachineIdToClone());
         }
+
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+        return options.getName();
+      }
+      finally {
+        APITrace.end();
+      }
     }
 
     @Override
@@ -947,88 +999,88 @@ public class AutoScaling implements AutoScalingSupport {
         }
     }
 
-  @Override
-  public void updateTags( @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
-    APITrace.begin( provider, "AutoScaling.removeTags" );
-    try {
-      handleTagRequest( EC2Method.UPDATE_AUTO_SCALING_GROUP_TAGS, providerScalingGroupIds, tags );
-    }
-    finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public void removeTags( @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
-    APITrace.begin( provider, "AutoScaling.removeTags" );
-    try {
-      handleTagRequest( EC2Method.DELETE_AUTO_SCALING_GROUP_TAGS, providerScalingGroupIds, tags );
-    }
-    finally {
-      APITrace.end();
-    }
-  }
-
-  private void handleTagRequest( @Nonnull String methodName, @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
-    Map<String, String> parameters = getAutoScalingParameters( provider.getContext(), methodName );
-    EC2Method method;
-
-    addAutoScalingTagParameters( parameters, providerScalingGroupIds, tags );
-
-    if ( parameters.size() == 0 ) {
-      return;
-    }
-
-    method = new EC2Method( provider, getAutoScalingUrl(), parameters );
-    try {
-      method.invoke();
-    }
-    catch ( EC2Exception e ) {
-      logger.error( e.getSummary() );
-      throw new CloudException( e );
-    }
-  }
-
-  static private void addAutoScalingTagParameters( @Nonnull Map<String, String> parameters, @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) {
-    /**
-     * unlike EC2's regular CreateTags call, for autoscaling we must add a set of tag parameters for each auto scaling group
-     * http://docs.aws.amazon.com/AutoScaling/latest/APIReference/API_CreateOrUpdateTags.html
-     */
-    int tagCounter = 1;
-    for ( int i = 0; i < providerScalingGroupIds.length; i++ ) {
-      for ( AutoScalingTag tag : tags ) {
-        parameters.put( "Tags.member." + tagCounter + ".ResourceType", "auto-scaling-group" );
-        parameters.put( "Tags.member." + tagCounter + ".ResourceId", providerScalingGroupIds[i] );
-        parameters.put( "Tags.member." + tagCounter + ".Key", tag.getKey() );
-        if ( tag.getValue() != null ) {
-          parameters.put( "Tags.member." + tagCounter + ".Value", tag.getValue() );
-        }
-        parameters.put( "Tags.member." + tagCounter + ".PropagateAtLaunch", String.valueOf( tag.isPropagateAtLaunch() ) );
-
-        tagCounter++;
+    @Override
+    public void updateTags( @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
+      APITrace.begin( provider, "AutoScaling.removeTags" );
+      try {
+        handleTagRequest( EC2Method.UPDATE_AUTO_SCALING_GROUP_TAGS, providerScalingGroupIds, tags );
+      }
+      finally {
+        APITrace.end();
       }
     }
-  }
 
-  private @Nullable ResourceStatus toGroupStatus( @Nullable Node item) {
-        if( item == null ) {
-            return null;
-        }
-        NodeList attrs = item.getChildNodes();
-        String groupId = null;
-
-        for( int i=0; i<attrs.getLength(); i++ ) {
-            Node attr = attrs.item(i);
-
-            if( attr.getNodeName().equalsIgnoreCase("AutoScalingGroupName") ) {
-                groupId = attr.getFirstChild().getNodeValue();
-            }
-        }
-        if( groupId == null ) {
-            return null;
-        }
-        return new ResourceStatus(groupId, true);
+    @Override
+    public void removeTags( @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
+      APITrace.begin( provider, "AutoScaling.removeTags" );
+      try {
+        handleTagRequest( EC2Method.DELETE_AUTO_SCALING_GROUP_TAGS, providerScalingGroupIds, tags );
+      }
+      finally {
+        APITrace.end();
+      }
     }
+
+    private void handleTagRequest( @Nonnull String methodName, @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
+      Map<String, String> parameters = getAutoScalingParameters( provider.getContext(), methodName );
+      EC2Method method;
+
+      addAutoScalingTagParameters( parameters, providerScalingGroupIds, tags );
+
+      if ( parameters.size() == 0 ) {
+        return;
+      }
+
+      method = new EC2Method( provider, getAutoScalingUrl(), parameters );
+      try {
+        method.invoke();
+      }
+      catch ( EC2Exception e ) {
+        logger.error( e.getSummary() );
+        throw new CloudException( e );
+      }
+    }
+
+    static private void addAutoScalingTagParameters( @Nonnull Map<String, String> parameters, @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) {
+      /**
+       * unlike EC2's regular CreateTags call, for autoscaling we must add a set of tag parameters for each auto scaling group
+       * http://docs.aws.amazon.com/AutoScaling/latest/APIReference/API_CreateOrUpdateTags.html
+       */
+      int tagCounter = 1;
+      for ( int i = 0; i < providerScalingGroupIds.length; i++ ) {
+        for ( AutoScalingTag tag : tags ) {
+          parameters.put( "Tags.member." + tagCounter + ".ResourceType", "auto-scaling-group" );
+          parameters.put( "Tags.member." + tagCounter + ".ResourceId", providerScalingGroupIds[i] );
+          parameters.put( "Tags.member." + tagCounter + ".Key", tag.getKey() );
+          if ( tag.getValue() != null ) {
+            parameters.put( "Tags.member." + tagCounter + ".Value", tag.getValue() );
+          }
+          parameters.put( "Tags.member." + tagCounter + ".PropagateAtLaunch", String.valueOf( tag.isPropagateAtLaunch() ) );
+
+          tagCounter++;
+        }
+      }
+    }
+
+    private @Nullable ResourceStatus toGroupStatus( @Nullable Node item) {
+          if( item == null ) {
+              return null;
+          }
+          NodeList attrs = item.getChildNodes();
+          String groupId = null;
+
+          for( int i=0; i<attrs.getLength(); i++ ) {
+              Node attr = attrs.item(i);
+
+              if( attr.getNodeName().equalsIgnoreCase("AutoScalingGroupName") ) {
+                  groupId = attr.getFirstChild().getNodeValue();
+              }
+          }
+          if( groupId == null ) {
+              return null;
+          }
+          return new ResourceStatus(groupId, true);
+      }
 
     private @Nullable LaunchConfiguration toLaunchConfiguration(@Nullable Node item) {
         if( item == null ) {
@@ -1133,6 +1185,88 @@ public class AutoScaling implements AutoScalingSupport {
                   }
                 }
               }
+            }
+            else if( name.equalsIgnoreCase("AssociatePublicIpAddress") ) {
+              if(attr.getFirstChild() != null){
+                cfg.setAssociatePublicIPAddress( Boolean.valueOf(attr.getFirstChild().getNodeValue()) );
+              }
+            }
+            else if( name.equalsIgnoreCase("EbsOptimized") ) {
+              if(attr.getFirstChild() != null){
+                cfg.setIoOptimized(Boolean.valueOf(attr.getFirstChild().getNodeValue()));
+              }
+            }
+            else if( name.equalsIgnoreCase("BlockDeviceMappings") ) {
+              ArrayList<VolumeAttachment> VAs = new ArrayList<VolumeAttachment>();
+              VolumeAttachment[] VAArray;
+
+              if( attr.hasChildNodes() ) {
+                NodeList blockDeviceMaps = attr.getChildNodes();
+
+                for( int j=0; j<blockDeviceMaps.getLength(); j++ ) {
+                  Node blockDeviceMap = blockDeviceMaps.item(j);
+
+                  if( blockDeviceMap.getNodeName().equalsIgnoreCase("member") ) {
+
+                    VolumeAttachment va = new VolumeAttachment();
+
+                    if( blockDeviceMap.hasChildNodes() ) {
+                      NodeList blockDeviceChildren = blockDeviceMap.getChildNodes();
+                      for( int y=0; y<blockDeviceChildren.getLength(); y++ ) {
+                        Node blockDeviceChild = blockDeviceChildren.item(y);
+
+                        String blockDeviceChildName = blockDeviceChild.getNodeName();
+
+                        if( blockDeviceChildName.equalsIgnoreCase("DeviceName") ) {
+
+                          String value = blockDeviceChild.getFirstChild().getNodeValue().trim();
+                          va.setDeviceId(value);
+
+                        } else if( blockDeviceChildName.equalsIgnoreCase("Ebs") ) {
+                          if( blockDeviceChild.hasChildNodes() ) {
+                            NodeList ebsChildren = blockDeviceChild.getChildNodes();
+                            VolumeCreateOptions vco = new VolumeCreateOptions();
+
+                            for( int q=0; q<ebsChildren.getLength(); q++ ) {
+                              Node ebsChild = ebsChildren.item(q);
+                              String ebsChildName = ebsChild.getNodeName();
+
+                              if( ebsChildName.equalsIgnoreCase("Iops") ) {
+                                String value = ebsChild.getFirstChild().getNodeValue().trim();
+                                try {
+                                  vco.setIops( Integer.parseInt( value ) );
+                                } catch( NumberFormatException nfe ) {
+                                  vco.setIops( 0 );
+                                }
+                              } else if( ebsChildName.equalsIgnoreCase("VolumeSize") ) {
+                                String value = ebsChild.getFirstChild().getNodeValue().trim();
+                                int size = Integer.parseInt(value);
+                                vco.setVolumeSize( new Storage<Gigabyte>(size, Storage.GIGABYTE) );
+                              } else if( ebsChildName.equalsIgnoreCase("SnapshotId") ) {
+                                String value = ebsChild.getFirstChild().getNodeValue().trim();
+                                vco.setSnapshotId( value );
+                              } else if( ebsChildName.equalsIgnoreCase("VolumeType") ) {
+                                String value = ebsChild.getFirstChild().getNodeValue().trim();
+                                vco.setVolumeProductId( value );
+                              }
+                            }
+                            va.setVolumeToCreate( vco );
+                          }
+                        }
+                      }
+                      VAs.add( va );
+                    }
+                  }
+                }
+                VAArray = new VolumeAttachment[VAs.size()];
+                int v=0;
+                for( VolumeAttachment va : VAs ) {
+                  VAArray[v++] = va;
+                }
+              } else {
+                VAArray = new VolumeAttachment[0];
+              }
+              cfg.setVolumeAttachment( VAArray );
             }
         }
         return cfg;
