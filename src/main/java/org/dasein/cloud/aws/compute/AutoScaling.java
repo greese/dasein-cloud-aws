@@ -258,7 +258,7 @@ public class AutoScaling implements AutoScalingSupport {
         if( options.getVolumeAttachment() != null ) {
           int z = 1;
           for( VolumeAttachment va : options.getVolumeAttachment() ) {
-            parameters.put("BlockDeviceMapping.member." + z + ".DeviceName", va.deviceId);
+            parameters.put("BlockDeviceMappings.member." + z + ".DeviceName", va.deviceId);
             EBSVolume ebsv = new EBSVolume( provider );
             String volType = null;
             try {
@@ -269,18 +269,19 @@ public class AutoScaling implements AutoScalingSupport {
             }
             if( volType == null ) {
               if( options.getIOOptimized() && va.volumeToCreate.getIops() > 0 ) {
-                parameters.put("BlockDeviceMapping.member." + z + ".Ebs.VolumeType", "io1");
+                parameters.put("BlockDeviceMappings.member." + z + ".Ebs.VolumeType", "io1");
               }
             } else {
-              parameters.put("BlockDeviceMapping.member." + z + ".Ebs.VolumeType", volType);
+              parameters.put("BlockDeviceMappings.member." + z + ".Ebs.VolumeType", volType);
             }
             if(va.volumeToCreate.getIops() > 0) {
-              parameters.put("BlockDeviceMapping.member." + z + ".Ebs.Iops", String.valueOf(va.volumeToCreate.getIops()));
+              parameters.put("BlockDeviceMappings.member." + z + ".Ebs.Iops", String.valueOf(va.volumeToCreate.getIops()));
             }
             if(va.volumeToCreate.getSnapshotId() != null) {
-              parameters.put("BlockDeviceMapping.member." + z + ".Ebs.SnapshotId", va.volumeToCreate.getSnapshotId());
-            } else {
-              parameters.put("BlockDeviceMapping.member." + z + ".Ebs.VolumeSize", String.valueOf(va.volumeToCreate.getVolumeSize().getQuantity().intValue()));
+              parameters.put("BlockDeviceMappings.member." + z + ".Ebs.SnapshotId", va.volumeToCreate.getSnapshotId());
+            }
+            if(va.volumeToCreate.getVolumeSize().getQuantity().intValue() > 0) {
+              parameters.put("BlockDeviceMappings.member." + z + ".Ebs.VolumeSize", String.valueOf(va.volumeToCreate.getVolumeSize().getQuantity().intValue()));
             }
             z++;
           }
