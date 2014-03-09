@@ -1381,15 +1381,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       if (cfg.isPreventApiTermination()) {
         parameters.put("DisableApiTermination", "true");
       }
-      String[] ids = cfg.getFirewallIds();
-
-      if (ids.length > 0) {
-        int i = 1;
-
-        for (String id : ids) {
-          parameters.put("SecurityGroupId." + (i++), id);
-        }
-      }
       if (cfg.getDataCenterId() != null) {
         parameters.put("Placement.AvailabilityZone", cfg.getDataCenterId());
       } else if (cfg.getVolumes().length > 0) {
@@ -1409,12 +1400,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       }
       if (cfg.getBootstrapKey() != null) {
         parameters.put("KeyName", cfg.getBootstrapKey());
-      }
-      if (cfg.getVlanId() != null) {
-        parameters.put("SubnetId", cfg.getVlanId());
-      }
-      if (cfg.getPrivateIp() != null) {
-        parameters.put("PrivateIpAddress", cfg.getPrivateIp());
       }
       if (getProvider().getEC2Provider().isAWS()) {
         parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
@@ -1471,33 +1456,65 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
           }
         }
       }
-      VMLaunchOptions.NICConfig[] nics = cfg.getNetworkInterfaces();
 
-      if (nics != null && nics.length > 0) {
+      if ( cfg.getVlanId() == null ) {
+        String[] ids = cfg.getFirewallIds();
+        if ( ids.length > 0 ) {
+          int i = 1;
+
+          for ( String id : ids ) {
+            parameters.put( "SecurityGroupId." + ( i++ ), id );
+          }
+        }
+        if ( cfg.getPrivateIp() != null ) {
+          parameters.put( "PrivateIpAddress", cfg.getPrivateIp() );
+        }
+      }
+      else if ( cfg.getNetworkInterfaces() != null && cfg.getNetworkInterfaces().length > 0 ) {
+        VMLaunchOptions.NICConfig[] nics = cfg.getNetworkInterfaces();
         int i = 1;
 
-        for (VMLaunchOptions.NICConfig c : nics) {
-          parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
-          if (c.nicId == null) {
-            parameters.put("NetworkInterface." + i + ".SubnetId", c.nicToCreate.getSubnetId());
-            parameters.put("NetworkInterface." + i + ".Description", c.nicToCreate.getDescription());
-            if (c.nicToCreate.getIpAddress() != null) {
-              parameters.put("NetworkInterface." + i + ".PrivateIpAddress", c.nicToCreate.getIpAddress());
+        for ( VMLaunchOptions.NICConfig c : nics ) {
+          parameters.put( "NetworkInterface." + i + ".DeviceIndex", String.valueOf( i ) );
+          // this only applies for the first NIC
+          if ( i == 1 ) {
+            parameters.put( "NetworkInterface.1.AssociatePublicIpAddress", String.valueOf( cfg.isAssociatePublicIpAddress() ) );
+          }
+          if ( c.nicId == null ) {
+            parameters.put( "NetworkInterface." + i + ".SubnetId", c.nicToCreate.getSubnetId() );
+            parameters.put( "NetworkInterface." + i + ".Description", c.nicToCreate.getDescription() );
+            if ( c.nicToCreate.getIpAddress() != null ) {
+              parameters.put( "NetworkInterface." + i + ".PrivateIpAddress", c.nicToCreate.getIpAddress() );
             }
-            if (c.nicToCreate.getFirewallIds().length > 0) {
+            if ( c.nicToCreate.getFirewallIds().length > 0 ) {
               int j = 1;
 
-              for (String id : c.nicToCreate.getFirewallIds()) {
-                parameters.put("NetworkInterface." + i + ".SecurityGroupId." + j, id);
+              for ( String id : c.nicToCreate.getFirewallIds() ) {
+                parameters.put( "NetworkInterface." + i + ".SecurityGroupId." + j, id );
                 j++;
               }
             }
-          } else {
-            parameters.put("NetworkInterface." + i + ".NetworkInterfaceId", c.nicId);
+          }
+          else {
+            parameters.put( "NetworkInterface." + i + ".NetworkInterfaceId", c.nicId );
           }
           i++;
         }
       }
+      else {
+        parameters.put( "NetworkInterface.1.DeviceIndex", "0" );
+        parameters.put( "NetworkInterface.1.SubnetId", cfg.getVlanId() );
+        parameters.put( "NetworkInterface.1.AssociatePublicIpAddress", String.valueOf( cfg.isAssociatePublicIpAddress() ) );
+        if ( cfg.getPrivateIp() != null ) {
+          parameters.put( "NetworkInterface.1.PrivateIpAddress", cfg.getPrivateIp() );
+        }
+        int securityGroupIndex = 1;
+        for ( String id : cfg.getFirewallIds() ) {
+          parameters.put( "NetworkInterface.1.SecurityGroupId." + securityGroupIndex, id );
+          securityGroupIndex++;
+        }
+      }
+
       method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
       try {
         doc = method.invoke();
