@@ -28,13 +28,11 @@ import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.VMScalingCapabilities;
 import org.dasein.cloud.compute.VirtualMachineCapabilities;
 import org.dasein.cloud.compute.VmState;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Locale;
+import java.util.*;
 
 /**
  * Describes the capabilities of AWS with respect to Dasein virtual machine operations.
@@ -117,6 +115,15 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
         return null;
     }
 
+    static private final NamingConstraints namingConstraints =
+            NamingConstraints.getAlphaNumeric(10, 10).constrainedBy('-').lowerCaseOnly();
+
+    @Nonnull
+    @Override
+    public NamingConstraints getVirtualMachineNamingConstraints() throws CloudException, InternalException {
+        return namingConstraints;
+    }
+
     @Nonnull
     @Override
     public Requirement identifyDataCenterLaunchRequirement() throws CloudException, InternalException {
@@ -184,11 +191,7 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
     @Override
     public @Nonnull Iterable<Architecture> listSupportedArchitectures() throws InternalException, CloudException {
         if (architectures == null) {
-            ArrayList<Architecture> list = new ArrayList<Architecture>();
-
-            list.add(Architecture.I64);
-            list.add(Architecture.I32);
-            architectures = Collections.unmodifiableCollection(list);
+            architectures = Arrays.asList(Architecture.I32, Architecture.I64);
         }
         return architectures;
     }

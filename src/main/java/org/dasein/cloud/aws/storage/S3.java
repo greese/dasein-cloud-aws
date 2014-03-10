@@ -32,6 +32,7 @@ import org.dasein.cloud.storage.FileTransfer;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
+import org.dasein.cloud.util.NamingConstraints;
 import org.dasein.util.CalendarWrapper;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
@@ -1475,12 +1476,14 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     @Override
-    public @Nonnull NameRules getBucketNameRules() throws CloudException, InternalException {
-        return NameRules.getInstance(1, 255, false, true, true, new char[] { '-', '.' });
+    public @Nonnull
+    NamingConstraints getBucketNameRules() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(1, 255).lowerCaseOnly().limitedToLatin1().constrainedBy('-', '.');
     }
 
     @Override
-    public @Nonnull NameRules getObjectNameRules() throws CloudException, InternalException {
-        return NameRules.getInstance(1, 255, false, true, true, new char[] { '-', '.', ',', '#', '+' });
+    public @Nonnull
+    NamingConstraints getObjectNameRules() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(1, 255).lowerCaseOnly().limitedToLatin1().constrainedBy('-', '.', ',', '#', '+');
     }
 }

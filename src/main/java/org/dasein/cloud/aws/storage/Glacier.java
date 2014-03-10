@@ -25,6 +25,7 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.storage.*;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.NamingConstraints;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
 import org.dasein.util.PopulatorThread;
@@ -537,13 +538,15 @@ public class Glacier implements OfflineStoreSupport {
     }
 
     @Override
-    public @Nonnull NameRules getBucketNameRules() throws CloudException, InternalException {
-        return NameRules.getInstance(1, 255, false, true, true, new char[] { '-', '.' });
+    public @Nonnull
+    NamingConstraints getBucketNameRules() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(1, 255).lowerCaseOnly().limitedToLatin1().constrainedBy('-', '.');
     }
 
     @Override
-    public @Nonnull NameRules getObjectNameRules() throws CloudException, InternalException {
-        return NameRules.getInstance(1, 255, false, true, true, new char[] { '-', '.', ',', '#', '+' });
+    public @Nonnull
+    NamingConstraints getObjectNameRules() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(1, 255).lowerCaseOnly().limitedToLatin1().constrainedBy('-', '.', ',', '#', '+');
     }
 
     @Nonnull
