@@ -120,15 +120,6 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
         return null;
     }
 
-    static private final NamingConstraints namingConstraints =
-            NamingConstraints.getAlphaNumeric(10, 10).constrainedBy('-').lowerCaseOnly();
-
-    @Nonnull
-    @Override
-    public NamingConstraints getVirtualMachineNamingConstraints() throws CloudException, InternalException {
-        return namingConstraints;
-    }
-
     @Nonnull
     @Override
     public Requirement identifyDataCenterLaunchRequirement() throws CloudException, InternalException {

@@ -804,6 +804,105 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         return true;
     }
 
+    @Override
+    public LoadBalancerHealthCheck createLoadBalancerHealthCheck(@Nonnull LBHealthCheckCreateOptions options)throws CloudException, InternalException{
+        APITrace.begin(provider, "LB.configureHealthCheck");
+        try{
+            ProviderContext ctx = provider.getContext();
+            if(ctx == null){
+                throw new CloudException("No valid context is established for this request");
+            }
+
+            NodeList blocks;
+            Document doc;
+            Map<String, String> parameters = getELBParameters(getContext(), ELBMethod.CONFIGURE_HEALTH_CHECK);
+            ELBMethod method;
+
+            parameters.put("LoadBalancerName", options.getProviderLoadBalancerId());
+            parameters.put("HealthCheck.HealthyThreshold", options.getHealthyCount() + "");
+            parameters.put("HealthCheck.UnhealthyThreshold", options.getUnhealthyCount() + "");
+            String path = "/";
+            if(options.getPort() == 0 ){
+                throw new CloudException("Port must have a number between 1 and 65535.");
+            }
+            if(options.getPath() != null || !options.getPath().equals("")){
+                path = options.getPath();
+            }
+            parameters.put("HealthCheck.Target", options.getProtocol().name() + ":" + options.getPort() + path);
+            parameters.put("HealthCheck.Interval", options.getInterval().intValue() + "");
+            parameters.put("HealthCheck.Timeout", options.getTimeout().intValue() + "");
+
+            method = new ELBMethod(provider, ctx, parameters);
+            try{
+                doc = method.invoke();
+            }
+            catch(EC2Exception e){
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("HealthCheck");
+            if( blocks.getLength() > 0 ) {
+                return toLBHealthCheck(blocks.item(0));
+            }
+            throw new CloudException("An error occurred while configuring the Health Check.");
+        }
+        finally{
+            APITrace.end();
+        }
+    }
+
+//TODO: Get instance health
+//TODO: remove set as NoOp
+
+    @Override
+    public boolean healthCheckRequiresLoadBalancer(){
+        return true;
+    }
+
+    private LoadBalancerHealthCheck toLBHealthCheck(Node node){
+        NodeList attrs = node.getChildNodes();
+        Double interval = 0.0;
+        LoadBalancerHealthCheck.HCProtocol protocol = null;
+        int port = 0;
+        String path = "";
+        int healthyCount = 0;
+        int unHealthyCount = 0;
+        Double timeout = 0.0;
+
+        for(int i=0;i<attrs.getLength();i++){
+            Node attr = attrs.item(i);
+            String name = attr.getNodeName().toLowerCase();
+
+            if(name.equals("interval")){
+                interval = Double.valueOf(attr.getFirstChild().getNodeValue());
+            }
+            else if(name.equals("target")){
+                String targetString = attr.getFirstChild().getNodeValue();
+                String[] parts = targetString.split(":");
+                protocol = LoadBalancerHealthCheck.HCProtocol.valueOf(parts[0]);
+                if(parts[1].endsWith("/")){
+                    port = Integer.parseInt(parts[1].substring(0, parts[1].length()-1));
+                    path = "/";
+                }
+                else{
+                    String[] parts2 = parts[1].split("/");
+                    port = Integer.parseInt(parts2[0]);
+                    path = "/" + parts2[1];
+                }
+            }
+            else if(name.equals("healthythreshold")){
+                healthyCount = Integer.parseInt(attr.getFirstChild().getNodeValue());
+            }
+            else if(name.equals("unhealthythreshold")){
+                unHealthyCount = Integer.parseInt(attr.getFirstChild().getNodeValue());
+            }
+            else if(name.equals("timeout")){
+                timeout = Double.valueOf(attr.getFirstChild().getNodeValue());
+            }
+        }
+        return LoadBalancerHealthCheck.getInstance(protocol, port, path, interval, timeout, healthyCount, unHealthyCount);
+    }
+
     private LbListener toListener(Node node) {
         NodeList attrs = node.getChildNodes();
 

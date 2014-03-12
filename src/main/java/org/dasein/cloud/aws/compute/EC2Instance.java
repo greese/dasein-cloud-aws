@@ -689,8 +689,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       VirtualMachine vm = getVirtualMachine(instanceId);
       if (vm != null) {
         if (vm.isPersistent()) {
-          if (vm.getProviderVolumeIds().length > 0) {
-            id = vm.getProviderVolumeIds()[0];
+          if (vm.getProviderVolumeIds(getProvider()).length > 0) {
+            id = vm.getProviderVolumeIds(getProvider())[0];
             idIsVolumeId = true;
           }
         }
@@ -751,8 +751,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       boolean idIsVolumeId = false;
       VirtualMachine vm = getVirtualMachine(instanceId);
       if (vm != null && vm.isPersistent()) {
-        if (vm.getProviderVolumeIds().length > 0) {
-          id = vm.getProviderVolumeIds()[0];
+        if (vm.getProviderVolumeIds(getProvider()).length > 0) {
+          id = vm.getProviderVolumeIds(getProvider())[0];
           idIsVolumeId = true;
         }
       }
