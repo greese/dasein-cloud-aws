@@ -81,20 +81,20 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 public class EC2Instance extends AbstractVMSupport<AWSCloud> {
-	static private final Logger logger = Logger.getLogger(EC2Instance.class);
-	static private final Calendar UTC_CALENDAR = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
+    static private final Logger logger = Logger.getLogger(EC2Instance.class);
+    static private final Calendar UTC_CALENDAR = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
 
-	EC2Instance(AWSCloud provider) {
+    EC2Instance(AWSCloud provider) {
         super(provider);
-	}
+    }
 
     @Override
     public VirtualMachine alterVirtualMachine(@Nonnull String vmId, @Nonnull VMScalingOptions options) throws InternalException, CloudException {
         throw new OperationNotSupportedException("AWS does not support vertical scaling of instances");
     }
 
-	@Override
-	public void start(@Nonnull String instanceId) throws InternalException, CloudException {
+    @Override
+    public void start(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "startVM");
         try {
             VirtualMachine vm = getVirtualMachine(instanceId);
@@ -121,7 +121,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         finally {
             APITrace.end();
         }
-	}
+    }
 
     static private class Metric implements Comparable<Metric> {
         int samples = 0;
@@ -129,16 +129,16 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         double minimum = -1.0;
         double maximum = 0.0;
         double average = 0.0;
-        
+
         public int compareTo(Metric other) {
             if( other == this ) {
                 return 0;
             }
             return (new Long(timestamp)).compareTo(other.timestamp);
         }
-	}
-	
-	private Set<Metric> calculate(String metric, String unit, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+    }
+
+    private Set<Metric> calculate(String metric, String unit, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "calculateVMAnalytics");
         try {
             if( !getProvider().getEC2Provider().isAWS() ) {
@@ -154,10 +154,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             parameters.put("EndTime", fmt.format(new Date(endTimestamp)));
             parameters.put("StartTime", fmt.format(new Date(startTimestamp)));
             parameters.put("MetricName", metric);
-            parameters.put("Namespace", idIsVolumeId ? "AWS/EBS" : "AWS/EC2");
+            parameters.put("Namespace", "AWS/EC2");
             parameters.put("Unit", unit);
-            parameters.put("Dimensions.member.Name.1", idIsVolumeId ? "VolumeId" :"InstanceId");
-            parameters.put("Dimensions.member.Value.1", id);
+            parameters.put("Dimensions.member.Name.1", "InstanceId");
+            parameters.put("Dimensions.member.Value.1", instanceId);
             parameters.put("Statistics.member.1", "Average");
             parameters.put("Statistics.member.2", "Minimum");
             parameters.put("Statistics.member.3", "Maximum");
@@ -214,17 +214,17 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             APITrace.end();
         }
     }
-    
-	private interface ApplyCalcs {
-	    public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum);
-	}
-	
-    private void calculate(VmStatistics stats, String metricName, String unit, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp, ApplyCalcs apply) throws CloudException, InternalException {
-        Set<Metric> metrics = calculate(metricName, unit, id, idIsVolumeId, startTimestamp, endTimestamp);
+
+    private interface ApplyCalcs {
+        public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum);
+    }
+
+    private void calculate(VmStatistics stats, String metricName, String unit, String instanceId, long startTimestamp, long endTimestamp, ApplyCalcs apply) throws CloudException, InternalException {
+        Set<Metric> metrics = calculate(metricName, unit, instanceId, startTimestamp, endTimestamp);
         double minimum = -1.0, maximum = 0.0, sum = 0.0;
         long start = -1L, end = 0L;
         int samples = 0;
-        
+
         for( Metric metric : metrics ) {
             if( start < 0L ) {
                 start = metric.timestamp;
@@ -255,22 +255,22 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
         apply.apply(stats, start, end, samples, samples == 0 ? 0.0 : sum/samples, minimum, maximum);
     }
-    
-	private void calculateCpuUtilization(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
-	    ApplyCalcs apply = new ApplyCalcs() {
-	        public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
-	            stats.setSamples(samples);
-	            stats.setStartTimestamp(start);
-	            stats.setMinimumCpuUtilization(minimum);
-	            stats.setAverageCpuUtilization(average);
-	            stats.setMaximumCpuUtilization(maximum);
-	            stats.setEndTimestamp(end);
-	        }
-	    };
-	    calculate(statistics, "CPUUtilization", "Percent", instanceId, false, startTimestamp, endTimestamp, apply);
-	}
-	   
-    private void calculateDiskReadBytes(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+
+    private void calculateCpuUtilization(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+        ApplyCalcs apply = new ApplyCalcs() {
+            public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
+                stats.setSamples(samples);
+                stats.setStartTimestamp(start);
+                stats.setMinimumCpuUtilization(minimum);
+                stats.setAverageCpuUtilization(average);
+                stats.setMaximumCpuUtilization(maximum);
+                stats.setEndTimestamp(end);
+            }
+        };
+        calculate(statistics, "CPUUtilization", "Percent", instanceId, startTimestamp, endTimestamp, apply);
+    }
+
+    private void calculateDiskReadBytes(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
                 stats.setMinimumDiskReadBytes(minimum);
@@ -278,10 +278,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setMaximumDiskReadBytes(maximum);
             }
         };
-        calculate(statistics, idIsVolumeId ? "VolumeReadBytes" : "DiskReadBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
+        calculate(statistics, "DiskReadBytes", "Bytes", instanceId, startTimestamp, endTimestamp, apply);
     }
-    
-    private void calculateDiskReadOps(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+
+    private void calculateDiskReadOps(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
                 stats.setMinimumDiskReadOperations(minimum);
@@ -289,10 +289,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setMaximumDiskReadOperations(maximum);
             }
         };
-        calculate(statistics, idIsVolumeId ? "VolumeReadOps" : "DiskReadOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
+        calculate(statistics, "DiskReadOps", "Count", instanceId, startTimestamp, endTimestamp, apply);
     }
-    
-    private void calculateDiskWriteBytes(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+
+    private void calculateDiskWriteBytes(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
                 stats.setMinimumDiskWriteBytes(minimum);
@@ -300,10 +300,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setMaximumDiskWriteBytes(maximum);
             }
         };
-        calculate(statistics, idIsVolumeId ? "VolumeWriteBytes" : "DiskWriteBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
+        calculate(statistics, "DiskWriteBytes", "Bytes", instanceId, startTimestamp, endTimestamp, apply);
     }
-    
-    private void calculateDiskWriteOps(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+
+    private void calculateDiskWriteOps(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
                 stats.setMinimumDiskWriteOperations(minimum);
@@ -311,7 +311,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setMaximumDiskWriteOperations(maximum);
             }
         };
-        calculate(statistics, idIsVolumeId ? "VolumeWriteOps" : "DiskWriteOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
+        calculate(statistics, "DiskWriteOps", "Count", instanceId, startTimestamp, endTimestamp, apply);
     }
 
     private void calculateNetworkIn(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
@@ -322,9 +322,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setMaximumNetworkIn(maximum);
             }
         };
-        calculate(statistics, "NetworkIn", "Bytes", instanceId, false, startTimestamp, endTimestamp, apply);
+        calculate(statistics, "NetworkIn", "Bytes", instanceId, startTimestamp, endTimestamp, apply);
     }
-    
+
     private void calculateNetworkOut(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
@@ -333,7 +333,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setMaximumNetworkOut(maximum);
             }
         };
-        calculate(statistics, "NetworkOut", "Bytes", instanceId, false, startTimestamp, endTimestamp, apply);
+        calculate(statistics, "NetworkOut", "Bytes", instanceId, startTimestamp, endTimestamp, apply);
     }
 
     @Override
@@ -369,22 +369,22 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             APITrace.end();
         }
     }
-    
-	private Architecture getArchitecture(String size) {
-		if( size.equals("m1.small") || size.equals("c1.medium") ) {
-			return Architecture.I32;
-		}
-		else {
-			return Architecture.I64;
-		}
-	}
+
+    private Architecture getArchitecture(String size) {
+        if( size.equals("m1.small") || size.equals("c1.medium") ) {
+            return Architecture.I32;
+        }
+        else {
+            return Architecture.I64;
+        }
+    }
 
     private @Nonnull String getCloudWatchUrl(@Nonnull ProviderContext ctx) {
         return ("https://monitoring." + ctx.getRegionId() + ".amazonaws.com");
     }
-    
-	@Override
-	public @Nonnull String getConsoleOutput(@Nonnull String instanceId) throws InternalException, CloudException {
+
+    @Override
+    public @Nonnull String getConsoleOutput(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getConsoleOutput");
         try {
             Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.GET_CONSOLE_OUTPUT);
@@ -452,7 +452,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         finally {
             APITrace.end();
         }
-	}
+    }
 
     @Override
     public int getCostFactor(@Nonnull VmState vmState) throws InternalException, CloudException {
@@ -465,7 +465,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-	public @Nonnull Iterable<String> listFirewalls(@Nonnull String instanceId) throws InternalException, CloudException {
+    public @Nonnull Iterable<String> listFirewalls(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "listFirewallsForVM");
         try {
             Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCES);
@@ -514,15 +514,15 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         finally {
             APITrace.end();
         }
-	}
-	
-	@Override
-	public @Nonnull String getProviderTermForServer(@Nonnull Locale locale) {
-		return "instance";
-	}
+    }
 
-	@Override
-	public @Nullable VirtualMachine getVirtualMachine(@Nonnull String instanceId) throws InternalException, CloudException {
+    @Override
+    public @Nonnull String getProviderTermForServer(@Nonnull Locale locale) {
+        return "instance";
+    }
+
+    @Override
+    public @Nullable VirtualMachine getVirtualMachine(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getVirtualMachine");
         try {
             ProviderContext ctx = getProvider().getContext();
@@ -584,10 +584,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         finally {
             APITrace.end();
         }
-	}
-	
-	@Override
-	public @Nullable VirtualMachineProduct getProduct(@Nonnull String sizeId) throws CloudException, InternalException {
+    }
+
+    @Override
+    public @Nullable VirtualMachineProduct getProduct(@Nonnull String sizeId) throws CloudException, InternalException {
         for( Architecture a : listSupportedArchitectures() ) {
             for( VirtualMachineProduct prd : listProducts(a) ) {
                 if( prd.getProviderProductId().equals(sizeId) ) {
@@ -596,9 +596,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             }
         }
         return null;
-	}
-	
-	private VmState getServerState(String state) {
+    }
+
+    private VmState getServerState(String state) {
         if( state.equals("pending") ) {
             return VmState.PENDING;
         }
@@ -622,10 +622,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
         logger.warn("Unknown server state: " + state);
         return VmState.PENDING;
-	}
+    }
 
-	@Override
-	public @Nonnull VmStatistics getVMStatistics(@Nonnull String instanceId, @Nonnegative long startTimestamp, @Nonnegative long endTimestamp) throws InternalException, CloudException {
+    @Override
+    public @Nonnull VmStatistics getVMStatistics(@Nonnull String instanceId, @Nonnegative long startTimestamp, @Nonnegative long endTimestamp) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getVMStatistics");
         try {
             VmStatistics statistics = new VmStatistics();
@@ -634,38 +634,27 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 endTimestamp = System.currentTimeMillis() + 1000L;
             }
             if( startTimestamp < (System.currentTimeMillis() - (2L * CalendarWrapper.DAY)) ) {
-               startTimestamp = System.currentTimeMillis() - (2L * CalendarWrapper.DAY);
-               if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
-                  endTimestamp = startTimestamp + (2L * CalendarWrapper.MINUTE);
-              }
+                startTimestamp = System.currentTimeMillis() - (2L * CalendarWrapper.DAY);
+                if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
+                    endTimestamp = startTimestamp + (2L * CalendarWrapper.MINUTE);
+                }
             } else if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
                 startTimestamp = endTimestamp - (2L * CalendarWrapper.MINUTE);
             }
 
-            String id = instanceId;
-            boolean idIsVolumeId = false;
-            VirtualMachine vm = getVirtualMachine(instanceId);
-            if (vm != null) {
-                if (vm.isPersistent()) {
-                    if (vm.getProviderVolumeIds().length > 0) {
-                       id = vm.getProviderVolumeIds()[0];
-                       idIsVolumeId = true;
-                    }
-                }
-                calculateCpuUtilization(statistics, instanceId, startTimestamp, endTimestamp);
-                calculateNetworkIn(statistics, instanceId, startTimestamp, endTimestamp);
-                calculateNetworkOut(statistics, instanceId, startTimestamp, endTimestamp);
-                calculateDiskReadBytes(statistics, id, idIsVolumeId, startTimestamp, endTimestamp);
-                calculateDiskReadOps(statistics, id, idIsVolumeId, startTimestamp, endTimestamp);
-                calculateDiskWriteBytes(statistics, id, idIsVolumeId, startTimestamp, endTimestamp);
-                calculateDiskWriteOps(statistics, id, idIsVolumeId, startTimestamp, endTimestamp);
-            }
+            calculateCpuUtilization(statistics, instanceId, startTimestamp, endTimestamp);
+            calculateDiskReadBytes(statistics, instanceId, startTimestamp, endTimestamp);
+            calculateDiskReadOps(statistics, instanceId, startTimestamp, endTimestamp);
+            calculateDiskWriteBytes(statistics, instanceId, startTimestamp, endTimestamp);
+            calculateDiskWriteOps(statistics, instanceId, startTimestamp, endTimestamp);
+            calculateNetworkIn(statistics, instanceId, startTimestamp, endTimestamp);
+            calculateNetworkOut(statistics, instanceId, startTimestamp, endTimestamp);
             return statistics;
         }
         finally {
             APITrace.end();
         }
-	}
+    }
 
     @Override
     public @Nonnull Iterable<VmStatistics> getVMStatisticsForPeriod(@Nonnull String instanceId, long startTimestamp, long endTimestamp) throws InternalException, CloudException {
@@ -675,10 +664,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 endTimestamp = System.currentTimeMillis() + 1000L;
             }
             if( startTimestamp < (System.currentTimeMillis() - CalendarWrapper.DAY) ) {
-               startTimestamp = System.currentTimeMillis() - CalendarWrapper.DAY;
-               if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
-                  endTimestamp = startTimestamp + (2L * CalendarWrapper.MINUTE);
-              }
+                startTimestamp = System.currentTimeMillis() - CalendarWrapper.DAY;
+                if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
+                    endTimestamp = startTimestamp + (2L * CalendarWrapper.MINUTE);
+                }
             } else if( startTimestamp > (endTimestamp - (2L * CalendarWrapper.MINUTE)) ) {
                 startTimestamp = endTimestamp - (2L * CalendarWrapper.MINUTE);
             }
@@ -688,7 +677,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             for( int i =1; i<=minutes; i++ ) {
                 statMap.put(i, new VmStatistics());
             }
-            Set<Metric> metrics = calculate("CPUUtilization", "Percent", instanceId, false, startTimestamp, endTimestamp);
+            Set<Metric> metrics = calculate("CPUUtilization", "Percent", instanceId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -704,16 +693,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 stats.setEndTimestamp(m.timestamp);
                 stats.setSamples(m.samples);
             }
-            String id = instanceId;
-            boolean idIsVolumeId = false;
-            VirtualMachine vm = getVirtualMachine(instanceId);
-            if (vm.isPersistent()) {
-                if (vm.getProviderVolumeIds().length > 0) {
-                   id = vm.getProviderVolumeIds()[0];
-                   idIsVolumeId = true;
-                }
-            }
-            metrics = calculate(idIsVolumeId ? "VolumeReadBytes" : "DiskReadBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp);
+            metrics = calculate("DiskReadBytes", "Bytes", instanceId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -729,7 +709,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     stats.setSamples(m.samples);
                 }
             }
-            metrics = calculate(idIsVolumeId ? "VolumeReadOps" : "DiskReadOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp);
+            metrics = calculate("DiskReadOps", "Count", instanceId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -745,7 +725,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     stats.setSamples(m.samples);
                 }
             }
-            metrics = calculate(idIsVolumeId ? "VolumeWriteBytes" : "DiskWriteBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp);
+            metrics = calculate("DiskWriteBytes", "Bytes", instanceId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -761,7 +741,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     stats.setSamples(m.samples);
                 }
             }
-            metrics = calculate(idIsVolumeId ? "VolumeWriteOps" : "DiskWriteOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp);
+            metrics = calculate("DiskWriteOps", "Count", instanceId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -777,7 +757,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     stats.setSamples(m.samples);
                 }
             }
-            metrics = calculate("NetworkIn", "Bytes", instanceId, false, startTimestamp, endTimestamp);
+            metrics = calculate("NetworkIn", "Bytes", instanceId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -793,7 +773,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     stats.setSamples(m.samples);
                 }
             }
-            metrics = calculate("NetworkOut", "Bytes", instanceId, false, startTimestamp, endTimestamp);
+            metrics = calculate("NetworkOut", "Bytes", instanceId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
                 int minute = 1 + (int)((m.timestamp - startTimestamp)/CalendarWrapper.MINUTE);
                 VmStatistics stats = statMap.get(minute);
@@ -1134,35 +1114,35 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
         return products;
     }
-    
+
     static private volatile Collection<Architecture> architectures;
-    
+
     @Override
     public Iterable<Architecture> listSupportedArchitectures() {
         if( architectures == null ) {
             ArrayList<Architecture> list = new ArrayList<Architecture>();
-            
+
             list.add(Architecture.I64);
             list.add(Architecture.I32);
             architectures = Collections.unmodifiableCollection(list);
         }
         return architectures;
     }
-	
-	private String guess(String privateDnsAddress) {
-	    String dnsAddress = privateDnsAddress;
-	    String[] parts = dnsAddress.split("\\.");
-	    
-	    if( parts != null && parts.length > 1 ) {
-	        dnsAddress = parts[0];
-	    }
-	    if( dnsAddress.startsWith("ip-") ) {
-	        dnsAddress = dnsAddress.replace('-', '.');
+
+    private String guess(String privateDnsAddress) {
+        String dnsAddress = privateDnsAddress;
+        String[] parts = dnsAddress.split("\\.");
+
+        if( parts != null && parts.length > 1 ) {
+            dnsAddress = parts[0];
+        }
+        if( dnsAddress.startsWith("ip-") ) {
+            dnsAddress = dnsAddress.replace('-', '.');
             return dnsAddress.substring(3);
-	    }
-	    return null;
-	}
-	
+        }
+        return null;
+    }
+
     @Override
     public @Nonnull VirtualMachine launch(@Nonnull VMLaunchOptions cfg) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "launchVM");
@@ -1521,10 +1501,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-	@Override
-	public @Nonnull Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
+    @Override
+    public @Nonnull Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
         return listVirtualMachinesWithParams(null, null);
-	}
+    }
 
     @Override
     public @Nonnull Iterable<VirtualMachine> listVirtualMachines(@Nullable VMFilterOptions options) throws InternalException, CloudException {
@@ -1613,7 +1593,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-        @Override
+    @Override
     public void pause(@Nonnull String vmId) throws InternalException, CloudException {
         throw new OperationNotSupportedException("Pause/unpause not supported by the EC2 API");
     }
@@ -1690,7 +1670,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-	public void reboot(@Nonnull String instanceId) throws CloudException, InternalException {
+    public void reboot(@Nonnull String instanceId) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "rebootVM");
         try {
             Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.REBOOT_INSTANCES);
@@ -1709,7 +1689,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         finally {
             APITrace.end();
         }
-	}
+    }
 
     @Override
     public void resume(@Nonnull String vmId) throws CloudException, InternalException {
@@ -1719,7 +1699,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     private String resolve(String dnsName) {
         if( dnsName != null && dnsName.length() > 0 ) {
             InetAddress[] addresses;
-            
+
             try {
                 addresses = InetAddress.getAllByName(dnsName);
             }
@@ -1734,9 +1714,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 dnsName = dnsName.replaceAll("-", "\\.");
                 dnsName = dnsName.substring(4);
             }
-        }        
+        }
         return dnsName;
-	}
+    }
 
     @Override
     public boolean supportsPauseUnpause(@Nonnull VirtualMachine vm) {
@@ -1759,7 +1739,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-	public void terminate(@Nonnull String instanceId, @Nullable String explanation) throws InternalException, CloudException {
+    public void terminate(@Nonnull String instanceId, @Nullable String explanation) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "terminateVM");
         try {
             Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.TERMINATE_INSTANCES);
@@ -1778,7 +1758,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         finally {
             APITrace.end();
         }
-	}
+    }
 
     @Override
     public void unpause(@Nonnull String vmId) throws CloudException, InternalException {
@@ -1826,41 +1806,41 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         if( instance == null ) {
             return null;
         }
-		NodeList attrs = instance.getChildNodes();
-		VirtualMachine server = new VirtualMachine();
+        NodeList attrs = instance.getChildNodes();
+        VirtualMachine server = new VirtualMachine();
 
-		server.setPersistent(false);
-		server.setProviderOwnerId(ctx.getAccountNumber());
-		server.setCurrentState(VmState.PENDING);
-		server.setName(null);
-		server.setDescription(null);
-		for( int i=0; i<attrs.getLength(); i++ ) {
-			Node attr = attrs.item(i);
-			String name;
-			
-			name = attr.getNodeName();
-			if( name.equals("instanceId") ) {
-				String value = attr.getFirstChild().getNodeValue().trim();
-				
-				server.setProviderVirtualMachineId(value);
-			}
-			else if( name.equals("architecture") ) {
-			    String value = attr.getFirstChild().getNodeValue().trim();
-			    Architecture architecture;
-			    
-			    if( value.equalsIgnoreCase("i386") ) {
-			        architecture = Architecture.I32;
-			    }
-			    else {
-			        architecture = Architecture.I64;
-			    }
-			    server.setArchitecture(architecture);
-			}
-			else if( name.equals("imageId") ) {
-				String value = attr.getFirstChild().getNodeValue().trim();
-				
-				server.setProviderMachineImageId(value);
-			}
+        server.setPersistent(false);
+        server.setProviderOwnerId(ctx.getAccountNumber());
+        server.setCurrentState(VmState.PENDING);
+        server.setName(null);
+        server.setDescription(null);
+        for( int i=0; i<attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String name;
+
+            name = attr.getNodeName();
+            if( name.equals("instanceId") ) {
+                String value = attr.getFirstChild().getNodeValue().trim();
+
+                server.setProviderVirtualMachineId(value);
+            }
+            else if( name.equals("architecture") ) {
+                String value = attr.getFirstChild().getNodeValue().trim();
+                Architecture architecture;
+
+                if( value.equalsIgnoreCase("i386") ) {
+                    architecture = Architecture.I32;
+                }
+                else {
+                    architecture = Architecture.I64;
+                }
+                server.setArchitecture(architecture);
+            }
+            else if( name.equals("imageId") ) {
+                String value = attr.getFirstChild().getNodeValue().trim();
+
+                server.setProviderMachineImageId(value);
+            }
             else if( name.equals("kernelId") ) {
                 String value = attr.getFirstChild().getNodeValue().trim();
 
@@ -1873,51 +1853,51 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 server.setTag("ramdiskImageId", value);
                 server.setProviderRamdiskImageId(value);
             }
-			else if( name.equalsIgnoreCase("subnetId") ) {
+            else if( name.equalsIgnoreCase("subnetId") ) {
                 server.setProviderSubnetId(attr.getFirstChild().getNodeValue().trim());
-			}
-			else if( name.equalsIgnoreCase("vpcId") ) {
-                server.setProviderVlanId(attr.getFirstChild().getNodeValue().trim());			    
-			}
-			else if( name.equals("instanceState") ) {
-				NodeList details = attr.getChildNodes();
-				
-				for( int j=0; j<details.getLength(); j++ ) {
-					Node detail = details.item(j);
-					
-					name = detail.getNodeName();
-					if( name.equals("name") ) {
-						String value = detail.getFirstChild().getNodeValue().trim();
-						
-						server.setCurrentState(getServerState(value));
-					}
-				}
-			}
-			else if( name.equals("privateDnsName") ) {
-				if( attr.hasChildNodes() ) {
-					String value = attr.getFirstChild().getNodeValue();
-				    RawAddress[] addrs = server.getPrivateAddresses();
+            }
+            else if( name.equalsIgnoreCase("vpcId") ) {
+                server.setProviderVlanId(attr.getFirstChild().getNodeValue().trim());
+            }
+            else if( name.equals("instanceState") ) {
+                NodeList details = attr.getChildNodes();
 
-					server.setPrivateDnsAddress(value);
+                for( int j=0; j<details.getLength(); j++ ) {
+                    Node detail = details.item(j);
+
+                    name = detail.getNodeName();
+                    if( name.equals("name") ) {
+                        String value = detail.getFirstChild().getNodeValue().trim();
+
+                        server.setCurrentState(getServerState(value));
+                    }
+                }
+            }
+            else if( name.equals("privateDnsName") ) {
+                if( attr.hasChildNodes() ) {
+                    String value = attr.getFirstChild().getNodeValue();
+                    RawAddress[] addrs = server.getPrivateAddresses();
+
+                    server.setPrivateDnsAddress(value);
                     if( addrs == null || addrs.length < 1 ) {
-					    value = guess(value);
-					    if( value != null ) {
-					        server.setPrivateAddresses(new RawAddress(value));
-					    }
-					}
-				}
-			}
-			else if( name.equals("dnsName") ) {
+                        value = guess(value);
+                        if( value != null ) {
+                            server.setPrivateAddresses(new RawAddress(value));
+                        }
+                    }
+                }
+            }
+            else if( name.equals("dnsName") ) {
                 if( attr.hasChildNodes() ) {
                     String value = attr.getFirstChild().getNodeValue();
                     RawAddress[] addrs = server.getPublicAddresses();
 
                     server.setPublicDnsAddress(value);
-					if( addrs == null || addrs.length < 1 ) {
-					    server.setPublicAddresses(new RawAddress(resolve(value)));
-					}
-				}
-			}
+                    if( addrs == null || addrs.length < 1 ) {
+                        server.setPublicAddresses(new RawAddress(resolve(value)));
+                    }
+                }
+            }
             else if( name.equals("privateIpAddress") ) {
                 if( attr.hasChildNodes() ) {
                     String value = attr.getFirstChild().getNodeValue();
@@ -1941,7 +1921,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             else if( name.equals("rootDeviceType") ) {
                 if( attr.hasChildNodes() ) {
                     server.setPersistent(attr.getFirstChild().getNodeValue().equalsIgnoreCase("ebs"));
-                }                
+                }
             }
             else if( name.equals("tagSet") ) {
 
@@ -1958,126 +1938,126 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     }
                 }
             }
-			else if( name.equals("instanceType") ) {
-				String value = attr.getFirstChild().getNodeValue().trim();
-				
-				server.setProductId(value);
-			}
-			else if( name.equals("launchTime") ) {
-				SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-				fmt.setCalendar(UTC_CALENDAR);
-				String value = attr.getFirstChild().getNodeValue().trim();
+            else if( name.equals("instanceType") ) {
+                String value = attr.getFirstChild().getNodeValue().trim();
 
-				try {
-					server.setLastBootTimestamp(fmt.parse(value).getTime());
-					server.setCreationTimestamp(server.getLastBootTimestamp());
-				} 
-				catch( ParseException e ) {
-					logger.error(e);
-					e.printStackTrace();
-					throw new CloudException(e);
-				}
-			}
-			else if( name.equals("platform") ) {
-			    if( attr.hasChildNodes() ) {
-			    	Platform platform = Platform.guess(attr.getFirstChild().getNodeValue());
-			    	if (platform.equals(Platform.UNKNOWN)){
-			    		platform = Platform.UNIX;
-			    	}
-			        server.setPlatform(platform);
-			    }
-			}
-			else if( name.equals("placement") ) {
-				NodeList details = attr.getChildNodes();
-				
-				for( int j=0; j<details.getLength(); j++ ) {
-					Node detail = details.item(j);
-					
-					name = detail.getNodeName();
-					if( name.equals("availabilityZone") ) {
-					    if( detail.hasChildNodes() ) {
-					        String value = detail.getFirstChild().getNodeValue().trim();
-						
-					        server.setProviderDataCenterId(value);
-					    }
-					}
-				}
-			}
-      else if (name.equals( "keyName") ) {
-        String value = attr.getFirstChild().getNodeValue().trim();
-        server.setProviderKeypairId(value);
-      }
-      else if ( name.equals( "groupSet" ) ) {
-        ArrayList<String> firewalls = new ArrayList<String>();
-        if ( attr.hasChildNodes() ) {
-          NodeList tags = attr.getChildNodes();
-
-          for ( int j = 0; j < tags.getLength(); j++ ) {
-            Node tag = tags.item( j );
-
-            if ( tag.getNodeName().equals( "item" ) && tag.hasChildNodes() ) {
-              NodeList parts = tag.getChildNodes();
-              String groupId = null;
-
-              for ( int k = 0; k < parts.getLength(); k++ ) {
-                Node part = parts.item( k );
-
-                if ( part.getNodeName().equalsIgnoreCase( "groupId" ) ) {
-                  if ( part.hasChildNodes() ) {
-                    groupId = part.getFirstChild().getNodeValue().trim();
-                  }
-                }
-              }
-              if ( groupId != null ) {
-                firewalls.add( groupId );
-              }
+                server.setProductId(value);
             }
-          }
-        }
-        if ( firewalls.size() > 0 ) {
-          server.setProviderFirewallIds( firewalls.toArray(new String[firewalls.size()]) );
-        }
-      }
-      else if ( name.equals( "blockDeviceMapping" ) ) {
-         ArrayList<String> volumes = new ArrayList<String>();
-         if ( attr.hasChildNodes() ) {
-           NodeList tags = attr.getChildNodes();
+            else if( name.equals("launchTime") ) {
+                SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+                fmt.setCalendar(UTC_CALENDAR);
+                String value = attr.getFirstChild().getNodeValue().trim();
 
-           for ( int j = 0; j < tags.getLength(); j++ ) {
-             Node tag = tags.item( j );
+                try {
+                    server.setLastBootTimestamp(fmt.parse(value).getTime());
+                    server.setCreationTimestamp(server.getLastBootTimestamp());
+                }
+                catch( ParseException e ) {
+                    logger.error(e);
+                    e.printStackTrace();
+                    throw new CloudException(e);
+                }
+            }
+            else if( name.equals("platform") ) {
+                if( attr.hasChildNodes() ) {
+                    Platform platform = Platform.guess(attr.getFirstChild().getNodeValue());
+                    if (platform.equals(Platform.UNKNOWN)){
+                        platform = Platform.UNIX;
+                    }
+                    server.setPlatform(platform);
+                }
+            }
+            else if( name.equals("placement") ) {
+                NodeList details = attr.getChildNodes();
 
-             if ( tag.getNodeName().equals( "item" ) && tag.hasChildNodes() ) {
-               NodeList parts = tag.getChildNodes();
+                for( int j=0; j<details.getLength(); j++ ) {
+                    Node detail = details.item(j);
 
-               for ( int k = 0; k < parts.getLength(); k++ ) {
-                 Node part = parts.item( k );
+                    name = detail.getNodeName();
+                    if( name.equals("availabilityZone") ) {
+                        if( detail.hasChildNodes() ) {
+                            String value = detail.getFirstChild().getNodeValue().trim();
 
-                 if ( part.getNodeName().equalsIgnoreCase( "ebs" ) ) {
-                   String volumeId = null;
-                   NodeList subparts = part.getChildNodes();
-                   for ( int l = 0; l < subparts.getLength(); l++ ) {
-                     Node subpart = subparts.item( l );
-                     if ( subpart.getNodeName().equals( "volumeId" ) && subpart.hasChildNodes() ) {
-                       volumeId = subpart.getFirstChild().getNodeValue().trim();
-                     }
-                   }
-                   if ( volumeId != null ) {
-                     volumes.add( volumeId );
-                   }
-                 }
-               }
-             }
-           }
-         }
-         //This change should've gone into develop as it required a signature change for core
+                            server.setProviderDataCenterId(value);
+                        }
+                    }
+                }
+            }
+            else if (name.equals( "keyName") ) {
+                String value = attr.getFirstChild().getNodeValue().trim();
+                server.setProviderKeypairId(value);
+            }
+            else if ( name.equals( "groupSet" ) ) {
+                ArrayList<String> firewalls = new ArrayList<String>();
+                if ( attr.hasChildNodes() ) {
+                    NodeList tags = attr.getChildNodes();
+
+                    for ( int j = 0; j < tags.getLength(); j++ ) {
+                        Node tag = tags.item( j );
+
+                        if ( tag.getNodeName().equals( "item" ) && tag.hasChildNodes() ) {
+                            NodeList parts = tag.getChildNodes();
+                            String groupId = null;
+
+                            for ( int k = 0; k < parts.getLength(); k++ ) {
+                                Node part = parts.item( k );
+
+                                if ( part.getNodeName().equalsIgnoreCase( "groupId" ) ) {
+                                    if ( part.hasChildNodes() ) {
+                                        groupId = part.getFirstChild().getNodeValue().trim();
+                                    }
+                                }
+                            }
+                            if ( groupId != null ) {
+                                firewalls.add( groupId );
+                            }
+                        }
+                    }
+                }
+                if ( firewalls.size() > 0 ) {
+                    server.setProviderFirewallIds( firewalls.toArray(new String[firewalls.size()]) );
+                }
+            }
+            else if ( name.equals( "blockDeviceMapping" ) ) {
+                ArrayList<String> volumes = new ArrayList<String>();
+                if ( attr.hasChildNodes() ) {
+                    NodeList tags = attr.getChildNodes();
+
+                    for ( int j = 0; j < tags.getLength(); j++ ) {
+                        Node tag = tags.item( j );
+
+                        if ( tag.getNodeName().equals( "item" ) && tag.hasChildNodes() ) {
+                            NodeList parts = tag.getChildNodes();
+
+                            for ( int k = 0; k < parts.getLength(); k++ ) {
+                                Node part = parts.item( k );
+
+                                if ( part.getNodeName().equalsIgnoreCase( "ebs" ) ) {
+                                    String volumeId = null;
+                                    NodeList subparts = part.getChildNodes();
+                                    for ( int l = 0; l < subparts.getLength(); l++ ) {
+                                        Node subpart = subparts.item( l );
+                                        if ( subpart.getNodeName().equals( "volumeId" ) && subpart.hasChildNodes() ) {
+                                            volumeId = subpart.getFirstChild().getNodeValue().trim();
+                                        }
+                                    }
+                                    if ( volumeId != null ) {
+                                        volumes.add( volumeId );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                //This change should've gone into develop as it required a signature change for core
          /*if ( volumes.size() > 0 ) {
            server.setProviderVolumeIds( volumes.toArray(new String[volumes.size()]) );
          }*/
-       }
-    }
-      if( server.getPlatform() == null ) {
-		    server.setPlatform(Platform.UNKNOWN);
-		}
+            }
+        }
+        if( server.getPlatform() == null ) {
+            server.setPlatform(Platform.UNKNOWN);
+        }
         server.setProviderRegionId(ctx.getRegionId());
         if( server.getName() == null ) {
             server.setName(server.getProviderVirtualMachineId());
@@ -2091,11 +2071,11 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         else if( server.getArchitecture() == null ) {
             server.setArchitecture(Architecture.I64);
         }
-		return server;
-	}
-	
-	@Override
-	public void disableAnalytics(@Nonnull String instanceId) throws InternalException, CloudException {
+        return server;
+    }
+
+    @Override
+    public void disableAnalytics(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "disableVMAnalytics");
         try {
             if( getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus() ) {
@@ -2116,7 +2096,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         finally {
             APITrace.end();
         }
-	}
+    }
 
     private @Nullable VirtualMachineProduct toProduct(@Nonnull JSONObject json) throws InternalException {
         /*
