@@ -253,7 +253,7 @@ public class S3Method {
             if( bucket != null ) {
                 bucket = AWSCloud.encode(bucket, false);
             }
-            if( object != null ) {
+            if( object != null && !object.startsWith("?")) {
                 object = AWSCloud.encode(object, false);
             }
             if( temporaryEndpoint != null ) {
@@ -464,7 +464,6 @@ public class S3Method {
             } 
             catch( IOException e ) {
                 logger.error(url + ": " + e.getMessage());
-                e.printStackTrace();
                 throw new InternalException(e);
             }
             response.headers = httpResponse.getAllHeaders();
@@ -517,7 +516,6 @@ public class S3Method {
                         }
                         catch( IOException e ) {
                             logger.error(e);
-                            e.printStackTrace();
                             throw new CloudException(e);
                         }
                     }
@@ -527,6 +525,9 @@ public class S3Method {
                 }
                 else if( status == HttpServletResponse.SC_NO_CONTENT ) {
                     return response;
+                }
+                if( status == HttpServletResponse.SC_FORBIDDEN ) {
+                    throw new S3Exception(status, "", "AccessForbidden", "Access was denied : " + (url != null ? url.toString() : "" ));
                 }
                 else if( status == HttpServletResponse.SC_NOT_FOUND ) {
                     throw new S3Exception(status, null, null, "Object not found.");
@@ -564,7 +565,9 @@ public class S3Method {
                             doc = parseResponse(input);
                         }
                         finally {
-                            input.close();
+                            if( input != null ) {
+                                input.close();
+                            }
                         }
                         if( doc != null ) {
                             String endpoint = null, code = null, message = null, requestId = null;
@@ -664,17 +667,14 @@ public class S3Method {
 		}
 		catch( IOException e ) {
 			logger.error(e);
-			e.printStackTrace();
 			throw new CloudException(e);
 		}
 		catch( ParserConfigurationException e ) {
 			logger.error(e);
-			e.printStackTrace();
 			throw new CloudException(e);
 		}
 		catch( SAXException e ) {
 			logger.error(e);
-			e.printStackTrace();
 			throw new CloudException(e);
 	    }				
 	}
