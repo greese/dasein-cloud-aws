@@ -264,11 +264,11 @@ public class S3Method {
             wire.debug("");
             wire.debug("----------------------------------------------------------------------------------");
         }
+        HttpClient client = null;
         try {
             StringBuilder url = new StringBuilder();
             boolean leaveOpen = false;
             HttpRequestBase method;
-            HttpClient client;
             int status;
 
             // Sanitise the parameters as they may have spaces and who knows what else
@@ -667,6 +667,9 @@ public class S3Method {
             throw new InternalException(e);
         }
         finally {
+            if (client != null) {
+                client.getConnectionManager().shutdown();
+            }
             if( wire.isDebugEnabled() ) {
                 wire.debug("----------------------------------------------------------------------------------");
                 wire.debug("");
