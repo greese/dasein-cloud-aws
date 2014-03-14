@@ -1350,7 +1350,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       MachineImage img = getProvider().getComputeServices().getImageSupport().getMachineImage(cfg.getMachineImageId());
 
       if (img == null) {
-        throw new InternalException("No such machine image: " + cfg.getMachineImageId());
+        throw new CloudException("No such machine image: " + cfg.getMachineImageId());
       }
       Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.RUN_INSTANCES);
       String ramdiskImage = (String) cfg.getMetaData().get("ramdiskImageId"), kernelImage = (String) cfg.getMetaData().get("kernelImageId");
