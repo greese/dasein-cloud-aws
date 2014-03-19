@@ -23,6 +23,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.aws.AWSResourceNotFoundException;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
@@ -1350,7 +1351,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       MachineImage img = getProvider().getComputeServices().getImageSupport().getMachineImage(cfg.getMachineImageId());
 
       if (img == null) {
-        throw new CloudException("No such machine image: " + cfg.getMachineImageId());
+        throw new AWSResourceNotFoundException("No such machine image: " + cfg.getMachineImageId());
       }
       Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.RUN_INSTANCES);
       String ramdiskImage = (String) cfg.getMetaData().get("ramdiskImageId"), kernelImage = (String) cfg.getMetaData().get("kernelImageId");
