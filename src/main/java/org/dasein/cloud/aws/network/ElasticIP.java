@@ -583,7 +583,7 @@ public class ElasticIP implements IpAddressSupport {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
-            blocks = doc.getElementsByTagName("publicIp");
+            blocks = doc.getElementsByTagName("allocationId");
             if( blocks.getLength() > 0 ) {
                 return blocks.item(0).getFirstChild().getNodeValue().trim();
             }
