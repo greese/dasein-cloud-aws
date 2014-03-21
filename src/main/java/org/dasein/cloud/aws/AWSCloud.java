@@ -486,8 +486,7 @@ public class AWSCloud extends AbstractCloud {
         }
     }
 
-    @Nullable
-    String getEc2Url(@Nullable String regionId) throws InternalException, CloudException {
+    public @Nullable String getEc2Url(@Nullable String regionId) throws InternalException, CloudException {
         ProviderContext ctx = getContext();
         String url;
 
@@ -563,7 +562,7 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public String getRdsVersion() {
-        return "2011-04-01";
+        return "2012-09-17";
     }
 
     public String getRoute53Version() {

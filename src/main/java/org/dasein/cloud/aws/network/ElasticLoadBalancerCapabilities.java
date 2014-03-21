@@ -86,18 +86,10 @@ public class ElasticLoadBalancerCapabilities extends AbstractCapabilities<AWSClo
         return true;
     }
 
-    static private volatile List<LbAlgorithm> algorithms;
-
     @Nonnull
     @Override
     public Iterable<LbAlgorithm> listSupportedAlgorithms() throws CloudException, InternalException {
-        if( algorithms == null ) {
-            List<LbAlgorithm> list = new ArrayList<LbAlgorithm>();
-
-            list.add(LbAlgorithm.ROUND_ROBIN);
-            algorithms = Collections.unmodifiableList(list);
-        }
-        return algorithms;
+        return Collections.singletonList(LbAlgorithm.ROUND_ROBIN);
     }
 
     @Nonnull

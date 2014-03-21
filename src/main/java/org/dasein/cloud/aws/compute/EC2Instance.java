@@ -1155,15 +1155,24 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             if( cfg.isPreventApiTermination() ) {
                 parameters.put("DisableApiTermination", "true");
             }
-            String[] ids = cfg.getFirewallIds();
+            String[] firewallIds = cfg.getFirewallIds();
+            VMLaunchOptions.NICConfig[] nics = cfg.getNetworkInterfaces();
 
-            if( ids.length > 0 ) {
-                int i = 1;
-
-                for( String id : ids ) {
-                    parameters.put("SecurityGroupId." + ( i++ ), id);
-                }
-            }
+// TODO(stas): this is causing a launch to fail if NICs are also defined in the same request,
+// I've moved it to network interfaces, it needs to be tested a bit more.
+//
+//            if( firewallIds.length > 0 ) {
+//                int i = 1;
+//
+//                for( String id : firewallIds ) {
+//
+//                    String securityGroupParam = "SecurityGroupId";
+//                    if( cfg.getVlanId() == null ) {
+//                        securityGroupParam = "SecurityGroup";
+//                    }
+//                    parameters.put(String.format("%s.%d", securityGroupParam, i++), id);
+//                }
+//            }
             if( cfg.getDataCenterId() != null ) {
                 parameters.put("Placement.AvailabilityZone", cfg.getDataCenterId());
             } else if( cfg.getVolumes().length > 0 ) {
@@ -1239,7 +1248,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     }
                 }
             }
-            VMLaunchOptions.NICConfig[] nics = cfg.getNetworkInterfaces();
 
             if( nics != null && nics.length > 0 ) {
                 int i = 1;
@@ -1259,6 +1267,14 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                                 parameters.put("NetworkInterface." + i + ".SecurityGroupId." + j, id);
                                 j++;
                             }
+                        } else {
+                            if( firewallIds.length > 0 ) {
+                                int g = 1;
+                                for( String id : firewallIds ) {
+                                    parameters.put(String.format("NetworkInterface.%d.SecurityGroupId.%d", i, g++), id);
+                                }
+                            }
+
                         }
                     } else {
                         parameters.put("NetworkInterface." + i + ".NetworkInterfaceId", c.nicId);
@@ -1268,12 +1284,18 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             } else {
                 int i = 0;
                 parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
-                parameters.put("NetworkInterface." + i + ".AssociatePublicIpAddress", ( cfg.isProvisionPublicIp() == true ? "true" : "false" ));
                 if( cfg.getVlanId() != null ) {
+                    parameters.put("NetworkInterface." + i + ".AssociatePublicIpAddress", Boolean.toString(cfg.isProvisionPublicIp()));
                     parameters.put("NetworkInterface." + i + ".SubnetId", cfg.getVlanId());
                 }
                 if( cfg.getPrivateIp() != null ) {
                     parameters.put("NetworkInterface." + i + ".PrivateIpAddress", cfg.getPrivateIp());
+                }
+                if( firewallIds.length > 0 ) {
+                    int g = 1;
+                    for( String id : firewallIds ) {
+                        parameters.put(String.format("NetworkInterface.%d.SecurityGroupId.%d", i, g++), id);
+                    }
                 }
             }
             method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
@@ -1378,16 +1400,19 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     toCreate[i++] = new Tag(entry.getKey(), entry.getValue().toString());
                 }
             }
-            Tag t = new Tag();
 
+            Tag t = new Tag();
             t.setKey("Name");
             t.setValue(cfg.getFriendlyName());
             toCreate[i++] = t;
+
             t = new Tag();
             t.setKey("Description");
             t.setValue(cfg.getDescription());
             toCreate[i] = t;
+
             getProvider().createTags(server.getProviderVirtualMachineId(), toCreate);
+
             if( !existingVolumes.isEmpty() ) {
                 final VirtualMachine vm = server;
 

@@ -103,7 +103,7 @@
       <dependency>
           <groupId>org.dasein</groupId>
           <artifactId>dasein-cloud-test</artifactId>
-          <version>2014.03-SNAPSHOT</version>
+          <version>2014.03.2-SNAPSHOT</version>
           <scope>test</scope>
           <optional>false</optional>
       </dependency>
@@ -248,6 +248,7 @@
               <include>**/TestSuite.java</include>
           </includes>
           <argLine>-Xmx1024m</argLine>
+          <parallel>classes</parallel>
         </configuration>
       </plugin>
       <plugin>

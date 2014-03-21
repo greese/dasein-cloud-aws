@@ -244,41 +244,35 @@ public class RegionsAndZones implements DataCenterServices {
                 }
                 throw new CloudException("No such region: " + regionId);
             }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
+            EC2Method method = new EC2Method(provider, provider.getEc2Url(regionId), parameters);
+            NodeList blocks;
+            Document doc;
+
+            dataCenters = new ArrayList<DataCenter>();
             try {
-                ctx.setRegionId(regionId);
-                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
-                EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
-                NodeList blocks;
-                Document doc;
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("availabilityZoneInfo");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList zones = blocks.item(i).getChildNodes();
 
-                dataCenters = new ArrayList<DataCenter>();
-                try {
-                    doc = method.invoke();
-                }
-                catch( EC2Exception e ) {
-                    logger.error(e.getSummary());
-                    throw new CloudException(e);
-                }
-                blocks = doc.getElementsByTagName("availabilityZoneInfo");
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    NodeList zones = blocks.item(i).getChildNodes();
+                for( int j=0; j<zones.getLength(); j++ ) {
+                    Node region = zones.item(j);
 
-                    for( int j=0; j<zones.getLength(); j++ ) {
-                        Node region = zones.item(j);
-
-                        if( region.getNodeName().equals("item") ) {
-                            dataCenters.add(toDataCenter(regionId, zones.item(j)));
-                        }
+                    if( region.getNodeName().equals("item") ) {
+                        dataCenters.add(toDataCenter(regionId, zones.item(j)));
                     }
                 }
-                if( cache != null ) {
-                    cache.put(ctx, dataCenters);
-                }
-                return dataCenters;
             }
-            finally {
-                ctx.setRegionId(originalRegionId);
+            if( cache != null ) {
+                cache.put(ctx, dataCenters);
             }
+            return dataCenters;
         }
         finally {
             APITrace.end();
