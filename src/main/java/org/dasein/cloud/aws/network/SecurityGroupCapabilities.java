@@ -26,9 +26,7 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.network.*;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Locale;
+import java.util.*;
 
 /**
  * Describes the capabilities of AWS with respect to Dasein firewall operations.
@@ -70,15 +68,14 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
         return Collections.singletonList(RuleTargetType.GLOBAL);
     }
 
+    static private final List<Direction> supportedDirectionsVlan =
+            Arrays.asList(Direction.EGRESS, Direction.INGRESS);
+
     @Nonnull
     @Override
     public Iterable<Direction> listSupportedDirections(boolean inVlan) throws InternalException, CloudException {
         if( inVlan ) {
-            ArrayList<Direction> list = new ArrayList<Direction>();
-
-            list.add(Direction.EGRESS);
-            list.add(Direction.INGRESS);
-            return list;
+            return supportedDirectionsVlan;
         }
         else {
             return Collections.singletonList(Direction.INGRESS);
@@ -91,14 +88,13 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
         return Collections.singletonList(Permission.ALLOW);
     }
 
+    static private final List<RuleTargetType> supportedSourceTypes =
+            Arrays.asList(RuleTargetType.CIDR, RuleTargetType.GLOBAL);
+
     @Nonnull
     @Override
     public Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan) throws InternalException, CloudException {
-        ArrayList<RuleTargetType>  types = new ArrayList<RuleTargetType>();
-
-        types.add(RuleTargetType.CIDR);
-        types.add(RuleTargetType.GLOBAL);
-        return types;
+        return supportedSourceTypes;
     }
 
     @Override
