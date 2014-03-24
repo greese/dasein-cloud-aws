@@ -268,9 +268,9 @@ public class S3Method {
             wire.debug("----------------------------------------------------------------------------------");
         }
         HttpClient client = null;
+        boolean leaveOpen = false;
         try {
             StringBuilder url = new StringBuilder();
-            boolean leaveOpen = false;
             HttpRequestBase method;
             int status;
 
@@ -668,7 +668,7 @@ public class S3Method {
             throw new InternalException(e);
         }
         finally {
-            if (client != null) {
+            if (!leaveOpen && client != null) {
                 client.getConnectionManager().shutdown();
             }
             if( wire.isDebugEnabled() ) {
