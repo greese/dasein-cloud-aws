@@ -52,12 +52,12 @@
     <url>http://github.com/greese/dasein-cloud-aws</url>
   </scm>
 
-  <parent>
+<!--  <parent>
     <groupId>org.sonatype.oss</groupId>
     <artifactId>oss-parent</artifactId>
     <version>5</version>
   </parent>
-
+-->
   <dependencies>
       <!-- Compile -->
     <dependency>
@@ -212,11 +212,11 @@
                     <value>${accountNumber}</value>
                 </property>
                 <property>
-                    <name>accessPublic</name>
+                    <name>accessKeyShared</name>
                     <value>${apiSharedKey}</value>
                 </property>
                 <property>
-                    <name>accessPrivate</name>
+                    <name>accessKeySecret</name>
                     <value>${apiSecretKey}</value>
                 </property>
                 <property>
@@ -244,11 +244,11 @@
                     <value>${test.shareAccount}</value>
                 </property>
             </systemProperties>
-          <includes>
-              <include>**/TestSuite.java</include>
-          </includes>
-          <argLine>-Xmx1024m</argLine>
-          <parallel>classes</parallel>
+            <includes>
+                <include>**/TestSuite.java</include>
+            </includes>
+            <argLine>-Xmx1024m</argLine>
+            <parallel>classes</parallel>
         </configuration>
       </plugin>
       <plugin>
