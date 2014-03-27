@@ -70,7 +70,7 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
     @Override
     public boolean isAssignablePostLaunch(@Nonnull IPVersion version) throws CloudException, InternalException {
         // TODO(stas): this is causing issues with tests one way or another, need to test this a little more
-        return false;//IPVersion.IPV4.equals(version);
+        return IPVersion.IPV4.equals(version);
     }
 
     @Override
