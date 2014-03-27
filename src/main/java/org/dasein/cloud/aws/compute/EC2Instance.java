@@ -1282,20 +1282,22 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     i++;
                 }
             } else {
-                int i = 0;
-                parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
+                int paramsBefore = parameters.size();
                 if( cfg.getVlanId() != null ) {
-                    parameters.put("NetworkInterface." + i + ".AssociatePublicIpAddress", Boolean.toString(cfg.isProvisionPublicIp()));
-                    parameters.put("NetworkInterface." + i + ".SubnetId", cfg.getVlanId());
+                    parameters.put("NetworkInterface.0.AssociatePublicIpAddress", Boolean.toString(cfg.isProvisionPublicIp()));
+                    parameters.put("NetworkInterface.0.SubnetId", cfg.getVlanId());
                 }
                 if( cfg.getPrivateIp() != null ) {
-                    parameters.put("NetworkInterface." + i + ".PrivateIpAddress", cfg.getPrivateIp());
+                    parameters.put("NetworkInterface.0.PrivateIpAddress", cfg.getPrivateIp());
                 }
                 if( firewallIds.length > 0 ) {
                     int g = 1;
                     for( String id : firewallIds ) {
-                        parameters.put(String.format("NetworkInterface.%d.SecurityGroupId.%d", i, g++), id);
+                        parameters.put(String.format("NetworkInterface.0.SecurityGroupId.%d", g++), id);
                     }
+                }
+                if( parameters.size() > paramsBefore ) {
+                    parameters.put("NetworkInterface.0.DeviceIndex", "0");
                 }
             }
             method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
