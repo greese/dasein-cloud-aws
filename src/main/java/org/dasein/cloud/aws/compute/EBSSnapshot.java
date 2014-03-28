@@ -34,13 +34,7 @@ import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.compute.AbstractSnapshotSupport;
-import org.dasein.cloud.compute.Snapshot;
-import org.dasein.cloud.compute.SnapshotCreateOptions;
-import org.dasein.cloud.compute.SnapshotFilterOptions;
-import org.dasein.cloud.compute.SnapshotState;
-import org.dasein.cloud.compute.SnapshotSupport;
-import org.dasein.cloud.compute.Volume;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.Jiterator;
@@ -57,6 +51,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 	static private final Logger logger = AWSCloud.getLogger(EBSSnapshot.class);
 	
 	private AWSCloud provider = null;
+    private EBSSnapshotCapabilities capabilities;
 	
 	EBSSnapshot(@Nonnull AWSCloud provider) {
         super(provider);
@@ -144,9 +139,18 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
         }
     }
 
+    @Nonnull
+    @Override
+    public SnapshotCapabilities getCapabilities() {
+        if( capabilities == null ) {
+            capabilities = new EBSSnapshotCapabilities(provider);
+        }
+        return capabilities;
+    }
+
     @Override
 	public @Nonnull String getProviderTermForSnapshot(@Nonnull Locale locale) {
-		return "snapshot";
+		return getCapabilities().getProviderTermForSnapshot(locale);
 	}
 
     @Override
@@ -212,7 +216,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public @Nonnull Requirement identifyAttachmentRequirement() throws InternalException, CloudException {
-        return Requirement.OPTIONAL;
+        return getCapabilities().identifyAttachmentRequirement();
     }
 
     @Override
@@ -735,22 +739,22 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
 
     @Override
     public boolean supportsSnapshotCopying() throws CloudException, InternalException {
-        return provider.getEC2Provider().isAWS();
+        return getCapabilities().supportsSnapshotCopying();
     }
 
     @Override
     public boolean supportsSnapshotCreation() throws CloudException, InternalException {
-        return true;
+        return getCapabilities().supportsSnapshotCreation();
     }
 
     @Override
     public boolean supportsSnapshotSharing() throws InternalException, CloudException {
-        return provider.getEC2Provider().isAWS();
+        return getCapabilities().supportsSnapshotSharing();
     }
 
     @Override
     public boolean supportsSnapshotSharingWithPublic() throws InternalException, CloudException {
-        return provider.getEC2Provider().isAWS();
+        return getCapabilities().supportsSnapshotSharingWithPublic();
     }
 
     private @Nullable Snapshot toSnapshot(@Nullable Node node) throws CloudException {

@@ -32,16 +32,7 @@ import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.compute.AbstractVolumeSupport;
-import org.dasein.cloud.compute.Platform;
-import org.dasein.cloud.compute.Volume;
-import org.dasein.cloud.compute.VolumeCreateOptions;
-import org.dasein.cloud.compute.VolumeFilterOptions;
-import org.dasein.cloud.compute.VolumeFormat;
-import org.dasein.cloud.compute.VolumeProduct;
-import org.dasein.cloud.compute.VolumeState;
-import org.dasein.cloud.compute.VolumeSupport;
-import org.dasein.cloud.compute.VolumeType;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
@@ -60,8 +51,9 @@ public class EBSVolume extends AbstractVolumeSupport {
 	static private final Logger logger = Logger.getLogger(EBSVolume.class);
 	
 	private AWSCloud provider = null;
-	
-	EBSVolume(AWSCloud provider) {
+    private EBSVolumeCapabilities capabilities;
+
+    EBSVolume(AWSCloud provider) {
         super(provider);
 		this.provider = provider;
 	}
@@ -207,23 +199,31 @@ public class EBSVolume extends AbstractVolumeSupport {
     }
 
     @Override
+    public VolumeCapabilities getCapabilities() {
+        if( capabilities == null ) {
+            capabilities = new EBSVolumeCapabilities(provider);
+        }
+        return capabilities;
+    }
+
+    @Override
     public int getMaximumVolumeCount() throws InternalException, CloudException {
-        return -2;
+        return getCapabilities().getMaximumVolumeCount();
     }
 
     @Override
     public @Nullable Storage<Gigabyte> getMaximumVolumeSize() throws InternalException, CloudException {
-        return new Storage<Gigabyte>(1024, Storage.GIGABYTE);
+        return getCapabilities().getMaximumVolumeSize();
     }
 
     @Override
     public @Nonnull Storage<Gigabyte> getMinimumVolumeSize() throws InternalException, CloudException {
-        return new Storage<Gigabyte>(10, Storage.GIGABYTE);
+        return getCapabilities().getMinimumVolumeSize();
     }
 
     @Override
 	public @Nonnull String getProviderTermForVolume(@Nonnull Locale locale) {
-		return "volume";
+		return getCapabilities().getProviderTermForVolume(locale);
 	}
 
     @Override
@@ -233,28 +233,12 @@ public class EBSVolume extends AbstractVolumeSupport {
     
     @Override
     public @Nonnull Iterable<String> listPossibleDeviceIds(@Nonnull Platform platform) throws InternalException, CloudException {
-        ArrayList<String> list = new ArrayList<String>();
-        
-        if( platform.isWindows() ) {
-            list.add("xvdf");
-            list.add("xvdg");
-            list.add("xvdh");
-            list.add("xvdi");
-            list.add("xvdj");
-        }
-        else {
-            list.add("/dev/sdf");
-            list.add("/dev/sdg");
-            list.add("/dev/sdh");
-            list.add("/dev/sdi");
-            list.add("/dev/sdj");
-        }
-        return list;
+        return getCapabilities().listPossibleDeviceIds(platform);
     }
 
     @Override
     public @Nonnull Iterable<VolumeFormat> listSupportedFormats() throws InternalException, CloudException {
-        return Collections.singletonList(VolumeFormat.BLOCK);
+        return getCapabilities().listSupportedFormats();
     }
 
     @Override
@@ -350,12 +334,12 @@ public class EBSVolume extends AbstractVolumeSupport {
 
     @Override
     public @Nonnull Requirement getVolumeProductRequirement() throws InternalException, CloudException {
-        return ((provider.getEC2Provider().isEucalyptus() || provider.getEC2Provider().isOpenStack()) ? Requirement.NONE : Requirement.OPTIONAL);
+        return getCapabilities().getVolumeProductRequirement();
     }
 
     @Override
     public boolean isVolumeSizeDeterminedByProduct() throws InternalException, CloudException {
-        return false;
+        return getCapabilities().isVolumeSizeDeterminedByProduct();
     }
 
     @Override

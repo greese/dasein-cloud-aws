@@ -43,1808 +43,1857 @@ import javax.servlet.http.HttpServletResponse;
 import java.util.*;
 
 public class VPC extends AbstractVLANSupport {
-  static private final Logger logger = Logger.getLogger(VPC.class);
+    static private final Logger logger = Logger.getLogger(VPC.class);
 
-  private AWSCloud provider;
+    private AWSCloud provider;
+    private transient volatile NetworkCapabilities capabilities;
 
-  VPC(AWSCloud provider) {
-    super(provider);
-    this.provider = provider;
-  }
-
-  @Override
-  public boolean allowsNewSubnetCreation() throws CloudException, InternalException {
-    return true;
-  }
-
-  @Override
-  public void assignRoutingTableToSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.assignRoutingTableToSubnet");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ASSOCIATE_ROUTE_TABLE);
-      EC2Method method;
-
-      parameters.put("SubnetId", subnetId);
-      parameters.put("RouteTableId", routingTableId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-    } finally {
-      APITrace.end();
+    VPC(AWSCloud provider) {
+        super(provider);
+        this.provider = provider;
     }
-  }
 
-  @Override
-  public void disassociateRoutingTableFromSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.disassociateRoutingTableFromSubnet");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DISASSOCIATE_ROUTE_TABLE);
-      EC2Method method;
-
-      String associationId = getRoutingTableAssociationIdForSubnet(subnetId, routingTableId);
-      parameters.put("AssociationId", associationId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-    } finally {
-      APITrace.end();
+    @Override
+    public boolean allowsNewSubnetCreation() throws CloudException, InternalException {
+        return getCapabilities().allowsNewSubnetCreation();
     }
-  }
 
-  private @Nonnull String getRoutingTableAssociationIdForSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.getRoutingTableAssociationIdForSubnet");
-    try {
-      ProviderContext ctx = provider.getContext();
+    @Override
+    public void assignRoutingTableToSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.assignRoutingTableToSubnet");
+        try {
+            ProviderContext ctx = provider.getContext();
 
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      parameters.put("Filter.1.Name", "association.route-table-id");
-      parameters.put("Filter.1.Value.1", routingTableId);
-      parameters.put("Filter.2.Name", "association.subnet-id");
-      parameters.put("Filter.2.Value.1", subnetId);
-
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("associationSet");
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node set = blocks.item(i);
-        NodeList items = set.getChildNodes();
-
-        for (int i1 = 0; i1 < items.getLength(); i1++) {
-          Node item = items.item(i1);
-
-          if (item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes()) {
-            NodeList attrs = item.getChildNodes();
-
-            for (int j = 0; j < attrs.getLength(); j++) {
-              Node attr = attrs.item(j);
-
-              if (attr.getNodeName().equalsIgnoreCase("routeTableAssociationId") && attr.hasChildNodes()) {
-                return attr.getFirstChild().getNodeValue().trim();
-              }
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
             }
-          }
-        }
-      }
-      throw new CloudException("Could not identify the association between subnet " + subnetId + " and routing table " + routingTableId);
-    } finally {
-      APITrace.end();
-    }
-  }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ASSOCIATE_ROUTE_TABLE);
+            EC2Method method;
 
-  private @Nonnull String getMainRoutingTableAssociationIdForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.getMainRoutingTableAssociationIdForVlan");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      parameters.put("Filter.1.Name", "association.main");
-      parameters.put("Filter.1.Value.1", "true");
-      parameters.put("Filter.2.Name", "vpc-id");
-      parameters.put("Filter.2.Value.1", vlanId);
-
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("associationSet");
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node set = blocks.item(i);
-        NodeList items = set.getChildNodes();
-
-        for (int i1 = 0; i1 < items.getLength(); i1++) {
-          Node item = items.item(i1);
-
-          if (item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes()) {
-            NodeList attrs = item.getChildNodes();
-
-            for (int j = 0; j < attrs.getLength(); j++) {
-              Node attr = attrs.item(j);
-
-              if (attr.getNodeName().equalsIgnoreCase("routeTableAssociationId") && attr.hasChildNodes()) {
-                return attr.getFirstChild().getNodeValue().trim();
-              }
+            parameters.put("SubnetId", subnetId);
+            parameters.put("RouteTableId", routingTableId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
             }
-          }
+        } finally {
+            APITrace.end();
         }
-      }
-      throw new CloudException("Could not identify the main routing table for " + vlanId);
-    } finally {
-      APITrace.end();
     }
-  }
 
-  @Override
-  public void assignRoutingTableToVlan(@Nonnull String vlanId, @Nonnull String routingTableId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.assignRoutingTableToVlan");
-    try {
-      ProviderContext ctx = provider.getContext();
+    @Override
+    public void disassociateRoutingTableFromSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.disassociateRoutingTableFromSubnet");
+        try {
+            ProviderContext ctx = provider.getContext();
 
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      String associationId = getMainRoutingTableAssociationIdForVlan(vlanId);
-
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.REPLACE_ROUTE_TABLE_ASSOCIATION);
-      EC2Method method;
-
-      parameters.put("AssociationId", associationId);
-      parameters.put("RouteTableId", routingTableId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public void attachNetworkInterface(@Nonnull String nicId, @Nonnull String vmId, int index) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.attachNetworkInterface");
-    try {
-      if (index < 1) {
-        index = 1;
-        for (NetworkInterface nic : listNetworkInterfacesForVM(vmId)) {
-          if (nic != null) {
-            index++;
-          }
-        }
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.ATTACH_NIC);
-      EC2Method method;
-
-      parameters.put("NetworkInterfaceId", nicId);
-      parameters.put("InstanceId", vmId);
-      parameters.put("DeviceIndex", String.valueOf(index));
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public String createInternetGateway(@Nonnull String vlanId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.createInternetGateway");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_INTERNET_GATEWAY);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-      String gatewayId = null;
-
-      blocks = doc.getElementsByTagName("internetGatewayId");
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-
-        if (item.hasChildNodes()) {
-          gatewayId = item.getFirstChild().getNodeValue().trim();
-        }
-      }
-      if (gatewayId == null) {
-        throw new CloudException("No internet gateway was created, but no error was reported");
-      }
-      parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ATTACH_INTERNET_GATEWAY);
-      parameters.put("VpcId", vlanId);
-      parameters.put("InternetGatewayId", gatewayId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        method.invoke();
-        return gatewayId;
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public @Nonnull String createRoutingTable(@Nonnull String vlanId, @Nonnull String name, @Nonnull String description) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.createRoutingTable");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_ROUTE_TABLE);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      parameters.put("VpcId", vlanId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("routeTable");
-      String id = null;
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        RoutingTable table = toRoutingTable(ctx, item);
-
-        if (table != null) {
-          id = table.getProviderRoutingTableId();
-          break;
-        }
-      }
-      if (id == null) {
-        throw new CloudException("No table was created, but no error was reported");
-      }
-      Tag[] tags = new Tag[2];
-      Tag t = new Tag();
-
-      t.setKey("Name");
-      t.setValue(name);
-      tags[0] = t;
-      t = new Tag();
-      t.setKey("Description");
-      t.setValue(description);
-      tags[1] = t;
-      provider.createTags(id, tags);
-      return id;
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public @Nonnull NetworkInterface createNetworkInterface(@Nonnull NICCreateOptions options) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.createNetworkInterface");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_NIC);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      parameters.put("SubnetId", options.getSubnetId());
-      if (options.getIpAddress() != null) {
-        parameters.put("PrivateIpAddress", options.getIpAddress());
-      }
-      parameters.put("Description", options.getDescription());
-      if (options.getFirewallIds().length > 0) {
-        int i = 1;
-
-        for (String id : options.getFirewallIds()) {
-          parameters.put("SecurityGroupId." + i, id);
-        }
-      }
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("networkInterface");
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        NetworkInterface nic = toNIC(ctx, item);
-
-        if (nic != null) {
-          Tag[] tags = new Tag[2];
-          Tag t = new Tag();
-
-          t.setKey("Name");
-          t.setValue(options.getName());
-          tags[0] = t;
-          t = new Tag();
-          t.setKey("Description");
-          t.setValue(options.getDescription());
-          tags[1] = t;
-          provider.createTags(nic.getProviderNetworkInterfaceId(), tags);
-          nic.setName(options.getName());
-          nic.setDescription(options.getDescription());
-          return nic;
-        }
-      }
-      throw new CloudException("No network interface was created, but no error was reported");
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public Route addRouteToAddress(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String address) throws CloudException, InternalException {
-    throw new OperationNotSupportedException("You cannot route to a raw IP address in " + provider.getCloudName() + ".");
-  }
-
-  @Override
-  public Route addRouteToGateway(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String gatewayId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.addRouteToGateway");
-    try {
-      if (!version.equals(IPVersion.IPV4)) {
-        throw new CloudException(provider.getCloudName() + " does not support " + version);
-      }
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_ROUTE);
-      EC2Method method;
-
-      parameters.put("GatewayId", gatewayId);
-      parameters.put("RouteTableId", routingTableId);
-      parameters.put("DestinationCidrBlock", destinationCidr);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-      return Route.getRouteToGateway(version, destinationCidr, gatewayId);
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public Route addRouteToNetworkInterface(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String nicId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.addRouteToNetworkInterface");
-    try {
-      if (!version.equals(IPVersion.IPV4)) {
-        throw new CloudException(provider.getCloudName() + " does not support " + version);
-      }
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_ROUTE);
-      EC2Method method;
-
-      parameters.put("NetworkInterfaceId", nicId);
-      parameters.put("RouteTableId", routingTableId);
-      parameters.put("DestinationCidrBlock", destinationCidr);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-      return Route.getRouteToNetworkInterface(version, destinationCidr, nicId);
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public Route addRouteToVirtualMachine(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String vmId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.addRouteToVirtualMachine");
-    try {
-      if (!version.equals(IPVersion.IPV4)) {
-        throw new CloudException(provider.getCloudName() + " does not support " + version);
-      }
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_ROUTE);
-      EC2Method method;
-
-      parameters.put("InstanceId", vmId);
-      parameters.put("RouteTableId", routingTableId);
-      parameters.put("DestinationCidrBlock", destinationCidr);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-      // TODO: Find out what ownerId should be
-      return Route.getRouteToVirtualMachine(version, destinationCidr, "", vmId);
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public boolean allowsNewNetworkInterfaceCreation() throws CloudException, InternalException {
-    return true;
-  }
-
-  @Override
-  public boolean allowsNewVlanCreation() throws CloudException, InternalException {
-    return true;
-  }
-
-  @Override
-  public boolean allowsNewRoutingTableCreation() throws CloudException, InternalException {
-    return true;
-  }
-
-  private void assignDHCPOptions(VLAN vlan, String domainName, String[] dnsServers, String[] ntpServers) throws CloudException, InternalException {
-    boolean differs = false;
-
-    if (vlan.getDomainName() != null) {
-      if (domainName == null) {
-        differs = true;
-      } else if (!domainName.equals(vlan.getDomainName())) {
-        differs = true;
-      }
-    } else if (domainName != null) {
-      differs = true;
-    }
-    if (!differs) {
-      if (vlan.getDnsServers() != null) {
-        if (dnsServers == null || vlan.getDnsServers().length != dnsServers.length) {
-          differs = true;
-        } else {
-          for (int i = 0; i < dnsServers.length; i++) {
-            if (!dnsServers[i].equalsIgnoreCase(vlan.getDnsServers()[i])) {
-              differs = true;
-              break;
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
             }
-          }
-        }
-      } else if (dnsServers != null) {
-        if (vlan.getDnsServers().length != dnsServers.length) {
-          differs = true;
-        } else {
-          for (int i = 0; i < dnsServers.length; i++) {
-            if (!dnsServers[i].equalsIgnoreCase(vlan.getDnsServers()[i])) {
-              differs = true;
-              break;
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DISASSOCIATE_ROUTE_TABLE);
+            EC2Method method;
+
+            String associationId = getRoutingTableAssociationIdForSubnet(subnetId, routingTableId);
+            parameters.put("AssociationId", associationId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
             }
-          }
+        } finally {
+            APITrace.end();
         }
-      }
-      if (!differs) {
-        if (vlan.getNtpServers() != null) {
-          if (ntpServers == null || vlan.getNtpServers().length != ntpServers.length) {
-            differs = true;
-          } else {
-            for (int i = 0; i < ntpServers.length; i++) {
-              if (!ntpServers[i].equalsIgnoreCase(vlan.getNtpServers()[i])) {
-                differs = true;
-                break;
-              }
+    }
+
+    private @Nonnull String getRoutingTableAssociationIdForSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.getRoutingTableAssociationIdForSubnet");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
             }
-          }
-        } else if (ntpServers != null) {
-          if (vlan.getNtpServers().length != ntpServers.length) {
-            differs = true;
-          } else {
-            for (int i = 0; i < ntpServers.length; i++) {
-              if (!ntpServers[i].equalsIgnoreCase(vlan.getNtpServers()[i])) {
-                differs = true;
-                break;
-              }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("Filter.1.Name", "association.route-table-id");
+            parameters.put("Filter.1.Value.1", routingTableId);
+            parameters.put("Filter.2.Name", "association.subnet-id");
+            parameters.put("Filter.2.Value.1", subnetId);
+
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
             }
-          }
+            blocks = doc.getElementsByTagName("associationSet");
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node set = blocks.item(i);
+                NodeList items = set.getChildNodes();
+
+                for( int i1 = 0; i1 < items.getLength(); i1++ ) {
+                    Node item = items.item(i1);
+
+                    if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
+                        NodeList attrs = item.getChildNodes();
+
+                        for( int j = 0; j < attrs.getLength(); j++ ) {
+                            Node attr = attrs.item(j);
+
+                            if( attr.getNodeName().equalsIgnoreCase("routeTableAssociationId") && attr.hasChildNodes() ) {
+                                return attr.getFirstChild().getNodeValue().trim();
+                            }
+                        }
+                    }
+                }
+            }
+            throw new CloudException("Could not identify the association between subnet " + subnetId + " and routing table " + routingTableId);
+        } finally {
+            APITrace.end();
         }
-      }
     }
-    if (differs) {
-      String dhcp = createDhcp(domainName, dnsServers, ntpServers);
 
-      assignDhcp(vlan.getProviderVlanId(), dhcp);
+    private @Nonnull String getMainRoutingTableAssociationIdForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.getMainRoutingTableAssociationIdForVlan");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("Filter.1.Name", "association.main");
+            parameters.put("Filter.1.Value.1", "true");
+            parameters.put("Filter.2.Name", "vpc-id");
+            parameters.put("Filter.2.Value.1", vlanId);
+
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("associationSet");
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node set = blocks.item(i);
+                NodeList items = set.getChildNodes();
+
+                for( int i1 = 0; i1 < items.getLength(); i1++ ) {
+                    Node item = items.item(i1);
+
+                    if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
+                        NodeList attrs = item.getChildNodes();
+
+                        for( int j = 0; j < attrs.getLength(); j++ ) {
+                            Node attr = attrs.item(j);
+
+                            if( attr.getNodeName().equalsIgnoreCase("routeTableAssociationId") && attr.hasChildNodes() ) {
+                                return attr.getFirstChild().getNodeValue().trim();
+                            }
+                        }
+                    }
+                }
+            }
+            throw new CloudException("Could not identify the main routing table for " + vlanId);
+        } finally {
+            APITrace.end();
+        }
     }
-  }
 
-  private void assignDhcp(String vlanId, String dhcp) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.assignDhcp");
-    try {
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.ASSOCIATE_DHCP_OPTIONS);
-      EC2Method method;
+    @Override
+    public void assignRoutingTableToVlan(@Nonnull String vlanId, @Nonnull String routingTableId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.assignRoutingTableToVlan");
+        try {
+            ProviderContext ctx = provider.getContext();
 
-      parameters.put("DhcpOptionsId", dhcp);
-      parameters.put("VpcId", vlanId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            String associationId = getMainRoutingTableAssociationIdForVlan(vlanId);
+
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.REPLACE_ROUTE_TABLE_ASSOCIATION);
+            EC2Method method;
+
+            parameters.put("AssociationId", associationId);
+            parameters.put("RouteTableId", routingTableId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+        } finally {
+            APITrace.end();
         }
-        throw new CloudException(e);
-      }
-    } finally {
-      APITrace.end();
     }
-  }
 
-  private String createDhcp(String domainName, String[] dnsServers, String[] ntpServers) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.createDhcp");
-    try {
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_DHCP_OPTIONS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-      int idx = 1;
+    @Override
+    public void attachNetworkInterface(@Nonnull String nicId, @Nonnull String vmId, int index) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.attachNetworkInterface");
+        try {
+            if( index < 1 ) {
+                index = 1;
+                for( NetworkInterface nic : listNetworkInterfacesForVM(vmId) ) {
+                    if( nic != null ) {
+                        index++;
+                    }
+                }
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.ATTACH_NIC);
+            EC2Method method;
 
-      if (domainName != null) {
-        parameters.put("DhcpConfiguration." + idx + ".Key", "domain-name");
-        parameters.put("DhcpConfiguration." + idx + ".Value.1", domainName);
-        idx++;
-      }
-      if (dnsServers != null && dnsServers.length > 0) {
-        int vdx = 1;
-
-        parameters.put("DhcpConfiguration." + idx + ".Key", "domain-name-servers");
-        for (String dns : dnsServers) {
-          parameters.put("DhcpConfiguration." + idx + ".Value." + vdx, dns);
-          vdx++;
+            parameters.put("NetworkInterfaceId", nicId);
+            parameters.put("InstanceId", vmId);
+            parameters.put("DeviceIndex", String.valueOf(index));
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+        } finally {
+            APITrace.end();
         }
-        idx++;
-      }
-      if (ntpServers != null && ntpServers.length > 0) {
-        int vdx = 1;
-
-        parameters.put("DhcpConfiguration." + idx + ".Key", "ntp-servers");
-        for (String ntp : ntpServers) {
-          parameters.put("DhcpConfiguration." + idx + ".Value." + vdx, ntp);
-          vdx++;
-        }
-      }
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("dhcpOptionsId");
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node id = blocks.item(i);
-
-        if (id != null) {
-          return id.getFirstChild().getNodeValue().trim();
-        }
-      }
-      throw new CloudException("No DHCP options were created, but no error was reported");
-    } finally {
-      APITrace.end();
     }
-  }
 
-  @Override
-  public @Nonnull Subnet createSubnet(@Nonnull SubnetCreateOptions options) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.createSubnet");
-    try {
-      ProviderContext ctx = provider.getContext();
+    @Override
+    public String createInternetGateway(@Nonnull String vlanId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.createInternetGateway");
+        try {
+            ProviderContext ctx = provider.getContext();
 
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_SUBNET);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_INTERNET_GATEWAY);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-      parameters.put("CidrBlock", options.getCidr());
-      parameters.put("VpcId", options.getProviderVlanId());
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            String gatewayId = null;
 
-      String dc = options.getProviderDataCenterId();
+            blocks = doc.getElementsByTagName("internetGatewayId");
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
 
-      if (dc != null) {
-        parameters.put("AvailabilityZone", dc);
-      }
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
+                if( item.hasChildNodes() ) {
+                    gatewayId = item.getFirstChild().getNodeValue().trim();
+                }
+            }
+            if( gatewayId == null ) {
+                throw new CloudException("No internet gateway was created, but no error was reported");
+            }
+            parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ATTACH_INTERNET_GATEWAY);
+            parameters.put("VpcId", vlanId);
+            parameters.put("InternetGatewayId", gatewayId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+                return gatewayId;
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+        } finally {
+            APITrace.end();
         }
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("subnet");
+    }
 
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        Subnet subnet = toSubnet(ctx, item);
+    @Override
+    public @Nonnull String createRoutingTable(@Nonnull String vlanId, @Nonnull String name, @Nonnull String description) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.createRoutingTable");
+        try {
+            ProviderContext ctx = provider.getContext();
 
-        if (subnet != null) {
-          Map<String, Object> metaData = new HashMap<String, Object>();
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_ROUTE_TABLE);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-          metaData.put("Name", options.getName());
-          metaData.put("Description", options.getDescription());
-          Tag[] tags = new Tag[metaData.size()];
-          int j = 0;
+            parameters.put("VpcId", vlanId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("routeTable");
+            String id = null;
 
-          for (Map.Entry<String, Object> entry : metaData.entrySet()) {
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                RoutingTable table = toRoutingTable(ctx, item);
+
+                if( table != null ) {
+                    id = table.getProviderRoutingTableId();
+                    break;
+                }
+            }
+            if( id == null ) {
+                throw new CloudException("No table was created, but no error was reported");
+            }
+            Tag[] tags = new Tag[2];
             Tag t = new Tag();
 
-            t.setKey(entry.getKey());
-            t.setValue(entry.getValue().toString());
-            tags[j++] = t;
-          }
-          provider.createTags(subnet.getProviderSubnetId(), tags);
-          subnet.setName(options.getDescription());
-          subnet.setDescription(options.getDescription());
-          return subnet;
+            t.setKey("Name");
+            t.setValue(name);
+            tags[0] = t;
+            t = new Tag();
+            t.setKey("Description");
+            t.setValue(description);
+            tags[1] = t;
+            provider.createTags(id, tags);
+            return id;
+        } finally {
+            APITrace.end();
         }
-      }
-      throw new CloudException("No subnet was created, but no error was reported");
-    } finally {
-      APITrace.end();
     }
-  }
 
-  @Override
-  @Deprecated
-  public @Nonnull VLAN createVlan(@Nonnull String cidr, @Nonnull String name, @Nonnull String description, @Nullable String domainName, @Nonnull String[] dnsServers, @Nonnull String[] ntpServers) throws CloudException, InternalException {
-    VlanCreateOptions vco = VlanCreateOptions.getInstance(name, description, cidr, domainName, dnsServers, ntpServers);
-    return createVlan(vco);
-  }
+    @Override
+    public @Nonnull NetworkInterface createNetworkInterface(@Nonnull NICCreateOptions options) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.createNetworkInterface");
+        try {
+            ProviderContext ctx = provider.getContext();
 
-  @Override
-  public @Nonnull VLAN createVlan(final @Nonnull VlanCreateOptions options) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.createVLAN");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_VPC);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      parameters.put("CidrBlock", options.getCidr());
-      parameters.put("InstanceTenancy", "default");
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("vpc");
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        VLAN vlan = toVLAN(ctx, item);
-
-        if (vlan != null) {
-          String domain = options.getDomain();
-          String[] dns = options.getDnsServers();
-          String[] ntp = options.getNtpServers();
-          if (domain != null || dns != null || ntp != null) {
-            assignDHCPOptions(vlan, options.getDomain(), options.getDnsServers(), options.getNtpServers());
-          }
-          Tag[] tags = new Tag[2];
-          Tag t = new Tag();
-
-          t.setKey("Name");
-          t.setValue(options.getName());
-          tags[0] = t;
-          t = new Tag();
-          t.setKey("Description");
-          t.setValue(options.getDescription());
-          tags[1] = t;
-          provider.createTags(vlan.getProviderVlanId(), tags);
-          vlan.setName(options.getName());
-          vlan.setDescription(options.getDescription());
-          return vlan;
-        }
-      }
-      throw new CloudException("No VLAN was created, but no error was reported");
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  static private class Attachment {
-    public String attachmentId;
-    public String virtualMachineId;
-  }
-
-  private @Nonnull Collection<Attachment> getAttachments(@Nonnull String nicId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.getAttachments");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      parameters.put("NetworkInterfaceId.1", nicId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        if (e.getCode() != null && e.getCode().startsWith("InvalidNetworkInterfaceID")) {
-          Collections.emptyList();
-        }
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-      ArrayList<Attachment> attachments = new ArrayList<Attachment>();
-
-      blocks = doc.getElementsByTagName("item");
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-
-        NodeList attrs = item.getChildNodes();
-
-        for (int j = 0; j < attrs.getLength(); j++) {
-          Node attr = attrs.item(j);
-
-          if (attr.getNodeName().equalsIgnoreCase("attachment")) {
-            NodeList parts = attr.getChildNodes();
-            Attachment a = new Attachment();
-
-            for (int k = 0; k < parts.getLength(); k++) {
-              Node part = parts.item(k);
-
-              if (part.getNodeName().equalsIgnoreCase("instanceId") && part.hasChildNodes()) {
-                a.virtualMachineId = part.getFirstChild().getNodeValue().trim();
-              } else if (part.getNodeName().equalsIgnoreCase("attachmentId") && part.hasChildNodes()) {
-                a.attachmentId = part.getFirstChild().getNodeValue().trim();
-              }
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
             }
-            if (a.virtualMachineId != null && a.attachmentId != null) {
-              attachments.add(a);
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_NIC);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("SubnetId", options.getSubnetId());
+            if( options.getIpAddress() != null ) {
+                parameters.put("PrivateIpAddress", options.getIpAddress());
             }
-          }
+            parameters.put("Description", options.getDescription());
+            if( options.getFirewallIds().length > 0 ) {
+                int i = 1;
+
+                for( String id : options.getFirewallIds() ) {
+                    parameters.put("SecurityGroupId." + i, id);
+                }
+            }
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("networkInterface");
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                NetworkInterface nic = toNIC(ctx, item);
+
+                if( nic != null ) {
+                    Tag[] tags = new Tag[2];
+                    Tag t = new Tag();
+
+                    t.setKey("Name");
+                    t.setValue(options.getName());
+                    tags[0] = t;
+                    t = new Tag();
+                    t.setKey("Description");
+                    t.setValue(options.getDescription());
+                    tags[1] = t;
+                    provider.createTags(nic.getProviderNetworkInterfaceId(), tags);
+                    nic.setName(options.getName());
+                    nic.setDescription(options.getDescription());
+                    return nic;
+                }
+            }
+            throw new CloudException("No network interface was created, but no error was reported");
+        } finally {
+            APITrace.end();
         }
-      }
-      return attachments;
-    } finally {
-      APITrace.end();
     }
-  }
 
-  @Override
-  public void detachNetworkInterface(@Nonnull String nicId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.detachNetworkInterface");
-    try {
-      Collection<Attachment> attachments = getAttachments(nicId);
+    @Override
+    public Route addRouteToAddress(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String address) throws CloudException, InternalException {
+        throw new OperationNotSupportedException("You cannot route to a raw IP address in " + provider.getCloudName() + ".");
+    }
 
-      for (Attachment a : attachments) {
-        Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DETACH_NIC);
+    @Override
+    public Route addRouteToGateway(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String gatewayId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.addRouteToGateway");
+        try {
+            if( !version.equals(IPVersion.IPV4) ) {
+                throw new CloudException(provider.getCloudName() + " does not support " + version);
+            }
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_ROUTE);
+            EC2Method method;
+
+            parameters.put("GatewayId", gatewayId);
+            parameters.put("RouteTableId", routingTableId);
+            parameters.put("DestinationCidrBlock", destinationCidr);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            return Route.getRouteToGateway(version, destinationCidr, gatewayId);
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public Route addRouteToNetworkInterface(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String nicId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.addRouteToNetworkInterface");
+        try {
+            if( !version.equals(IPVersion.IPV4) ) {
+                throw new CloudException(provider.getCloudName() + " does not support " + version);
+            }
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_ROUTE);
+            EC2Method method;
+
+            parameters.put("NetworkInterfaceId", nicId);
+            parameters.put("RouteTableId", routingTableId);
+            parameters.put("DestinationCidrBlock", destinationCidr);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            return Route.getRouteToNetworkInterface(version, destinationCidr, nicId);
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public Route addRouteToVirtualMachine(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String vmId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.addRouteToVirtualMachine");
+        try {
+            if( !version.equals(IPVersion.IPV4) ) {
+                throw new CloudException(provider.getCloudName() + " does not support " + version);
+            }
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_ROUTE);
+            EC2Method method;
+
+            parameters.put("InstanceId", vmId);
+            parameters.put("RouteTableId", routingTableId);
+            parameters.put("DestinationCidrBlock", destinationCidr);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            // TODO: Find out what ownerId should be
+            return Route.getRouteToVirtualMachine(version, destinationCidr, "", vmId);
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public boolean allowsNewNetworkInterfaceCreation() throws CloudException, InternalException {
+        return getCapabilities().allowsNewNetworkInterfaceCreation();
+    }
+
+    @Override
+    public boolean allowsNewVlanCreation() throws CloudException, InternalException {
+        return getCapabilities().allowsNewVlanCreation();
+    }
+
+    @Override
+    public boolean allowsNewRoutingTableCreation() throws CloudException, InternalException {
+        return getCapabilities().allowsNewRoutingTableCreation();
+    }
+
+    private void assignDHCPOptions(VLAN vlan, String domainName, String[] dnsServers, String[] ntpServers) throws CloudException, InternalException {
+        boolean differs = false;
+
+        if( vlan.getDomainName() != null ) {
+            if( domainName == null ) {
+                differs = true;
+            } else if( !domainName.equals(vlan.getDomainName()) ) {
+                differs = true;
+            }
+        } else if( domainName != null ) {
+            differs = true;
+        }
+        if( !differs ) {
+            if( vlan.getDnsServers() != null ) {
+                if( dnsServers == null || vlan.getDnsServers().length != dnsServers.length ) {
+                    differs = true;
+                } else {
+                    for( int i = 0; i < dnsServers.length; i++ ) {
+                        if( !dnsServers[i].equalsIgnoreCase(vlan.getDnsServers()[i]) ) {
+                            differs = true;
+                            break;
+                        }
+                    }
+                }
+            } else if( dnsServers != null ) {
+                if( vlan.getDnsServers().length != dnsServers.length ) {
+                    differs = true;
+                } else {
+                    for( int i = 0; i < dnsServers.length; i++ ) {
+                        if( !dnsServers[i].equalsIgnoreCase(vlan.getDnsServers()[i]) ) {
+                            differs = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if( !differs ) {
+                if( vlan.getNtpServers() != null ) {
+                    if( ntpServers == null || vlan.getNtpServers().length != ntpServers.length ) {
+                        differs = true;
+                    } else {
+                        for( int i = 0; i < ntpServers.length; i++ ) {
+                            if( !ntpServers[i].equalsIgnoreCase(vlan.getNtpServers()[i]) ) {
+                                differs = true;
+                                break;
+                            }
+                        }
+                    }
+                } else if( ntpServers != null ) {
+                    if( vlan.getNtpServers().length != ntpServers.length ) {
+                        differs = true;
+                    } else {
+                        for( int i = 0; i < ntpServers.length; i++ ) {
+                            if( !ntpServers[i].equalsIgnoreCase(vlan.getNtpServers()[i]) ) {
+                                differs = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if( differs ) {
+            String dhcp = createDhcp(domainName, dnsServers, ntpServers);
+
+            assignDhcp(vlan.getProviderVlanId(), dhcp);
+        }
+    }
+
+    private void assignDhcp(String vlanId, String dhcp) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.assignDhcp");
+        try {
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.ASSOCIATE_DHCP_OPTIONS);
+            EC2Method method;
+
+            parameters.put("DhcpOptionsId", dhcp);
+            parameters.put("VpcId", vlanId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    private String createDhcp(String domainName, String[] dnsServers, String[] ntpServers) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.createDhcp");
+        try {
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_DHCP_OPTIONS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+            int idx = 1;
+
+            if( domainName != null ) {
+                parameters.put("DhcpConfiguration." + idx + ".Key", "domain-name");
+                parameters.put("DhcpConfiguration." + idx + ".Value.1", domainName);
+                idx++;
+            }
+            if( dnsServers != null && dnsServers.length > 0 ) {
+                int vdx = 1;
+
+                parameters.put("DhcpConfiguration." + idx + ".Key", "domain-name-servers");
+                for( String dns : dnsServers ) {
+                    parameters.put("DhcpConfiguration." + idx + ".Value." + vdx, dns);
+                    vdx++;
+                }
+                idx++;
+            }
+            if( ntpServers != null && ntpServers.length > 0 ) {
+                int vdx = 1;
+
+                parameters.put("DhcpConfiguration." + idx + ".Key", "ntp-servers");
+                for( String ntp : ntpServers ) {
+                    parameters.put("DhcpConfiguration." + idx + ".Value." + vdx, ntp);
+                    vdx++;
+                }
+            }
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("dhcpOptionsId");
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node id = blocks.item(i);
+
+                if( id != null ) {
+                    return id.getFirstChild().getNodeValue().trim();
+                }
+            }
+            throw new CloudException("No DHCP options were created, but no error was reported");
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull Subnet createSubnet(@Nonnull SubnetCreateOptions options) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.createSubnet");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_SUBNET);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("CidrBlock", options.getCidr());
+            parameters.put("VpcId", options.getProviderVlanId());
+
+            String dc = options.getProviderDataCenterId();
+
+            if( dc != null ) {
+                parameters.put("AvailabilityZone", dc);
+            }
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("subnet");
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                Subnet subnet = toSubnet(ctx, item);
+
+                if( subnet != null ) {
+                    Map<String, Object> metaData = new HashMap<String, Object>();
+
+                    metaData.put("Name", options.getName());
+                    metaData.put("Description", options.getDescription());
+                    Tag[] tags = new Tag[metaData.size()];
+                    int j = 0;
+
+                    for( Map.Entry<String, Object> entry : metaData.entrySet() ) {
+                        Tag t = new Tag();
+
+                        t.setKey(entry.getKey());
+                        t.setValue(entry.getValue().toString());
+                        tags[j++] = t;
+                    }
+                    provider.createTags(subnet.getProviderSubnetId(), tags);
+                    subnet.setName(options.getDescription());
+                    subnet.setDescription(options.getDescription());
+                    return subnet;
+                }
+            }
+            throw new CloudException("No subnet was created, but no error was reported");
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    @Deprecated
+    public @Nonnull VLAN createVlan(@Nonnull String cidr, @Nonnull String name, @Nonnull String description, @Nullable String domainName, @Nonnull String[] dnsServers, @Nonnull String[] ntpServers) throws CloudException, InternalException {
+        VlanCreateOptions vco = VlanCreateOptions.getInstance(name, description, cidr, domainName, dnsServers, ntpServers);
+        return createVlan(vco);
+    }
+
+    @Override
+    public @Nonnull VLAN createVlan(final @Nonnull VlanCreateOptions options) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.createVLAN");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_VPC);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("CidrBlock", options.getCidr());
+            parameters.put("InstanceTenancy", "default");
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("vpc");
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                VLAN vlan = toVLAN(ctx, item);
+
+                if( vlan != null ) {
+                    String domain = options.getDomain();
+                    String[] dns = options.getDnsServers();
+                    String[] ntp = options.getNtpServers();
+                    if( domain != null || dns != null || ntp != null ) {
+                        assignDHCPOptions(vlan, options.getDomain(), options.getDnsServers(), options.getNtpServers());
+                    }
+                    Tag[] tags = new Tag[2];
+                    Tag t = new Tag();
+
+                    t.setKey("Name");
+                    t.setValue(options.getName());
+                    tags[0] = t;
+                    t = new Tag();
+                    t.setKey("Description");
+                    t.setValue(options.getDescription());
+                    tags[1] = t;
+                    provider.createTags(vlan.getProviderVlanId(), tags);
+                    vlan.setName(options.getName());
+                    vlan.setDescription(options.getDescription());
+                    return vlan;
+                }
+            }
+            throw new CloudException("No VLAN was created, but no error was reported");
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    static private class Attachment {
+        public String attachmentId;
+        public String virtualMachineId;
+    }
+
+    private @Nonnull Collection<Attachment> getAttachments(@Nonnull String nicId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.getAttachments");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("NetworkInterfaceId.1", nicId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                if( e.getCode() != null && e.getCode().startsWith("InvalidNetworkInterfaceID") ) {
+                    Collections.emptyList();
+                }
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            ArrayList<Attachment> attachments = new ArrayList<Attachment>();
+
+            blocks = doc.getElementsByTagName("item");
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+
+                NodeList attrs = item.getChildNodes();
+
+                for( int j = 0; j < attrs.getLength(); j++ ) {
+                    Node attr = attrs.item(j);
+
+                    if( attr.getNodeName().equalsIgnoreCase("attachment") ) {
+                        NodeList parts = attr.getChildNodes();
+                        Attachment a = new Attachment();
+
+                        for( int k = 0; k < parts.getLength(); k++ ) {
+                            Node part = parts.item(k);
+
+                            if( part.getNodeName().equalsIgnoreCase("instanceId") && part.hasChildNodes() ) {
+                                a.virtualMachineId = part.getFirstChild().getNodeValue().trim();
+                            } else if( part.getNodeName().equalsIgnoreCase("attachmentId") && part.hasChildNodes() ) {
+                                a.attachmentId = part.getFirstChild().getNodeValue().trim();
+                            }
+                        }
+                        if( a.virtualMachineId != null && a.attachmentId != null ) {
+                            attachments.add(a);
+                        }
+                    }
+                }
+            }
+            return attachments;
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void detachNetworkInterface(@Nonnull String nicId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.detachNetworkInterface");
+        try {
+            Collection<Attachment> attachments = getAttachments(nicId);
+
+            for( Attachment a : attachments ) {
+                Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DETACH_NIC);
+                EC2Method method;
+
+                parameters.put("AttachmentId", a.attachmentId);
+                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                try {
+                    method.invoke();
+                } catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    if( logger.isDebugEnabled() ) {
+                        e.printStackTrace();
+                    }
+                    throw new CloudException(e);
+                }
+            }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public VLANCapabilities getCapabilities() {
+        if( capabilities == null ) {
+            capabilities = new NetworkCapabilities(provider);
+        }
+        return capabilities;
+    }
+
+    @Override
+    public int getMaxNetworkInterfaceCount() throws CloudException, InternalException {
+        return getCapabilities().getMaxNetworkInterfaceCount();
+    }
+
+    @Override
+    public int getMaxVlanCount() throws CloudException, InternalException {
+        return getCapabilities().getMaxVlanCount();
+    }
+
+    @Override
+    public @Nonnull String getProviderTermForNetworkInterface(@Nonnull Locale locale) {
+        return getCapabilities().getProviderTermForNetworkInterface(locale);
+    }
+
+    @Override
+    public @Nonnull String getProviderTermForSubnet(@Nonnull Locale locale) {
+        return getCapabilities().getProviderTermForSubnet(locale);
+    }
+
+    @Override
+    public @Nonnull String getProviderTermForVlan(@Nonnull Locale locale) {
+        return getProviderTermForVlan(locale);
+    }
+
+    @Override
+    public NetworkInterface getNetworkInterface(@Nonnull String nicId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.getNetworkInterface");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("NetworkInterfaceId.1", nicId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                if( e.getCode() != null && e.getCode().toLowerCase().startsWith("invalidnetworkinterfaceid") ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("item");
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                NetworkInterface nic = toNIC(ctx, item);
+
+                if( nic != null ) {
+                    return nic;
+                }
+            }
+            return null;
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public RoutingTable getRoutingTableForSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.getRoutingTableForSubnet");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            //parameters.put("Filter.1.Name", "association.main");
+            //parameters.put("Filter.1.Value.1", "true");
+            parameters.put("Filter.1.Name", "association.subnet-id");
+            parameters.put("Filter.1.Value.1", subnetId);
+
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("routeTableSet");
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node set = blocks.item(i);
+                NodeList items = set.getChildNodes();
+
+                for( int j = 0; j < items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
+                        RoutingTable t = toRoutingTable(ctx, item);
+
+                        if( t != null ) {
+                            return t;
+                        }
+                    }
+                }
+            }
+            throw new CloudException("Could not identify the subnet routing table for " + subnetId);
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull Requirement getRoutingTableSupport() throws CloudException, InternalException {
+        return getCapabilities().getRoutingTableSupport();
+    }
+
+    @Override
+    public RoutingTable getRoutingTableForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.getRoutingTableForVlan");
+        try {
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            parameters.put("Filter.1.Name", "association.main");
+            parameters.put("Filter.1.Value.1", "true");
+            parameters.put("Filter.2.Name", "vpc-id");
+            parameters.put("Filter.2.Value.1", vlanId);
+            RoutingTable rt = getRoutingTableAbstract(parameters);
+            // here for backwards compatability - should just return null similar to other resources
+            if( rt == null ) {
+                throw new CloudException("Could not identify the main routing table for " + vlanId);
+            } else {
+                return rt;
+            }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public RoutingTable getRoutingTable(@Nonnull String id) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.getRoutingTable");
+        try {
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            parameters.put("Filter.1.Name", "route-table-id");
+            parameters.put("Filter.1.Value.1", id);
+            return getRoutingTableAbstract(parameters);
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    private RoutingTable getRoutingTableAbstract(@Nonnull Map<String, String> parameters) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was configured");
+        }
+
         EC2Method method;
+        NodeList blocks;
+        Document doc;
 
-        parameters.put("AttachmentId", a.attachmentId);
         method = new EC2Method(provider, provider.getEc2Url(), parameters);
         try {
-          method.invoke();
-        } catch (EC2Exception e) {
-          logger.error(e.getSummary());
-          e.printStackTrace();
-          throw new CloudException(e);
-        }
-      }
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public int getMaxNetworkInterfaceCount() throws CloudException, InternalException {
-    return -2;
-  }
-
-  @Override
-  public int getMaxVlanCount() throws CloudException, InternalException {
-    return 5;
-  }
-
-  @Override
-  public @Nonnull String getProviderTermForNetworkInterface(@Nonnull Locale locale) {
-    return "network interface";
-  }
-
-  @Override
-  public @Nonnull String getProviderTermForSubnet(@Nonnull Locale locale) {
-    return "subnet";
-  }
-
-  @Override
-  public @Nonnull String getProviderTermForVlan(@Nonnull Locale locale) {
-    return "VPC";
-  }
-
-  @Override
-  public NetworkInterface getNetworkInterface(@Nonnull String nicId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.getNetworkInterface");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      parameters.put("NetworkInterfaceId.1", nicId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        if (e.getCode() != null && e.getCode().toLowerCase().startsWith("invalidnetworkinterfaceid")) {
-          return null;
-        }
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("item");
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        NetworkInterface nic = toNIC(ctx, item);
-
-        if (nic != null) {
-          return nic;
-        }
-      }
-      return null;
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public RoutingTable getRoutingTableForSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.getRoutingTableForSubnet");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      //parameters.put("Filter.1.Name", "association.main");
-      //parameters.put("Filter.1.Value.1", "true");
-      parameters.put("Filter.1.Name", "association.subnet-id");
-      parameters.put("Filter.1.Value.1", subnetId);
-
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("routeTableSet");
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node set = blocks.item(i);
-        NodeList items = set.getChildNodes();
-
-        for (int j = 0; j < items.getLength(); j++) {
-          Node item = items.item(j);
-
-          if (item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes()) {
-            RoutingTable t = toRoutingTable(ctx, item);
-
-            if (t != null) {
-              return t;
+            doc = method.invoke();
+        } catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            if( logger.isDebugEnabled() ) {
+                e.printStackTrace();
             }
-          }
+            throw new CloudException(e);
         }
-      }
-      throw new CloudException("Could not identify the subnet routing table for " + subnetId);
-    } finally {
-      APITrace.end();
-    }
-  }
+        blocks = doc.getElementsByTagName("routeTableSet");
+        for( int i = 0; i < blocks.getLength(); i++ ) {
+            Node set = blocks.item(i);
+            NodeList items = set.getChildNodes();
 
-  @Override
-  public @Nonnull Requirement getRoutingTableSupport() throws CloudException, InternalException {
-    return Requirement.REQUIRED;
-  }
+            for( int j = 0; j < items.getLength(); j++ ) {
+                Node item = items.item(j);
 
-  @Override
-  public RoutingTable getRoutingTableForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.getRoutingTableForVlan");
-    try {
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
-      parameters.put("Filter.1.Name", "association.main");
-      parameters.put("Filter.1.Value.1", "true");
-      parameters.put("Filter.2.Name", "vpc-id");
-      parameters.put("Filter.2.Value.1", vlanId);
-      RoutingTable rt = getRoutingTableAbstract(parameters);
-      // here for backwards compatability - should just return null similar to other resources
-      if (rt == null) {
-        throw new CloudException("Could not identify the main routing table for " + vlanId);
-      } else {
-        return rt;
-      }
-    } finally {
-      APITrace.end();
-    }
-  }
+                if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
+                    RoutingTable t = toRoutingTable(ctx, item);
 
-  @Override
-  public RoutingTable getRoutingTable(@Nonnull String id) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.getRoutingTable");
-    try {
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
-      parameters.put("Filter.1.Name", "route-table-id");
-      parameters.put("Filter.1.Value.1", id);
-      return getRoutingTableAbstract(parameters);
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  private RoutingTable getRoutingTableAbstract(@Nonnull Map<String, String> parameters) throws CloudException, InternalException {
-    ProviderContext ctx = provider.getContext();
-
-    if (ctx == null) {
-      throw new CloudException("No context was configured");
-    }
-
-    EC2Method method;
-    NodeList blocks;
-    Document doc;
-
-    method = new EC2Method(provider, provider.getEc2Url(), parameters);
-    try {
-      doc = method.invoke();
-    } catch (EC2Exception e) {
-      logger.error(e.getSummary());
-      e.printStackTrace();
-      throw new CloudException(e);
-    }
-    blocks = doc.getElementsByTagName("routeTableSet");
-    for (int i = 0; i < blocks.getLength(); i++) {
-      Node set = blocks.item(i);
-      NodeList items = set.getChildNodes();
-
-      for (int j = 0; j < items.getLength(); j++) {
-        Node item = items.item(j);
-
-        if (item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes()) {
-          RoutingTable t = toRoutingTable(ctx, item);
-
-          if (t != null) {
-            return t;
-          }
-        }
-      }
-    }
-    return null;
-  }
-
-  @Override
-  public @Nullable Subnet getSubnet(@Nonnull String providerSubnetId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.getSubnet");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_SUBNETS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      parameters.put("SubnetId.1", providerSubnetId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        if (e.getCode() != null && e.getCode().startsWith("InvalidSubnetID")) {
-          return null;
-        }
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("item");
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        Subnet subnet = toSubnet(ctx, item);
-
-        if (subnet != null) {
-          return subnet;
-        }
-      }
-      return null;
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public @Nonnull Requirement getSubnetSupport() throws CloudException, InternalException {
-    return Requirement.REQUIRED;
-  }
-
-  @Override
-  public @Nullable VLAN getVlan(@Nonnull String providerVlanId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.getVlan");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      parameters.put("VpcId.1", providerVlanId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        if (e.getCode() != null && e.getCode().startsWith("InvalidVpcID")) {
-          return null;
-        }
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("item");
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        VLAN vlan = toVLAN(ctx, item);
-
-        if (vlan != null) {
-          return vlan;
-        }
-      }
-      return null;
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public @Nonnull Requirement identifySubnetDCRequirement() {
-    return Requirement.OPTIONAL;
-  }
-
-  @Override
-  public boolean isConnectedViaInternetGateway(@Nonnull String vlanId) throws CloudException, InternalException {
-    return (getAttachedInternetGatewayId(vlanId) != null);
-  }
-
-  @Override
-  public boolean isNetworkInterfaceSupportEnabled() throws CloudException, InternalException {
-    return true;
-  }
-
-  @Override
-  public boolean isSubscribed() throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.isSubscribed");
-    try {
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
-      EC2Method method;
-
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        method.invoke();
-        return true;
-      } catch (EC2Exception e) {
-        if (e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN) {
-          return false;
-        }
-        String code = e.getCode();
-
-        if (code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("UnsupportedOperation") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired"))) {
-          return false;
-        }
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public boolean isVlanDataCenterConstrained() throws CloudException, InternalException {
-    return false;
-  }
-
-  @Override
-  public @Nonnull Collection<String> listFirewallIdsForNIC(@Nonnull String nicId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.listFirewallIdsForNIC");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      parameters.put("NetworkInterfaceId.1", nicId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        if (e.getCode() != null && e.getCode().startsWith("InvalidNetworkInterfaceID")) {
-          Collections.emptyList();
-        }
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-      TreeSet<String> firewallIds = new TreeSet<String>();
-
-      blocks = doc.getElementsByTagName("item");
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-
-        NodeList attrs = item.getChildNodes();
-
-        for (int j = 0; j < attrs.getLength(); j++) {
-          Node attr = attrs.item(j);
-
-          if (attr.getNodeName().equalsIgnoreCase("groupSet")) {
-            NodeList parts = attr.getChildNodes();
-
-            for (int k = 0; k < parts.getLength(); k++) {
-              Node part = parts.item(k);
-
-              if (part.getNodeName().equalsIgnoreCase("item") && part.hasChildNodes()) {
-                NodeList fws = part.getChildNodes();
-
-                for (int l = 0; l < fws.getLength(); l++) {
-                  Node fw = fws.item(l);
-
-                  if (fw.hasChildNodes()) {
-                    NodeList faList = fw.getChildNodes();
-
-                    for (int m = 0; m < faList.getLength(); m++) {
-                      Node fa = faList.item(m);
-
-                      if (fa.getNodeName().equalsIgnoreCase("groupId") && fa.hasChildNodes()) {
-                        firewallIds.add(fw.getFirstChild().getNodeValue().trim());
-                      }
+                    if( t != null ) {
+                        return t;
                     }
-                  }
                 }
-              }
             }
-          }
         }
-      }
-      return firewallIds;
-    } finally {
-      APITrace.end();
+        return null;
     }
-  }
 
-  @Override
-  public @Nonnull Iterable<ResourceStatus> listNetworkInterfaceStatus() throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.listNetworkInterfaceStatus");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-      ArrayList<ResourceStatus> nics = new ArrayList<ResourceStatus>();
-      blocks = doc.getElementsByTagName("item");
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        ResourceStatus status = toNICStatus(blocks.item(i));
-
-        if (status != null) {
-          nics.add(status);
-        }
-      }
-      return nics;
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public @Nonnull Iterable<NetworkInterface> listNetworkInterfaces() throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.listNetworkInterfaces");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-      ArrayList<NetworkInterface> nics = new ArrayList<NetworkInterface>();
-      blocks = doc.getElementsByTagName("item");
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        NetworkInterface nic = toNIC(ctx, item);
-
-        if (nic != null) {
-          nics.add(nic);
-        }
-      }
-      return nics;
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesForVM(@Nonnull String forVmId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.listNetworkInterfacesForVM");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      parameters.put("Filter.1.Name", "attachment.instance-id");
-      parameters.put("Filter.1.Value.1", forVmId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-      ArrayList<NetworkInterface> nics = new ArrayList<NetworkInterface>();
-      blocks = doc.getElementsByTagName("item");
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        NetworkInterface nic = toNIC(ctx, item);
-
-        if (nic != null) {
-          nics.add(nic);
-        }
-      }
-      return nics;
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesInSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.listNetworkInterfacesInSubnet");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      parameters.put("Filter.1.Name", "subnet-id");
-      parameters.put("Filter.1.Value.1", subnetId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-      ArrayList<NetworkInterface> nics = new ArrayList<NetworkInterface>();
-      blocks = doc.getElementsByTagName("item");
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        NetworkInterface nic = toNIC(ctx, item);
-
-        if (nic != null) {
-          nics.add(nic);
-        }
-      }
-      return nics;
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesInVLAN(@Nonnull String vlanId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.listNetworkInterfacesInVLAN");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      parameters.put("Filter.1.Name", "vpc-id");
-      parameters.put("Filter.1.Value.1", vlanId);
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        e.printStackTrace();
-        throw new CloudException(e);
-      }
-      ArrayList<NetworkInterface> nics = new ArrayList<NetworkInterface>();
-      blocks = doc.getElementsByTagName("item");
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        NetworkInterface nic = toNIC(ctx, item);
-
-        if (nic != null) {
-          nics.add(nic);
-        }
-      }
-      return nics;
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public @Nonnull Iterable<Networkable> listResources(final @Nonnull String vlanId) throws CloudException, InternalException {
-    getProvider().hold();
-    PopulatorThread<Networkable> populator = new PopulatorThread<Networkable>(new JiteratorPopulator<Networkable>() {
-      @Override
-      public void populate(@Nonnull Jiterator<Networkable> iterator) throws Exception {
+    @Override
+    public @Nullable Subnet getSubnet(@Nonnull String providerSubnetId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.getSubnet");
         try {
-          APITrace.begin(getProvider(), "VLAN.listResources");
-          try {
-            NetworkServices network = provider.getNetworkServices();
+            ProviderContext ctx = provider.getContext();
 
-            if (network != null) {
-              FirewallSupport fwSupport = network.getFirewallSupport();
-
-              if (fwSupport != null) {
-                for (Firewall fw : fwSupport.list()) {
-                  if (vlanId.equals(fw.getProviderVlanId())) {
-                    iterator.push(fw);
-                  }
-                }
-              }
-
-              IpAddressSupport ipSupport = network.getIpAddressSupport();
-
-              if (ipSupport != null) {
-                for (IPVersion version : ipSupport.listSupportedIPVersions()) {
-                  for (IpAddress addr : ipSupport.listIpPool(version, false)) {
-                    if (vlanId.equals(addr.getProviderVlanId())) {
-                      iterator.push(addr);
-                    }
-                  }
-
-                }
-              }
-              for (RoutingTable table : listRoutingTables(vlanId)) {
-                iterator.push(table);
-              }
-              ComputeServices compute = provider.getComputeServices();
-              VirtualMachineSupport vmSupport = compute == null ? null : compute.getVirtualMachineSupport();
-              Iterable<VirtualMachine> vms;
-
-              if (vmSupport == null) {
-                vms = Collections.emptyList();
-              } else {
-                vms = vmSupport.listVirtualMachines();
-              }
-              for (Subnet subnet : listSubnets(vlanId)) {
-                iterator.push(subnet);
-                for (VirtualMachine vm : vms) {
-                  if (subnet.getProviderSubnetId().equals(vm.getProviderVlanId())) {
-                    iterator.push(vm);
-                  }
-                }
-              }
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
             }
-          } finally {
-            APITrace.end();
-          }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_SUBNETS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("SubnetId.1", providerSubnetId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                if( e.getCode() != null && e.getCode().startsWith("InvalidSubnetID") ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("item");
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                Subnet subnet = toSubnet(ctx, item);
+
+                if( subnet != null ) {
+                    return subnet;
+                }
+            }
+            return null;
         } finally {
-          getProvider().release();
+            APITrace.end();
         }
-      }
-    });
-
-    populator.populate();
-    return populator.getResult();
-  }
-
-  @Override
-  public @Nonnull Iterable<RoutingTable> listRoutingTablesForSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.listRoutingTablesForSubnet");
-    try {
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
-      parameters.put("Filter.1.Name", "association.subnet-id");
-      parameters.put("Filter.1.Value.1", subnetId);
-      return listRoutingTablesForResource(parameters);
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  @Deprecated
-  public @Nonnull Iterable<RoutingTable> listRoutingTables(@Nonnull String vlanId) throws CloudException, InternalException {
-    return listRoutingTablesForVlan(vlanId);
-  }
-
-  @Override
-  public @Nonnull Iterable<RoutingTable> listRoutingTablesForVlan(@Nullable String vlanId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.listRoutingTablesForVlan");
-    try {
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
-      if (vlanId != null) {
-        parameters.put("Filter.1.Name", "vpc-id");
-        parameters.put("Filter.1.Value.1", vlanId);
-      }
-      return listRoutingTablesForResource(parameters);
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  private @Nonnull Iterable<RoutingTable> listRoutingTablesForResource(@Nonnull Map<String, String> params) throws CloudException, InternalException {
-    ProviderContext ctx = provider.getContext();
-
-    if (ctx == null) {
-      throw new CloudException("No context was configured");
     }
 
-    EC2Method method;
-    Document doc;
-
-    method = new EC2Method(provider, provider.getEc2Url(), params);
-    try {
-      doc = method.invoke();
-    } catch (EC2Exception e) {
-      logger.error(e.getSummary());
-      e.printStackTrace();
-      throw new CloudException(e);
+    @Override
+    public @Nonnull Requirement getSubnetSupport() throws CloudException, InternalException {
+        return getCapabilities().getSubnetSupport();
     }
-    ArrayList<RoutingTable> tables = new ArrayList<RoutingTable>();
-    NodeList blocks = doc.getElementsByTagName("routeTableSet");
 
-    for (int i = 0; i < blocks.getLength(); i++) {
-      Node set = blocks.item(i);
-      NodeList items = set.getChildNodes();
+    @Override
+    public @Nullable VLAN getVlan(@Nonnull String providerVlanId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.getVlan");
+        try {
+            ProviderContext ctx = provider.getContext();
 
-      for (int j = 0; j < items.getLength(); j++) {
-        Node item = items.item(j);
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-        if (item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes()) {
-          RoutingTable t = toRoutingTable(ctx, item);
+            parameters.put("VpcId.1", providerVlanId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                if( e.getCode() != null && e.getCode().startsWith("InvalidVpcID") ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("item");
 
-          if (t != null) {
-            tables.add(t);
-          }
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                VLAN vlan = toVLAN(ctx, item);
+
+                if( vlan != null ) {
+                    return vlan;
+                }
+            }
+            return null;
+        } finally {
+            APITrace.end();
         }
-      }
     }
-    return tables;
-  }
 
-  @Override
-  public boolean isSubnetDataCenterConstrained() throws CloudException, InternalException {
-    return true;
-  }
-
-  @Override
-  public @Nonnull Iterable<Subnet> listSubnets(@Nullable String providerVlanId) throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.listSubnets");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_SUBNETS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      if (providerVlanId != null && !providerVlanId.equals("")) {
-        parameters.put("Filter.1.Name", "vpc-id");
-        parameters.put("Filter.1.Value.1", providerVlanId);
-      }
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
+    @Override
+    public @Nonnull Requirement identifySubnetDCRequirement() {
+        try {
+            return getCapabilities().identifySubnetDCRequirement();
+        } catch( CloudException e ) {
+        } catch( InternalException e ) {
         }
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("item");
-
-      ArrayList<Subnet> list = new ArrayList<Subnet>();
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        Subnet subnet = toSubnet(ctx, item);
-
-        if (subnet != null) {
-          list.add(subnet);
-        }
-      }
-      return list;
-    } finally {
-      APITrace.end();
+        return null;
     }
-  }
 
-  @Override
-  public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
-    return Collections.singletonList(IPVersion.IPV4);
-  }
-
-  @Override
-  public @Nonnull Iterable<ResourceStatus> listVlanStatus() throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.listVlanStatus");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("item");
-
-      ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        ResourceStatus status = toVLANStatus(blocks.item(i));
-
-        if (status != null) {
-          list.add(status);
-        }
-      }
-      return list;
-    } finally {
-      APITrace.end();
+    @Override
+    public boolean isConnectedViaInternetGateway(@Nonnull String vlanId) throws CloudException, InternalException {
+        return ( getAttachedInternetGatewayId(vlanId) != null );
     }
-  }
 
-  @Override
-  public @Nonnull Iterable<VLAN> listVlans() throws CloudException, InternalException {
-    APITrace.begin(provider, "VLAN.listVlans");
-    try {
-      ProviderContext ctx = provider.getContext();
-
-      if (ctx == null) {
-        throw new CloudException("No context was configured");
-      }
-      Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
-      EC2Method method;
-      NodeList blocks;
-      Document doc;
-
-      method = new EC2Method(provider, provider.getEc2Url(), parameters);
-      try {
-        doc = method.invoke();
-      } catch (EC2Exception e) {
-        logger.error(e.getSummary());
-        if (logger.isDebugEnabled()) {
-          e.printStackTrace();
-        }
-        throw new CloudException(e);
-      }
-      blocks = doc.getElementsByTagName("item");
-
-      ArrayList<VLAN> list = new ArrayList<VLAN>();
-
-      for (int i = 0; i < blocks.getLength(); i++) {
-        Node item = blocks.item(i);
-        VLAN vlan = toVLAN(ctx, item);
-
-        if (vlan != null) {
-          list.add(vlan);
-        }
-      }
-      return list;
-    } finally {
-      APITrace.end();
+    @Override
+    public boolean isNetworkInterfaceSupportEnabled() throws CloudException, InternalException {
+        return getCapabilities().isNetworkInterfaceSupportEnabled();
     }
-  }
+
+    @Override
+    public boolean isSubscribed() throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.isSubscribed");
+        try {
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
+            EC2Method method;
+
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                method.invoke();
+                return true;
+            } catch( EC2Exception e ) {
+                if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    return false;
+                }
+                String code = e.getCode();
+
+                if( code != null && ( code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("UnsupportedOperation") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired") ) ) {
+                    return false;
+                }
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public boolean isVlanDataCenterConstrained() throws CloudException, InternalException {
+        return getCapabilities().isVlanDataCenterConstrained();
+    }
+
+    @Override
+    public @Nonnull Collection<String> listFirewallIdsForNIC(@Nonnull String nicId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.listFirewallIdsForNIC");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("NetworkInterfaceId.1", nicId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                if( e.getCode() != null && e.getCode().startsWith("InvalidNetworkInterfaceID") ) {
+                    Collections.emptyList();
+                }
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            TreeSet<String> firewallIds = new TreeSet<String>();
+
+            blocks = doc.getElementsByTagName("item");
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+
+                NodeList attrs = item.getChildNodes();
+
+                for( int j = 0; j < attrs.getLength(); j++ ) {
+                    Node attr = attrs.item(j);
+
+                    if( attr.getNodeName().equalsIgnoreCase("groupSet") ) {
+                        NodeList parts = attr.getChildNodes();
+
+                        for( int k = 0; k < parts.getLength(); k++ ) {
+                            Node part = parts.item(k);
+
+                            if( part.getNodeName().equalsIgnoreCase("item") && part.hasChildNodes() ) {
+                                NodeList fws = part.getChildNodes();
+
+                                for( int l = 0; l < fws.getLength(); l++ ) {
+                                    Node fw = fws.item(l);
+
+                                    if( fw.hasChildNodes() ) {
+                                        NodeList faList = fw.getChildNodes();
+
+                                        for( int m = 0; m < faList.getLength(); m++ ) {
+                                            Node fa = faList.item(m);
+
+                                            if( fa.getNodeName().equalsIgnoreCase("groupId") && fa.hasChildNodes() ) {
+                                                firewallIds.add(fw.getFirstChild().getNodeValue().trim());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return firewallIds;
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<ResourceStatus> listNetworkInterfaceStatus() throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.listNetworkInterfaceStatus");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            ArrayList<ResourceStatus> nics = new ArrayList<ResourceStatus>();
+            blocks = doc.getElementsByTagName("item");
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                ResourceStatus status = toNICStatus(blocks.item(i));
+
+                if( status != null ) {
+                    nics.add(status);
+                }
+            }
+            return nics;
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<NetworkInterface> listNetworkInterfaces() throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.listNetworkInterfaces");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            ArrayList<NetworkInterface> nics = new ArrayList<NetworkInterface>();
+            blocks = doc.getElementsByTagName("item");
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                NetworkInterface nic = toNIC(ctx, item);
+
+                if( nic != null ) {
+                    nics.add(nic);
+                }
+            }
+            return nics;
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesForVM(@Nonnull String forVmId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.listNetworkInterfacesForVM");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("Filter.1.Name", "attachment.instance-id");
+            parameters.put("Filter.1.Value.1", forVmId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            ArrayList<NetworkInterface> nics = new ArrayList<NetworkInterface>();
+            blocks = doc.getElementsByTagName("item");
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                NetworkInterface nic = toNIC(ctx, item);
+
+                if( nic != null ) {
+                    nics.add(nic);
+                }
+            }
+            return nics;
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesInSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.listNetworkInterfacesInSubnet");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("Filter.1.Name", "subnet-id");
+            parameters.put("Filter.1.Value.1", subnetId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            ArrayList<NetworkInterface> nics = new ArrayList<NetworkInterface>();
+            blocks = doc.getElementsByTagName("item");
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                NetworkInterface nic = toNIC(ctx, item);
+
+                if( nic != null ) {
+                    nics.add(nic);
+                }
+            }
+            return nics;
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesInVLAN(@Nonnull String vlanId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.listNetworkInterfacesInVLAN");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            parameters.put("Filter.1.Name", "vpc-id");
+            parameters.put("Filter.1.Value.1", vlanId);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            ArrayList<NetworkInterface> nics = new ArrayList<NetworkInterface>();
+            blocks = doc.getElementsByTagName("item");
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                NetworkInterface nic = toNIC(ctx, item);
+
+                if( nic != null ) {
+                    nics.add(nic);
+                }
+            }
+            return nics;
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public
+    @Nonnull Iterable<Networkable> listResources(final @Nonnull String vlanId) throws CloudException, InternalException {
+        getProvider().hold();
+        PopulatorThread<Networkable> populator = new PopulatorThread<Networkable>(new JiteratorPopulator<Networkable>() {
+            @Override
+            public void populate(@Nonnull Jiterator<Networkable> iterator) throws Exception {
+                try {
+                    APITrace.begin(getProvider(), "VLAN.listResources");
+                    try {
+                        NetworkServices network = provider.getNetworkServices();
+
+                        if( network != null ) {
+                            FirewallSupport fwSupport = network.getFirewallSupport();
+
+                            if( fwSupport != null ) {
+                                for( Firewall fw : fwSupport.list() ) {
+                                    if( vlanId.equals(fw.getProviderVlanId()) ) {
+                                        iterator.push(fw);
+                                    }
+                                }
+                            }
+
+                            IpAddressSupport ipSupport = network.getIpAddressSupport();
+
+                            if( ipSupport != null ) {
+                                for( IPVersion version : ipSupport.listSupportedIPVersions() ) {
+                                    for( IpAddress addr : ipSupport.listIpPool(version, false) ) {
+                                        if( vlanId.equals(addr.getProviderVlanId()) ) {
+                                            iterator.push(addr);
+                                        }
+                                    }
+
+                                }
+                            }
+                            for( RoutingTable table : listRoutingTables(vlanId) ) {
+                                iterator.push(table);
+                            }
+                            ComputeServices compute = provider.getComputeServices();
+                            VirtualMachineSupport vmSupport = compute == null ? null : compute.getVirtualMachineSupport();
+                            Iterable<VirtualMachine> vms;
+
+                            if( vmSupport == null ) {
+                                vms = Collections.emptyList();
+                            } else {
+                                vms = vmSupport.listVirtualMachines();
+                            }
+                            for( Subnet subnet : listSubnets(vlanId) ) {
+                                iterator.push(subnet);
+                                for( VirtualMachine vm : vms ) {
+                                    if( subnet.getProviderSubnetId().equals(vm.getProviderVlanId()) ) {
+                                        iterator.push(vm);
+                                    }
+                                }
+                            }
+                        }
+                    } finally {
+                        APITrace.end();
+                    }
+                } finally {
+                    getProvider().release();
+                }
+            }
+        });
+
+        populator.populate();
+        return populator.getResult();
+    }
+
+    @Override
+    public @Nonnull Iterable<RoutingTable> listRoutingTablesForSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.listRoutingTablesForSubnet");
+        try {
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            parameters.put("Filter.1.Name", "association.subnet-id");
+            parameters.put("Filter.1.Value.1", subnetId);
+            return listRoutingTablesForResource(parameters);
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    @Deprecated
+    public @Nonnull Iterable<RoutingTable> listRoutingTables(@Nonnull String vlanId) throws CloudException, InternalException {
+        return listRoutingTablesForVlan(vlanId);
+    }
+
+    @Override
+    public @Nonnull Iterable<RoutingTable> listRoutingTablesForVlan(@Nullable String vlanId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.listRoutingTablesForVlan");
+        try {
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            if( vlanId != null ) {
+                parameters.put("Filter.1.Name", "vpc-id");
+                parameters.put("Filter.1.Value.1", vlanId);
+            }
+            return listRoutingTablesForResource(parameters);
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    private @Nonnull Iterable<RoutingTable> listRoutingTablesForResource(@Nonnull Map<String, String> params) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was configured");
+        }
+
+        EC2Method method;
+        Document doc;
+
+        method = new EC2Method(provider, provider.getEc2Url(), params);
+        try {
+            doc = method.invoke();
+        } catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            if( logger.isDebugEnabled() ) {
+                e.printStackTrace();
+            }
+            throw new CloudException(e);
+        }
+        ArrayList<RoutingTable> tables = new ArrayList<RoutingTable>();
+        NodeList blocks = doc.getElementsByTagName("routeTableSet");
+
+        for( int i = 0; i < blocks.getLength(); i++ ) {
+            Node set = blocks.item(i);
+            NodeList items = set.getChildNodes();
+
+            for( int j = 0; j < items.getLength(); j++ ) {
+                Node item = items.item(j);
+
+                if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
+                    RoutingTable t = toRoutingTable(ctx, item);
+
+                    if( t != null ) {
+                        tables.add(t);
+                    }
+                }
+            }
+        }
+        return tables;
+    }
+
+    @Override
+    public boolean isSubnetDataCenterConstrained() throws CloudException, InternalException {
+        return getCapabilities().isSubnetDataCenterConstrained();
+    }
+
+    @Override
+    public @Nonnull Iterable<Subnet> listSubnets(@Nullable String providerVlanId) throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.listSubnets");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_SUBNETS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            if( providerVlanId != null && !providerVlanId.equals("") ) {
+                parameters.put("Filter.1.Name", "vpc-id");
+                parameters.put("Filter.1.Value.1", providerVlanId);
+            }
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("item");
+
+            ArrayList<Subnet> list = new ArrayList<Subnet>();
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                Subnet subnet = toSubnet(ctx, item);
+
+                if( subnet != null ) {
+                    list.add(subnet);
+                }
+            }
+            return list;
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
+        return getCapabilities().listSupportedIPVersions();
+    }
+
+    @Override
+    public @Nonnull Iterable<ResourceStatus> listVlanStatus() throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.listVlanStatus");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("item");
+
+            ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                ResourceStatus status = toVLANStatus(blocks.item(i));
+
+                if( status != null ) {
+                    list.add(status);
+                }
+            }
+            return list;
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<VLAN> listVlans() throws CloudException, InternalException {
+        APITrace.begin(provider, "VLAN.listVlans");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if( ctx == null ) {
+                throw new CloudException("No context was configured");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("item");
+
+            ArrayList<VLAN> list = new ArrayList<VLAN>();
+
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                VLAN vlan = toVLAN(ctx, item);
+
+                if( vlan != null ) {
+                    list.add(vlan);
+                }
+            }
+            return list;
+        } finally {
+            APITrace.end();
+        }
+    }
 
   @Override
   public @Nullable String getAttachedInternetGatewayId(@Nonnull String vlanId) throws CloudException, InternalException {
@@ -2323,26 +2372,6 @@ public class VPC extends AbstractVLANSupport {
   }
 
   @Override
-  public void removeSubnetTags(@Nonnull String providerSubnetId, @Nonnull Tag... tags) throws CloudException, InternalException {
-    APITrace.begin(getProvider(), "Subnet.removeTags");
-    try {
-      provider.removeTags(providerSubnetId, tags);
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
-  public void updateSubnetTags(@Nonnull String providerSubnetId, @Nonnull Tag... tags) throws CloudException, InternalException {
-    APITrace.begin(getProvider(), "Subnet.createTags");
-    try {
-      provider.createTags(providerSubnetId, tags);
-    } finally {
-      APITrace.end();
-    }
-  }
-
-  @Override
   public void removeVlan(String providerVpcId) throws CloudException, InternalException {
     APITrace.begin(provider, "VLAN.removeVlan");
     try {
@@ -2367,12 +2396,12 @@ public class VPC extends AbstractVLANSupport {
 
   @Override
   public boolean supportsInternetGatewayCreation() throws CloudException, InternalException {
-    return true;
+    return getCapabilities().supportsInternetGatewayCreation();
   }
 
   @Override
   public boolean supportsRawAddressRouting() throws CloudException, InternalException {
-    return false;
+    return getCapabilities().supportsRawAddressRouting();
   }
 
   private @Nullable NetworkInterface toNIC(@Nonnull ProviderContext ctx, @Nullable Node item) throws CloudException, InternalException {
@@ -2818,4 +2847,45 @@ public class VPC extends AbstractVLANSupport {
     }
     return ig;
   }
+
+  @Override
+  public void updateSubnetTags(@Nonnull String subnetId, @Nonnull Tag... tags) throws CloudException, InternalException {
+    ( (AWSCloud) getProvider() ).createTags(subnetId, tags);
+  }
+
+  @Override
+  public void updateSubnetTags(@Nonnull String[] subnetIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+    ( (AWSCloud) getProvider() ).createTags(subnetIds, tags);
+  }
+
+  @Override
+  public void updateVLANTags(@Nonnull String vlanId, @Nonnull Tag... tags) throws CloudException, InternalException {
+    ( (AWSCloud) getProvider() ).createTags(vlanId, tags);
+  }
+
+  @Override
+  public void updateVLANTags(@Nonnull String[] vlanIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+    ( (AWSCloud) getProvider() ).createTags(vlanIds, tags);
+  }
+
+  @Override
+  public void removeSubnetTags(@Nonnull String subnetId, @Nonnull Tag... tags) throws CloudException, InternalException {
+    ( (AWSCloud) getProvider() ).removeTags(subnetId, tags);
+  }
+
+  @Override
+  public void removeSubnetTags(@Nonnull String[] subnetIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+    ( (AWSCloud) getProvider() ).removeTags(subnetIds, tags);
+  }
+
+  @Override
+  public void removeVLANTags(@Nonnull String vlanId, @Nonnull Tag... tags) throws CloudException, InternalException {
+    ( (AWSCloud) getProvider() ).removeTags(vlanId, tags);
+  }
+
+  @Override
+  public void removeVLANTags(@Nonnull String[] vlanIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+    ( (AWSCloud) getProvider() ).removeTags(vlanIds, tags);
+  }
+
 }

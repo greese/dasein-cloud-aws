@@ -681,7 +681,6 @@ public class EC2Method {
             }
             catch( IOException e ) {
                 logger.error("I/O error from server communications: " + e.getMessage());
-                e.printStackTrace();
                 throw new InternalException(e);
             }
             int status = response.getStatusLine().getStatusCode();
@@ -703,7 +702,6 @@ public class EC2Method {
                 }
                 catch( IOException e ) {
                     logger.error("Error parsing response from AWS: " + e.getMessage());
-                    e.printStackTrace();
                     throw new CloudException(CloudErrorType.COMMUNICATION, status, null, e.getMessage());
                 }
             }
@@ -881,7 +879,6 @@ public class EC2Method {
                 }
                 catch( IOException e ) {
                     logger.error(e);
-                    e.printStackTrace();
                     throw new CloudException(e);
                 }
             }

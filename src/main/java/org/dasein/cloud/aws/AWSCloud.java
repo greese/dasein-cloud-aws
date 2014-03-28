@@ -39,6 +39,7 @@ import org.dasein.cloud.platform.KeyValuePair;
 import org.dasein.cloud.storage.BlobStoreSupport;
 import org.dasein.cloud.storage.StorageServices;
 import org.dasein.cloud.util.APITrace;
+import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
@@ -107,7 +108,7 @@ public class AWSCloud extends AbstractCloud {
   static public final String V4_ALGORITHM = "AWS4-HMAC-SHA256";
   static public final String V4_TERMINATION = "aws4_request";
 
-  static public String encode(String value, boolean encodePath) throws InternalException {
+  static public @Nonnull String encode(@Nonnull String value, boolean encodePath) throws InternalException {
     String encoded;
 
     try {
@@ -441,6 +442,19 @@ public class AWSCloud extends AbstractCloud {
     return new EC2ComputeServices(this);
   }
 
+  static public final String DSN_ACCESS_KEY = "accessKey";
+
+  @Override
+  public @Nonnull ContextRequirements getContextRequirements() {
+    return new ContextRequirements(
+      new ContextRequirements.Field(DSN_ACCESS_KEY, "AWS API access keys", ContextRequirements.FieldType.KEYPAIR, ContextRequirements.Field.ACCESS_KEYS, true)
+    );
+  }
+
+  public byte[][] getAccessKey(ProviderContext ctx) {
+    return (byte[][])ctx.getConfigurationValue(DSN_ACCESS_KEY);
+  }
+
   @Override
   public
   @Nonnull
@@ -472,8 +486,7 @@ public class AWSCloud extends AbstractCloud {
     }
   }
 
-  @Nullable
-  String getEc2Url(@Nullable String regionId) throws InternalException, CloudException {
+  public @Nullable String getEc2Url(@Nullable String regionId) throws InternalException, CloudException {
     ProviderContext ctx = getContext();
     String url;
 
@@ -482,18 +495,18 @@ public class AWSCloud extends AbstractCloud {
     }
     if (getEC2Provider().isAWS()) {
 
-      url = (ctx == null ? null : ctx.getEndpoint());
+      url = (ctx == null ? null : ctx.getCloud().getEndpoint());
       if (url != null && url.endsWith("amazonaws.com")) {
         return "https://ec2." + regionId + ".amazonaws.com";
       }
       return "https://ec2." + regionId + ".amazonaws.com";
     } else if (!getEC2Provider().isEucalyptus()) {
-      url = (ctx == null ? null : ctx.getEndpoint());
+      url = (ctx == null ? null : ctx.getCloud().getEndpoint());
       if (url == null) {
         return null;
       }
       if (!url.startsWith("http")) {
-        String cloudUrl = ctx.getEndpoint();
+        String cloudUrl = ctx.getCloud().getEndpoint();
 
         if (cloudUrl != null && cloudUrl.startsWith("http:")) {
           return "http://" + url + "/" + regionId;
@@ -503,12 +516,12 @@ public class AWSCloud extends AbstractCloud {
         return url + "/" + regionId;
       }
     }
-    url = (ctx == null ? null : ctx.getEndpoint());
+    url = (ctx == null ? null : ctx.getCloud().getEndpoint());
     if (url == null) {
       return null;
     }
     if (!url.startsWith("http")) {
-      String cloudUrl = ctx.getEndpoint();
+      String cloudUrl = ctx.getCloud().getEndpoint();
 
       if (cloudUrl != null && cloudUrl.startsWith("http:")) {
         return "http://" + url;
@@ -549,7 +562,7 @@ public class AWSCloud extends AbstractCloud {
   }
 
   public String getRdsVersion() {
-    return "2011-04-01";
+    return "2012-09-17";
   }
 
   public String getRoute53Version() {
@@ -601,7 +614,7 @@ public class AWSCloud extends AbstractCloud {
   @Nonnull
   String getProviderName() {
     ProviderContext ctx = getContext();
-    String name = (ctx == null ? null : ctx.getProviderName());
+    String name = (ctx == null ? null : ctx.getCloud().getProviderName());
 
     return ((name == null) ? EC2Provider.AWS.getName() : name);
   }
@@ -655,7 +668,9 @@ public class AWSCloud extends AbstractCloud {
     parameters.put(P_ACTION, action);
     parameters.put(P_SIGNATURE_VERSION, SIGNATURE);
     try {
-      parameters.put(P_ACCESS, new String(ctx.getAccessPublic(), "utf-8"));
+      byte[][] keys = getAccessKey(ctx);
+
+      parameters.put(P_ACCESS, new String(keys[0], "utf-8"));
     } catch (UnsupportedEncodingException e) {
       logger.error(e);
       e.printStackTrace();
@@ -804,7 +819,7 @@ public class AWSCloud extends AbstractCloud {
     if (ctx == null) {
       throw new InternalException("No context for signing the request");
     }
-    return sign(ctx.getAccessPrivate(), base64Policy, S3_ALGORITHM);
+    return sign(getAccessKey(ctx)[1], base64Policy, S3_ALGORITHM);
   }
 
   public String signCloudFront(String accessKey, byte[] secretKey, String dateString) throws InternalException {
@@ -862,7 +877,7 @@ public class AWSCloud extends AbstractCloud {
       toSign.append("/");
     }
     if (object != null) {
-      toSign.append(object.toLowerCase());
+      toSign.append(object);
     }
     String signature = sign(secretKey, toSign.toString(), S3_ALGORITHM);
 
@@ -1036,7 +1051,9 @@ public class AWSCloud extends AbstractCloud {
 
     StringBuilder sb = new StringBuilder();
     for (KeyValuePair pair : queryParams) {
-      if (sb.length() > 0) sb.append("&");
+      if( sb.length() > 0 ) {
+        sb.append("&");
+      }
       sb.append(pair.getKey()).append("=").append(pair.getValue());
     }
     return sb.toString();
@@ -1051,7 +1068,9 @@ public class AWSCloud extends AbstractCloud {
 
     StringBuilder sb = new StringBuilder();
     for (String header : sorted) {
-      if (sb.length() > 0) sb.append(";");
+      if( sb.length() > 0 ) {
+        sb.append(";");
+      }
       sb.append(header.toLowerCase());
     }
 
@@ -1089,6 +1108,12 @@ public class AWSCloud extends AbstractCloud {
             logger.warn("Not subscribed to virtual machine support");
             return null;
           }
+          String actualAccountNumber = getOwnerId();
+          // Return actual account number as the number provided in configuration
+          // may have been incorrect
+          if( actualAccountNumber != null ) {
+            return actualAccountNumber;
+          }
         } else {
           StorageServices storage = getStorageServices();
           BlobStoreSupport support = storage.getBlobStoreSupport();
@@ -1106,6 +1131,59 @@ public class AWSCloud extends AbstractCloud {
     } finally {
       APITrace.end();
     }
+  }
+
+  /**
+   * Retrieve current account number using DescribeSecurityGroups. May not always be reliable but is better than
+   * nothing.
+   * @return current account number or null if not found
+   */
+  private String getOwnerId() {
+    APITrace.begin(this, "AWSCloud.getOwnerId");
+    try {
+      ProviderContext ctx = getContext();
+
+      if (ctx == null) {
+        return null;
+      }
+      Map<String, String> parameters = getStandardParameters(getContext(), EC2Method.DESCRIBE_SECURITY_GROUPS);
+      EC2Method method;
+      NodeList blocks;
+      Document doc;
+
+      method = new EC2Method(this, getEc2Url(), parameters);
+      try {
+        doc = method.invoke();
+      } catch (EC2Exception e) {
+        logger.error(e.getSummary());
+        throw new CloudException(e);
+      }
+      blocks = doc.getElementsByTagName("securityGroupInfo");
+      for (int i = 0; i < blocks.getLength(); i++) {
+        NodeList items = blocks.item(i).getChildNodes();
+
+        for (int j = 0; j < items.getLength(); j++) {
+          Node item = items.item(j);
+
+          if (item.getNodeName().equals("item")) {
+            NodeList attrs = item.getChildNodes();
+            for (int k = 0; k < attrs.getLength(); k++) {
+              Node attr = attrs.item(k);
+              if (attr.getNodeName().equals("ownerId")) {
+                return attr.getFirstChild().getNodeValue().trim();
+              }
+            }
+          }
+        }
+      }
+      return null;
+    } catch ( InternalException e ) {
+    } catch ( CloudException e ) {
+    } finally {
+      APITrace.end();
+    }
+    // Couldn't get the number for some reason
+    return null;
   }
 
   public void setTags(@Nonnull Node attr, @Nonnull Taggable item) {

@@ -140,66 +140,66 @@ public class S3Method {
         return new String(b64);
     }
     
-	private S3Action           action      = null;
-	private int                attempts    = 0;
-	private String             body        = null;
-	private String             contentType = null;
-	private Map<String,String> headers     = null;
-	private Map<String,String> parameters  = null;
-	private AWSCloud           provider    = null;
-	private File               uploadFile  = null;
+    private S3Action           action      = null;
+    private int                attempts    = 0;
+    private String             body        = null;
+    private String             contentType = null;
+    private Map<String,String> headers     = null;
+    private Map<String,String> parameters  = null;
+    private AWSCloud           provider    = null;
+    private File               uploadFile  = null;
 
-	public S3Method(AWSCloud provider, S3Action action) {
-		this.action = action;
-		this.headers = new HashMap<String,String>();
-		this.provider = provider;
-	}
-	
-	public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers) {
-		this.action = action;
-		this.headers = (headers == null ? new HashMap<String,String>() : headers);
-		this.provider = provider;
-		this.parameters = parameters;
-	}
-	
-	public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, String body) {
-		this.action = action;
-		this.headers = (headers == null ? new HashMap<String,String>() : headers);
-		this.contentType = contentType;
-		this.body = body;
-		this.provider = provider;
-		this.parameters = parameters;
-	}
-    
-	public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, File uploadFile) {
-		this.action = action;
-		this.headers = (headers == null ? new HashMap<String,String>() : headers);
-		this.contentType = contentType;
-		this.uploadFile = uploadFile;
-		this.provider = provider;
-		this.parameters = parameters;
-	}
-	
-	private String getDate() throws CloudException {
-        if( provider.getEC2Provider().isStorage() && "google".equalsIgnoreCase(provider.getProviderName()) ) {
-            SimpleDateFormat format = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ssz", new Locale("US"));
-            Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
+    public S3Method(AWSCloud provider, S3Action action) {
+      this.action = action;
+      this.headers = new HashMap<String,String>();
+      this.provider = provider;
+    }
 
-            format.setCalendar(cal);
-            return format.format(new Date());
-        }
-        else {
-            SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
-            Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
+    public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers) {
+      this.action = action;
+      this.headers = (headers == null ? new HashMap<String,String>() : headers);
+      this.provider = provider;
+      this.parameters = parameters;
+    }
 
-            fmt.setCalendar(cal);
-            return fmt.format(new Date());
-        }
-	}
+    public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, String body) {
+      this.action = action;
+      this.headers = (headers == null ? new HashMap<String,String>() : headers);
+      this.contentType = contentType;
+      this.body = body;
+      this.provider = provider;
+      this.parameters = parameters;
+    }
 
-	S3Response invoke(String bucket, String object) throws S3Exception, CloudException, InternalException {
-	    return invoke(bucket, object, null);
-	}
+    public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, File uploadFile) {
+      this.action = action;
+      this.headers = (headers == null ? new HashMap<String,String>() : headers);
+      this.contentType = contentType;
+      this.uploadFile = uploadFile;
+      this.provider = provider;
+      this.parameters = parameters;
+    }
+
+    private String getDate() throws CloudException {
+      if( provider.getEC2Provider().isStorage() && "google".equalsIgnoreCase(provider.getProviderName()) ) {
+          SimpleDateFormat format = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ssz", new Locale("US"));
+          Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
+
+          format.setCalendar(cal);
+          return format.format(new Date());
+      }
+      else {
+          SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
+          Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
+
+          fmt.setCalendar(cal);
+          return fmt.format(new Date());
+      }
+    }
+
+    S3Response invoke(String bucket, String object) throws S3Exception, CloudException, InternalException {
+        return invoke(bucket, object, null);
+    }
 
     protected @Nonnull HttpClient getClient(String url, boolean multipart) throws InternalException {
         ProviderContext ctx = provider.getContext();
@@ -236,7 +236,7 @@ public class S3Method {
 
     static private final Logger wire = AWSCloud.getWireLogger(S3.class);
 
-	// TODO(stas): This method screams for some heavy refactoring
+    // TODO(stas): This method screams for some heavy refactoring
     S3Response invoke(@Nullable String bucket, @Nullable String object, @Nullable String temporaryEndpoint) throws S3Exception, CloudException, InternalException {
         if( wire.isDebugEnabled() ) {
             wire.debug("");
@@ -464,7 +464,6 @@ public class S3Method {
             } 
             catch( IOException e ) {
                 logger.error(url + ": " + e.getMessage());
-                e.printStackTrace();
                 throw new InternalException(e);
             }
             response.headers = httpResponse.getAllHeaders();
@@ -517,7 +516,6 @@ public class S3Method {
                         }
                         catch( IOException e ) {
                             logger.error(e);
-                            e.printStackTrace();
                             throw new CloudException(e);
                         }
                     }
@@ -527,6 +525,9 @@ public class S3Method {
                 }
                 else if( status == HttpServletResponse.SC_NO_CONTENT ) {
                     return response;
+                }
+                if( status == HttpServletResponse.SC_FORBIDDEN ) {
+                    throw new S3Exception(status, "", "AccessForbidden", "Access was denied : " + (url != null ? url.toString() : "" ));
                 }
                 else if( status == HttpServletResponse.SC_NOT_FOUND ) {
                     throw new S3Exception(status, null, null, "Object not found.");
@@ -564,7 +565,9 @@ public class S3Method {
                             doc = parseResponse(input);
                         }
                         finally {
-                            input.close();
+                            if( input != null ) {
+                                input.close();
+                            }
                         }
                         if( doc != null ) {
                             String endpoint = null, code = null, message = null, requestId = null;
@@ -664,17 +667,14 @@ public class S3Method {
 		}
 		catch( IOException e ) {
 			logger.error(e);
-			e.printStackTrace();
 			throw new CloudException(e);
 		}
 		catch( ParserConfigurationException e ) {
 			logger.error(e);
-			e.printStackTrace();
 			throw new CloudException(e);
 		}
 		catch( SAXException e ) {
 			logger.error(e);
-			e.printStackTrace();
 			throw new CloudException(e);
 	    }				
 	}
