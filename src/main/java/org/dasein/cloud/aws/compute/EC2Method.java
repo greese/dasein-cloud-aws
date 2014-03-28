@@ -83,7 +83,6 @@ public class EC2Method {
     static public final String UPDATE_AUTO_SCALING_GROUP_TAGS   = "CreateOrUpdateTags";
     static public final String DELETE_AUTO_SCALING_GROUP_TAGS   = "DeleteTags";
 
-
     static public @Nonnull ServiceAction[] asAutoScalingServiceAction(@Nonnull String action) {
         if( action.equals(CREATE_AUTO_SCALING_GROUP) ) {
             return new ServiceAction[] { AutoScalingSupport.CREATE_SCALING_GROUP };
@@ -263,6 +262,10 @@ public class EC2Method {
     static public final String DELETE_ALARMS = "DeleteAlarms";
     static public final String ENABLE_ALARM_ACTIONS = "EnableAlarmActions";
     static public final String DISABLE_ALARM_ACTIONS = "DisableAlarmActions";
+
+    // Account operations
+    static public final String DESCRIBE_ACCOUNT_ATTRIBUTES      = "DescribeAccountAttributes";
+
 
     static public @Nonnull ServiceAction[] asEC2ServiceAction(@Nonnull String action) {
         // TODO: implement me

@@ -108,6 +108,10 @@ public class AWSCloud extends AbstractCloud {
     static public final String V4_ALGORITHM = "AWS4-HMAC-SHA256";
     static public final String V4_TERMINATION = "aws4_request";
 
+    static public final String PLATFORM_EC2                     = "EC2";
+    static public final String PLATFORM_VPC                     = "VPC";
+
+
     static public @Nonnull String encode(@Nonnull String value, boolean encodePath) throws InternalException {
         String encoded;
 
@@ -1336,4 +1340,75 @@ public class AWSCloud extends AbstractCloud {
         parameters.put(key, value);
     }
 
+    private static volatile Boolean supportsEC2 = null;
+
+    /**
+     * Retrieve current account number using DescribeSecurityGroups. May not always be reliable but is better than
+     * nothing.
+     * @return current account number or null if not found
+     */
+    private void fetchSupportedPlatforms() {
+        if( supportsEC2 != null ) {
+            // We've already done this before, don't continue;
+            return;
+        }
+        APITrace.begin(this, "AWSCloud.getSupportedPlatforms");
+        List<String> results = new ArrayList<String>(2);
+        try {
+            ProviderContext ctx = getContext();
+            if (ctx == null) {
+                return;
+            }
+            Map<String, String> parameters = getStandardParameters(getContext(), EC2Method.DESCRIBE_ACCOUNT_ATTRIBUTES);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+            parameters.put("AttributeName.1", "supported-platforms");
+            method = new EC2Method(this, getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch (EC2Exception e) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+
+            blocks = doc.getElementsByTagName("accountValueSet");
+            for (int i = 0; i < blocks.getLength(); i++) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for (int j = 0; j < items.getLength(); j++) {
+                    Node item = items.item(j);
+
+                    if (item.getNodeName().equals("item")) {
+                        NodeList attrs = item.getChildNodes();
+                        for (int k = 0; k < attrs.getLength(); k++) {
+                            Node attr = attrs.item(k);
+                            if (attr.getNodeName().equals("attributeValue")) {
+                                if (PLATFORM_EC2.equalsIgnoreCase(attr.getFirstChild().getNodeValue().trim())) {
+                                    supportsEC2 = Boolean.TRUE;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if( supportsEC2 == null ) {
+                supportsEC2 = Boolean.FALSE;
+            }
+        } catch ( InternalException e ) {
+        } catch ( CloudException e ) {
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    /**
+     *
+     * @return
+     */
+    public boolean isEC2Supported() {
+        fetchSupportedPlatforms();
+        return supportsEC2 != null && supportsEC2;
+    }
 }
