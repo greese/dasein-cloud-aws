@@ -26,9 +26,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 
 import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletResponse;
@@ -65,7 +63,10 @@ import org.xml.sax.SAXException;
 
 public class CloudFrontMethod {
 	static private final Logger logger = Logger.getLogger(CloudFrontMethod.class);
-	
+    static SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
+    static {
+        fmt.setCalendar(Calendar.getInstance(new SimpleTimeZone(0, "GMT")));
+    }
     static public final String CF_PREFIX = "cloudfront:";
 
     static public @Nonnull ServiceAction[] asCloudFrontServiceAction(@Nonnull String action) {
@@ -106,9 +107,7 @@ public class CloudFrontMethod {
 		this.provider = provider;
 	}
 	
-	private String getDate() throws CloudException {
-		SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
-
+	private static String getDate() throws CloudException {
 		// TODO: sync regularly with CloudFront
 		return fmt.format(new Date());
 	}
@@ -122,9 +121,6 @@ public class CloudFrontMethod {
         boolean ssl = url.startsWith("https");
         HttpParams params = new BasicHttpParams();
 
-        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
-        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
         HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
         HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
         HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
@@ -365,4 +361,12 @@ public class CloudFrontMethod {
 			throw new CloudException(e);
 	    }				
 	}
+
+    public static void main(String [] a) {
+        try {
+            System.out.println(getDate());
+        } catch( CloudException e ) {
+            e.printStackTrace();
+        }
+    }
 }
