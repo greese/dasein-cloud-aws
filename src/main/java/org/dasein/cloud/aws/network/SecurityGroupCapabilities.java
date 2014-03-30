@@ -106,7 +106,7 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
     @Override
     public Requirement requiresVLAN() throws CloudException, InternalException {
         // set to required as now there's no practical way to create EC2-Classic account where it was not required
-        return Requirement.OPTIONAL;
+        return getProvider().isEC2Supported() ? Requirement.OPTIONAL : Requirement.REQUIRED;
     }
 
     @Override
@@ -116,8 +116,6 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
 
     @Override
     public boolean supportsFirewallCreation(boolean inVlan) throws CloudException, InternalException {
-        // TODO(stas): this still causes issues with tests where it's expected to fail without VLAN, but
-        // I reckon this is because the firewall is created in the default VLAN instead.
         return true;
     }
 
