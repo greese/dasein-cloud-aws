@@ -902,9 +902,16 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
   }
 
-  @Nullable
   @Override
   public Iterable<VirtualMachineStatus> getVMStatus(@Nullable String... vmIds) throws InternalException, CloudException {
+      VmStatusFilterOptions filterOptions = vmIds != null
+              ? VmStatusFilterOptions.getInstance().withVmIds(vmIds)
+              : VmStatusFilterOptions.getInstance();
+      return getVMStatus(filterOptions);
+  }
+
+  @Override
+  public @Nullable Iterable<VirtualMachineStatus> getVMStatus(@Nullable VmStatusFilterOptions filterOptions) throws InternalException, CloudException {
     APITrace.begin(getProvider(), "getVMStatus");
     try {
       ProviderContext ctx = getProvider().getContext();
@@ -915,11 +922,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       EC2Method method;
       NodeList blocks;
       Document doc;
-      if( vmIds != null ) {
-        for ( int y = 0; y < vmIds.length; y++ ) {
-          params.put( "InstanceId." + String.valueOf( y + 1 ) , vmIds[y] );
-        }
-      }
+      Map<String, String> filterParameters = createFilterParametersFrom(filterOptions);
+      getProvider().putExtraParameters(params, filterParameters);
       try {
         method = new EC2Method(getProvider(), getProvider().getEc2Url(), params);
       } catch(InternalException e) {
@@ -991,6 +995,26 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     } finally {
       APITrace.end();
     }
+  }
+
+  private Map<String, String> createFilterParametersFrom(@Nullable VmStatusFilterOptions options) {
+    if (options == null || options.isMatchesAny()) {
+        return Collections.emptyMap();
+    }
+    // tag advantage of EC2-based filtering if we can...
+    Map<String, String> extraParameters = new HashMap<String, String>();
+    int filterIndex = 0;
+    if (options.getVmStatuses() != null) {
+      getProvider().addFilterParameter(extraParameters, filterIndex++, "system-status.status", options.getVmStatuses());
+      getProvider().addFilterParameter(extraParameters, filterIndex++, "instance-status.status", options.getVmStatuses());
+    }
+    String[] vmIds = options.getVmIds();
+    if( vmIds != null ) {
+      for ( int y = 0; y < vmIds.length; y++ ) {
+          extraParameters.put( "InstanceId." + String.valueOf( y + 1 ) , vmIds[y] );
+      }
+    }
+    return extraParameters;
   }
 
   @Override
@@ -1763,27 +1787,32 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
   public
   @Nonnull
   Iterable<VirtualMachine> listVirtualMachines(@Nullable VMFilterOptions options) throws InternalException, CloudException {
-    Map<String, String> tags = ((options == null || options.isMatchesAny()) ? null : options.getTags());
-
-    if (tags != null) {
-      // tag advantage of EC2-based filtering if we can...
-      Map<String, String> extraParameters = new HashMap<String, String>();
-
-      getProvider().putExtraParameters(extraParameters, getProvider().getTagFilterParams(options.getTags()));
-
-      String regex = options.getRegex();
-
-      if (regex != null) {
-        // still have to match on regex
-        options = VMFilterOptions.getInstance(false, regex);
-      } else {
-        // nothing else to match on
-        options = null;
-      }
-      return listVirtualMachinesWithParams(extraParameters, options);
+    Map<String, String> filterParameters = createFilterParametersFrom(options);
+    if (options.getRegex() != null) {
+      // still have to match on regex
+      options = VMFilterOptions.getInstance(false, options.getRegex());
     } else {
-      return listVirtualMachinesWithParams(null, options);
+      // nothing else to match on
+      options = null;
     }
+
+    return listVirtualMachinesWithParams(filterParameters, options);
+  }
+
+  private Map<String, String> createFilterParametersFrom(@Nullable VMFilterOptions options) {
+    if (options == null || options.isMatchesAny()) {
+        return Collections.emptyMap();
+    }
+    // tag advantage of EC2-based filtering if we can...
+    Map<String, String> extraParameters = new HashMap<String, String>();
+    int filterIndex = 0;
+    if (options.getTags() != null && !options.getTags().isEmpty()) {
+        getProvider().putExtraParameters(extraParameters, getProvider().getTagFilterParams(options.getTags(), filterIndex));
+    }
+    if (options.getVmStates() != null) {
+      getProvider().addFilterParameter(extraParameters, filterIndex++, "instance-state-name", options.getVmStates());
+    }
+    return extraParameters;
   }
 
   private

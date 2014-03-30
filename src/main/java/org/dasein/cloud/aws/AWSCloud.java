@@ -729,13 +729,19 @@ public class AWSCloud extends AbstractCloud {
     int i = startingFilterIndex;
 
     for (Map.Entry<String, String> parameter : tags.entrySet()) {
-      String key = parameter.getKey();
-      String value = parameter.getValue();
-      filterParameters.put("Filter." + i + ".Name", "tag:" + key);
-      filterParameters.put("Filter." + i + ".Value.1", value);
+      addFilterParameter(filterParameters, i, "tag:" + parameter.getKey(), Collections.singletonList(parameter.getValue()));
       i++;
     }
     return filterParameters;
+  }
+
+  public void addFilterParameter(Map<String, String> filterParameters, int index, String filterName, Collection<?> filterValues) {
+    filterParameters.put("Filter." + index + ".Name", filterName);
+    int valueIndex = 0;
+    for (Object filterValue : filterValues) {
+      // filter values must be in lower case
+      filterParameters.put("Filter." + index + ".Value." + valueIndex++, filterValue.toString().toLowerCase());
+    }
   }
 
   public
