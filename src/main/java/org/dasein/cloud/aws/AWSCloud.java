@@ -729,7 +729,10 @@ public class AWSCloud extends AbstractCloud {
     int i = startingFilterIndex;
 
     for (Map.Entry<String, String> parameter : tags.entrySet()) {
-      addFilterParameter(filterParameters, i, "tag:" + parameter.getKey(), Collections.singletonList(parameter.getValue()));
+      String key = parameter.getKey();
+      String value = parameter.getValue();
+      filterParameters.put("Filter." + i + ".Name", "tag:" + key);
+      filterParameters.put("Filter." + i + ".Value.1", value);
       i++;
     }
     return filterParameters;
