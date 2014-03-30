@@ -361,12 +361,5 @@ public class CloudFrontMethod {
 			throw new CloudException(e);
 	    }				
 	}
-
-    public static void main(String [] a) {
-        try {
-            System.out.println(getDate());
-        } catch( CloudException e ) {
-            e.printStackTrace();
-        }
     }
 }
