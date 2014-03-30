@@ -1158,21 +1158,14 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             String[] firewallIds = cfg.getFirewallIds();
             VMLaunchOptions.NICConfig[] nics = cfg.getNetworkInterfaces();
 
-// TODO(stas): this is causing a launch to fail if NICs are also defined in the same request,
-// I've moved it to network interfaces, it needs to be tested a bit more.
-//
-//            if( firewallIds.length > 0 ) {
-//                int i = 1;
-//
-//                for( String id : firewallIds ) {
-//
-//                    String securityGroupParam = "SecurityGroupId";
-//                    if( cfg.getVlanId() == null ) {
-//                        securityGroupParam = "SecurityGroup";
-//                    }
-//                    parameters.put(String.format("%s.%d", securityGroupParam, i++), id);
-//                }
-//            }
+            // Add below only if there's no default VLAN (Classic)
+            if( firewallIds.length > 0 && getProvider().isEC2Supported() ) {
+                int i = 1;
+
+                for( String id : firewallIds ) {
+                    parameters.put(String.format("SecurityGroup.%d", i++), id);
+                }
+            }
             if( cfg.getDataCenterId() != null ) {
                 parameters.put("Placement.AvailabilityZone", cfg.getDataCenterId());
             } else if( cfg.getVolumes().length > 0 ) {
@@ -1282,21 +1275,18 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     i++;
                 }
             } else {
-                int paramsBefore = parameters.size();
                 if( cfg.getVlanId() != null ) {
                     parameters.put("NetworkInterface.0.AssociatePublicIpAddress", Boolean.toString(cfg.isProvisionPublicIp()));
                     parameters.put("NetworkInterface.0.SubnetId", cfg.getVlanId());
-                }
-                if( cfg.getPrivateIp() != null ) {
-                    parameters.put("NetworkInterface.0.PrivateIpAddress", cfg.getPrivateIp());
-                }
-                if( firewallIds.length > 0 ) {
-                    int g = 1;
-                    for( String id : firewallIds ) {
-                        parameters.put(String.format("NetworkInterface.0.SecurityGroupId.%d", g++), id);
+                    if( cfg.getPrivateIp() != null ) {
+                        parameters.put("NetworkInterface.0.PrivateIpAddress", cfg.getPrivateIp());
                     }
-                }
-                if( parameters.size() > paramsBefore ) {
+                    if( firewallIds.length > 0 ) {
+                        int g = 1;
+                        for( String id : firewallIds ) {
+                            parameters.put(String.format("NetworkInterface.0.SecurityGroupId.%d", g++), id);
+                        }
+                    }
                     parameters.put("NetworkInterface.0.DeviceIndex", "0");
                 }
             }
