@@ -361,5 +361,4 @@ public class CloudFrontMethod {
 			throw new CloudException(e);
 	    }				
 	}
-    }
 }
