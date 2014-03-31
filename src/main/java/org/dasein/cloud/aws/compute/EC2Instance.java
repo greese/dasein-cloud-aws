@@ -1117,7 +1117,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         APITrace.begin(getProvider(), "launchVM");
         try {
             ProviderContext ctx = getProvider().getContext();
-
             if( ctx == null ) {
                 throw new CloudException("No context was established for this request");
             }
@@ -1275,9 +1274,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     i++;
                 }
             } else {
-                if( cfg.getVlanId() != null ) {
+                if( cfg.getSubnetId() != null ) {
                     parameters.put("NetworkInterface.0.AssociatePublicIpAddress", Boolean.toString(cfg.isProvisionPublicIp()));
-                    parameters.put("NetworkInterface.0.SubnetId", cfg.getVlanId());
+                    parameters.put("NetworkInterface.0.SubnetId", cfg.getSubnetId());
                     if( cfg.getPrivateIp() != null ) {
                         parameters.put("NetworkInterface.0.PrivateIpAddress", cfg.getPrivateIp());
                     }
