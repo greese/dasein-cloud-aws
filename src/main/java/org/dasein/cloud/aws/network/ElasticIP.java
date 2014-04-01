@@ -77,7 +77,7 @@ public class ElasticIP implements IpAddressSupport {
 
             while( System.currentTimeMillis() < timeout ) {
                 if( vm == null || VmState.TERMINATED.equals(vm.getCurrentState()) ) {
-                    throw new CloudException("No such virtual machine " + instanceId);
+                    throw new IllegalArgumentException("There is no such virtual machine '" + instanceId + "'");
                 }
                 VmState s = vm.getCurrentState();
 
