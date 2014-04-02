@@ -105,8 +105,8 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
 
     @Override
     public Requirement requiresVLAN() throws CloudException, InternalException {
-        // set to required as now there's no practical way to create EC2-Classic account where it was not required
-        return getProvider().isEC2Supported() ? Requirement.OPTIONAL : Requirement.REQUIRED;
+        // no VLAN support in EC2-Classic, it's optional in EC2-VPC - the default VPC will be used if not specified
+        return getProvider().isEC2Supported() ? Requirement.NONE : Requirement.OPTIONAL;
     }
 
     @Override
