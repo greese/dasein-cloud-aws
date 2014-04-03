@@ -1324,30 +1324,14 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       if( cfg.getUserData() != null ) {
         try {
           parameters.put("UserData", Base64.encodeBase64String(cfg.getUserData().getBytes("utf-8")));
-        } catch( UnsupportedEncodingException e ) {
+        }
+        catch( UnsupportedEncodingException e ) {
           throw new InternalException(e);
         }
       }
       if( cfg.isPreventApiTermination() ) {
         parameters.put("DisableApiTermination", "true");
       }
-      String[] firewallIds = cfg.getFirewallIds();
-
-// TODO(stas): this is causing a launch to fail if NICs are also defined in the same request,
-// I've moved it to network interfaces, it needs to be tested a bit more.
-//
-//            if( firewallIds.length > 0 ) {
-//                int i = 1;
-//
-//                for( String id : firewallIds ) {
-//
-//                    String securityGroupParam = "SecurityGroupId";
-//                    if( cfg.getVlanId() == null ) {
-//                        securityGroupParam = "SecurityGroup";
-//                    }
-//                    parameters.put(String.format("%s.%d", securityGroupParam, i++), id);
-//                }
-//            }
       if( cfg.getDataCenterId() != null ) {
         parameters.put("Placement.AvailabilityZone", cfg.getDataCenterId());
       } else if( cfg.getVolumes().length > 0 ) {
@@ -1368,6 +1352,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       if( cfg.getBootstrapKey() != null ) {
         parameters.put("KeyName", cfg.getBootstrapKey());
       }
+      if( cfg.getVlanId() != null ) {
+        parameters.put("SubnetId", cfg.getVlanId());
+      }
       if( getProvider().getEC2Provider().isAWS() ) {
         parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
       }
@@ -1378,41 +1365,41 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         parameters.put("EbsOptimized", "true");
       }
 
-      if( cfg.getVolumes().length > 0 ) {
+      if (cfg.getVolumes().length > 0) {
         Iterable<String> possibles = getProvider().getComputeServices().getVolumeSupport().listPossibleDeviceIds(img.getPlatform());
         int i = 1;
 
-        for( VolumeAttachment a : cfg.getVolumes() ) {
-          if( a.deviceId != null ) {
+        for (VolumeAttachment a : cfg.getVolumes()) {
+          if (a.deviceId != null) {
             deviceIds.add(a.deviceId);
-          } else if( a.volumeToCreate != null && a.volumeToCreate.getDeviceId() != null ) {
+          } else if (a.volumeToCreate != null && a.volumeToCreate.getDeviceId() != null) {
             deviceIds.add(a.volumeToCreate.getDeviceId());
             a.deviceId = a.volumeToCreate.getDeviceId();
           }
         }
-        for( VolumeAttachment a : cfg.getVolumes() ) {
-          if( a.deviceId == null ) {
-            for( String id : possibles ) {
-              if( !deviceIds.contains(id) ) {
+        for (VolumeAttachment a : cfg.getVolumes()) {
+          if (a.deviceId == null) {
+            for (String id : possibles) {
+              if (!deviceIds.contains(id)) {
                 a.deviceId = id;
                 deviceIds.add(id);
               }
             }
-            if( a.deviceId == null ) {
+            if (a.deviceId == null) {
               throw new InternalException("Unable to identify a device ID for volume");
             }
           }
-          if( a.existingVolumeId == null ) {
+          if (a.existingVolumeId == null) {
             parameters.put("BlockDeviceMapping." + i + ".DeviceName", a.deviceId);
 
             VolumeProduct prd = getProvider().getComputeServices().getVolumeSupport().getVolumeProduct(a.volumeToCreate.getVolumeProductId());
             parameters.put("BlockDeviceMapping." + i + ".Ebs.VolumeType", prd.getProviderProductId());
 
-            if( a.volumeToCreate.getIops() > 0 ) {
+            if (a.volumeToCreate.getIops() > 0) {
               parameters.put("BlockDeviceMapping." + i + ".Ebs.Iops", String.valueOf(a.volumeToCreate.getIops()));
             }
 
-            if( a.volumeToCreate.getSnapshotId() != null ) {
+            if (a.volumeToCreate.getSnapshotId() != null) {
               parameters.put("BlockDeviceMapping." + i + ".Ebs.SnapshotId", a.volumeToCreate.getSnapshotId());
             } else {
               parameters.put("BlockDeviceMapping." + i + ".Ebs.VolumeSize", String.valueOf(a.volumeToCreate.getVolumeSize().getQuantity().intValue()));
@@ -1423,7 +1410,12 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
           }
         }
       }
-
+      if( cfg.getVlanId() != null ) {
+        parameters.put("SubnetId", cfg.getVlanId());
+        if ( cfg.getPrivateIp() != null && !cfg.getPrivateIp().equalsIgnoreCase("") ) {
+          parameters.put( "PrivateIpAddress", cfg.getPrivateIp() );
+        }
+      }
       if ( cfg.getVlanId() == null ) {
         String[] ids = cfg.getFirewallIds();
         if ( ids.length > 0 ) {
@@ -1441,54 +1433,44 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         VMLaunchOptions.NICConfig[] nics = cfg.getNetworkInterfaces();
         int i = 1;
 
-        for( VMLaunchOptions.NICConfig c : nics ) {
-          parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
+        for ( VMLaunchOptions.NICConfig c : nics ) {
+          parameters.put( "NetworkInterface." + i + ".DeviceIndex", String.valueOf( i ) );
           // this only applies for the first NIC
           if ( i == 1 ) {
             parameters.put( "NetworkInterface.1.AssociatePublicIpAddress", String.valueOf( cfg.isAssociatePublicIpAddress() ) );
           }
-          if( c.nicId == null ) {
-            parameters.put("NetworkInterface." + i + ".SubnetId", c.nicToCreate.getSubnetId());
-            parameters.put("NetworkInterface." + i + ".Description", c.nicToCreate.getDescription());
-            if( c.nicToCreate.getIpAddress() != null ) {
-              parameters.put("NetworkInterface." + i + ".PrivateIpAddress", c.nicToCreate.getIpAddress());
+          if ( c.nicId == null ) {
+            parameters.put( "NetworkInterface." + i + ".SubnetId", c.nicToCreate.getSubnetId() );
+            parameters.put( "NetworkInterface." + i + ".Description", c.nicToCreate.getDescription() );
+            if ( c.nicToCreate.getIpAddress() != null ) {
+              parameters.put( "NetworkInterface." + i + ".PrivateIpAddress", c.nicToCreate.getIpAddress() );
             }
-            if( c.nicToCreate.getFirewallIds().length > 0 ) {
+            if ( c.nicToCreate.getFirewallIds().length > 0 ) {
               int j = 1;
 
-              for( String id : c.nicToCreate.getFirewallIds() ) {
-                parameters.put("NetworkInterface." + i + ".SecurityGroupId." + j, id);
+              for ( String id : c.nicToCreate.getFirewallIds() ) {
+                parameters.put( "NetworkInterface." + i + ".SecurityGroupId." + j, id );
                 j++;
               }
-            } else {
-              if( firewallIds.length > 0 ) {
-                int g = 1;
-                for( String id : firewallIds ) {
-                  parameters.put(String.format("NetworkInterface.%d.SecurityGroupId.%d", i, g++), id);
-                }
-              }
-
             }
-          } else {
-            parameters.put("NetworkInterface." + i + ".NetworkInterfaceId", c.nicId);
+          }
+          else {
+            parameters.put( "NetworkInterface." + i + ".NetworkInterfaceId", c.nicId );
           }
           i++;
         }
-      } else {
-        int i = 0;
-        parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
-        if( cfg.getVlanId() != null ) {
-          parameters.put("NetworkInterface." + i + ".AssociatePublicIpAddress", Boolean.toString(cfg.isProvisionPublicIp()));
-          parameters.put("NetworkInterface." + i + ".SubnetId", cfg.getVlanId());
+      }
+      else {
+        parameters.put( "NetworkInterface.1.DeviceIndex", "0" );
+        parameters.put( "NetworkInterface.1.SubnetId", cfg.getVlanId() );
+        parameters.put( "NetworkInterface.1.AssociatePublicIpAddress", String.valueOf( cfg.isAssociatePublicIpAddress() ) );
+        if ( cfg.getPrivateIp() != null ) {
+          parameters.put( "NetworkInterface.1.PrivateIpAddress", cfg.getPrivateIp() );
         }
-        if( cfg.getPrivateIp() != null ) {
-          parameters.put("NetworkInterface." + i + ".PrivateIpAddress", cfg.getPrivateIp());
-        }
-        if( firewallIds.length > 0 ) {
-          int g = 1;
-          for( String id : firewallIds ) {
-            parameters.put(String.format("NetworkInterface.%d.SecurityGroupId.%d", i, g++), id);
-          }
+        int securityGroupIndex = 1;
+        for ( String id : cfg.getFirewallIds() ) {
+          parameters.put( "NetworkInterface.1.SecurityGroupId." + securityGroupIndex, id );
+          securityGroupIndex++;
         }
       }
       method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
@@ -1544,6 +1526,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       if( cfg.isIpForwardingAllowed() ) {
         enableIpForwarding(server.getProviderVirtualMachineId());
       }
+      if ( cfg.isIpForwardingAllowed() ) {
+        enableIpForwarding( server.getProviderVirtualMachineId() );
+      }
       if( server != null && cfg.getBootstrapKey() != null ) {
         try {
           final String sid = server.getProviderVirtualMachineId();
@@ -1556,17 +1541,17 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             );
             String password = callable.call();
 
-            if( password == null ) {
+            if (password == null) {
               server.setRootPassword(null);
               server.setPasswordCallback(callable);
             } else {
               server.setRootPassword(password);
             }
             server.setPlatform(Platform.WINDOWS);
-          } catch( CloudException e ) {
+          } catch (CloudException e) {
             logger.warn(e.getMessage());
           }
-        } catch( Throwable t ) {
+        } catch (Throwable t) {
           logger.warn("Unable to retrieve password for " + server.getProviderVirtualMachineId() + ", Let's hope it's Unix: " + t.getMessage());
         }
       }

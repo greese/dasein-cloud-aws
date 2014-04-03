@@ -54,7 +54,7 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
     @Nonnull
     @Override
     public Requirement identifyVlanForVlanIPRequirement() throws CloudException, InternalException {
-        return Requirement.NONE;
+        return getProvider().isEC2Supported() ? Requirement.NONE : Requirement.OPTIONAL;
     }
 
     @Override
@@ -69,8 +69,7 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
 
     @Override
     public boolean isAssignablePostLaunch(@Nonnull IPVersion version) throws CloudException, InternalException {
-        // TODO(stas): this is causing issues with tests one way or another, need to test this a little more
-        return false;//IPVersion.IPV4.equals(version);
+        return getProvider().isEC2Supported() ? IPVersion.IPV4.equals(version) : false;
     }
 
     @Override
@@ -91,6 +90,6 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
 
     @Override
     public boolean supportsVLANAddresses(@Nonnull IPVersion ofVersion) throws InternalException, CloudException {
-        return IPVersion.IPV4.equals(ofVersion);
+        return getProvider().isEC2Supported() ? IPVersion.IPV4.equals(ofVersion) : false;
     }
 }

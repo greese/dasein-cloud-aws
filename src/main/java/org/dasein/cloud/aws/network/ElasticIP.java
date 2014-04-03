@@ -188,7 +188,7 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
-            parameters.put("PublicIp.1", addressId);
+            parameters.put("AllocationId.1", addressId);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -196,7 +196,9 @@ public class ElasticIP implements IpAddressSupport {
             catch( EC2Exception e ) {
                 String code = e.getCode();
 
-                if( code != null && code.equals("InvalidAddress.NotFound") || e.getMessage().contains("Invalid value") ) {
+                if( code != null && ( code.equals("InvalidAllocationID.NotFound")
+                        || code.equals("InvalidAddress.NotFound")
+                        || e.getMessage().contains("Invalid value") ) ) {
                     return null;
                 }
                 logger.error(e.getSummary());

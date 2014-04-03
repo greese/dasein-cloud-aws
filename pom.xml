@@ -248,7 +248,6 @@
                 <include>**/TestSuite.java</include>
             </includes>
             <argLine>-Xmx1024m</argLine>
-            <parallel>classes</parallel>
         </configuration>
       </plugin>
       <plugin>

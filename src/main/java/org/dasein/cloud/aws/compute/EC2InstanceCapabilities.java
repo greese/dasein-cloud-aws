@@ -154,12 +154,14 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
     @Nonnull
     @Override
     public Requirement identifySubnetRequirement() throws CloudException, InternalException {
-        return (getProvider().getEC2Provider().isEucalyptus() ? Requirement.NONE : Requirement.REQUIRED);
+        // Did not exist in 2013.07
+        return (getProvider().getEC2Provider().isEucalyptus() ? Requirement.NONE : Requirement.OPTIONAL);
     }
 
     @Override
     public @Nonnull Requirement identifyVlanRequirement() throws CloudException, InternalException {
-        return (getProvider().getEC2Provider().isEucalyptus() ? Requirement.NONE : Requirement.REQUIRED);
+        // Optional as per 2013.07
+        return (getProvider().getEC2Provider().isEucalyptus() ? Requirement.NONE : Requirement.OPTIONAL);
     }
 
     @Override

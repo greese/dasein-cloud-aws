@@ -822,7 +822,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             parameters.put("HealthCheck.HealthyThreshold", options.getHealthyCount() + "");
             parameters.put("HealthCheck.UnhealthyThreshold", options.getUnhealthyCount() + "");
             String path = "/";
-            if(options.getPort() == 0 ){
+            if( options.getPort() < 1 || options.getPort() > 65535 ){
                 throw new CloudException("Port must have a number between 1 and 65535.");
             }
             if(options.getPath() != null || !options.getPath().equals("")){
