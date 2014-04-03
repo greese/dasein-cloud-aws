@@ -686,6 +686,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       return null;
     } catch (Exception e) {
       e.printStackTrace();
+      if (e instanceof CloudException) {
+        throw (CloudException) e;
+      }
       throw new InternalException(e);
     } finally {
       APITrace.end();

@@ -94,7 +94,7 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
-            setId("", parameters, getIpAddress(addressId), addressId, false);
+            setId("", parameters, addressId, false);
             parameters.put("InstanceId", instanceId);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
@@ -503,7 +503,7 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
-            setId("", parameters, getIpAddress(addressId), addressId, true);
+            setId("", parameters, addressId, true);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -524,9 +524,11 @@ public class ElasticIP implements IpAddressSupport {
         }
     }
 
-    private void setId(@Nonnull String postfix, @Nonnull Map<String,String> parameters, @Nullable IpAddress address, @Nonnull String addressId, @Nullable Boolean disassociate) throws CloudException {
+    private void setId(@Nonnull String postfix, @Nonnull Map<String,String> parameters, @Nonnull String addressId,
+                       @Nullable Boolean disassociate) throws CloudException, InternalException {
+        IpAddress address = getIpAddress(addressId);
         if( address == null ) {
-            throw new CloudException("Invalid IP address: " + addressId);
+            throw new IllegalArgumentException("Invalid IP address: " + addressId);
         }
         String associationId = address.getProviderAssociationId();
         if( address.isForVlan() ) {
@@ -535,8 +537,7 @@ public class ElasticIP implements IpAddressSupport {
           } else {
             parameters.put("AllocationId" + postfix, addressId);
           }
-        }
-        else {
+        } else {
             parameters.put("PublicIp" + postfix, addressId);
         }
     }
@@ -550,7 +551,7 @@ public class ElasticIP implements IpAddressSupport {
            NodeList blocks;
            Document doc;
 
-           setId("", parameters, getIpAddress(addressId), addressId, false);
+           setId("", parameters, addressId, false);
            method = new EC2Method(provider, provider.getEc2Url(), parameters);
            try {
                doc = method.invoke();
