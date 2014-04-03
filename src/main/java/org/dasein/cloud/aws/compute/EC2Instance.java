@@ -668,6 +668,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       return null;
     } catch (Exception e) {
       e.printStackTrace();
+      if (e instanceof CloudException) {
+        throw (CloudException) e;
+      }
       throw new InternalException(e);
     } finally {
       APITrace.end();
@@ -904,9 +907,16 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
   }
 
-  @Nullable
   @Override
   public Iterable<VirtualMachineStatus> getVMStatus(@Nullable String... vmIds) throws InternalException, CloudException {
+      VmStatusFilterOptions filterOptions = vmIds != null
+              ? VmStatusFilterOptions.getInstance().withVmIds(vmIds)
+              : VmStatusFilterOptions.getInstance();
+      return getVMStatus(filterOptions);
+  }
+
+  @Override
+  public @Nullable Iterable<VirtualMachineStatus> getVMStatus(@Nullable VmStatusFilterOptions filterOptions) throws InternalException, CloudException {
     APITrace.begin(getProvider(), "getVMStatus");
     try {
       ProviderContext ctx = getProvider().getContext();
@@ -917,11 +927,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       EC2Method method;
       NodeList blocks;
       Document doc;
-      if( vmIds != null ) {
-        for ( int y = 0; y < vmIds.length; y++ ) {
-          params.put( "InstanceId." + String.valueOf( y + 1 ) , vmIds[y] );
-        }
-      }
+      Map<String, String> filterParameters = createFilterParametersFrom(filterOptions);
+      getProvider().putExtraParameters(params, filterParameters);
       try {
         method = new EC2Method(getProvider(), getProvider().getEc2Url(), params);
       } catch(InternalException e) {
@@ -993,6 +1000,26 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     } finally {
       APITrace.end();
     }
+  }
+
+  private Map<String, String> createFilterParametersFrom(@Nullable VmStatusFilterOptions options) {
+    if (options == null || options.isMatchesAny()) {
+        return Collections.emptyMap();
+    }
+    // tag advantage of EC2-based filtering if we can...
+    Map<String, String> extraParameters = new HashMap<String, String>();
+    int filterIndex = 0;
+    if (options.getVmStatuses() != null) {
+      getProvider().addFilterParameter(extraParameters, filterIndex++, "system-status.status", options.getVmStatuses());
+      getProvider().addFilterParameter(extraParameters, filterIndex++, "instance-status.status", options.getVmStatuses());
+    }
+    String[] vmIds = options.getVmIds();
+    if( vmIds != null ) {
+      for ( int y = 0; y < vmIds.length; y++ ) {
+          extraParameters.put( "InstanceId." + String.valueOf( y + 1 ) , vmIds[y] );
+      }
+    }
+    return extraParameters;
   }
 
   @Override
@@ -1697,43 +1724,55 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
   }
 
   @Override
-  public @Nonnull Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
+  public
+  @Nonnull
+  Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
     return listVirtualMachinesWithParams(null, null);
   }
 
   @Override
-  public @Nonnull Iterable<VirtualMachine> listVirtualMachines(@Nullable VMFilterOptions options) throws InternalException, CloudException {
-    Map<String, String> tags = ( ( options == null || options.isMatchesAny() ) ? null : options.getTags() );
-
-    if( tags != null ) {
-      // tag advantage of EC2-based filtering if we can...
-      Map<String, String> extraParameters = new HashMap<String, String>();
-
-      getProvider().putExtraParameters(extraParameters, getProvider().getTagFilterParams(options.getTags()));
-
-      String regex = options.getRegex();
-
-      if( regex != null ) {
-        // still have to match on regex
-        options = VMFilterOptions.getInstance(false, regex);
-      } else {
-        // nothing else to match on
-        options = null;
-      }
-      return listVirtualMachinesWithParams(extraParameters, options);
+  public
+  @Nonnull
+  Iterable<VirtualMachine> listVirtualMachines(@Nullable VMFilterOptions options) throws InternalException, CloudException {
+    Map<String, String> filterParameters = createFilterParametersFrom(options);
+    if (options.getRegex() != null) {
+      // still have to match on regex
+      options = VMFilterOptions.getInstance(false, options.getRegex());
     } else {
-      return listVirtualMachinesWithParams(null, options);
+      // nothing else to match on
+      options = null;
     }
+
+    return listVirtualMachinesWithParams(filterParameters, options);
   }
 
-  private @Nonnull Iterable<VirtualMachine> listVirtualMachinesWithParams(Map<String, String> extraParameters, @Nullable VMFilterOptions options) throws InternalException, CloudException {
+  private Map<String, String> createFilterParametersFrom(@Nullable VMFilterOptions options) {
+    if (options == null || options.isMatchesAny()) {
+      return Collections.emptyMap();
+    }
+    // tag advantage of EC2-based filtering if we can...
+    Map<String, String> extraParameters = new HashMap<String, String>();
+    int filterIndex = 0;
+    if (options.getTags() != null && !options.getTags().isEmpty()) {
+      getProvider().putExtraParameters(extraParameters, getProvider().getTagFilterParams(options.getTags(), filterIndex));
+    }
+    if (options.getVmStates() != null) {
+      getProvider().addFilterParameter(extraParameters, filterIndex++, "instance-state-name", options.getVmStates());
+    }
+    return extraParameters;
+  }
+
+  private
+  @Nonnull
+  Iterable<VirtualMachine> listVirtualMachinesWithParams(Map<String, String> extraParameters, @Nullable VMFilterOptions options) throws InternalException, CloudException {
     APITrace.begin(getProvider(), "listVirtualMachines");
     try {
       ProviderContext ctx = getProvider().getContext();
 
-      if( ctx == null ) {
+      if (ctx == null) {
         throw new CloudException("No context was established for this request");
       }
+
       Future<Iterable<IpAddress>> ipPoolFuture = null;
       Iterable<IpAddress> addresses;
       if (getProvider().hasNetworkServices()) {
@@ -1761,18 +1800,19 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
       try {
         doc = method.invoke();
-      } catch( EC2Exception e ) {
+      } catch (EC2Exception e) {
         logger.error(e.getSummary());
         throw new CloudException(e);
       }
       blocks = doc.getElementsByTagName("instancesSet");
-      for( int i = 0; i < blocks.getLength(); i++ ) {
+      for (int i = 0; i < blocks.getLength(); i++) {
         NodeList instances = blocks.item(i).getChildNodes();
 
-        for( int j = 0; j < instances.getLength(); j++ ) {
+        for (int j = 0; j < instances.getLength(); j++) {
           Node instance = instances.item(j);
 
-          if( instance.getNodeName().equals("item") ) {
+          if (instance.getNodeName().equals("item")) {
+
             try{
               if (ipPoolFuture != null) {
                 addresses = ipPoolFuture.get( 30, TimeUnit.SECONDS );

@@ -753,6 +753,18 @@ public class AWSCloud extends AbstractCloud {
     return filterParameters;
   }
 
+  public void addFilterParameter(Map<String, String> filterParameters, int index, String filterName, Collection<?> filterValues) {
+    if (filterValues == null || filterValues.isEmpty()) {
+        return;
+    }
+    filterParameters.put("Filter." + index + ".Name", filterName);
+    int valueIndex = 0;
+    for (Object filterValue : filterValues) {
+      // filter values must be in lower case
+      filterParameters.put("Filter." + index + ".Value." + valueIndex++, filterValue.toString().toLowerCase());
+    }
+  }
+
   public
   @Nonnull
   String getTimestamp(long timestamp, boolean withMillis) {
