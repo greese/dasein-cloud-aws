@@ -47,7 +47,7 @@ public class AMI extends AbstractImageSupport {
 	static private final Logger logger = Logger.getLogger(AMI.class);
 	
 	private AWSCloud provider = null;
-    private AMICapabilities capabilities;
+    private volatile transient AMICapabilities capabilities;
 
     AMI(AWSCloud provider) {
 		super(provider);
@@ -118,7 +118,7 @@ public class AMI extends AbstractImageSupport {
                     
                     if( !vm.isPersistent() ) {
                     	if( vm.getPlatform().isWindows() ) {
-                           	String bucket = provider.getStorageServices().getBlobStoreSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
+                           	String bucket = provider.getStorageServices().getOnlineStorageSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
                             if( bucket == null ) {
                                 throw new CloudException("There is no bucket");
                             }
