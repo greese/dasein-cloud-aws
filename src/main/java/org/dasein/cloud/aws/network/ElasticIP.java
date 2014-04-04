@@ -188,7 +188,7 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
-            parameters.put("AllocationId.1", addressId);
+            parameters.put("PublicIp.1", addressId);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -618,7 +618,7 @@ public class ElasticIP implements IpAddressSupport {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
-            blocks = doc.getElementsByTagName("allocationId");
+            blocks = doc.getElementsByTagName("publicIp");
             if( blocks.getLength() > 0 ) {
                 return blocks.item(0).getFirstChild().getNodeValue().trim();
             }
