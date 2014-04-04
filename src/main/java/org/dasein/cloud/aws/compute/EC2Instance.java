@@ -1407,16 +1407,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
           }
         }
       }
-      if ( cfg.getPrivateIp() != null && !cfg.getPrivateIp().equalsIgnoreCase("") ) {
-        parameters.put( "PrivateIpAddress", cfg.getPrivateIp() );
-      }
-      /*
-        must check for NICS otherwise the following error will be returned:
-        "Network interfaces and an instance-level subnet ID may not be specified on the same request"
-      */
-      if( cfg.getVlanId() != null && cfg.getNetworkInterfaces() == null && cfg.getNetworkInterfaces().length == 0 ) {
-        parameters.put("SubnetId", cfg.getVlanId());
-      }
       if ( cfg.getVlanId() == null ) {
         String[] ids = cfg.getFirewallIds();
         if ( ids.length > 0 ) {
