@@ -1352,9 +1352,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
       if( cfg.getBootstrapKey() != null ) {
         parameters.put("KeyName", cfg.getBootstrapKey());
       }
-      if( cfg.getVlanId() != null ) {
-        parameters.put("SubnetId", cfg.getVlanId());
-      }
       if( getProvider().getEC2Provider().isAWS() ) {
         parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
       }
@@ -1410,11 +1407,15 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
           }
         }
       }
-      if( cfg.getVlanId() != null ) {
+      if ( cfg.getPrivateIp() != null && !cfg.getPrivateIp().equalsIgnoreCase("") ) {
+        parameters.put( "PrivateIpAddress", cfg.getPrivateIp() );
+      }
+      /*
+        must check for NICS otherwise the following error will be returned:
+        "Network interfaces and an instance-level subnet ID may not be specified on the same request"
+      */
+      if( cfg.getVlanId() != null && cfg.getNetworkInterfaces() == null && cfg.getNetworkInterfaces().length == 0 ) {
         parameters.put("SubnetId", cfg.getVlanId());
-        if ( cfg.getPrivateIp() != null && !cfg.getPrivateIp().equalsIgnoreCase("") ) {
-          parameters.put( "PrivateIpAddress", cfg.getPrivateIp() );
-        }
       }
       if ( cfg.getVlanId() == null ) {
         String[] ids = cfg.getFirewallIds();
@@ -1424,9 +1425,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
           for ( String id : ids ) {
             parameters.put( "SecurityGroupId." + ( i++ ), id );
           }
-        }
-        if ( cfg.getPrivateIp() != null ) {
-          parameters.put( "PrivateIpAddress", cfg.getPrivateIp() );
         }
       }
       else if ( cfg.getNetworkInterfaces() != null && cfg.getNetworkInterfaces().length > 0 ) {
