@@ -47,8 +47,9 @@ public class AMI extends AbstractImageSupport {
 	static private final Logger logger = Logger.getLogger(AMI.class);
 	
 	private AWSCloud provider = null;
-	
-	AMI(AWSCloud provider) {
+    private volatile transient AMICapabilities capabilities;
+
+    AMI(AWSCloud provider) {
 		super(provider);
         this.provider = provider;
 	}
@@ -73,6 +74,14 @@ public class AMI extends AbstractImageSupport {
         finally {
             APITrace.end();
         }
+    }
+
+    @Override
+    public ImageCapabilities getCapabilities() {
+        if( capabilities == null ) {
+            capabilities = new AMICapabilities(provider);
+        }
+        return capabilities;
     }
 
     @Override
@@ -109,7 +118,7 @@ public class AMI extends AbstractImageSupport {
                     
                     if( !vm.isPersistent() ) {
                     	if( vm.getPlatform().isWindows() ) {
-                           	String bucket = provider.getStorageServices().getBlobStoreSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
+                           	String bucket = provider.getStorageServices().getOnlineStorageSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
                             if( bucket == null ) {
                                 throw new CloudException("There is no bucket");
                             }
@@ -442,18 +451,15 @@ public class AMI extends AbstractImageSupport {
       }
 
     @Override
+    @Deprecated
     public @Nonnull String getProviderTermForImage(@Nonnull Locale locale, @Nonnull ImageClass cls) {
-        switch( cls ) {
-            case MACHINE: return "AMI";
-            case KERNEL: return "AKI";
-            case RAMDISK: return "ARI";
-        }
-        return "image";
+        return getCapabilities().getProviderTermForImage(locale, cls);
     }
 
     @Override
+    @Deprecated
     public @Nonnull String getProviderTermForCustomImage(@Nonnull Locale locale, @Nonnull ImageClass cls) {
-        return getProviderTermForImage(locale, cls);
+        return getCapabilities().getProviderTermForCustomImage(locale, cls);
     }
 
     @Override
@@ -463,7 +469,7 @@ public class AMI extends AbstractImageSupport {
 
     @Override
     public @Nonnull Requirement identifyLocalBundlingRequirement() throws CloudException, InternalException {
-        return Requirement.REQUIRED;
+        return getCapabilities().identifyLocalBundlingRequirement();
     }
 
     @Override
@@ -719,43 +725,25 @@ public class AMI extends AbstractImageSupport {
         return sharesAsList(forMachineImageId);
     }
 
-    static private Collection<ImageClass> supportedClasses;
-
     @Override
     public @Nonnull Iterable<ImageClass> listSupportedImageClasses() throws CloudException, InternalException {
-        if( supportedClasses == null ) {
-            ArrayList<ImageClass> list = new ArrayList<ImageClass>();
-
-            list.add(ImageClass.MACHINE);
-            list.add(ImageClass.KERNEL);
-            list.add(ImageClass.RAMDISK);
-            supportedClasses = Collections.unmodifiableCollection(list);
-        }
-        return supportedClasses;
+        return getCapabilities().listSupportedImageClasses();
     }
 
-    static private Collection<MachineImageType> supportedTypes;
 
     @Override
     public @Nonnull Iterable<MachineImageType> listSupportedImageTypes() throws CloudException, InternalException {
-        if( supportedTypes == null ) {
-            ArrayList<MachineImageType> types = new ArrayList<MachineImageType>();
-
-            types.add(MachineImageType.STORAGE);
-            types.add(MachineImageType.VOLUME);
-            supportedTypes = Collections.unmodifiableCollection(types);
-        }
-        return supportedTypes;
+        return getCapabilities().listSupportedImageTypes();
     }
 
     @Override
     public @Nonnull Iterable<MachineImageFormat> listSupportedFormats() throws CloudException, InternalException {
-        return Collections.singletonList(MachineImageFormat.AWS);
+        return getCapabilities().listSupportedFormats();
     }
 
     @Override
     public @Nonnull Iterable<MachineImageFormat> listSupportedFormatsForBundling() throws CloudException, InternalException {
-        return Collections.singletonList(MachineImageFormat.AWS);
+        return getCapabilities().listSupportedFormatsForBundling();
     }
 
     @Override
@@ -1298,22 +1286,22 @@ public class AMI extends AbstractImageSupport {
 
     @Override
     public boolean supportsImageCapture(@Nonnull MachineImageType type) throws CloudException, InternalException {
-        return MachineImageType.VOLUME.equals(type);
+        return getCapabilities().supportsImageCapture(type);
     }
 
     @Override
-    public boolean supportsImageSharing() {
-        return true;
+    public boolean supportsImageSharing() throws CloudException, InternalException{
+        return getCapabilities().supportsImageSharing();
     }
 
     @Override
-    public boolean supportsImageSharingWithPublic() {
-        return true;
+    public boolean supportsImageSharingWithPublic() throws CloudException, InternalException{
+        return getCapabilities().supportsImageSharingWithPublic();
     }
 
     @Override
     public boolean supportsPublicLibrary(@Nonnull ImageClass cls) throws CloudException, InternalException {
-        return true;
+        return getCapabilities().supportsPublicLibrary(cls);
     }
 
     private class BundleTask {

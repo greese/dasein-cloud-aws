@@ -52,18 +52,18 @@
     <url>http://github.com/greese/dasein-cloud-aws</url>
   </scm>
 
-  <parent>
+<!--  <parent>
     <groupId>org.sonatype.oss</groupId>
     <artifactId>oss-parent</artifactId>
     <version>5</version>
   </parent>
-
+-->
   <dependencies>
       <!-- Compile -->
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-cloud-core</artifactId>
-        <version>2014.03-SNAPSHOT</version>
+        <version>2014.07.1-SNAPSHOT</version>
         <scope>compile</scope>
         <optional>false</optional>
     </dependency>
@@ -103,7 +103,7 @@
       <dependency>
           <groupId>org.dasein</groupId>
           <artifactId>dasein-cloud-test</artifactId>
-          <version>2014.03-SNAPSHOT</version>
+          <version>2014.03.2-SNAPSHOT</version>
           <scope>test</scope>
           <optional>false</optional>
       </dependency>
@@ -212,11 +212,11 @@
                     <value>${accountNumber}</value>
                 </property>
                 <property>
-                    <name>accessPublic</name>
+                    <name>accessKeyShared</name>
                     <value>${apiSharedKey}</value>
                 </property>
                 <property>
-                    <name>accessPrivate</name>
+                    <name>accessKeySecret</name>
                     <value>${apiSecretKey}</value>
                 </property>
                 <property>
@@ -244,9 +244,10 @@
                     <value>${test.shareAccount}</value>
                 </property>
             </systemProperties>
-          <includes>
-              <include>**/TestSuite.java</include>
-          </includes>
+            <includes>
+                <include>**/TestSuite.java</include>
+            </includes>
+            <argLine>-Xmx1024m</argLine>
         </configuration>
       </plugin>
       <plugin>

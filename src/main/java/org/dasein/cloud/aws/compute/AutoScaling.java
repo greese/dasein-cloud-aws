@@ -1225,31 +1225,34 @@ public class AutoScaling implements AutoScalingSupport {
                         } else if( blockDeviceChildName.equalsIgnoreCase("Ebs") ) {
                           if( blockDeviceChild.hasChildNodes() ) {
                             NodeList ebsChildren = blockDeviceChild.getChildNodes();
-                            VolumeCreateOptions vco = new VolumeCreateOptions();
+                            int size = 0;
+                            String iops = null;
+                            String snapShotId = null;
+                            String volumeType = null;
 
                             for( int q=0; q<ebsChildren.getLength(); q++ ) {
                               Node ebsChild = ebsChildren.item(q);
                               String ebsChildName = ebsChild.getNodeName();
 
                               if( ebsChildName.equalsIgnoreCase("Iops") ) {
-                                String value = ebsChild.getFirstChild().getNodeValue().trim();
-                                try {
-                                  vco.setIops( Integer.parseInt( value ) );
-                                } catch( NumberFormatException nfe ) {
-                                  vco.setIops( 0 );
-                                }
+                                iops = ebsChild.getFirstChild().getNodeValue().trim();
                               } else if( ebsChildName.equalsIgnoreCase("VolumeSize") ) {
                                 String value = ebsChild.getFirstChild().getNodeValue().trim();
-                                int size = Integer.parseInt(value);
-                                vco.setVolumeSize( new Storage<Gigabyte>(size, Storage.GIGABYTE) );
+                                size = Integer.parseInt(value);
                               } else if( ebsChildName.equalsIgnoreCase("SnapshotId") ) {
-                                String value = ebsChild.getFirstChild().getNodeValue().trim();
-                                vco.setSnapshotId( value );
+                                snapShotId = ebsChild.getFirstChild().getNodeValue().trim();
                               } else if( ebsChildName.equalsIgnoreCase("VolumeType") ) {
-                                String value = ebsChild.getFirstChild().getNodeValue().trim();
-                                vco.setVolumeProductId( value );
+                                volumeType = ebsChild.getFirstChild().getNodeValue().trim();
                               }
                             }
+                            VolumeCreateOptions vco = VolumeCreateOptions.getInstance( new Storage<Gigabyte>(size, Storage.GIGABYTE), "", "" );
+                            try {
+                              vco.setIops( Integer.parseInt( iops ) );
+                            } catch( NumberFormatException nfe ) {
+                              vco.setIops( 0 );
+                            }
+                            vco.setSnapshotId( snapShotId );
+                            vco.setVolumeProductId( volumeType );
                             va.setVolumeToCreate( vco );
                           }
                         }
@@ -1312,7 +1315,7 @@ public class AutoScaling implements AutoScalingSupport {
                 group.setMaxServers(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
             else if( name.equalsIgnoreCase("DefaultCooldown") ) {
-                group.setDefaultCoolcown(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+                group.setDefaultCooldown(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
             else if( name.equalsIgnoreCase("CreatedTime") ) {
                 SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");

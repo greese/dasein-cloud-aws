@@ -27,21 +27,7 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.AbstractNetworkFirewallSupport;
-import org.dasein.cloud.network.Direction;
-import org.dasein.cloud.network.Firewall;
-import org.dasein.cloud.network.FirewallConstraints;
-import org.dasein.cloud.network.FirewallCreateOptions;
-import org.dasein.cloud.network.FirewallRule;
-import org.dasein.cloud.network.FirewallRuleCreateOptions;
-import org.dasein.cloud.network.FirewallSupport;
-import org.dasein.cloud.network.NetworkFirewallSupport;
-import org.dasein.cloud.network.NetworkServices;
-import org.dasein.cloud.network.Permission;
-import org.dasein.cloud.network.Protocol;
-import org.dasein.cloud.network.RuleTarget;
-import org.dasein.cloud.network.RuleTargetType;
-import org.dasein.cloud.network.VLANSupport;
+import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -66,6 +52,8 @@ import java.util.TreeSet;
  */
 public class NetworkACL extends AbstractNetworkFirewallSupport {
     static private final Logger logger = AWSCloud.getLogger(NetworkACL.class);
+
+    private NetworkACLCapabilities capabilities;
 
     NetworkACL(AWSCloud cloud) {
         super(cloud);
@@ -244,6 +232,15 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
         return new HashMap<FirewallConstraints.Constraint, Object>();
     }
 
+    @Nonnull
+    @Override
+    public NetworkFirewallCapabilities getCapabilities() {
+        if( capabilities == null ) {
+            capabilities = new NetworkACLCapabilities((AWSCloud) getProvider());
+        }
+        return capabilities;
+    }
+
     private @Nullable String getCurrentAssociation(@Nonnull String subnetId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "NetworkFirewall.getCurrentACLAssociation");
         try {
@@ -344,12 +341,12 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
 
     @Override
     public @Nonnull FirewallConstraints getFirewallConstraintsForCloud() throws CloudException, InternalException {
-        return FirewallConstraints.getInstance();
+        return getCapabilities().getFirewallConstraintsForCloud();
     }
 
     @Override
     public @Nonnull String getProviderTermForNetworkFirewall(@Nonnull Locale locale) {
-        return "network ACL";
+        return getCapabilities().getProviderTermForNetworkFirewall(locale);
     }
 
     @Override
@@ -468,30 +465,22 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
 
     @Override
     public @Nonnull Iterable<RuleTargetType> listSupportedDestinationTypes() throws InternalException, CloudException {
-        return Collections.singletonList(RuleTargetType.GLOBAL);
+        return getCapabilities().listSupportedDestinationTypes();
     }
 
     @Override
     public @Nonnull Iterable<Direction> listSupportedDirections() throws InternalException, CloudException {
-        ArrayList<Direction> directions = new ArrayList<Direction>();
-
-        directions.add(Direction.INGRESS);
-        directions.add(Direction.EGRESS);
-        return directions;
+        return getCapabilities().listSupportedDirections();
     }
 
     @Override
     public @Nonnull Iterable<Permission> listSupportedPermissions() throws InternalException, CloudException {
-        ArrayList<Permission> permissions = new ArrayList<Permission>();
-
-        permissions.add(Permission.ALLOW);
-        permissions.add(Permission.DENY);
-        return permissions;
+        return getCapabilities().listSupportedPermissions();
     }
 
     @Override
     public @Nonnull Iterable<RuleTargetType> listSupportedSourceTypes() throws InternalException, CloudException {
-        return Collections.singletonList(RuleTargetType.CIDR);
+        return getCapabilities().listSupportedSourceTypes();
     }
 
     @Override

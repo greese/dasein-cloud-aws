@@ -48,8 +48,8 @@ public class ElasticIP implements IpAddressSupport {
 	static private final Logger logger = AWSCloud.getLogger(ElasticIP.class);
 
 	private AWSCloud provider = null;
-
   static private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
+  private transient volatile ElasticIPAddressCapabilities capabilities;
 	
 	ElasticIP(AWSCloud provider) {
 		this.provider = provider;
@@ -77,7 +77,7 @@ public class ElasticIP implements IpAddressSupport {
 
             while( System.currentTimeMillis() < timeout ) {
                 if( vm == null || VmState.TERMINATED.equals(vm.getCurrentState()) ) {
-                    throw new CloudException("No such virtual machine " + instanceId);
+                    throw new IllegalArgumentException("There is no such virtual machine '" + instanceId + "'");
                 }
                 VmState s = vm.getCurrentState();
 
@@ -94,7 +94,7 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
-            setId("", parameters, getIpAddress(addressId), addressId, false);
+            setId("", parameters, addressId, false);
             parameters.put("InstanceId", instanceId);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
@@ -152,8 +152,17 @@ public class ElasticIP implements IpAddressSupport {
         throw new OperationNotSupportedException();
     }
 
+    @Nonnull
     @Override
-    public @Nullable IpAddress getIpAddress(@Nonnull String addressId) throws InternalException, CloudException {
+    public IPAddressCapabilities getCapabilities() throws CloudException, InternalException {
+        if( capabilities == null) {
+            capabilities = new ElasticIPAddressCapabilities(provider);
+        }
+        return capabilities;
+    }
+
+    @Override
+	  public @Nullable IpAddress getIpAddress(@Nonnull String addressId) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.getIpAddress");
         try {
             IpAddress address = getEC2Address(addressId);
@@ -179,7 +188,7 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
-            parameters.put("PublicIp.1", addressId);
+            parameters.put("AllocationId.1", addressId);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -187,7 +196,9 @@ public class ElasticIP implements IpAddressSupport {
             catch( EC2Exception e ) {
                 String code = e.getCode();
 
-                if( code != null && code.equals("InvalidAddress.NotFound") || e.getMessage().contains("Invalid value") ) {
+                if( code != null && ( code.equals("InvalidAllocationID.NotFound")
+                        || code.equals("InvalidAddress.NotFound")
+                        || e.getMessage().contains("Invalid value") ) ) {
                     return null;
                 }
                 logger.error(e.getSummary());
@@ -264,13 +275,15 @@ public class ElasticIP implements IpAddressSupport {
             APITrace.end();
         }
     }
-    
-    @Override
-    public @Nonnull String getProviderTermForIpAddress(@Nonnull Locale locale) {
-		return "elastic IP";
-	}
 
     @Override
+    @Deprecated
+    public @Nonnull String getProviderTermForIpAddress(@Nonnull Locale locale) {
+      return "elastic IP";
+    }
+
+    @Override
+    @Deprecated
     public @Nonnull Requirement identifyVlanForVlanIPRequirement() {
         return Requirement.NONE;
     }
@@ -281,11 +294,13 @@ public class ElasticIP implements IpAddressSupport {
 	}
 
     @Override
+    @Deprecated
     public boolean isAssigned(@Nonnull IPVersion version) throws CloudException, InternalException {
         return version.equals(IPVersion.IPV4);
     }
 
     @Override
+    @Deprecated
     public boolean isAssignablePostLaunch(@Nonnull IPVersion version) throws CloudException, InternalException {
         return version.equals(IPVersion.IPV4);
     }
@@ -296,6 +311,7 @@ public class ElasticIP implements IpAddressSupport {
 	}
 
     @Override
+    @Deprecated
     public boolean isForwarding(IPVersion version) throws CloudException, InternalException {
         return false;
     }
@@ -306,6 +322,7 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     @Override
+    @Deprecated
     public boolean isRequestable(@Nonnull IPVersion version) throws CloudException, InternalException {
         return version.equals(IPVersion.IPV4);
     }
@@ -456,6 +473,7 @@ public class ElasticIP implements IpAddressSupport {
 	}
 
     @Override
+    @Deprecated
     public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
         return Collections.singletonList(IPVersion.IPV4);
     }
@@ -503,7 +521,7 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
-            setId("", parameters, getIpAddress(addressId), addressId, true);
+            setId("", parameters, addressId, true);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -524,9 +542,11 @@ public class ElasticIP implements IpAddressSupport {
         }
     }
 
-    private void setId(@Nonnull String postfix, @Nonnull Map<String,String> parameters, @Nullable IpAddress address, @Nonnull String addressId, @Nullable Boolean disassociate) throws CloudException {
+    private void setId(@Nonnull String postfix, @Nonnull Map<String,String> parameters, @Nonnull String addressId,
+                       @Nullable Boolean disassociate) throws CloudException, InternalException {
+        IpAddress address = getIpAddress(addressId);
         if( address == null ) {
-            throw new CloudException("Invalid IP address: " + addressId);
+            throw new IllegalArgumentException("Invalid IP address: " + addressId);
         }
         String associationId = address.getProviderAssociationId();
         if( address.isForVlan() ) {
@@ -535,8 +555,7 @@ public class ElasticIP implements IpAddressSupport {
           } else {
             parameters.put("AllocationId" + postfix, addressId);
           }
-        }
-        else {
+        } else {
             parameters.put("PublicIp" + postfix, addressId);
         }
     }
@@ -550,7 +569,7 @@ public class ElasticIP implements IpAddressSupport {
            NodeList blocks;
            Document doc;
 
-           setId("", parameters, getIpAddress(addressId), addressId, false);
+           setId("", parameters, addressId, false);
            method = new EC2Method(provider, provider.getEc2Url(), parameters);
            try {
                doc = method.invoke();
@@ -599,7 +618,7 @@ public class ElasticIP implements IpAddressSupport {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
-            blocks = doc.getElementsByTagName("publicIp");
+            blocks = doc.getElementsByTagName("allocationId");
             if( blocks.getLength() > 0 ) {
                 return blocks.item(0).getFirstChild().getNodeValue().trim();
             }
@@ -653,6 +672,7 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     @Override
+    @Deprecated
     public boolean supportsVLANAddresses(@Nonnull IPVersion version) throws InternalException, CloudException {
         return version.equals(IPVersion.IPV4);
     }
