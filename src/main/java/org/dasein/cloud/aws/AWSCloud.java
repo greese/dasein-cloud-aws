@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -108,10 +108,11 @@ public class AWSCloud extends AbstractCloud {
     static public final String V4_ALGORITHM = "AWS4-HMAC-SHA256";
     static public final String V4_TERMINATION = "aws4_request";
 
-    static public final String EC2Classic = "EC2";
-    static public final String EC2VPC = "VPC";
+    static public final String PLATFORM_EC2                     = "EC2";
+    static public final String PLATFORM_VPC                     = "VPC";
 
-    static public String encode(String value, boolean encodePath) throws InternalException {
+
+    static public @Nonnull String encode(@Nonnull String value, boolean encodePath) throws InternalException {
         String encoded;
 
         try {
@@ -445,6 +446,19 @@ public class AWSCloud extends AbstractCloud {
         return new EC2ComputeServices(this);
     }
 
+    static public final String DSN_ACCESS_KEY = "accessKey";
+
+    @Override
+    public @Nonnull ContextRequirements getContextRequirements() {
+        return new ContextRequirements(
+                new ContextRequirements.Field(DSN_ACCESS_KEY, "AWS API access keys", ContextRequirements.FieldType.KEYPAIR, ContextRequirements.Field.ACCESS_KEYS, true)
+        );
+    }
+
+    public byte[][] getAccessKey(ProviderContext ctx) {
+        return (byte[][])ctx.getConfigurationValue(DSN_ACCESS_KEY);
+    }
+
     @Override
     public
     @Nonnull
@@ -476,9 +490,7 @@ public class AWSCloud extends AbstractCloud {
         }
     }
 
-    public
-    @Nullable
-    String getEc2Url(@Nullable String regionId) throws InternalException, CloudException {
+    public @Nullable String getEc2Url(@Nullable String regionId) throws InternalException, CloudException {
         ProviderContext ctx = getContext();
         String url;
 
@@ -487,18 +499,18 @@ public class AWSCloud extends AbstractCloud {
         }
         if (getEC2Provider().isAWS()) {
 
-            url = (ctx == null ? null : ctx.getEndpoint());
+            url = (ctx == null ? null : ctx.getCloud().getEndpoint());
             if (url != null && url.endsWith("amazonaws.com")) {
                 return "https://ec2." + regionId + ".amazonaws.com";
             }
             return "https://ec2." + regionId + ".amazonaws.com";
         } else if (!getEC2Provider().isEucalyptus()) {
-            url = (ctx == null ? null : ctx.getEndpoint());
+            url = (ctx == null ? null : ctx.getCloud().getEndpoint());
             if (url == null) {
                 return null;
             }
             if (!url.startsWith("http")) {
-                String cloudUrl = ctx.getEndpoint();
+                String cloudUrl = ctx.getCloud().getEndpoint();
 
                 if (cloudUrl != null && cloudUrl.startsWith("http:")) {
                     return "http://" + url + "/" + regionId;
@@ -508,12 +520,12 @@ public class AWSCloud extends AbstractCloud {
                 return url + "/" + regionId;
             }
         }
-        url = (ctx == null ? null : ctx.getEndpoint());
+        url = (ctx == null ? null : ctx.getCloud().getEndpoint());
         if (url == null) {
             return null;
         }
         if (!url.startsWith("http")) {
-            String cloudUrl = ctx.getEndpoint();
+            String cloudUrl = ctx.getCloud().getEndpoint();
 
             if (cloudUrl != null && cloudUrl.startsWith("http:")) {
                 return "http://" + url;
@@ -531,7 +543,7 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public String getAutoScaleVersion() {
-        return "2009-05-15";
+        return "2011-01-01";
     }
 
     public String getCloudWatchVersion() {
@@ -550,11 +562,11 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public String getElbVersion() {
-        return "2009-05-15";
+        return "2012-06-01";
     }
 
     public String getRdsVersion() {
-        return "2011-04-01";
+        return "2012-09-17";
     }
 
     public String getRoute53Version() {
@@ -606,7 +618,7 @@ public class AWSCloud extends AbstractCloud {
     @Nonnull
     String getProviderName() {
         ProviderContext ctx = getContext();
-        String name = (ctx == null ? null : ctx.getProviderName());
+        String name = (ctx == null ? null : ctx.getCloud().getProviderName());
 
         return ((name == null) ? EC2Provider.AWS.getName() : name);
     }
@@ -660,7 +672,9 @@ public class AWSCloud extends AbstractCloud {
         parameters.put(P_ACTION, action);
         parameters.put(P_SIGNATURE_VERSION, SIGNATURE);
         try {
-            parameters.put(P_ACCESS, new String(ctx.getAccessPublic(), "utf-8"));
+            byte[][] keys = getAccessKey(ctx);
+
+            parameters.put(P_ACCESS, new String(keys[0], "utf-8"));
         } catch (UnsupportedEncodingException e) {
             logger.error(e);
             e.printStackTrace();
@@ -809,7 +823,7 @@ public class AWSCloud extends AbstractCloud {
         if (ctx == null) {
             throw new InternalException("No context for signing the request");
         }
-        return sign(ctx.getAccessPrivate(), base64Policy, S3_ALGORITHM);
+        return sign(getAccessKey(ctx)[1], base64Policy, S3_ALGORITHM);
     }
 
     public String signCloudFront(String accessKey, byte[] secretKey, String dateString) throws InternalException {
@@ -1041,7 +1055,9 @@ public class AWSCloud extends AbstractCloud {
 
         StringBuilder sb = new StringBuilder();
         for (KeyValuePair pair : queryParams) {
-            if (sb.length() > 0) sb.append("&");
+            if( sb.length() > 0 ) {
+                sb.append("&");
+            }
             sb.append(pair.getKey()).append("=").append(pair.getValue());
         }
         return sb.toString();
@@ -1056,7 +1072,9 @@ public class AWSCloud extends AbstractCloud {
 
         StringBuilder sb = new StringBuilder();
         for (String header : sorted) {
-            if (sb.length() > 0) sb.append(";");
+            if( sb.length() > 0 ) {
+                sb.append(";");
+            }
             sb.append(header.toLowerCase());
         }
 
@@ -1097,7 +1115,7 @@ public class AWSCloud extends AbstractCloud {
                     String actualAccountNumber = getOwnerId();
                     // Return actual account number as the number provided in configuration
                     // may have been incorrect
-                    if (actualAccountNumber != null) {
+                    if( actualAccountNumber != null ) {
                         return actualAccountNumber;
                     }
                 } else {
@@ -1122,7 +1140,6 @@ public class AWSCloud extends AbstractCloud {
     /**
      * Retrieve current account number using DescribeSecurityGroups. May not always be reliable but is better than
      * nothing.
-     *
      * @return current account number or null if not found
      */
     private String getOwnerId() {
@@ -1164,8 +1181,8 @@ public class AWSCloud extends AbstractCloud {
                 }
             }
             return null;
-        } catch (InternalException e) {
-        } catch (CloudException e) {
+        } catch ( InternalException e ) {
+        } catch ( CloudException e ) {
         } finally {
             APITrace.end();
         }
@@ -1231,11 +1248,21 @@ public class AWSCloud extends AbstractCloud {
      * @param node the node to extract the value from
      * @return the text from the node
      */
-    public String getTextValue(Node node) {
+    static public String getTextValue(Node node) {
         if (node.getChildNodes().getLength() == 0) {
             return null;
         }
         return node.getFirstChild().getNodeValue();
+    }
+
+    /**
+     * Returns the boolean value of the given node.
+     *
+     * @param node the node to extract the value from
+     * @return the boolean value of the node
+     */
+    static public boolean getBooleanValue(Node node) {
+        return Boolean.valueOf(getTextValue(node));
     }
 
     /**
@@ -1313,4 +1340,75 @@ public class AWSCloud extends AbstractCloud {
         parameters.put(key, value);
     }
 
+    private static volatile Boolean supportsEC2 = null;
+
+    /**
+     * Retrieve current account number using DescribeSecurityGroups. May not always be reliable but is better than
+     * nothing.
+     * @return current account number or null if not found
+     */
+    private void fetchSupportedPlatforms() {
+        if( supportsEC2 != null ) {
+            // We've already done this before, don't continue;
+            return;
+        }
+        APITrace.begin(this, "AWSCloud.getSupportedPlatforms");
+        List<String> results = new ArrayList<String>(2);
+        try {
+            ProviderContext ctx = getContext();
+            if (ctx == null) {
+                return;
+            }
+            Map<String, String> parameters = getStandardParameters(getContext(), EC2Method.DESCRIBE_ACCOUNT_ATTRIBUTES);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+            parameters.put("AttributeName.1", "supported-platforms");
+            method = new EC2Method(this, getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch (EC2Exception e) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+
+            blocks = doc.getElementsByTagName("accountValueSet");
+            for (int i = 0; i < blocks.getLength(); i++) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for (int j = 0; j < items.getLength(); j++) {
+                    Node item = items.item(j);
+
+                    if (item.getNodeName().equals("item")) {
+                        NodeList attrs = item.getChildNodes();
+                        for (int k = 0; k < attrs.getLength(); k++) {
+                            Node attr = attrs.item(k);
+                            if (attr.getNodeName().equals("attributeValue")) {
+                                if (PLATFORM_EC2.equalsIgnoreCase(attr.getFirstChild().getNodeValue().trim())) {
+                                    supportsEC2 = Boolean.TRUE;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if( supportsEC2 == null ) {
+                supportsEC2 = Boolean.FALSE;
+            }
+        } catch ( InternalException e ) {
+        } catch ( CloudException e ) {
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    /**
+     *
+     * @return
+     */
+    public boolean isEC2Supported() {
+        fetchSupportedPlatforms();
+        return supportsEC2 != null && supportsEC2;
+    }
 }

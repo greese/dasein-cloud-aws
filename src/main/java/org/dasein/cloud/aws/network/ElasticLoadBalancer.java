@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -51,6 +51,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     static private final Logger logger = Logger.getLogger(ElasticLoadBalancer.class);
     
     private AWSCloud provider = null;
+    private volatile transient ElasticLoadBalancerCapabilities capabilities;
 
     ElasticLoadBalancer(AWSCloud provider) {
         super(provider);
@@ -169,6 +170,14 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             for( String zoneId : options.getProviderDataCenterIds() ) {
                 parameters.put("AvailabilityZones.member." + (i++), zoneId);
             }
+            i = 1;
+            for( String subnetId : options.getProviderSubnetIds() ) {
+              parameters.put("Subnets.member." + (i++), subnetId);
+            }
+
+            if ( options.getType() != null && options.getType() == LbType.INTERNAL ) {
+              parameters.put("Scheme", "internal");
+            }
             method = new ELBMethod(provider, ctx, parameters);
             try {
                 doc = method.invoke();
@@ -199,7 +208,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     @SuppressWarnings("deprecation")
     @Override
     @Deprecated
-    public @Nonnull String create(@Nonnull String name, @Nonnull String description, @Nullable String addressId, @Nullable String[] zoneIds, @Nullable LbListener[] listeners, @Nullable String[] serverIds) throws CloudException, InternalException {
+    public @Nonnull String create(@Nonnull String name, @Nonnull String description, @Nullable String addressId, @Nullable String[] zoneIds, @Nullable LbListener[] listeners, @Nullable String[] serverIds, @Nullable String[] subnetIds, @Nullable LbType type) throws CloudException, InternalException {
         LoadBalancerCreateOptions options = LoadBalancerCreateOptions.getInstance(name, description);
 
         if( zoneIds != null && zoneIds.length > 0 ) {
@@ -211,13 +220,29 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         if( serverIds != null && serverIds.length > 0 ) {
             options.withVirtualMachines(serverIds);
         }
+        if( subnetIds != null && subnetIds.length > 0 ) {
+            options.withProviderSubnetIds(subnetIds);
+        }
+        if(type != null){
+          options.asType( type );
+        }
         return createLoadBalancer(options);
     }
 
+    @Override
     public @Nonnull LoadBalancerAddressType getAddressType() {
         return LoadBalancerAddressType.DNS;
     }
-    
+
+    @Nonnull
+    @Override
+    public LoadBalancerCapabilities getCapabilities() throws CloudException, InternalException {
+        if( capabilities == null ) {
+            capabilities = new ElasticLoadBalancerCapabilities(provider);
+        }
+        return capabilities;
+    }
+
     private @Nonnull Map<String,String> getELBParameters(@Nonnull ProviderContext ctx, @Nonnull String action) throws InternalException {
         APITrace.begin(provider, "LB.getELBParameters");
         try {
@@ -779,6 +804,105 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         return true;
     }
 
+    @Override
+    public LoadBalancerHealthCheck createLoadBalancerHealthCheck(@Nonnull LBHealthCheckCreateOptions options)throws CloudException, InternalException{
+        APITrace.begin(provider, "LB.configureHealthCheck");
+        try{
+            ProviderContext ctx = provider.getContext();
+            if(ctx == null){
+                throw new CloudException("No valid context is established for this request");
+            }
+
+            NodeList blocks;
+            Document doc;
+            Map<String, String> parameters = getELBParameters(getContext(), ELBMethod.CONFIGURE_HEALTH_CHECK);
+            ELBMethod method;
+
+            parameters.put("LoadBalancerName", options.getProviderLoadBalancerId());
+            parameters.put("HealthCheck.HealthyThreshold", options.getHealthyCount() + "");
+            parameters.put("HealthCheck.UnhealthyThreshold", options.getUnhealthyCount() + "");
+            String path = "/";
+            if( options.getPort() < 1 || options.getPort() > 65535 ){
+                throw new CloudException("Port must have a number between 1 and 65535.");
+            }
+            if(options.getPath() != null || !options.getPath().equals("")){
+                path = options.getPath();
+            }
+            parameters.put("HealthCheck.Target", options.getProtocol().name() + ":" + options.getPort() + path);
+            parameters.put("HealthCheck.Interval", options.getInterval().intValue() + "");
+            parameters.put("HealthCheck.Timeout", options.getTimeout().intValue() + "");
+
+            method = new ELBMethod(provider, ctx, parameters);
+            try{
+                doc = method.invoke();
+            }
+            catch(EC2Exception e){
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("HealthCheck");
+            if( blocks.getLength() > 0 ) {
+                return toLBHealthCheck(blocks.item(0));
+            }
+            throw new CloudException("An error occurred while configuring the Health Check.");
+        }
+        finally{
+            APITrace.end();
+        }
+    }
+
+//TODO: Get instance health
+//TODO: remove set as NoOp
+
+    @Override
+    public boolean healthCheckRequiresLoadBalancer(){
+        return true;
+    }
+
+    private LoadBalancerHealthCheck toLBHealthCheck(Node node){
+        NodeList attrs = node.getChildNodes();
+        Double interval = 0.0;
+        LoadBalancerHealthCheck.HCProtocol protocol = null;
+        int port = 0;
+        String path = "";
+        int healthyCount = 0;
+        int unHealthyCount = 0;
+        Double timeout = 0.0;
+
+        for(int i=0;i<attrs.getLength();i++){
+            Node attr = attrs.item(i);
+            String name = attr.getNodeName().toLowerCase();
+
+            if(name.equals("interval")){
+                interval = Double.valueOf(attr.getFirstChild().getNodeValue());
+            }
+            else if(name.equals("target")){
+                String targetString = attr.getFirstChild().getNodeValue();
+                String[] parts = targetString.split(":");
+                protocol = LoadBalancerHealthCheck.HCProtocol.valueOf(parts[0]);
+                if(parts[1].endsWith("/")){
+                    port = Integer.parseInt(parts[1].substring(0, parts[1].length()-1));
+                    path = "/";
+                }
+                else{
+                    String[] parts2 = parts[1].split("/");
+                    port = Integer.parseInt(parts2[0]);
+                    path = "/" + parts2[1];
+                }
+            }
+            else if(name.equals("healthythreshold")){
+                healthyCount = Integer.parseInt(attr.getFirstChild().getNodeValue());
+            }
+            else if(name.equals("unhealthythreshold")){
+                unHealthyCount = Integer.parseInt(attr.getFirstChild().getNodeValue());
+            }
+            else if(name.equals("timeout")){
+                timeout = Double.valueOf(attr.getFirstChild().getNodeValue());
+            }
+        }
+        return LoadBalancerHealthCheck.getInstance(protocol, port, path, interval, timeout, healthyCount, unHealthyCount);
+    }
+
     private LbListener toListener(Node node) {
         NodeList attrs = node.getChildNodes();
 
@@ -815,6 +939,8 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         String regionId = getContext().getRegionId();
         String lbName = null, description = null, lbId = null, cname = null;
         long created = 0L;
+        LbType type = null;
+        ArrayList<String> subnetList = new ArrayList<String>();
 
         if( regionId == null ) {
             throw new CloudException("No region was set for this context");
@@ -826,22 +952,27 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             String name;
             
             name = attr.getNodeName().toLowerCase();
-            if( name.equals("listeners") ) {
+            if( name.equals("listenerdescriptions") ) {
                 if( attr.hasChildNodes() ) {
                     NodeList listeners = attr.getChildNodes();
                 
                     if( listeners.getLength() > 0 ) {
                         for( int j=0; j<listeners.getLength(); j++ ) {
-                            Node item = listeners.item(j);
-                            
-                            if( item.getNodeName().equals("member") ) {
-                                LbListener l = toListener(item);
-                                
-                                if( l != null ) {
-                                    listenerList.add(l);
-                                    portList.add(l.getPublicPort());
+                          Node item = listeners.item(j);
+                          if ( item.getNodeName().equals( "member" ) ) {
+                            NodeList listenerMembers = item.getChildNodes();
+                            for ( int k = 0; k < listenerMembers.getLength(); k++ ) {
+                              Node listenerItem = listenerMembers.item( k );
+                              if ( listenerItem.getNodeName().equals( "Listener" ) ) {
+                                LbListener l = toListener( listenerItem );
+
+                                if ( l != null ) {
+                                  listenerList.add( l );
+                                  portList.add( l.getPublicPort() );
                                 }
+                              }
                             }
+                          }
                         }
                     }
                 }
@@ -905,6 +1036,27 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     }
                 }                
             }
+            else if( name.equals("scheme") ) {
+              if ( "internal".equals( provider.getTextValue( attr ) ) ) {
+                type = LbType.INTERNAL;
+              }
+            }
+            else if( name.equals("subnets") ) {
+              if( attr.hasChildNodes() ) {
+                NodeList subnets = attr.getChildNodes();
+
+                if( subnets.getLength() > 0 ) {
+                  for( int j=0; j<subnets.getLength(); j++ ) {
+                    Node subnet = subnets.item(j);
+
+                    if( subnet.hasChildNodes() ) {
+                      subnetList.add( provider.getTextValue( subnet ) );
+                    }
+                  }
+                }
+              }
+            }
+
         }
         if( lbId == null || cname == null ) {
             return null;
@@ -933,12 +1085,21 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         if( !zoneList.isEmpty() ) {
             lb.operatingIn(zoneList.toArray(new String[zoneList.size()]));
         }
+        if ( type != null ) {
+            lb.setType( type );
+        }
+        if( !subnetList.isEmpty() ) {
+          lb.withProviderSubnetIds(subnetList.toArray(new String[subnetList.size()]));
+        }
         return lb;
     }
     
     private LbProtocol toProtocol(String txt) {
         if( txt.equals("HTTP") ) {
-            return LbProtocol.HTTP;
+          return LbProtocol.HTTP;
+        }
+        if( txt.equals("HTTPS") ) {
+          return LbProtocol.HTTPS;
         }
         else {
             return LbProtocol.RAW_TCP;

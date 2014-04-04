@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -493,8 +493,12 @@ public class SNS implements PushNotificationSupport {
                                     if( node.getNodeName().equals("key") ) {
                                         name = node.getFirstChild().getNodeValue().trim();
                                     }
-                                    else if( node.getNodeName().equals("value") && node.hasChildNodes() ) {
-                                        value = node.getFirstChild().getNodeValue().trim();
+                                    else if( node.getNodeName().equals("value") ) {
+                                        if( node.getFirstChild() != null ) {
+                                            value = node.getFirstChild().getNodeValue().trim();
+                                        } else {
+                                            value = node.getNodeValue();
+                                        }
                                     }
                                 }
                             }

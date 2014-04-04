@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -19,41 +19,8 @@
 
 package org.dasein.cloud.aws.storage;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Properties;
-import java.util.SimpleTimeZone;
-import java.util.regex.Pattern;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.servlet.http.HttpServletResponse;
-import javax.xml.parsers.ParserConfigurationException;
-
-import com.sun.servicetag.SystemEnvironment;
 import org.apache.commons.codec.binary.Base64;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpVersion;
+import org.apache.http.*;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpRequestBase;
@@ -79,6 +46,17 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.servlet.http.HttpServletResponse;
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.regex.Pattern;
 
 public class S3Method {
     static private final Logger logger = Logger.getLogger(S3Method.class);
@@ -258,28 +236,28 @@ public class S3Method {
 
     static private final Logger wire = AWSCloud.getWireLogger(S3.class);
 
-    // TODO(stas): This method screams for some heavy refactoring
-	S3Response invoke(@Nullable String bucket, @Nullable String object, @Nullable String temporaryEndpoint) throws S3Exception, CloudException, InternalException {
+	// TODO(stas): This method screams for some heavy refactoring
+    S3Response invoke(@Nullable String bucket, @Nullable String object, @Nullable String temporaryEndpoint) throws S3Exception, CloudException, InternalException {
         if( wire.isDebugEnabled() ) {
             wire.debug("");
             wire.debug("----------------------------------------------------------------------------------");
         }
         HttpClient client = null;
+        boolean leaveOpen = false;
         try {
             StringBuilder url = new StringBuilder();
-            boolean leaveOpen = false;
             HttpRequestBase method;
             int status;
 
             // Sanitise the parameters as they may have spaces and who knows what else
-            if (bucket != null ){
-                bucket = URLEncoder.encode(bucket, "UTF-8");
+            if( bucket != null ) {
+                bucket = AWSCloud.encode(bucket, false);
             }
-            if (object != null && !object.startsWith("?")){
-                object = URLEncoder.encode(object, "UTF-8");
+            if( object != null && !object.startsWith("?")) {
+                object = AWSCloud.encode(object, false);
             }
-            if (temporaryEndpoint != null){
-                temporaryEndpoint = URLEncoder.encode(temporaryEndpoint, "UTF-8");
+            if( temporaryEndpoint != null ) {
+                temporaryEndpoint = AWSCloud.encode(temporaryEndpoint, false);
             }
             if( provider.getEC2Provider().isAWS() ) {
                 url.append("https://");
@@ -438,7 +416,6 @@ public class S3Method {
             } 
             catch (UnsupportedEncodingException e) {
                 logger.error(e);
-                throw new InternalException(e);
             }
             if( body != null ) {
                 try {
@@ -590,7 +567,7 @@ public class S3Method {
                             doc = parseResponse(input);
                         }
                         finally {
-                            if (input != null){
+                            if( input != null ) {
                                 input.close();
                             }
                         }
@@ -667,7 +644,7 @@ public class S3Method {
             throw new InternalException(e);
         }
         finally {
-            if (client != null) {
+            if (!leaveOpen && client != null) {
                 client.getConnectionManager().shutdown();
             }
             if( wire.isDebugEnabled() ) {
@@ -698,17 +675,14 @@ public class S3Method {
 		}
 		catch( IOException e ) {
 			logger.error(e);
-			e.printStackTrace();
 			throw new CloudException(e);
 		}
 		catch( ParserConfigurationException e ) {
 			logger.error(e);
-			e.printStackTrace();
 			throw new CloudException(e);
 		}
 		catch( SAXException e ) {
 			logger.error(e);
-			e.printStackTrace();
 			throw new CloudException(e);
 	    }				
 	}
