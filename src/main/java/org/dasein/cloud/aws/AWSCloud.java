@@ -109,7 +109,6 @@ public class AWSCloud extends AbstractCloud {
     static public final String V4_TERMINATION = "aws4_request";
 
     static public final String PLATFORM_EC2                     = "EC2";
-    static public final String PLATFORM_VPC                     = "VPC";
 
 
     static public @Nonnull String encode(@Nonnull String value, boolean encodePath) throws InternalException {
