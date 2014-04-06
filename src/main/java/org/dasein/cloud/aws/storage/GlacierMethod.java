@@ -107,14 +107,16 @@ public class GlacierMethod {
      * @throws GlacierException
      */
     public JSONObject invokeJson() throws InternalException, CloudException {
+        ClientAndResponse clientAndResponse = null;
         String content;
         try {
-            HttpResponse response = invokeInternal();
-            Header contentType = response.getFirstHeader("content-type");
+            clientAndResponse = invokeInternal();
+            Header contentType = clientAndResponse.response.getFirstHeader("content-type");
             if (!"application/json".equalsIgnoreCase(contentType.getValue())) {
                 throw new CloudException("Invalid Glacier response: expected JSON");
             }
-            content = EntityUtils.toString(response.getEntity());
+            final HttpEntity entity = clientAndResponse.response.getEntity();
+            content = EntityUtils.toString(entity);
             if (content == null) {
                 return null;
             }
@@ -124,6 +126,10 @@ public class GlacierMethod {
             throw new CloudException(e);
         } catch (JSONException e) {
             throw new CloudException(e);
+        } finally {
+            if (clientAndResponse != null) {
+                clientAndResponse.client.getConnectionManager().shutdown();
+            }
         }
     }
 
@@ -135,13 +141,17 @@ public class GlacierMethod {
      * @throws GlacierException
      */
     public Map<String, String> invokeHeaders() throws InternalException, CloudException {
-        HttpResponse response = invokeInternal();
-        Map<String, String> headers = new HashMap<String, String>();
-        // doesn't support duplicate header keys, but they are unused by glacier
-        for (Header header : response.getAllHeaders()) {
-            headers.put(header.getName().toLowerCase(), header.getValue());
+        ClientAndResponse clientAndResponse = invokeInternal();
+        try {
+            Map<String, String> headers = new HashMap<String, String>();
+            // doesn't support duplicate header keys, but they are unused by glacier
+            for (Header header : clientAndResponse.response.getAllHeaders()) {
+                headers.put(header.getName().toLowerCase(), header.getValue());
+            }
+            return headers;
+        }finally {
+            clientAndResponse.client.getConnectionManager().shutdown();
         }
-        return headers;
     }
 
     /**
@@ -150,10 +160,12 @@ public class GlacierMethod {
      * @throws CloudException
      */
     public void invoke() throws InternalException, CloudException {
-        invokeInternal();
+
+        final ClientAndResponse clientAndResponse = invokeInternal();
+        clientAndResponse.client.getConnectionManager().shutdown();
     }
 
-    private HttpResponse invokeInternal() throws InternalException, CloudException {
+    private ClientAndResponse invokeInternal() throws InternalException, CloudException {
 
         if( wire.isDebugEnabled() ) {
             wire.debug("");
@@ -230,7 +242,7 @@ public class GlacierMethod {
             if( status >= 400) {
                 throw getGlacierException(httpResponse);
             } else {
-                return httpResponse;
+                return new ClientAndResponse(client, httpResponse);
             }
         }
         finally {
@@ -384,6 +396,16 @@ public class GlacierMethod {
             }
         }
         return new DefaultHttpClient(params);
+    }
+
+    private static class ClientAndResponse {
+        public final HttpClient client;
+        public final HttpResponse response;
+
+        private ClientAndResponse(HttpClient client, HttpResponse response) {
+            this.client = client;
+            this.response = response;
+        }
     }
 
     public static Builder build(@Nonnull AWSCloud provider, @Nonnull GlacierAction action) {

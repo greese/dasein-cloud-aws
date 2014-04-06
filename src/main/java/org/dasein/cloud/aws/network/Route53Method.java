@@ -212,8 +212,9 @@ public class Route53Method {
 		if( logger.isDebugEnabled() ) {
 			logger.debug("Talking to server at " + url);
 		}
+        HttpClient client = null;
 		try {
-    		HttpClient client = getClient();
+            client = getClient();
             HttpResponse response;
     		int status;
     
@@ -395,6 +396,9 @@ public class Route53Method {
     		}
         }
         finally {
+            if (client != null) {
+                client.getConnectionManager().shutdown();
+            }
             logger.debug("Done");
         }
 	}

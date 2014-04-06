@@ -278,14 +278,26 @@ public class ElasticIP implements IpAddressSupport {
 
     @Override
     @Deprecated
-    public @Nonnull String getProviderTermForIpAddress(@Nonnull Locale locale) {
-      return "elastic IP";
+	public @Nonnull String getProviderTermForIpAddress(@Nonnull Locale locale) {
+        try {
+            return getCapabilities().getProviderTermForIpAddress(locale);
+        } catch( CloudException e ) {
+            throw new RuntimeException(e);
+        } catch( InternalException e ) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     @Deprecated
     public @Nonnull Requirement identifyVlanForVlanIPRequirement() {
-        return Requirement.NONE;
+        try {
+            return getCapabilities().identifyVlanForVlanIPRequirement();
+        } catch( CloudException e ) {
+            throw new RuntimeException(e);
+        } catch( InternalException e ) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -302,7 +314,7 @@ public class ElasticIP implements IpAddressSupport {
     @Override
     @Deprecated
     public boolean isAssignablePostLaunch(@Nonnull IPVersion version) throws CloudException, InternalException {
-        return version.equals(IPVersion.IPV4);
+        return getCapabilities().isAssignablePostLaunch(version);
     }
 
     @Override
@@ -324,7 +336,7 @@ public class ElasticIP implements IpAddressSupport {
     @Override
     @Deprecated
     public boolean isRequestable(@Nonnull IPVersion version) throws CloudException, InternalException {
-        return version.equals(IPVersion.IPV4);
+        return getCapabilities().isRequestable(version);
     }
 
     @Override
@@ -475,7 +487,7 @@ public class ElasticIP implements IpAddressSupport {
     @Override
     @Deprecated
     public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
-        return Collections.singletonList(IPVersion.IPV4);
+        return getCapabilities().listSupportedIPVersions();
     }
 
     @Override
@@ -674,7 +686,7 @@ public class ElasticIP implements IpAddressSupport {
     @Override
     @Deprecated
     public boolean supportsVLANAddresses(@Nonnull IPVersion version) throws InternalException, CloudException {
-        return version.equals(IPVersion.IPV4);
+        return getCapabilities().supportsVLANAddresses(version);
     }
 
     private @Nullable IpAddress toAddress(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException {

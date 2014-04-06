@@ -23,6 +23,7 @@ import org.apache.http.*;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.conn.ClientConnectionManager;
 import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
@@ -639,13 +640,14 @@ public class EC2Method {
             wire.debug("");
             wire.debug("--------------------------------------------------------------------------------------");
         }
+        HttpClient client = null;
 	    try {
     		if( logger.isDebugEnabled() ) {
     			logger.debug("Talking to server at " + url);
     		}
 
             HttpPost post = new HttpPost(url);
-            HttpClient client = getClient();
+            client = getClient();
 
             HttpResponse response;
 
@@ -887,6 +889,9 @@ public class EC2Method {
             }
 	    }
 	    finally {
+            if (client != null) {
+                client.getConnectionManager().shutdown();
+            }
 	        if( logger.isTraceEnabled() ) {
 	            logger.trace("EXIT - " + EC2Method.class.getName() + ".invoke()");
 	        }

@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
@@ -16,6 +16,7 @@
  * limitations under the License.
  * ====================================================================
  */
+
 package org.dasein.cloud.aws.network;
 
 import org.dasein.cloud.AbstractCapabilities;

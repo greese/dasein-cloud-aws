@@ -242,11 +242,11 @@ public class S3Method {
             wire.debug("");
             wire.debug("----------------------------------------------------------------------------------");
         }
+        HttpClient client = null;
+        boolean leaveOpen = false;
         try {
             StringBuilder url = new StringBuilder();
-            boolean leaveOpen = false;
             HttpRequestBase method;
-            HttpClient client;
             int status;
 
             // Sanitise the parameters as they may have spaces and who knows what else
@@ -639,6 +639,9 @@ public class S3Method {
             }
         }
         finally {
+            if (!leaveOpen && client != null) {
+                client.getConnectionManager().shutdown();
+            }
             if( wire.isDebugEnabled() ) {
                 wire.debug("----------------------------------------------------------------------------------");
                 wire.debug("");

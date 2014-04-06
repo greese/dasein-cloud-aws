@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
@@ -16,6 +16,7 @@
  * limitations under the License.
  * ====================================================================
  */
+
 package org.dasein.cloud.aws.network;
 
 import org.dasein.cloud.AbstractCapabilities;
@@ -54,7 +55,7 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
     @Nonnull
     @Override
     public Requirement identifyVlanForVlanIPRequirement() throws CloudException, InternalException {
-        return getProvider().isEC2Supported() ? Requirement.NONE : Requirement.OPTIONAL;
+        return Requirement.NONE;
     }
 
     @Override
@@ -69,7 +70,7 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
 
     @Override
     public boolean isAssignablePostLaunch(@Nonnull IPVersion version) throws CloudException, InternalException {
-        return getProvider().isEC2Supported() ? IPVersion.IPV4.equals(version) : false;
+        return IPVersion.IPV4.equals(version);
     }
 
     @Override
@@ -90,6 +91,6 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
 
     @Override
     public boolean supportsVLANAddresses(@Nonnull IPVersion ofVersion) throws InternalException, CloudException {
-        return getProvider().isEC2Supported() ? IPVersion.IPV4.equals(ofVersion) : false;
+        return getProvider().isEC2Supported() ? false : IPVersion.IPV4.equals(ofVersion);
     }
 }
