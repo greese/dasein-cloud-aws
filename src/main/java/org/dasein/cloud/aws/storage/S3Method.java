@@ -250,14 +250,14 @@ public class S3Method {
             int status;
 
             // Sanitise the parameters as they may have spaces and who knows what else
-            if ( bucket != null ) {
-              bucket = AWSCloud.encode( bucket, false );
+            if( bucket != null ) {
+              bucket = AWSCloud.encode(bucket, false);
             }
-            if ( object != null && !"?location".equalsIgnoreCase( object ) && !"?acl".equalsIgnoreCase( object ) ) {
-              object = AWSCloud.encode( object, false );
+            if( object != null && !"?location".equalsIgnoreCase( object ) && !"?acl".equalsIgnoreCase( object )) {
+              object = AWSCloud.encode(object, false);
             }
-            if (temporaryEndpoint != null ) {
-              temporaryEndpoint = AWSCloud.encode(temporaryEndpoint, false);
+            if( temporaryEndpoint != null ) {
+                temporaryEndpoint = AWSCloud.encode(temporaryEndpoint, false);
             }
             if( provider.getEC2Provider().isAWS() ) {
                 url.append("https://");
