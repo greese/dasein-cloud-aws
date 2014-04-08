@@ -139,7 +139,7 @@ public class S3Method {
         
         return new String(b64);
     }
-    
+
     private S3Action           action      = null;
     private int                attempts    = 0;
     private String             body        = null;
@@ -150,51 +150,51 @@ public class S3Method {
     private File               uploadFile  = null;
 
     public S3Method(AWSCloud provider, S3Action action) {
-      this.action = action;
-      this.headers = new HashMap<String,String>();
-      this.provider = provider;
+        this.action = action;
+        this.headers = new HashMap<String,String>();
+        this.provider = provider;
     }
 
     public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers) {
-      this.action = action;
-      this.headers = (headers == null ? new HashMap<String,String>() : headers);
-      this.provider = provider;
-      this.parameters = parameters;
+        this.action = action;
+        this.headers = (headers == null ? new HashMap<String,String>() : headers);
+        this.provider = provider;
+        this.parameters = parameters;
     }
 
     public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, String body) {
-      this.action = action;
-      this.headers = (headers == null ? new HashMap<String,String>() : headers);
-      this.contentType = contentType;
-      this.body = body;
-      this.provider = provider;
-      this.parameters = parameters;
+        this.action = action;
+        this.headers = (headers == null ? new HashMap<String,String>() : headers);
+        this.contentType = contentType;
+        this.body = body;
+        this.provider = provider;
+        this.parameters = parameters;
     }
 
     public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, File uploadFile) {
-      this.action = action;
-      this.headers = (headers == null ? new HashMap<String,String>() : headers);
-      this.contentType = contentType;
-      this.uploadFile = uploadFile;
-      this.provider = provider;
-      this.parameters = parameters;
+        this.action = action;
+        this.headers = (headers == null ? new HashMap<String,String>() : headers);
+        this.contentType = contentType;
+        this.uploadFile = uploadFile;
+        this.provider = provider;
+        this.parameters = parameters;
     }
 
     private String getDate() throws CloudException {
-      if( provider.getEC2Provider().isStorage() && "google".equalsIgnoreCase(provider.getProviderName()) ) {
-          SimpleDateFormat format = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ssz", new Locale("US"));
-          Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
+        if( provider.getEC2Provider().isStorage() && "google".equalsIgnoreCase(provider.getProviderName()) ) {
+            SimpleDateFormat format = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ssz", new Locale("US"));
+            Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
 
-          format.setCalendar(cal);
-          return format.format(new Date());
-      }
-      else {
-          SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
-          Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
+            format.setCalendar(cal);
+            return format.format(new Date());
+        }
+        else {
+            SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
+            Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
 
-          fmt.setCalendar(cal);
-          return fmt.format(new Date());
-      }
+            fmt.setCalendar(cal);
+            return fmt.format(new Date());
+        }
     }
 
     S3Response invoke(String bucket, String object) throws S3Exception, CloudException, InternalException {
