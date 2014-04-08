@@ -112,9 +112,7 @@ public class AWSCloud extends AbstractCloud {
     static public final String PLATFORM_VPC = "VPC";
 
 
-    static public
-    @Nonnull
-    String encode(@Nonnull String value, boolean encodePath) throws InternalException {
+    static public @Nonnull String encode(@Nonnull String value, boolean encodePath) throws InternalException {
         String encoded;
 
         try {
@@ -453,16 +451,14 @@ public class AWSCloud extends AbstractCloud {
     static public final String DSN_ACCESS_KEY = "accessKey";
 
     @Override
-    public
-    @Nonnull
-    ContextRequirements getContextRequirements() {
+    public @Nonnull ContextRequirements getContextRequirements() {
         return new ContextRequirements(
                 new ContextRequirements.Field(DSN_ACCESS_KEY, "AWS API access keys", ContextRequirements.FieldType.KEYPAIR, ContextRequirements.Field.ACCESS_KEYS, true)
         );
     }
 
     public byte[][] getAccessKey(ProviderContext ctx) {
-        return (byte[][]) ctx.getConfigurationValue(DSN_ACCESS_KEY);
+        return (byte[][])ctx.getConfigurationValue(DSN_ACCESS_KEY);
     }
 
     @Override
@@ -496,9 +492,7 @@ public class AWSCloud extends AbstractCloud {
         }
     }
 
-    public
-    @Nullable
-    String getEc2Url(@Nullable String regionId) throws InternalException, CloudException {
+    public @Nullable String getEc2Url(@Nullable String regionId) throws InternalException, CloudException {
         ProviderContext ctx = getContext();
         String url;
 
@@ -1069,7 +1063,7 @@ public class AWSCloud extends AbstractCloud {
 
         StringBuilder sb = new StringBuilder();
         for (KeyValuePair pair : queryParams) {
-            if (sb.length() > 0) {
+            if(sb.length() > 0) {
                 sb.append("&");
             }
             sb.append(pair.getKey()).append("=").append(pair.getValue());
@@ -1086,7 +1080,7 @@ public class AWSCloud extends AbstractCloud {
 
         StringBuilder sb = new StringBuilder();
         for (String header : sorted) {
-            if (sb.length() > 0) {
+            if(sb.length() > 0) {
                 sb.append(";");
             }
             sb.append(header.toLowerCase());
@@ -1129,7 +1123,7 @@ public class AWSCloud extends AbstractCloud {
                     String actualAccountNumber = getOwnerId();
                     // Return actual account number as the number provided in configuration
                     // may have been incorrect
-                    if (actualAccountNumber != null) {
+                    if(actualAccountNumber != null) {
                         return actualAccountNumber;
                     }
                 } else {
@@ -1154,7 +1148,6 @@ public class AWSCloud extends AbstractCloud {
     /**
      * Retrieve current account number using DescribeSecurityGroups. May not always be reliable but is better than
      * nothing.
-     *
      * @return current account number or null if not found
      */
     private String getOwnerId() {
@@ -1196,8 +1189,8 @@ public class AWSCloud extends AbstractCloud {
                 }
             }
             return null;
-        } catch (InternalException e) {
-        } catch (CloudException e) {
+        } catch ( InternalException e ) {
+        } catch ( CloudException e ) {
         } finally {
             APITrace.end();
         }
@@ -1360,11 +1353,10 @@ public class AWSCloud extends AbstractCloud {
     /**
      * Retrieve current account number using DescribeSecurityGroups. May not always be reliable but is better than
      * nothing.
-     *
      * @return current account number or null if not found
      */
     private void fetchSupportedPlatforms() {
-        if (supportsEC2 != null) {
+        if( supportsEC2 != null ) {
             // We've already done this before, don't continue;
             return;
         }
@@ -1409,11 +1401,11 @@ public class AWSCloud extends AbstractCloud {
                     }
                 }
             }
-            if (supportsEC2 == null) {
+            if( supportsEC2 == null ) {
                 supportsEC2 = Boolean.FALSE;
             }
-        } catch (InternalException e) {
-        } catch (CloudException e) {
+        } catch ( InternalException e ) {
+        } catch ( CloudException e ) {
         } finally {
             APITrace.end();
         }
