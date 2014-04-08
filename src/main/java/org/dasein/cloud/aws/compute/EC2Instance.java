@@ -209,17 +209,13 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                             logger.error(e);
                             throw new InternalException(e);
                         }
-                    }
-                    else if(item.getNodeName().equals("Average")) {
+                    } else if(item.getNodeName().equals("Average")) {
                         m.average = Double.parseDouble(item.getFirstChild().getNodeValue());
-                    }
-                    else if(item.getNodeName().equals("Minimum")) {
+                    } else if(item.getNodeName().equals("Minimum")) {
                         m.minimum = Double.parseDouble(item.getFirstChild().getNodeValue());
-                    }
-                    else if(item.getNodeName().equals("Maximum")) {
+                    } else if(item.getNodeName().equals("Maximum")) {
                         m.maximum = Double.parseDouble(item.getFirstChild().getNodeValue());
-                    }
-                    else if(item.getNodeName().equals("Samples")) {
+                    } else if(item.getNodeName().equals("Samples")) {
                         m.samples = ( int ) Double.parseDouble(item.getFirstChild().getNodeValue());
                     }
                 }
