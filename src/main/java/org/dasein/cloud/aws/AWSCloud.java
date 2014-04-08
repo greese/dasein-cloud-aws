@@ -1063,7 +1063,7 @@ public class AWSCloud extends AbstractCloud {
 
         StringBuilder sb = new StringBuilder();
         for (KeyValuePair pair : queryParams) {
-            if(sb.length() > 0) {
+            if( sb.length() > 0 ) {
                 sb.append("&");
             }
             sb.append(pair.getKey()).append("=").append(pair.getValue());
@@ -1080,7 +1080,7 @@ public class AWSCloud extends AbstractCloud {
 
         StringBuilder sb = new StringBuilder();
         for (String header : sorted) {
-            if(sb.length() > 0) {
+            if( sb.length() > 0 ) {
                 sb.append(";");
             }
             sb.append(header.toLowerCase());
@@ -1123,7 +1123,7 @@ public class AWSCloud extends AbstractCloud {
                     String actualAccountNumber = getOwnerId();
                     // Return actual account number as the number provided in configuration
                     // may have been incorrect
-                    if(actualAccountNumber != null) {
+                    if( actualAccountNumber != null ) {
                         return actualAccountNumber;
                     }
                 } else {
@@ -1412,6 +1412,7 @@ public class AWSCloud extends AbstractCloud {
     }
 
     /**
+     *
      * @return
      */
     public boolean isEC2Supported() {
