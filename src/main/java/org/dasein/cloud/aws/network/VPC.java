@@ -2295,7 +2295,7 @@ public class VPC extends AbstractVLANSupport {
     }
 
     @Override
-    public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action ) {
+    public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
         if( action.equals(VLANSupport.ANY) ) {
             return new String[]{EC2Method.EC2_PREFIX + "*"};
         } else if( action.equals(VLANSupport.ASSIGN_ROUTE_TO_SUBNET) ) {
@@ -2470,7 +2470,7 @@ public class VPC extends AbstractVLANSupport {
         return nic;
     }
 
-    private @Nonnull NICState toNICState(@Nonnull String status ) {
+    private @Nonnull NICState toNICState(@Nonnull String status) {
         if( status.equalsIgnoreCase("pending") ) {
             return NICState.PENDING;
         } else if( status.equalsIgnoreCase("available") ) {
@@ -2664,12 +2664,12 @@ public class VPC extends AbstractVLANSupport {
         if( subnet.getName() == null ) {
             String name = subnet.getTags().get("Name");
 
-            subnet.setName((name == null || name.length() < 1) ? subnet.getProviderSubnetId() : name);
+            subnet.setName(( name == null || name.length() < 1 ) ? subnet.getProviderSubnetId() : name);
         }
         if( subnet.getDescription() == null ) {
             String desc = subnet.getTags().get("Description");
 
-            subnet.setDescription((desc == null || desc.length() < 1) ? subnet.getName() : desc);
+            subnet.setDescription(( desc == null || desc.length() < 1 ) ? subnet.getName() : desc);
         }
         return subnet;
     }
@@ -2742,7 +2742,7 @@ public class VPC extends AbstractVLANSupport {
         return vlan;
     }
 
-    private @Nonnull VLANState toVLANState(@Nonnull String status ) {
+    private @Nonnull VLANState toVLANState(@Nonnull String status) {
         if( status.equalsIgnoreCase("available") ) {
             return VLANState.AVAILABLE;
         } else if( status.equalsIgnoreCase("pending") ) {
@@ -2887,5 +2887,4 @@ public class VPC extends AbstractVLANSupport {
     public void removeVLANTags(@Nonnull String[] vlanIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         ( (AWSCloud) getProvider() ).removeTags(vlanIds, tags);
     }
-
 }
