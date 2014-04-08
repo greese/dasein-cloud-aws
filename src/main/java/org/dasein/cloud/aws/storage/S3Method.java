@@ -251,10 +251,10 @@ public class S3Method {
 
             // Sanitise the parameters as they may have spaces and who knows what else
             if( bucket != null ) {
-              bucket = AWSCloud.encode(bucket, false);
+                bucket = AWSCloud.encode(bucket, false);
             }
             if( object != null && !"?location".equalsIgnoreCase( object ) && !"?acl".equalsIgnoreCase( object )) {
-              object = AWSCloud.encode(object, false);
+                object = AWSCloud.encode(object, false);
             }
             if( temporaryEndpoint != null ) {
                 temporaryEndpoint = AWSCloud.encode(temporaryEndpoint, false);
