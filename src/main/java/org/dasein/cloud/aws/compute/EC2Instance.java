@@ -209,14 +209,14 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                             logger.error(e);
                             throw new InternalException(e);
                         }
-                    } else if(item.getNodeName().equals("Average")) {
+                    } else if( item.getNodeName().equals("Average" )) {
                         m.average = Double.parseDouble(item.getFirstChild().getNodeValue());
-                    } else if(item.getNodeName().equals("Minimum")) {
+                    } else if( item.getNodeName().equals("Minimum") ) {
                         m.minimum = Double.parseDouble(item.getFirstChild().getNodeValue());
-                    } else if(item.getNodeName().equals("Maximum")) {
+                    } else if( item.getNodeName().equals("Maximum") ) {
                         m.maximum = Double.parseDouble(item.getFirstChild().getNodeValue());
-                    } else if(item.getNodeName().equals("Samples")) {
-                        m.samples = ( int ) Double.parseDouble(item.getFirstChild().getNodeValue());
+                    } else if( item.getNodeName().equals("Samples") ) {
+                        m.samples = (int) Double.parseDouble(item.getFirstChild().getNodeValue());
                     }
                 }
                 metrics.add(m);
@@ -402,7 +402,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             Callable<String> callable = new GetPassCallable(
                     instanceId,
                     getProvider().getStandardParameters(getProvider().getContext(),
-                            EC2Method.GET_PASSWORD_DATA),
+                    EC2Method.GET_PASSWORD_DATA),
                     getProvider(),
                     getProvider().getEc2Url()
             );
@@ -1304,7 +1304,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 throw new AWSResourceNotFoundException("No such machine image: " + cfg.getMachineImageId());
             }
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.RUN_INSTANCES);
-            String ramdiskImage = (String) cfg.getMetaData().get("ramdiskImageId"), kernelImage = ( String ) cfg.getMetaData().get("kernelImageId");
+            String ramdiskImage = (String) cfg.getMetaData().get("ramdiskImageId"), kernelImage = (String) cfg.getMetaData().get("kernelImageId");
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -2091,8 +2091,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     for( Map.Entry<String, String> entry : tags.entrySet() ) {
                         if( entry.getKey().equalsIgnoreCase("name") ) {
                             server.setName(entry.getValue());
-                        }
-                        else if( entry.getKey().equalsIgnoreCase("description") ) {
+                        } else if( entry.getKey().equalsIgnoreCase("description") ) {
                             server.setDescription(entry.getValue());
                         }
                     }
@@ -2300,8 +2299,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 rootDeviceName = AWSCloud.getTextValue(attr);
             } else if( "ebsOptimized".equals(name) && attr.hasChildNodes() ) {
                 server.setIoOptimized(Boolean.valueOf(attr.getFirstChild().getNodeValue()));
-            }
-            else if( "sourceDestCheck".equals(name) && attr.hasChildNodes() ) {
+            } else if( "sourceDestCheck".equals(name) && attr.hasChildNodes() ) {
                 /**
                  * note: a value of <sourceDestCheck>true</sourceDestCheck> means this instance cannot
                  * function as a NAT instance, so we negate the value to indicate if it is allowed
@@ -2335,8 +2333,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
         if( server.getArchitecture() == null && server.getProductId() != null ) {
             server.setArchitecture(getArchitecture(server.getProductId()));
-        }
-        else if( server.getArchitecture() == null ) {
+        } else if( server.getArchitecture() == null ) {
             server.setArchitecture(Architecture.I64);
         }
 
