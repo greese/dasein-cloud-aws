@@ -209,7 +209,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                             logger.error(e);
                             throw new InternalException(e);
                         }
-                    } else if( item.getNodeName().equals("Average" )) {
+                    } else if( item.getNodeName().equals("Average") ) {
                         m.average = Double.parseDouble(item.getFirstChild().getNodeValue());
                     } else if( item.getNodeName().equals("Minimum") ) {
                         m.minimum = Double.parseDouble(item.getFirstChild().getNodeValue());
@@ -401,8 +401,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         try {
             Callable<String> callable = new GetPassCallable(
                     instanceId,
-                    getProvider().getStandardParameters(getProvider().getContext(),
-                    EC2Method.GET_PASSWORD_DATA),
+                    getProvider().getStandardParameters(getProvider().getContext(), EC2Method.GET_PASSWORD_DATA),
                     getProvider(),
                     getProvider().getEc2Url()
             );
@@ -1519,7 +1518,12 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 try {
                     final String sid = server.getProviderVirtualMachineId();
                     try {
-                        Callable<String> callable = new GetPassCallable(sid, getProvider().getStandardParameters(getProvider().getContext(), EC2Method.GET_PASSWORD_DATA), getProvider(), getProvider().getEc2Url());
+                        Callable<String> callable = new GetPassCallable(
+                                sid,
+                                getProvider().getStandardParameters(getProvider().getContext(), EC2Method.GET_PASSWORD_DATA),
+                                getProvider(),
+                                getProvider().getEc2Url()
+                        );
                         String password = callable.call();
 
                         if( password == null ) {
