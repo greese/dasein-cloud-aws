@@ -64,7 +64,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public VirtualMachine alterVirtualMachine( @Nonnull String vmId, @Nonnull VMScalingOptions options ) throws InternalException, CloudException {
+    public VirtualMachine alterVirtualMachine(@Nonnull String vmId, @Nonnull VMScalingOptions options) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "alterVirtualMachine");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.MODIFY_INSTANCE_ATTRIBUTE);
@@ -89,7 +89,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public VirtualMachine modifyInstance( @Nonnull String vmId, @Nonnull String[] firewalls ) throws InternalException, CloudException {
+    public VirtualMachine modifyInstance(@Nonnull String vmId, @Nonnull String[] firewalls) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "alterVirtualMachine");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.MODIFY_INSTANCE_ATTRIBUTE);
@@ -116,7 +116,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void start( @Nonnull String instanceId ) throws InternalException, CloudException {
+    public void start(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "startVM");
         try {
             VirtualMachine vm = getVirtualMachine(instanceId);
@@ -158,7 +158,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    private Set<Metric> calculate( String metric, String unit, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
+    private Set<Metric> calculate(String metric, String unit, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "calculateVMAnalytics");
         try {
             if( !getProvider().getEC2Provider().isAWS() ) {
@@ -232,10 +232,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     private interface ApplyCalcs {
-        public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum );
+        public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum);
     }
 
-    private void calculate( VmStatistics stats, String metricName, String unit, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp, ApplyCalcs apply ) throws CloudException, InternalException {
+    private void calculate(VmStatistics stats, String metricName, String unit, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp, ApplyCalcs apply) throws CloudException, InternalException {
         Set<Metric> metrics = calculate(metricName, unit, id, idIsVolumeId, startTimestamp, endTimestamp);
         double minimum = -1.0, maximum = 0.0, sum = 0.0;
         long start = -1L, end = 0L;
@@ -272,7 +272,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         apply.apply(stats, start, end, samples, samples == 0 ? 0.0 : sum / samples, minimum, maximum);
     }
 
-    private void calculateCpuUtilization( VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
+    private void calculateCpuUtilization(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setSamples(samples);
@@ -286,7 +286,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         calculate(statistics, "CPUUtilization", "Percent", instanceId, false, startTimestamp, endTimestamp, apply);
     }
 
-    private void calculateDiskReadBytes( VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
+    private void calculateDiskReadBytes(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setMinimumDiskReadBytes(minimum);
@@ -297,7 +297,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         calculate(statistics, idIsVolumeId ? "VolumeReadBytes" : "DiskReadBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
     }
 
-    private void calculateDiskReadOps( VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
+    private void calculateDiskReadOps(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setMinimumDiskReadOperations(minimum);
@@ -308,7 +308,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         calculate(statistics, idIsVolumeId ? "VolumeReadOps" : "DiskReadOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
     }
 
-    private void calculateDiskWriteBytes( VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
+    private void calculateDiskWriteBytes(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setMinimumDiskWriteBytes(minimum);
@@ -319,7 +319,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         calculate(statistics, idIsVolumeId ? "VolumeWriteBytes" : "DiskWriteBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
     }
 
-    private void calculateDiskWriteOps( VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
+    private void calculateDiskWriteOps(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setMinimumDiskWriteOperations(minimum);
@@ -330,7 +330,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         calculate(statistics, idIsVolumeId ? "VolumeWriteOps" : "DiskWriteOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
     }
 
-    private void calculateNetworkIn( VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
+    private void calculateNetworkIn(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setMinimumNetworkIn(minimum);
@@ -341,7 +341,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         calculate(statistics, "NetworkIn", "Bytes", instanceId, false, startTimestamp, endTimestamp, apply);
     }
 
-    private void calculateNetworkOut( VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
+    private void calculateNetworkOut(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
             public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setMinimumNetworkOut(minimum);
@@ -353,12 +353,12 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull VirtualMachine clone( @Nonnull String vmId, @Nonnull String intoDcId, @Nonnull String name, @Nonnull String description, boolean powerOn, @Nullable String... firewallIds ) throws InternalException, CloudException {
+    public @Nonnull VirtualMachine clone(@Nonnull String vmId, @Nonnull String intoDcId, @Nonnull String name, @Nonnull String description, boolean powerOn, @Nullable String... firewallIds) throws InternalException, CloudException {
         throw new OperationNotSupportedException("AWS instances cannot be cloned.");
     }
 
     @Override
-    public void enableAnalytics( @Nonnull String instanceId ) throws InternalException, CloudException {
+    public void enableAnalytics(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "enableVMAnalytics");
         try {
             if( getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus() ) {
@@ -379,7 +379,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    private Architecture getArchitecture( String size ) {
+    private Architecture getArchitecture(String size) {
         if( size.equals("m1.small") || size.equals("c1.medium") ) {
             return Architecture.I32;
         }
@@ -395,12 +395,12 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return capabilities;
     }
 
-    private @Nonnull String getCloudWatchUrl( @Nonnull ProviderContext ctx ) {
+    private @Nonnull String getCloudWatchUrl(@Nonnull ProviderContext ctx) {
         return ( "https://monitoring." + ctx.getRegionId() + ".amazonaws.com" );
     }
 
     @Override
-    public @Nullable String getPassword( @Nonnull String instanceId ) throws InternalException, CloudException {
+    public @Nullable String getPassword(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getPassword");
         try {
             Callable<String> callable = new GetPassCallable(instanceId, getProvider().getStandardParameters(getProvider().getContext(), EC2Method.GET_PASSWORD_DATA), getProvider(), getProvider().getEc2Url());
@@ -466,7 +466,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull String getConsoleOutput( @Nonnull String instanceId ) throws InternalException, CloudException {
+    public @Nonnull String getConsoleOutput(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getConsoleOutput");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.GET_CONSOLE_OUTPUT);
@@ -531,7 +531,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public int getCostFactor( @Nonnull VmState vmState ) throws InternalException, CloudException {
+    public int getCostFactor(@Nonnull VmState vmState) throws InternalException, CloudException {
         return ( vmState.equals(VmState.STOPPED) ? 0 : 100 );
     }
 
@@ -541,7 +541,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull Iterable<String> listFirewalls( @Nonnull String instanceId ) throws InternalException, CloudException {
+    public @Nonnull Iterable<String> listFirewalls(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "listFirewallsForVM");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCES);
@@ -591,7 +591,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nullable VirtualMachine getVirtualMachine( @Nonnull String instanceId ) throws InternalException, CloudException {
+    public @Nullable VirtualMachine getVirtualMachine(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getVirtualMachine");
         try {
             ProviderContext ctx = getProvider().getContext();
@@ -678,7 +678,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nullable VirtualMachineProduct getProduct( @Nonnull String sizeId ) throws CloudException, InternalException {
+    public @Nullable VirtualMachineProduct getProduct(@Nonnull String sizeId) throws CloudException, InternalException {
         for( Architecture a : getCapabilities().listSupportedArchitectures() ) {
             for( VirtualMachineProduct prd : listProducts(a) ) {
                 if( prd.getProviderProductId().equals(sizeId) ) {
@@ -689,7 +689,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return null;
     }
 
-    private VmState getServerState( String state ) {
+    private VmState getServerState(String state) {
         if( state.equals("pending") ) {
             return VmState.PENDING;
         }
@@ -716,7 +716,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull VmStatistics getVMStatistics( @Nonnull String instanceId, @Nonnegative long startTimestamp, @Nonnegative long endTimestamp ) throws InternalException, CloudException {
+    public @Nonnull VmStatistics getVMStatistics(@Nonnull String instanceId, @Nonnegative long startTimestamp, @Nonnegative long endTimestamp) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getVMStatistics");
         try {
             VmStatistics statistics = new VmStatistics();
@@ -759,7 +759,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull Iterable<VmStatistics> getVMStatisticsForPeriod( @Nonnull String instanceId, long startTimestamp, long endTimestamp ) throws InternalException, CloudException {
+    public @Nonnull Iterable<VmStatistics> getVMStatisticsForPeriod(@Nonnull String instanceId, long startTimestamp, long endTimestamp) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getVMStatisticsForPeriod");
         try {
             if( endTimestamp < 1L ) {
@@ -916,13 +916,13 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public Iterable<VirtualMachineStatus> getVMStatus( @Nullable String... vmIds ) throws InternalException, CloudException {
+    public Iterable<VirtualMachineStatus> getVMStatus(@Nullable String... vmIds) throws InternalException, CloudException {
         VmStatusFilterOptions filterOptions = vmIds != null ? VmStatusFilterOptions.getInstance().withVmIds(vmIds) : VmStatusFilterOptions.getInstance();
         return getVMStatus(filterOptions);
     }
 
     @Override
-    public @Nullable Iterable<VirtualMachineStatus> getVMStatus( @Nullable VmStatusFilterOptions filterOptions ) throws InternalException, CloudException {
+    public @Nullable Iterable<VirtualMachineStatus> getVMStatus( @Nullable VmStatusFilterOptions filterOptions) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getVMStatus");
         try {
             ProviderContext ctx = getProvider().getContext();
@@ -1010,7 +1010,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    private Map<String, String> createFilterParametersFrom( @Nullable VmStatusFilterOptions options ) {
+    private Map<String, String> createFilterParametersFrom(@Nullable VmStatusFilterOptions options ) {
         if( options == null || options.isMatchesAny() ) {
             return Collections.emptyMap();
         }
@@ -1058,7 +1058,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull Iterable<VirtualMachineProduct> listProducts( Architecture architecture ) throws InternalException, CloudException {
+    public @Nonnull Iterable<VirtualMachineProduct> listProducts(Architecture architecture) throws InternalException, CloudException {
         ProviderContext ctx = getProvider().getContext();
 
         if( ctx == null ) {
@@ -1302,7 +1302,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull VirtualMachine launch( @Nonnull VMLaunchOptions cfg ) throws CloudException, InternalException {
+    public @Nonnull VirtualMachine launch(@Nonnull VMLaunchOptions cfg) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "launchVM");
         try {
             ProviderContext ctx = getProvider().getContext();
@@ -1620,7 +1620,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    private void enableIpForwarding( final String instanceId ) throws CloudException {
+    private void enableIpForwarding(final String instanceId) throws CloudException {
 
         Thread t = new Thread() {
             public void run() {
@@ -1715,7 +1715,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull Iterable<VirtualMachine> listVirtualMachines( @Nullable VMFilterOptions options ) throws InternalException, CloudException {
+    public @Nonnull Iterable<VirtualMachine> listVirtualMachines(@Nullable VMFilterOptions options) throws InternalException, CloudException {
         Map<String, String> filterParameters = createFilterParametersFrom(options);
         if( options.getRegex() != null ) {
             // still have to match on regex
@@ -1729,7 +1729,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return listVirtualMachinesWithParams(filterParameters, options);
     }
 
-    private Map<String, String> createFilterParametersFrom( @Nullable VMFilterOptions options ) {
+    private Map<String, String> createFilterParametersFrom(@Nullable VMFilterOptions options) {
         if( options == null || options.isMatchesAny() ) {
             return Collections.emptyMap();
         }
@@ -1745,7 +1745,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return extraParameters;
     }
 
-    private @Nonnull Iterable<VirtualMachine> listVirtualMachinesWithParams( Map<String, String> extraParameters, @Nullable VMFilterOptions options ) throws InternalException, CloudException {
+    private @Nonnull Iterable<VirtualMachine> listVirtualMachinesWithParams(Map<String, String> extraParameters, @Nullable VMFilterOptions options) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "listVirtualMachines");
         try {
             ProviderContext ctx = getProvider().getContext();
@@ -1827,12 +1827,12 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void pause( @Nonnull String vmId ) throws InternalException, CloudException {
+    public void pause(@Nonnull String vmId) throws InternalException, CloudException {
         throw new OperationNotSupportedException("Pause/unpause not supported by the EC2 API");
     }
 
     @Override
-    public @Nonnull String[] mapServiceAction( @Nonnull ServiceAction action ) {
+    public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
         if( action.equals(VirtualMachineSupport.ANY) ) {
             return new String[]{EC2Method.EC2_PREFIX + "*"};
         }
@@ -1870,7 +1870,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void stop( @Nonnull String instanceId, boolean force ) throws InternalException, CloudException {
+    public void stop(@Nonnull String instanceId, boolean force) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "stopVM");
         try {
             VirtualMachine vm = getVirtualMachine(instanceId);
@@ -1901,7 +1901,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void reboot( @Nonnull String instanceId ) throws CloudException, InternalException {
+    public void reboot(@Nonnull String instanceId) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "rebootVM");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.REBOOT_INSTANCES);
@@ -1921,17 +1921,17 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void resume( @Nonnull String vmId ) throws CloudException, InternalException {
+    public void resume(@Nonnull String vmId) throws CloudException, InternalException {
         throw new OperationNotSupportedException("Suspend/resume not supported by the EC2 API");
     }
 
     @Override
-    public void suspend( @Nonnull String vmId ) throws CloudException, InternalException {
+    public void suspend(@Nonnull String vmId) throws CloudException, InternalException {
         throw new OperationNotSupportedException("Suspend/resume not supported by the EC2 API");
     }
 
     @Override
-    public void terminate( @Nonnull String instanceId, @Nullable String explanation ) throws InternalException, CloudException {
+    public void terminate(@Nonnull String instanceId, @Nullable String explanation) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "terminateVM");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.TERMINATE_INSTANCES);
@@ -1951,11 +1951,11 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void unpause( @Nonnull String vmId ) throws CloudException, InternalException {
+    public void unpause(@Nonnull String vmId) throws CloudException, InternalException {
         throw new OperationNotSupportedException("Pause/unpause not supported by the EC2 API");
     }
 
-    private @Nullable ResourceStatus toStatus( @Nullable Node instance ) throws CloudException {
+    private @Nullable ResourceStatus toStatus(@Nullable Node instance) throws CloudException {
         if( instance == null ) {
             return null;
         }
@@ -1992,7 +1992,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return new ResourceStatus(vmId, state);
     }
 
-    private @Nullable VmStatus toVmStatus( @Nonnull String status ) {
+    private @Nullable VmStatus toVmStatus(@Nonnull String status ) {
         // ok | impaired | insufficient-data | not-applicable
         if( status.equalsIgnoreCase("ok") ) return VmStatus.OK;
         else if( status.equalsIgnoreCase("impaired") ) {
@@ -2009,7 +2009,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    private @Nullable VirtualMachine toVirtualMachine( @Nonnull ProviderContext ctx, @Nullable Node instance, @Nonnull Iterable<IpAddress> addresses ) throws CloudException {
+    private @Nullable VirtualMachine toVirtualMachine(@Nonnull ProviderContext ctx, @Nullable Node instance, @Nonnull Iterable<IpAddress> addresses) throws CloudException {
         if( instance == null ) {
             return null;
         }
@@ -2413,7 +2413,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void disableAnalytics( @Nonnull String instanceId ) throws InternalException, CloudException {
+    public void disableAnalytics(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "disableVMAnalytics");
         try {
             if( getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus() ) {
@@ -2434,7 +2434,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    private @Nullable VirtualMachineProduct toProduct( @Nonnull JSONObject json ) throws InternalException {
+    private @Nullable VirtualMachineProduct toProduct(@Nonnull JSONObject json) throws InternalException {
         /*
                     {
                 "architectures":["I32"],
@@ -2503,22 +2503,22 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void updateTags( @Nonnull String vmId, @Nonnull Tag... tags ) throws CloudException, InternalException {
+    public void updateTags(@Nonnull String vmId, @Nonnull Tag... tags) throws CloudException, InternalException {
         getProvider().createTags(vmId, tags);
     }
 
     @Override
-    public void updateTags( @Nonnull String[] vmIds, @Nonnull Tag... tags ) throws CloudException, InternalException {
+    public void updateTags(@Nonnull String[] vmIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         getProvider().createTags(vmIds, tags);
     }
 
     @Override
-    public void removeTags( @Nonnull String vmId, @Nonnull Tag... tags ) throws CloudException, InternalException {
+    public void removeTags(@Nonnull String vmId, @Nonnull Tag... tags) throws CloudException, InternalException {
         getProvider().removeTags(vmId, tags);
     }
 
     @Override
-    public void removeTags( @Nonnull String[] vmIds, @Nonnull Tag... tags ) throws CloudException, InternalException {
+    public void removeTags(@Nonnull String[] vmIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         getProvider().removeTags(vmIds, tags);
     }
 
