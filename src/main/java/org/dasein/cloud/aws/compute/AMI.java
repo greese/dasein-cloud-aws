@@ -1304,7 +1304,7 @@ public class AMI extends AbstractImageSupport {
         return getCapabilities().supportsPublicLibrary(cls);
     }
 
-    private class BundleTask {
+    private static class BundleTask {
         public String bundleId;
         public double progress;
         public String message;

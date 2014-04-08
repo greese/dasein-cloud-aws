@@ -265,7 +265,6 @@ public class S3Method {
 
                 if( temporaryEndpoint == null ) {
                     boolean validDomainName = isValidDomainName(bucket);
-                    String regionId = provider.getContext().getRegionId();
 
                     if( bucket != null && validDomainName ) {
                         url.append(bucket);
@@ -639,9 +638,6 @@ public class S3Method {
                     }
                 }
             }
-        }
-        catch (UnsupportedEncodingException e) {
-            throw new InternalException(e);
         }
         finally {
             if (!leaveOpen && client != null) {

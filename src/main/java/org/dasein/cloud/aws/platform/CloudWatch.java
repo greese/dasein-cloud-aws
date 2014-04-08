@@ -311,7 +311,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
     if ( actions.size() == 0 ) {
       return null;
     }
-    return actions.toArray( new String[] {} );
+    return actions.toArray( new String[actions.size()] );
   }
 
   @Override

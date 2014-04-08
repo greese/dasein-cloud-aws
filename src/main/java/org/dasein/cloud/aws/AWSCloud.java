@@ -342,7 +342,7 @@ public class AWSCloud extends AbstractCloud {
                 method.invoke();
                 return true;
             } catch (Throwable ignore) {
-                logger.error("Error while removing tags for " + resourceIds + ".", ignore);
+                logger.error("Error while removing tags for " + Arrays.toString(resourceIds) + ".", ignore);
                 return false;
             }
         } finally {
