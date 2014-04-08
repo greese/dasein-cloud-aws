@@ -1901,7 +1901,7 @@ public class VPC extends AbstractVLANSupport {
         try {
             ProviderContext ctx = provider.getContext();
 
-            if (ctx == null) {
+            if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
             Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_INTERNET_GATEWAYS);
@@ -1915,27 +1915,27 @@ public class VPC extends AbstractVLANSupport {
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
-            } catch (EC2Exception e) {
+            } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
                 e.printStackTrace();
                 throw new CloudException(e);
             }
             blocks = doc.getElementsByTagName("internetGatewaySet");
 
-            for (int i = 0; i < blocks.getLength(); i++) {
+            for( int i = 0; i < blocks.getLength(); i++ ) {
                 Node set = blocks.item(i);
                 NodeList items = set.getChildNodes();
 
-                for (int i1 = 0; i1 < items.getLength(); i1++) {
+                for( int i1 = 0; i1 < items.getLength(); i1++ ) {
                     Node item = items.item(i1);
 
-                    if (item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes()) {
+                    if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
                         NodeList attrs = item.getChildNodes();
 
-                        for (int j = 0; j < attrs.getLength(); j++) {
+                        for( int j = 0; j < attrs.getLength(); j++ ) {
                             Node attr = attrs.item(j);
 
-                            if (attr.getNodeName().equalsIgnoreCase("internetGatewayId") && attr.hasChildNodes()) {
+                            if( attr.getNodeName().equalsIgnoreCase("internetGatewayId") && attr.hasChildNodes() ) {
                                 return attr.getFirstChild().getNodeValue().trim();
                             }
                         }
@@ -1954,7 +1954,7 @@ public class VPC extends AbstractVLANSupport {
         try {
             ProviderContext ctx = provider.getContext();
 
-            if (ctx == null) {
+            if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
             Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_INTERNET_GATEWAYS);
@@ -1967,12 +1967,12 @@ public class VPC extends AbstractVLANSupport {
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
-            } catch (EC2Exception e) {
-                if (e.getCode() != null && e.getCode().startsWith("InvalidInternetGatewayID")) {
+            } catch( EC2Exception e ) {
+                if( e.getCode() != null && e.getCode().startsWith("InvalidInternetGatewayID") ) {
                     return null;
                 }
                 logger.error(e.getSummary());
-                if (logger.isDebugEnabled()) {
+                if( logger.isDebugEnabled() ) {
                     e.printStackTrace();
                 }
                 throw new CloudException(e);
@@ -1993,7 +1993,7 @@ public class VPC extends AbstractVLANSupport {
         try {
             ProviderContext ctx = provider.getContext();
 
-            if (ctx == null) {
+            if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
             Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INTERNET_GATEWAYS);
@@ -2001,7 +2001,7 @@ public class VPC extends AbstractVLANSupport {
             NodeList blocks;
             Document doc;
 
-            if (vlanId != null) {
+            if( vlanId != null ) {
                 parameters.put("Filter.1.Name", "attachment.vpc-id");
                 parameters.put("Filter.1.Value.1", vlanId);
             }
@@ -2009,9 +2009,9 @@ public class VPC extends AbstractVLANSupport {
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
-            } catch (EC2Exception e) {
+            } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                if (logger.isDebugEnabled()) {
+                if( logger.isDebugEnabled() ) {
                     e.printStackTrace();
                 }
                 throw new CloudException(e);
@@ -2022,11 +2022,11 @@ public class VPC extends AbstractVLANSupport {
 
             ArrayList<InternetGateway> list = new ArrayList<InternetGateway>();
 
-            for (int i1 = 0; i1 < items.getLength(); i1++) {
+            for( int i1 = 0; i1 < items.getLength(); i1++ ) {
                 Node item = items.item(i1);
                 InternetGateway ig = toInternetGateway(ctx, item);
 
-                if (ig != null) {
+                if( ig != null ) {
                     list.add(ig);
                 }
             }
@@ -2043,7 +2043,7 @@ public class VPC extends AbstractVLANSupport {
             Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DETACH_INTERNET_GATEWAY);
             String gatewayId = getAttachedInternetGatewayId(vlanId);
 
-            if (gatewayId == null) {
+            if( gatewayId == null ) {
                 return; // NO-OP
             }
             EC2Method method;
@@ -2053,7 +2053,7 @@ public class VPC extends AbstractVLANSupport {
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 method.invoke();
-            } catch (EC2Exception e) {
+            } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
                 e.printStackTrace();
                 throw new CloudException(e);
@@ -2073,7 +2073,7 @@ public class VPC extends AbstractVLANSupport {
 
             InternetGateway ig = getInternetGatewayById(id);
 
-            if (ig == null) {
+            if( ig == null ) {
                 throw new CloudException("No such internet gateway with id " + id);
             }
 
@@ -2082,7 +2082,7 @@ public class VPC extends AbstractVLANSupport {
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 method.invoke();
-            } catch (EC2Exception e) {
+            } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
                 e.printStackTrace();
                 throw new CloudException(e);
@@ -2102,7 +2102,7 @@ public class VPC extends AbstractVLANSupport {
 
         try {
             method.invoke();
-        } catch (EC2Exception e) {
+        } catch( EC2Exception e ) {
             logger.error(e.getSummary());
             e.printStackTrace();
             throw new CloudException(e);
@@ -2140,7 +2140,7 @@ public class VPC extends AbstractVLANSupport {
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 method.invoke();
-            } catch (EC2Exception e) {
+            } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
                 e.printStackTrace();
                 throw new CloudException(e);
@@ -2162,7 +2162,7 @@ public class VPC extends AbstractVLANSupport {
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 method.invoke();
-            } catch (EC2Exception e) {
+            } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
                 e.printStackTrace();
                 throw new CloudException(e);
@@ -2183,7 +2183,7 @@ public class VPC extends AbstractVLANSupport {
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 method.invoke();
-            } catch (EC2Exception e) {
+            } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
                 e.printStackTrace();
                 throw new CloudException(e);
@@ -2225,50 +2225,50 @@ public class VPC extends AbstractVLANSupport {
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
-            } catch (EC2Exception e) {
+            } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                if (logger.isDebugEnabled()) {
+                if( logger.isDebugEnabled() ) {
                     e.printStackTrace();
                 }
                 throw new CloudException(e);
             }
             blocks = doc.getElementsByTagName("dhcpConfigurationSet");
 
-            for (int i = 0; i < blocks.getLength(); i++) {
+            for( int i = 0; i < blocks.getLength(); i++ ) {
                 Node config = blocks.item(i);
 
-                if (config.hasChildNodes()) {
+                if( config.hasChildNodes() ) {
                     NodeList items = config.getChildNodes();
 
-                    for (int j = 0; j < items.getLength(); j++) {
+                    for( int j = 0; j < items.getLength(); j++ ) {
                         Node item = items.item(j);
 
                         String nodeName = item.getNodeName();
 
-                        if (nodeName.equals("item")) {
+                        if( nodeName.equals("item") ) {
                             ArrayList<String> list = new ArrayList<String>();
                             NodeList attributes = item.getChildNodes();
                             String key = null;
 
-                            for (int k = 0; k < attributes.getLength(); k++) {
+                            for( int k = 0; k < attributes.getLength(); k++ ) {
                                 Node attribute = attributes.item(k);
 
                                 nodeName = attribute.getNodeName();
-                                if (nodeName.equalsIgnoreCase("key")) {
+                                if( nodeName.equalsIgnoreCase("key") ) {
                                     key = attribute.getFirstChild().getNodeValue().trim();
-                                } else if (nodeName.equalsIgnoreCase("valueSet")) {
+                                } else if( nodeName.equalsIgnoreCase("valueSet") ) {
                                     NodeList attrItems = attribute.getChildNodes();
 
-                                    for (int l = 0; l < attrItems.getLength(); l++) {
+                                    for( int l = 0; l < attrItems.getLength(); l++ ) {
                                         Node attrItem = attrItems.item(l);
 
-                                        if (attrItem.getNodeName().equalsIgnoreCase("item")) {
+                                        if( attrItem.getNodeName().equalsIgnoreCase("item") ) {
                                             NodeList values = attrItem.getChildNodes();
 
-                                            for (int m = 0; m < values.getLength(); m++) {
+                                            for( int m = 0; m < values.getLength(); m++ ) {
                                                 Node value = values.item(m);
 
-                                                if (value.getNodeName().equalsIgnoreCase("value")) {
+                                                if( value.getNodeName().equalsIgnoreCase("value") ) {
                                                     list.add(value.getFirstChild().getNodeValue().trim());
                                                 }
                                             }
@@ -2276,12 +2276,12 @@ public class VPC extends AbstractVLANSupport {
                                     }
                                 }
                             }
-                            if (key != null && list.size() > 0) {
-                                if (key.equals("domain-name")) {
+                            if( key != null && list.size() > 0 ) {
+                                if( key.equals("domain-name") ) {
                                     vlan.setDomainName(list.iterator().next());
-                                } else if (key.equals("domain-name-servers")) {
+                                } else if( key.equals("domain-name-servers") ) {
                                     vlan.setDnsServers(list.toArray(new String[list.size()]));
-                                } else if (key.equals("ntp-servers")) {
+                                } else if( key.equals("ntp-servers") ) {
                                     vlan.setNtpServers(list.toArray(new String[list.size()]));
                                 }
                             }
@@ -2295,54 +2295,54 @@ public class VPC extends AbstractVLANSupport {
     }
 
     @Override
-    public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
-        if (action.equals(VLANSupport.ANY)) {
+    public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action ) {
+        if( action.equals(VLANSupport.ANY) ) {
             return new String[]{EC2Method.EC2_PREFIX + "*"};
-        } else if (action.equals(VLANSupport.ASSIGN_ROUTE_TO_SUBNET)) {
+        } else if( action.equals(VLANSupport.ASSIGN_ROUTE_TO_SUBNET) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.ASSOCIATE_ROUTE_TABLE};
-        } else if (action.equals(VLANSupport.ASSIGN_ROUTE_TO_VLAN)) {
+        } else if( action.equals(VLANSupport.ASSIGN_ROUTE_TO_VLAN) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.REPLACE_ROUTE_TABLE_ASSOCIATION};
-        } else if (action.equals(VLANSupport.ATTACH_INTERNET_GATEWAY)) {
+        } else if( action.equals(VLANSupport.ATTACH_INTERNET_GATEWAY) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.ATTACH_INTERNET_GATEWAY};
-        } else if (action.equals(VLANSupport.CREATE_INTERNET_GATEWAY)) {
+        } else if( action.equals(VLANSupport.CREATE_INTERNET_GATEWAY) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.CREATE_INTERNET_GATEWAY};
-        } else if (action.equals(VLANSupport.CREATE_ROUTING_TABLE)) {
+        } else if( action.equals(VLANSupport.CREATE_ROUTING_TABLE) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.CREATE_ROUTE_TABLE};
-        } else if (action.equals(VLANSupport.ADD_ROUTE)) {
+        } else if( action.equals(VLANSupport.ADD_ROUTE) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.CREATE_ROUTE};
-        } else if (action.equals(VLANSupport.CREATE_SUBNET)) {
+        } else if( action.equals(VLANSupport.CREATE_SUBNET) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.CREATE_SUBNET};
-        } else if (action.equals(VLANSupport.CREATE_VLAN)) {
+        } else if( action.equals(VLANSupport.CREATE_VLAN) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.CREATE_VPC, EC2Method.EC2_PREFIX + EC2Method.CREATE_DHCP_OPTIONS, EC2Method.EC2_PREFIX + EC2Method.ASSOCIATE_DHCP_OPTIONS, EC2Method.EC2_PREFIX + EC2Method.CREATE_INTERNET_GATEWAY, EC2Method.EC2_PREFIX + EC2Method.ATTACH_INTERNET_GATEWAY};
-        } else if (action.equals(VLANSupport.GET_SUBNET)) {
+        } else if( action.equals(VLANSupport.GET_SUBNET) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_SUBNETS};
-        } else if (action.equals(VLANSupport.GET_VLAN)) {
+        } else if( action.equals(VLANSupport.GET_VLAN) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_VPCS, EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_DHCP_OPTIONS, EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_INTERNET_GATEWAYS};
-        } else if (action.equals(VLANSupport.LIST_SUBNET)) {
+        } else if( action.equals(VLANSupport.LIST_SUBNET) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_SUBNETS};
-        } else if (action.equals(VLANSupport.LIST_VLAN)) {
+        } else if( action.equals(VLANSupport.LIST_VLAN) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_VPCS, EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_DHCP_OPTIONS, EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_INTERNET_GATEWAYS};
-        } else if (action.equals(VLANSupport.REMOVE_INTERNET_GATEWAY)) {
+        } else if( action.equals(VLANSupport.REMOVE_INTERNET_GATEWAY) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DELETE_INTERNET_GATEWAY, EC2Method.EC2_PREFIX + EC2Method.DETACH_INTERNET_GATEWAY};
-        } else if (action.equals(VLANSupport.REMOVE_SUBNET)) {
+        } else if( action.equals(VLANSupport.REMOVE_SUBNET) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DELETE_SUBNET};
-        } else if (action.equals(VLANSupport.REMOVE_VLAN)) {
+        } else if( action.equals(VLANSupport.REMOVE_VLAN) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DELETE_VPC};
-        } else if (action.equals(VLANSupport.CREATE_NIC)) {
+        } else if( action.equals(VLANSupport.CREATE_NIC) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.CREATE_NIC};
-        } else if (action.equals(VLANSupport.ATTACH_NIC)) {
+        } else if( action.equals(VLANSupport.ATTACH_NIC) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.ATTACH_NIC};
-        } else if (action.equals(VLANSupport.DETACH_NIC)) {
+        } else if( action.equals(VLANSupport.DETACH_NIC) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DETACH_NIC};
-        } else if (action.equals(VLANSupport.REMOVE_NIC)) {
+        } else if( action.equals(VLANSupport.REMOVE_NIC) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DELETE_NIC};
-        } else if (action.equals(VLANSupport.GET_NIC)) {
+        } else if( action.equals(VLANSupport.GET_NIC) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_NICS};
-        } else if (action.equals(VLANSupport.LIST_NIC)) {
+        } else if( action.equals(VLANSupport.LIST_NIC) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_NICS};
-        } else if (action.equals(VLANSupport.REMOVE_ROUTE)) {
+        } else if( action.equals(VLANSupport.REMOVE_ROUTE) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DELETE_ROUTE};
-        } else if (action.equals(VLANSupport.REMOVE_ROUTING_TABLE)) {
+        } else if( action.equals(VLANSupport.REMOVE_ROUTING_TABLE) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DELETE_ROUTE_TABLE};
         }
         return new String[0];
@@ -2359,9 +2359,9 @@ public class VPC extends AbstractVLANSupport {
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 method.invoke();
-            } catch (EC2Exception e) {
+            } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                if (logger.isDebugEnabled()) {
+                if( logger.isDebugEnabled() ) {
                     e.printStackTrace();
                 }
                 throw new CloudException(e);
@@ -2382,9 +2382,9 @@ public class VPC extends AbstractVLANSupport {
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 method.invoke();
-            } catch (EC2Exception e) {
+            } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                if (logger.isDebugEnabled()) {
+                if( logger.isDebugEnabled() ) {
                     e.printStackTrace();
                 }
                 throw new CloudException(e);
@@ -2405,7 +2405,7 @@ public class VPC extends AbstractVLANSupport {
     }
 
     private @Nullable NetworkInterface toNIC(@Nonnull ProviderContext ctx, @Nullable Node item) throws CloudException, InternalException {
-        if (item == null) {
+        if( item == null ) {
             return null;
         }
         NodeList children = item.getChildNodes();
@@ -2416,66 +2416,66 @@ public class VPC extends AbstractVLANSupport {
         nic.setProviderRegionId(ctx.getRegionId());
         nic.setCurrentState(NICState.PENDING);
 
-        for (int i = 0; i < children.getLength(); i++) {
+        for( int i = 0; i < children.getLength(); i++ ) {
             Node child = children.item(i);
             String nodeName = child.getNodeName();
 
-            if (nodeName.equalsIgnoreCase("networkInterfaceId") && child.hasChildNodes()) {
+            if( nodeName.equalsIgnoreCase("networkInterfaceId") && child.hasChildNodes() ) {
                 nic.setProviderNetworkInterfaceId(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("subnetId") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("subnetId") && child.hasChildNodes() ) {
                 nic.setProviderSubnetId(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("vpcId") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("vpcId") && child.hasChildNodes() ) {
                 nic.setProviderVlanId(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("availabilityZone") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("availabilityZone") && child.hasChildNodes() ) {
                 nic.setProviderDataCenterId(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("description") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("description") && child.hasChildNodes() ) {
                 nic.setDescription(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("privateIpAddress") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("privateIpAddress") && child.hasChildNodes() ) {
                 nic.setIpAddresses(new RawAddress(child.getFirstChild().getNodeValue().trim()));
-            } else if (nodeName.equalsIgnoreCase("status") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("status") && child.hasChildNodes() ) {
                 nic.setCurrentState(toNICState(child.getFirstChild().getNodeValue().trim()));
-            } else if (nodeName.equalsIgnoreCase("macAddress") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("macAddress") && child.hasChildNodes() ) {
                 nic.setMacAddress(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("privateDnsName") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("privateDnsName") && child.hasChildNodes() ) {
                 nic.setDnsName(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("attachment") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("attachment") && child.hasChildNodes() ) {
                 NodeList sublist = child.getChildNodes();
 
-                for (int j = 0; j < sublist.getLength(); j++) {
+                for( int j = 0; j < sublist.getLength(); j++ ) {
                     Node sub = sublist.item(j);
 
-                    if (sub.getNodeName().equalsIgnoreCase("instanceID") && sub.hasChildNodes()) {
+                    if( sub.getNodeName().equalsIgnoreCase("instanceID") && sub.hasChildNodes() ) {
                         nic.setProviderVirtualMachineId(sub.getFirstChild().getNodeValue().trim());
                     }
                 }
-            } else if (nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
                 provider.setTags(child, nic);
-                if (nic.getTags().get("name") != null) {
+                if( nic.getTags().get("name") != null ) {
                     name = nic.getTags().get("name");
                 }
-                if (nic.getTags().get("description") != null) {
+                if( nic.getTags().get("description") != null ) {
                     description = nic.getTags().get("description");
                 }
             }
         }
-        if (nic.getProviderNetworkInterfaceId() == null) {
+        if( nic.getProviderNetworkInterfaceId() == null ) {
             return null;
         }
-        if (nic.getName() == null) {
+        if( nic.getName() == null ) {
             nic.setName(name == null ? nic.getProviderNetworkInterfaceId() : name);
         }
-        if (nic.getDescription() == null) {
+        if( nic.getDescription() == null ) {
             nic.setDescription(description == null ? nic.getName() : description);
         }
         return nic;
     }
 
-    private @Nonnull NICState toNICState(@Nonnull String status) {
-        if (status.equalsIgnoreCase("pending")) {
+    private @Nonnull NICState toNICState(@Nonnull String status ) {
+        if( status.equalsIgnoreCase("pending") ) {
             return NICState.PENDING;
-        } else if (status.equalsIgnoreCase("available")) {
+        } else if( status.equalsIgnoreCase("available") ) {
             return NICState.AVAILABLE;
-        } else if (status.equalsIgnoreCase("in-use")) {
+        } else if( status.equalsIgnoreCase("in-use") ) {
             return NICState.IN_USE;
         } else {
             System.out.println("DEBUG: New AWS network interface status: " + status);
@@ -2484,31 +2484,31 @@ public class VPC extends AbstractVLANSupport {
     }
 
     private @Nullable ResourceStatus toNICStatus(@Nullable Node item) throws CloudException, InternalException {
-        if (item == null) {
+        if( item == null ) {
             return null;
         }
         NodeList children = item.getChildNodes();
         NICState state = NICState.PENDING;
         String nicId = null;
 
-        for (int i = 0; i < children.getLength(); i++) {
+        for( int i = 0; i < children.getLength(); i++ ) {
             Node child = children.item(i);
             String nodeName = child.getNodeName();
 
-            if (nodeName.equalsIgnoreCase("networkInterfaceId") && child.hasChildNodes()) {
+            if( nodeName.equalsIgnoreCase("networkInterfaceId") && child.hasChildNodes() ) {
                 nicId = child.getFirstChild().getNodeValue().trim();
-            } else if (nodeName.equalsIgnoreCase("status") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("status") && child.hasChildNodes() ) {
                 state = toNICState(child.getFirstChild().getNodeValue().trim());
             }
         }
-        if (nicId == null) {
+        if( nicId == null ) {
             return null;
         }
         return new ResourceStatus(nicId, state);
     }
 
     private @Nullable RoutingTable toRoutingTable(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException, InternalException {
-        if (node == null) {
+        if( node == null ) {
             return null;
         }
         NodeList children = node.getChildNodes();
@@ -2517,53 +2517,53 @@ public class VPC extends AbstractVLANSupport {
 
         table.setProviderOwnerId(ctx.getAccountNumber());
         table.setProviderRegionId(ctx.getRegionId());
-        for (int i = 0; i < children.getLength(); i++) {
+        for( int i = 0; i < children.getLength(); i++ ) {
             Node child = children.item(i);
             String nodeName = child.getNodeName();
 
-            if (nodeName.equalsIgnoreCase("routeTableId") && child.hasChildNodes()) {
+            if( nodeName.equalsIgnoreCase("routeTableId") && child.hasChildNodes() ) {
                 table.setProviderRoutingTableId(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("vpcId") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("vpcId") && child.hasChildNodes() ) {
                 table.setProviderVlanId(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("routeSet") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("routeSet") && child.hasChildNodes() ) {
                 ArrayList<Route> routes = new ArrayList<Route>();
                 NodeList set = child.getChildNodes();
 
-                for (int j = 0; j < set.getLength(); j++) {
+                for( int j = 0; j < set.getLength(); j++ ) {
                     Node item = set.item(j);
 
-                    if (item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes()) {
+                    if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
                         String destination = null, gateway = null, instanceId = null, ownerId = null, nicId = null;
                         NodeList attrs = item.getChildNodes();
                         boolean active = false;
 
-                        for (int k = 0; k < attrs.getLength(); k++) {
+                        for( int k = 0; k < attrs.getLength(); k++ ) {
                             Node attr = attrs.item(k);
 
-                            if (attr.getNodeName().equalsIgnoreCase("destinationCidrBlock") && attr.hasChildNodes()) {
+                            if( attr.getNodeName().equalsIgnoreCase("destinationCidrBlock") && attr.hasChildNodes() ) {
                                 destination = attr.getFirstChild().getNodeValue().trim();
-                            } else if (attr.getNodeName().equalsIgnoreCase("gatewayId") && attr.hasChildNodes()) {
+                            } else if( attr.getNodeName().equalsIgnoreCase("gatewayId") && attr.hasChildNodes() ) {
                                 gateway = attr.getFirstChild().getNodeValue().trim();
-                            } else if (attr.getNodeName().equalsIgnoreCase("instanceId") && attr.hasChildNodes()) {
+                            } else if( attr.getNodeName().equalsIgnoreCase("instanceId") && attr.hasChildNodes() ) {
                                 instanceId = attr.getFirstChild().getNodeValue().trim();
-                            } else if (attr.getNodeName().equalsIgnoreCase("instanceOwnerId") && attr.hasChildNodes()) {
+                            } else if( attr.getNodeName().equalsIgnoreCase("instanceOwnerId") && attr.hasChildNodes() ) {
                                 ownerId = attr.getFirstChild().getNodeValue().trim();
-                            } else if (attr.getNodeName().equalsIgnoreCase("networkInterfaceId") && attr.hasChildNodes()) {
+                            } else if( attr.getNodeName().equalsIgnoreCase("networkInterfaceId") && attr.hasChildNodes() ) {
                                 nicId = attr.getFirstChild().getNodeValue().trim();
-                            } else if (attr.getNodeName().equalsIgnoreCase("state") && attr.hasChildNodes()) {
+                            } else if( attr.getNodeName().equalsIgnoreCase("state") && attr.hasChildNodes() ) {
                                 active = attr.getFirstChild().getNodeValue().trim().equalsIgnoreCase("active");
                             }
                         }
-                        if (active && destination != null) {
-                            if (gateway != null) {
+                        if( active && destination != null ) {
+                            if( gateway != null ) {
                                 routes.add(Route.getRouteToGateway(IPVersion.IPV4, destination, gateway));
                             }
-                            if (instanceId != null && nicId != null) {
+                            if( instanceId != null && nicId != null ) {
                                 routes.add(Route.getRouteToVirtualMachineAndNetworkInterface(IPVersion.IPV4, destination, ownerId, instanceId, nicId));
                             } else {
-                                if (nicId != null) {
+                                if( nicId != null ) {
                                     routes.add(Route.getRouteToNetworkInterface(IPVersion.IPV4, destination, nicId));
-                                } else if (instanceId != null) {
+                                } else if( instanceId != null ) {
                                     routes.add(Route.getRouteToVirtualMachine(IPVersion.IPV4, destination, ownerId, instanceId));
                                 }
                             }
@@ -2571,54 +2571,54 @@ public class VPC extends AbstractVLANSupport {
                     }
                 }
                 table.setRoutes(routes.toArray(new Route[routes.size()]));
-            } else if (nodeName.equalsIgnoreCase("associationSet") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("associationSet") && child.hasChildNodes() ) {
                 ArrayList<String> associations = new ArrayList<String>();
                 NodeList set = child.getChildNodes();
-                for (int j = 0; j < set.getLength(); j++) {
+                for( int j = 0; j < set.getLength(); j++ ) {
                     Node item = set.item(j);
-                    if (item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes()) {
+                    if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
                         String subnet = null;
                         NodeList attrs = item.getChildNodes();
-                        for (int k = 0; k < attrs.getLength(); k++) {
+                        for( int k = 0; k < attrs.getLength(); k++ ) {
                             Node attr = attrs.item(k);
-                            if (attr.getNodeName().equalsIgnoreCase("subnetId") && attr.hasChildNodes()) {
+                            if( attr.getNodeName().equalsIgnoreCase("subnetId") && attr.hasChildNodes() ) {
                                 subnet = attr.getFirstChild().getNodeValue().trim();
                             }
                         }
-                        if (subnet != null) {
+                        if( subnet != null ) {
                             associations.add(subnet);
                         }
                     }
                 }
                 table.setProviderSubnetIds(associations.toArray(new String[associations.size()]));
-            } else if (nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
                 provider.setTags(child, table);
-                if (table.getTags().get("name") != null) {
+                if( table.getTags().get("name") != null ) {
                     name = table.getTags().get("name");
-                } else if (table.getTags().get("Name") != null) {
+                } else if( table.getTags().get("Name") != null ) {
                     name = table.getTags().get("Name");
                 }
-                if (table.getTags().get("description") != null) {
+                if( table.getTags().get("description") != null ) {
                     description = table.getTags().get("description");
-                } else if (table.getTags().get("Description") != null) {
+                } else if( table.getTags().get("Description") != null ) {
                     description = table.getTags().get("Description");
                 }
             }
         }
-        if (table.getProviderRoutingTableId() == null) {
+        if( table.getProviderRoutingTableId() == null ) {
             return null;
         }
-        if (table.getName() == null) {
+        if( table.getName() == null ) {
             table.setName(name == null ? table.getProviderRoutingTableId() : name);
         }
-        if (table.getDescription() == null) {
+        if( table.getDescription() == null ) {
             table.setDescription(description == null ? table.getName() : description);
         }
         return table;
     }
 
     private @Nullable Subnet toSubnet(@Nonnull ProviderContext ctx, @Nullable Node item) throws CloudException, InternalException {
-        if (item == null) {
+        if( item == null ) {
             return null;
         }
         NodeList children = item.getChildNodes();
@@ -2627,46 +2627,46 @@ public class VPC extends AbstractVLANSupport {
         subnet.setProviderOwnerId(ctx.getAccountNumber());
         subnet.setProviderRegionId(ctx.getRegionId());
         subnet.setTags(new HashMap<String, String>());
-        for (int i = 0; i < children.getLength(); i++) {
+        for( int i = 0; i < children.getLength(); i++ ) {
             Node child = children.item(i);
             String nodeName = child.getNodeName();
 
-            if (nodeName.equalsIgnoreCase("subnetId")) {
+            if( nodeName.equalsIgnoreCase("subnetId") ) {
                 subnet.setProviderSubnetId(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("state")) {
+            } else if( nodeName.equalsIgnoreCase("state") ) {
                 String value = child.getFirstChild().getNodeValue().trim();
                 SubnetState state;
 
-                if (value.equalsIgnoreCase("available")) {
+                if( value.equalsIgnoreCase("available") ) {
                     state = SubnetState.AVAILABLE;
-                } else if (value.equalsIgnoreCase("pending")) {
+                } else if( value.equalsIgnoreCase("pending") ) {
                     state = SubnetState.PENDING;
                 } else {
                     logger.warn("Unknown subnet state: " + value);
                     state = null;
                 }
                 subnet.setCurrentState(state);
-            } else if (nodeName.equalsIgnoreCase("vpcId")) {
+            } else if( nodeName.equalsIgnoreCase("vpcId") ) {
                 subnet.setProviderVlanId(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("cidrBlock")) {
+            } else if( nodeName.equalsIgnoreCase("cidrBlock") ) {
                 subnet.setCidr(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("availableIpAddressCount")) {
+            } else if( nodeName.equalsIgnoreCase("availableIpAddressCount") ) {
                 subnet.setAvailableIpAddresses(Integer.parseInt(child.getFirstChild().getNodeValue().trim()));
-            } else if (nodeName.equalsIgnoreCase("availabilityZone")) {
+            } else if( nodeName.equalsIgnoreCase("availabilityZone") ) {
                 subnet.setProviderDataCenterId(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
                 provider.setTags(child, subnet);
             }
         }
-        if (subnet.getProviderSubnetId() == null) {
+        if( subnet.getProviderSubnetId() == null ) {
             return null;
         }
-        if (subnet.getName() == null) {
+        if( subnet.getName() == null ) {
             String name = subnet.getTags().get("Name");
 
             subnet.setName((name == null || name.length() < 1) ? subnet.getProviderSubnetId() : name);
         }
-        if (subnet.getDescription() == null) {
+        if( subnet.getDescription() == null ) {
             String desc = subnet.getTags().get("Description");
 
             subnet.setDescription((desc == null || desc.length() < 1) ? subnet.getName() : desc);
@@ -2675,7 +2675,7 @@ public class VPC extends AbstractVLANSupport {
     }
 
     private @Nullable VLAN toVLAN(@Nonnull ProviderContext ctx, @Nullable Node item) throws CloudException, InternalException {
-        if (item == null) {
+        if( item == null ) {
             return null;
         }
         NodeList children = item.getChildNodes();
@@ -2686,66 +2686,66 @@ public class VPC extends AbstractVLANSupport {
         vlan.setProviderRegionId(ctx.getRegionId());
         vlan.setTags(new HashMap<String, String>());
         vlan.setSupportedTraffic(new IPVersion[]{IPVersion.IPV4});
-        for (int i = 0; i < children.getLength(); i++) {
+        for( int i = 0; i < children.getLength(); i++ ) {
             Node child = children.item(i);
             String nodeName = child.getNodeName();
 
-            if (nodeName.equalsIgnoreCase("vpcId")) {
+            if( nodeName.equalsIgnoreCase("vpcId") ) {
                 vlan.setProviderVlanId(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("state")) {
+            } else if( nodeName.equalsIgnoreCase("state") ) {
                 String value = child.getFirstChild().getNodeValue().trim();
                 VLANState state;
 
-                if (value.equalsIgnoreCase("available")) {
+                if( value.equalsIgnoreCase("available") ) {
                     state = VLANState.AVAILABLE;
-                } else if (value.equalsIgnoreCase("pending")) {
+                } else if( value.equalsIgnoreCase("pending") ) {
                     state = VLANState.PENDING;
                 } else {
                     logger.warn("Unknown VLAN state: " + value);
                     state = null;
                 }
                 vlan.setCurrentState(state);
-            } else if (nodeName.equalsIgnoreCase("cidrBlock")) {
+            } else if( nodeName.equalsIgnoreCase("cidrBlock") ) {
                 vlan.setCidr(child.getFirstChild().getNodeValue().trim());
-            } else if (nodeName.equalsIgnoreCase("dhcpOptionsId")) {
+            } else if( nodeName.equalsIgnoreCase("dhcpOptionsId") ) {
                 dhcp = child.getFirstChild().getNodeValue().trim();
-            } else if (nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes()) {
+            } else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
                 provider.setTags(child, vlan);
-                if (vlan.getTags().get("name") != null) {
+                if( vlan.getTags().get("name") != null ) {
                     vlan.setName(vlan.getTags().get("name"));
                 } else {
-                    if (vlan.getTags().get("Name") != null) {
+                    if( vlan.getTags().get("Name") != null ) {
                         vlan.setName(vlan.getTags().get("Name"));
                     }
                 }
-                if (vlan.getTags().get("description") != null) {
+                if( vlan.getTags().get("description") != null ) {
                     vlan.setDescription(vlan.getTags().get("description"));
                 } else {
-                    if (vlan.getTags().get("Description") != null) {
+                    if( vlan.getTags().get("Description") != null ) {
                         vlan.setDescription(vlan.getTags().get("Description"));
                     }
                 }
             }
         }
-        if (vlan.getProviderVlanId() == null) {
+        if( vlan.getProviderVlanId() == null ) {
             return null;
         }
-        if (vlan.getName() == null) {
+        if( vlan.getName() == null ) {
             vlan.setName(vlan.getProviderVlanId());
         }
-        if (vlan.getDescription() == null) {
+        if( vlan.getDescription() == null ) {
             vlan.setDescription(vlan.getName());
         }
-        if (dhcp != null) {
+        if( dhcp != null ) {
             loadDHCPOptions(dhcp, vlan);
         }
         return vlan;
     }
 
-    private @Nonnull VLANState toVLANState(@Nonnull String status) {
-        if (status.equalsIgnoreCase("available")) {
+    private @Nonnull VLANState toVLANState(@Nonnull String status ) {
+        if( status.equalsIgnoreCase("available") ) {
             return VLANState.AVAILABLE;
-        } else if (status.equalsIgnoreCase("pending")) {
+        } else if( status.equalsIgnoreCase("pending") ) {
             return VLANState.PENDING;
         } else {
             logger.warn("DEBUG: Unknown AWS VLAN state: " + status);
@@ -2754,32 +2754,32 @@ public class VPC extends AbstractVLANSupport {
     }
 
     private @Nullable ResourceStatus toVLANStatus(@Nullable Node item) throws CloudException, InternalException {
-        if (item == null) {
+        if( item == null ) {
             return null;
         }
         NodeList children = item.getChildNodes();
         VLANState state = VLANState.PENDING;
         String vlanId = null;
 
-        for (int i = 0; i < children.getLength(); i++) {
+        for( int i = 0; i < children.getLength(); i++ ) {
             Node child = children.item(i);
             String nodeName = child.getNodeName();
 
-            if (nodeName.equalsIgnoreCase("vpcId")) {
+            if( nodeName.equalsIgnoreCase("vpcId") ) {
                 vlanId = child.getFirstChild().getNodeValue().trim();
-            } else if (nodeName.equalsIgnoreCase("state")) {
+            } else if( nodeName.equalsIgnoreCase("state") ) {
                 state = toVLANState(child.getFirstChild().getNodeValue().trim());
 
             }
         }
-        if (vlanId == null) {
+        if( vlanId == null ) {
             return null;
         }
         return new ResourceStatus(vlanId, state);
     }
 
     private @Nullable InternetGateway toInternetGateway(@Nonnull ProviderContext ctx, @Nullable Node item) throws CloudException, InternalException {
-        if (item == null) {
+        if( item == null ) {
             return null;
         }
         InternetGateway ig = new InternetGateway();
@@ -2788,45 +2788,45 @@ public class VPC extends AbstractVLANSupport {
         ig.setProviderRegionId(ctx.getRegionId());
         ig.setTags(new HashMap<String, String>());
 
-        if (item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes()) {
+        if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
             NodeList childNodes = item.getChildNodes();
 
-            for (int j = 0; j < childNodes.getLength(); j++) {
+            for( int j = 0; j < childNodes.getLength(); j++ ) {
                 Node child = childNodes.item(j);
 
-                if (child.getNodeName().equalsIgnoreCase("internetGatewayId") && child.hasChildNodes()) {
+                if( child.getNodeName().equalsIgnoreCase("internetGatewayId") && child.hasChildNodes() ) {
 
                     ig.setProviderInternetGatewayId(child.getFirstChild().getNodeValue().trim());
 
-                } else if (child.getNodeName().equalsIgnoreCase("attachmentSet") && child.hasChildNodes()) {
+                } else if( child.getNodeName().equalsIgnoreCase("attachmentSet") && child.hasChildNodes() ) {
                     NodeList attachmentChildren = child.getChildNodes();
 
-                    for (int x1 = 0; x1 < attachmentChildren.getLength(); x1++) {
+                    for( int x1 = 0; x1 < attachmentChildren.getLength(); x1++ ) {
                         Node attachmentItem = attachmentChildren.item(x1);
 
-                        if (attachmentItem.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes()) {
+                        if( attachmentItem.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
                             NodeList attachmentChildNodes = attachmentItem.getChildNodes();
 
-                            for (int y1 = 0; y1 < attachmentChildNodes.getLength(); y1++) {
+                            for( int y1 = 0; y1 < attachmentChildNodes.getLength(); y1++ ) {
                                 Node attachmentChild = attachmentChildNodes.item(y1);
 
-                                if (attachmentChild.getNodeName().equalsIgnoreCase("vpcId") && child.hasChildNodes()) {
+                                if( attachmentChild.getNodeName().equalsIgnoreCase("vpcId") && child.hasChildNodes() ) {
 
                                     ig.setProviderVlanId(attachmentChild.getFirstChild().getNodeValue().trim());
 
-                                } else if (attachmentChild.getNodeName().equalsIgnoreCase("state") && attachmentChild.hasChildNodes()) {
+                                } else if( attachmentChild.getNodeName().equalsIgnoreCase("state") && attachmentChild.hasChildNodes() ) {
                                     String value = attachmentChild.getFirstChild().getNodeValue().trim();
                                     InternetGatewayAttachmentState state;
 
-                                    if (value.equalsIgnoreCase("available")) {
+                                    if( value.equalsIgnoreCase("available") ) {
                                         state = InternetGatewayAttachmentState.AVAILABLE;
-                                    } else if (value.equalsIgnoreCase("attaching")) {
+                                    } else if( value.equalsIgnoreCase("attaching") ) {
                                         state = InternetGatewayAttachmentState.ATTACHED;
-                                    } else if (value.equalsIgnoreCase("attached")) {
+                                    } else if( value.equalsIgnoreCase("attached") ) {
                                         state = InternetGatewayAttachmentState.ATTACHED;
-                                    } else if (value.equalsIgnoreCase("detaching")) {
+                                    } else if( value.equalsIgnoreCase("detaching") ) {
                                         state = InternetGatewayAttachmentState.DETACHING;
-                                    } else if (value.equalsIgnoreCase("detached")) {
+                                    } else if( value.equalsIgnoreCase("detached") ) {
                                         state = InternetGatewayAttachmentState.DETACHED;
                                     } else {
                                         logger.warn("Unknown Internet Gateway state: " + value);
@@ -2837,12 +2837,12 @@ public class VPC extends AbstractVLANSupport {
                             }
                         }
                     }
-                } else if (child.getNodeName().equalsIgnoreCase("tagSet") && child.hasChildNodes()) {
+                } else if( child.getNodeName().equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
                     provider.setTags(child, ig);
                 }
             }
         }
-        if (ig.getProviderInternetGatewayId() == null) {
+        if( ig.getProviderInternetGatewayId() == null ) {
             return null;
         }
         return ig;
