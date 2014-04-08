@@ -45,15 +45,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 public class ElasticIP implements IpAddressSupport {
-	static private final Logger logger = AWSCloud.getLogger(ElasticIP.class);
+    static private final Logger logger = AWSCloud.getLogger(ElasticIP.class);
 
-	private AWSCloud provider = null;
-  static private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
-  private transient volatile ElasticIPAddressCapabilities capabilities;
-	
-	ElasticIP(AWSCloud provider) {
-		this.provider = provider;
-	}
+    private AWSCloud provider = null;
+    static private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
+    private transient volatile ElasticIPAddressCapabilities capabilities;
+
+    ElasticIP(AWSCloud provider) {
+        this.provider = provider;
+    }
 
     private @Nullable VirtualMachine getInstance(@Nonnull String instanceId) throws InternalException, CloudException {
         ComputeServices services = provider.getComputeServices();
@@ -68,8 +68,8 @@ public class ElasticIP implements IpAddressSupport {
         throw new CloudException("Instances are not supported in " + provider.getCloudName());
     }
 
-    @Override
-    public void assign(@Nonnull String addressId, @Nonnull String instanceId) throws InternalException,	CloudException {
+      @Override
+      public void assign(@Nonnull String addressId, @Nonnull String instanceId) throws InternalException,	CloudException {
         APITrace.begin(provider, "IpAddress.assignAddressToServer");
         try {
             long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
@@ -114,7 +114,7 @@ public class ElasticIP implements IpAddressSupport {
         finally {
             APITrace.end();
         }
-    }
+      }
 
     @Override
     public void assignToNetworkInterface(@Nonnull String addressId, @Nonnull String nicId) throws InternalException, CloudException {
@@ -162,7 +162,7 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     @Override
-	  public @Nullable IpAddress getIpAddress(@Nonnull String addressId) throws InternalException, CloudException {
+    public @Nullable IpAddress getIpAddress(@Nonnull String addressId) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.getIpAddress");
         try {
             IpAddress address = getEC2Address(addressId);
@@ -344,8 +344,8 @@ public class ElasticIP implements IpAddressSupport {
         return true;
     }
     
-    @Override
-    public @Nonnull Iterable<IpAddress> listPrivateIpPool(boolean unassignedOnly) throws InternalException, CloudException {
+	@Override
+	public @Nonnull Iterable<IpAddress> listPrivateIpPool(boolean unassignedOnly) throws InternalException, CloudException {
 	    return Collections.emptyList();
 	}
 
@@ -567,7 +567,8 @@ public class ElasticIP implements IpAddressSupport {
           } else {
             parameters.put("AllocationId" + postfix, addressId);
           }
-        } else {
+        }
+        else {
             parameters.put("PublicIp" + postfix, addressId);
         }
     }
