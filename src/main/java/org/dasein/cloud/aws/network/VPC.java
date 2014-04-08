@@ -999,7 +999,7 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull String getProviderTermForVlan(@Nonnull Locale locale) {
-        return getProviderTermForVlan(locale);
+        return getCapabilities().getProviderTermForVlan(locale);
     }
 
     @Override
