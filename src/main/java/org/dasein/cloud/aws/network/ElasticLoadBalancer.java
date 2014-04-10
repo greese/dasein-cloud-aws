@@ -230,6 +230,12 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
+    public ServerCertificateMetadata createServerCertificate(@Nonnull ServerCertificateCreateOptions options) throws CloudException, InternalException {
+        // TODO: implement
+        throw new RuntimeException("Not implemented");
+    }
+
+    @Override
     public @Nonnull LoadBalancerAddressType getAddressType() {
         return LoadBalancerAddressType.DNS;
     }
@@ -320,9 +326,20 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             APITrace.end();
         }
     }
-    
+
+    @Override
+    public @Nullable ServerCertificate getServerCertificate(@Nonnull String certificateName) throws CloudException, InternalException {
+        // TODO: implement
+        throw new RuntimeException("Not implemented");
+    }
+
+    public @Nonnull Iterable<ServerCertificateMetadata> listServerCertificates() throws CloudException, InternalException {
+        // TODO: implement
+        throw new RuntimeException("Not implemented");
+    }
+
     static private volatile List<LbAlgorithm> algorithms;
-    
+
     @Override
     public @Nonnull Iterable<LbAlgorithm> listSupportedAlgorithms() {
         if( algorithms == null ) {
@@ -340,12 +357,12 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     static private volatile List<IPVersion> versions;
-    
+
     @Override
     public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
         if( versions == null ) {
             ArrayList<IPVersion> tmp = new ArrayList<IPVersion>();
-            
+
             tmp.add(IPVersion.IPV4);
             tmp.add(IPVersion.IPV6);
             versions = Collections.unmodifiableList(tmp);
@@ -359,7 +376,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     static private volatile List<LbProtocol> protocols;
-    
+
     @Override
     public @Nonnull Iterable<LbProtocol> listSupportedProtocols() {
         if( protocols == null ) {
@@ -371,7 +388,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
         return protocols;
     }
-    
+
     public @Nonnull String getProviderTermForLoadBalancer(@Nonnull Locale locale) {
         return "load balancer";
     }
@@ -766,6 +783,12 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
+    public void removeServerCertificate(@Nonnull String certificateName) throws CloudException, InternalException {
+        // TODO: implement
+        throw new RuntimeException("Not implemented");
+    }
+
+    @Override
     public void removeServers(@Nonnull String toLoadBalancerId, @Nonnull String ... instanceIds) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.removeServers");
         try {
@@ -797,6 +820,13 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         finally {
             APITrace.end();
         }
+    }
+
+    @Override
+    public void setSSLCertificate(@Nonnull SetLoadBalancerSSLCertificateOptions options)
+            throws CloudException, InternalException {
+        // TODO: implement
+        throw new RuntimeException("Not implemented");
     }
 
     @Override
