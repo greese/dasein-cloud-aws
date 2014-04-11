@@ -661,8 +661,11 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                             logger.error(e.getMessage());
                             addresses = Collections.emptyList();
                         }
+                      VirtualMachine server = toVirtualMachine( ctx, instance, addresses );
 
-                        return toVirtualMachine(ctx, instance, addresses);
+                      if ( server != null && server.getProviderVirtualMachineId().equals( instanceId ) ) {
+                        return server;
+                      }
                     }
                 }
             }
@@ -1447,7 +1450,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 }
             } else {
                 parameters.put("NetworkInterface.1.DeviceIndex", "0");
-                parameters.put("NetworkInterface.1.SubnetId", cfg.getVlanId());
+                parameters.put("NetworkInterface.1.SubnetId", cfg.getSubnetId());
                 parameters.put("NetworkInterface.1.AssociatePublicIpAddress", String.valueOf(cfg.isAssociatePublicIpAddress()));
                 if( cfg.getPrivateIp() != null ) {
                     parameters.put("NetworkInterface.1.PrivateIpAddress", cfg.getPrivateIp());
