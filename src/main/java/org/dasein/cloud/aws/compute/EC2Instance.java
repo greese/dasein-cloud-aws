@@ -1409,7 +1409,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     }
                 }
             }
-            if( cfg.getVlanId() == null ) {
+            if( cfg.getSubnetId() == null ) {
                 String[] ids = cfg.getFirewallIds();
                 if( ids.length > 0 ) {
                     int i = 1;
