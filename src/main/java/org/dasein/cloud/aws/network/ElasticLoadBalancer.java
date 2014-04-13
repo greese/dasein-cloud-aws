@@ -230,7 +230,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
-    public ServerCertificateMetadata createServerCertificate(@Nonnull ServerCertificateCreateOptions options) throws CloudException, InternalException {
+    public SSLCertificateMetadata createSSLCertificate(@Nonnull SSLCertificateCreateOptions options) throws CloudException, InternalException {
         // TODO: implement
         throw new RuntimeException("Not implemented");
     }
@@ -328,12 +328,12 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
-    public @Nullable ServerCertificate getServerCertificate(@Nonnull String certificateName) throws CloudException, InternalException {
+    public @Nullable SSLCertificate getSSLCertificate(@Nonnull String certificateName) throws CloudException, InternalException {
         // TODO: implement
         throw new RuntimeException("Not implemented");
     }
 
-    public @Nonnull Iterable<ServerCertificateMetadata> listServerCertificates() throws CloudException, InternalException {
+    public @Nonnull Iterable<SSLCertificateMetadata> listSSLCertificates() throws CloudException, InternalException {
         // TODO: implement
         throw new RuntimeException("Not implemented");
     }
@@ -783,7 +783,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
-    public void removeServerCertificate(@Nonnull String certificateName) throws CloudException, InternalException {
+    public void removeSSLCertificate(@Nonnull String certificateName) throws CloudException, InternalException {
         // TODO: implement
         throw new RuntimeException("Not implemented");
     }
