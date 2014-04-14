@@ -19,33 +19,23 @@
 
 package org.dasein.cloud.aws.network;
 
-import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.servlet.http.HttpServletResponse;
-
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.Requirement;
-import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
+import org.dasein.cloud.aws.identity.IAMMethod;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.servlet.http.HttpServletResponse;
+import java.io.UnsupportedEncodingException;
+import java.util.*;
 
 public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     static private final Logger logger = Logger.getLogger(ElasticLoadBalancer.class);
@@ -231,8 +221,41 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
     @Override
     public SSLCertificateMetadata createSSLCertificate(@Nonnull SSLCertificateCreateOptions options) throws CloudException, InternalException {
-        // TODO: implement
-        throw new RuntimeException("Not implemented");
+        APITrace.begin(provider, "LB.createSSLCertificate");
+        try {
+            if ( !provider.getEC2Provider().isAWS() ) {
+                return null;
+            }
+
+            Map<String, String> parameters = provider.getStandardParameters(getContext(),
+                                                                IAMMethod.CREATE_SSL_CERTIFICATE, IAMMethod.VERSION);
+            parameters.put("CertificateBody", options.getCertificateBody());
+            parameters.put("CertificateChain", options.getCertificateChain());
+            parameters.put("Path", options.getPath());
+            parameters.put("PrivateKey", options.getPrivateKey());
+            parameters.put("ServerCertificateName", options.getSSLCertificateName());
+
+            Document doc;
+            IAMMethod method = new IAMMethod(provider, parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch ( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            NodeList blocks = doc.getElementsByTagName("ServerCertificateMetadata");
+            for ( int i = 0; i < blocks.getLength(); i++ ) {
+                SSLCertificateMetadata metadata = toSSLCertificateMetadata(blocks.item(i));
+                if (metadata != null) {
+                    return metadata;
+                }
+            }
+            return null;
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
@@ -329,13 +352,88 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
     @Override
     public @Nullable SSLCertificate getSSLCertificate(@Nonnull String certificateName) throws CloudException, InternalException {
-        // TODO: implement
-        throw new RuntimeException("Not implemented");
+        APITrace.begin(provider, "LB.getCertificate");
+        try {
+            if (!provider.getEC2Provider().isAWS()) {
+                return null;
+            }
+
+            Map<String, String> parameters = provider.getStandardParameters(getContext(),
+                                                                IAMMethod.GET_SSL_CERTIFICATE, IAMMethod.VERSION);
+            parameters.put("ServerCertificateName", certificateName);
+            Document doc;
+
+            IAMMethod method = new IAMMethod(provider, parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                String code = e.getCode();
+
+                if( "NoSuchEntity".equals(code) ) {
+                    return null;
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            NodeList blocks = doc.getElementsByTagName("ServerCertificate");
+            for ( int i = 0; i < blocks.getLength(); i++ ) {
+                Node item = blocks.item(i);
+                SSLCertificate certificate = toSSLCertificate(item);
+                if (certificate != null) {
+                    return certificate;
+                }
+            }
+            return null;
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     public @Nonnull Iterable<SSLCertificateMetadata> listSSLCertificates() throws CloudException, InternalException {
-        // TODO: implement
-        throw new RuntimeException("Not implemented");
+        APITrace.begin(provider, "LB.listSSLCertificates");
+        try {
+            if (!provider.getEC2Provider().isAWS()) {
+                return Collections.emptyList();
+            }
+
+            List<SSLCertificateMetadata> list  = new ArrayList<SSLCertificateMetadata>();
+            Map<String, String> parameters = provider.getStandardParameters(getContext(),
+                                                            IAMMethod.LIST_SSL_CERTIFICATES, IAMMethod.VERSION);
+            NodeList blocks;
+            Document doc;
+
+            IAMMethod method = new IAMMethod(provider, parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch ( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+
+            blocks = doc.getElementsByTagName("ServerCertificateMetadataList");
+            for ( int i = 0; i < blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for ( int j = 0; j < items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if ( "member".equals(item.getNodeName()) ) {
+                        SSLCertificateMetadata certificate = toSSLCertificateMetadata(item);
+                        if ( certificate != null ) {
+                            list.add( certificate );
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+        finally {
+            APITrace.end();
+        }
+
     }
 
     static private volatile List<LbAlgorithm> algorithms;
@@ -784,8 +882,27 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
     @Override
     public void removeSSLCertificate(@Nonnull String certificateName) throws CloudException, InternalException {
-        // TODO: implement
-        throw new RuntimeException("Not implemented");
+        APITrace.begin(provider, "LB.removeSSLCertificate");
+        try {
+            if ( !provider.getEC2Provider().isAWS() ) {
+                return;
+            }
+
+            Map<String, String> parameters = provider.getStandardParameters(getContext(),
+                                                                IAMMethod.DELETE_SSL_CERTIFICATE, IAMMethod.VERSION);
+            parameters.put("ServerCertificateName", certificateName);
+            IAMMethod method = new IAMMethod(provider, parameters);
+            try {
+                method.invoke();
+            }
+            catch ( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
@@ -825,8 +942,30 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     @Override
     public void setSSLCertificate(@Nonnull SetLoadBalancerSSLCertificateOptions options)
             throws CloudException, InternalException {
-        // TODO: implement
-        throw new RuntimeException("Not implemented");
+        APITrace.begin(provider, "LB.setSSLCertificate");
+        try {
+            ProviderContext ctx = provider.getContext();
+            if (ctx == null) {
+                throw new CloudException("No valid context is established for this request");
+            }
+
+            Map<String, String> parameters = getELBParameters(ctx, ELBMethod.SET_LB_SSL_CERTIFICATE);
+            parameters.put("LoadBalancerName", options.getLoadBalancerName());
+            parameters.put("LoadBalancerPort", options.getSslCertificateAssignToPort());
+            parameters.put("SSLCertificateId", options.getSslCertificateResourceId());
+
+            ELBMethod method = new ELBMethod(provider, ctx, parameters);
+            try {
+                method.invoke();
+            }
+            catch ( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
@@ -855,7 +994,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             if( options.getPort() < 1 || options.getPort() > 65535 ){
                 throw new CloudException("Port must have a number between 1 and 65535.");
             }
-            if(options.getPath() != null || !options.getPath().equals("")){
+            if(options.getPath() != null && !options.getPath().equals("")){
                 path = options.getPath();
             }
             parameters.put("HealthCheck.Target", options.getProtocol().name() + ":" + options.getPort() + path);
@@ -1256,6 +1395,93 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             return null;
         }
         return new ResourceStatus(lbId, LoadBalancerState.ACTIVE);
+    }
+
+    private @Nullable SSLCertificateMetadata toSSLCertificateMetadata(@Nullable Node node) {
+        if ( node == null ) {
+            return null;
+        }
+
+        String name = null, path = null, arn = null, id = null;
+        Long uploadDate = null;
+        NodeList attrs = node.getChildNodes();
+        for ( int i = 0; i < attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String key = attr.getNodeName();
+            String value = attr.getFirstChild().getNodeValue();
+
+            if ( "ServerCertificateName".equalsIgnoreCase(key) ) {
+                name = value;
+            }
+            else if ( "Path".equalsIgnoreCase(key) ) {
+                path = value;
+            }
+            else if ( "Arn".equalsIgnoreCase(key) ) {
+                arn = value;
+            }
+            else if ( "UploadDate".equalsIgnoreCase(key) ) {
+                try {
+                    uploadDate = provider.parseTime(value);
+                }
+                catch( CloudException e ) {
+                    logger.warn("Unable to parse uploadDate of ServerCertificateMetadata: " + e.getMessage());
+                }
+            }
+            else if ( "ServerCertificateId".equals(key) ) {
+                id = value;
+            }
+        }
+
+        if (name == null) {
+            logger.error("ServerCertificateName was missing in ServerCertificateMetadata");
+            return null;
+        }
+        if (path == null) {
+            logger.error("Path was missing in ServerCertificateMetadata");
+            return null;
+        }
+        if (arn == null) {
+            logger.error("Arn was missing in ServerCertificateMetadata");
+            return null;
+        }
+        if (id == null) {
+            logger.error("ServerCertificateId was missing in ServerCertificateMetadata");
+            return null;
+        }
+        return SSLCertificateMetadata.getInstance(arn, path, id, name, uploadDate);
+    }
+
+    private @Nullable SSLCertificate toSSLCertificate(@Nullable Node node) {
+        if ( node == null ) {
+            return null;
+        }
+
+        String body = null, chain = null;
+        SSLCertificateMetadata metadata = null;
+
+        NodeList attrs = node.getChildNodes();
+        for ( int i = 0; i < attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String key = attr.getNodeName();
+            if ( "CertificateBody".equalsIgnoreCase(key) ) {
+                body = attr.getFirstChild().getNodeValue();
+            }
+            else if ( "CertificateChain".equalsIgnoreCase(key) ) {
+                chain = attr.getFirstChild().getNodeValue();
+            }
+            else if ( "ServerCertificateMetadata".equalsIgnoreCase(key) ) {
+                metadata = toSSLCertificateMetadata(attr);
+            }
+        }
+        if (body == null) {
+            logger.error("CertificateBody was missing in ServerCertificate response");
+            return null;
+        }
+        if (metadata == null) {
+            logger.error("ServerCertificateMetadata was missing in ServerCertificate response");
+            return null;
+        }
+        return SSLCertificate.getInstance(body, chain, metadata);
     }
 
     private String verifyName(String name) {
