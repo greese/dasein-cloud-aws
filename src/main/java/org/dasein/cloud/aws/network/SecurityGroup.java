@@ -22,6 +22,7 @@ package org.dasein.cloud.aws.network;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.aws.AWSResourceNotFoundException;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.compute.ComputeServices;
@@ -93,7 +94,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
             if( fw == null ) {
                 throw new CloudException("No such firewall: " + firewallId);
             }
-            if( direction.equals(Direction.EGRESS) && fw.getProviderVlanId() == null ) {
+            if( direction.equals(Direction.EGRESS) && isAwsEc2Classic(fw) ) {
                 throw new OperationNotSupportedException("AWS does not support EGRESS rules for non-VPC security groups");
             }
             String action = ( direction.equals(Direction.INGRESS) ? EC2Method.AUTHORIZE_SECURITY_GROUP_INGRESS : EC2Method.AUTHORIZE_SECURITY_GROUP_EGRESS );
@@ -128,6 +129,9 @@ public class SecurityGroup extends AbstractFirewallSupport {
             } else {
                 parameters.put("GroupId", firewallId);
                 if( protocol == Protocol.ANY ) {
+                    if (isAwsEc2Classic(fw)) {
+                        throw new OperationNotSupportedException("AWS does not support ANY protocol type for non-VPC security groups");
+                    }
                     parameters.put("IpPermissions.1.IpProtocol", "-1");
                 } else {
                     parameters.put("IpPermissions.1.IpProtocol", protocol.name().toLowerCase());
@@ -706,9 +710,9 @@ public class SecurityGroup extends AbstractFirewallSupport {
             Firewall fw = getFirewall(firewallId);
 
             if( fw == null ) {
-                throw new CloudException("No such firewall: " + firewallId);
+                throw new AWSResourceNotFoundException("No such firewall: " + firewallId);
             }
-            if( direction.equals(Direction.EGRESS) && fw.getProviderVlanId() == null ) {
+            if( direction.equals(Direction.EGRESS) && isAwsEc2Classic(fw) ) {
                 throw new OperationNotSupportedException("AWS does not support EGRESS rules for non-VPC security groups");
             }
             String action = ( direction.equals(Direction.INGRESS) ? EC2Method.REVOKE_SECURITY_GROUP_INGRESS : EC2Method.REVOKE_SECURITY_GROUP_EGRESS );
@@ -771,6 +775,10 @@ public class SecurityGroup extends AbstractFirewallSupport {
         } finally {
             APITrace.end();
         }
+    }
+
+    private static boolean isAwsEc2Classic(Firewall firewall) {
+        return firewall.getProviderVlanId() == null;
     }
 
     @Override

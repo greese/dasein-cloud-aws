@@ -314,7 +314,7 @@ public class Route53Method {
                             if( message == null ) {
                                 throw new CloudException("Unable to identify error condition: " + status + "/" + requestId + "/" + code);
                             }
-                            throw new EC2Exception(status, requestId, code, message);
+                            throw EC2Exception.create(status, requestId, code, message);
                         }
                     }
                     catch( RuntimeException ignore  ) {
@@ -390,7 +390,7 @@ public class Route53Method {
                     if( message == null ) {
                         throw new CloudException("Unable to identify error condition: " + status + "/" + requestId + "/" + code);
                     }
-                    throw new EC2Exception(status, requestId, code, message);
+                    throw EC2Exception.create(status, requestId, code, message);
                 }
                 throw new CloudException("Unable to parse error.");
     		}

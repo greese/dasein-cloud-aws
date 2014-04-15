@@ -107,8 +107,8 @@ public class AWSCloud extends AbstractCloud {
     static public final String SIGNATURE = "2";
     static public final String V4_ALGORITHM = "AWS4-HMAC-SHA256";
     static public final String V4_TERMINATION = "aws4_request";
-
-    static public final String PLATFORM_EC2                     = "EC2";
+    static public final String PLATFORM_EC2 = "EC2";
+    static public final String PLATFORM_VPC = "VPC";
 
 
     static public @Nonnull String encode(@Nonnull String value, boolean encodePath) throws InternalException {
@@ -284,7 +284,9 @@ public class AWSCloud extends AbstractCloud {
 
                     if (value != null) {
                         tagParameters.put("Tag." + (i + 1) + ".Key", key);
-                        tagParameters.put("Tag." + (i + 1) + ".Value", value);
+                        if (value != null && value.length() > 0) {
+                            tagParameters.put("Tag." + (i + 1) + ".Value", value);
+                        }
                     }
                 }
                 if (tagParameters.size() == 0) {
@@ -333,7 +335,7 @@ public class AWSCloud extends AbstractCloud {
                     String value = keyValuePairs[i].getValue();
 
                     parameters.put("Tag." + (i + 1) + ".Key", key);
-                    if (value != null) {
+                    if (value != null && !value.equalsIgnoreCase("")) {
                         parameters.put("Tag." + (i + 1) + ".Value", value);
                     }
                 }
@@ -551,7 +553,7 @@ public class AWSCloud extends AbstractCloud {
 
     public String getEc2Version() {
         if (getEC2Provider().isAWS()) {
-            return "2013-06-15";
+            return "2014-02-01";
         } else if (getEC2Provider().isEucalyptus()) {
             return "2010-11-15";
         } else if (getEC2Provider().isOpenStack()) {
@@ -747,13 +749,23 @@ public class AWSCloud extends AbstractCloud {
         int i = startingFilterIndex;
 
         for (Map.Entry<String, String> parameter : tags.entrySet()) {
-            String key = parameter.getKey();
-            String value = parameter.getValue();
-            filterParameters.put("Filter." + i + ".Name", "tag:" + key);
-            filterParameters.put("Filter." + i + ".Value.1", value);
+            addFilterParameter(filterParameters, i, "tag:" + parameter.getKey(), Collections.singletonList(parameter.getValue()));
             i++;
         }
         return filterParameters;
+    }
+
+    public void addFilterParameter(Map<String, String> filterParameters, int index, String filterName, Collection<?> filterValues) {
+        if (filterValues == null || filterValues.isEmpty()) {
+            return;
+        }
+
+        filterParameters.put("Filter." + index + ".Name", filterName);
+        int valueIndex = 0;
+        for (Object filterValue : filterValues) {
+            // filter values must be in lower case
+            filterParameters.put("Filter." + index + ".Value." + valueIndex++, filterValue.toString().toLowerCase());
+        }
     }
 
     public
@@ -880,7 +892,7 @@ public class AWSCloud extends AbstractCloud {
             toSign.append("/");
         }
         if (object != null) {
-            toSign.append(object);
+            toSign.append(object.toLowerCase());
         }
         String signature = sign(secretKey, toSign.toString(), S3_ALGORITHM);
 

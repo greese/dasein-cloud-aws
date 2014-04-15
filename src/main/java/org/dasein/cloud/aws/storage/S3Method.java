@@ -139,48 +139,48 @@ public class S3Method {
         
         return new String(b64);
     }
-    
-	private S3Action           action      = null;
-	private int                attempts    = 0;
-	private String             body        = null;
-	private String             contentType = null;
-	private Map<String,String> headers     = null;
-	private Map<String,String> parameters  = null;
-	private AWSCloud           provider    = null;
-	private File               uploadFile  = null;
 
-	public S3Method(AWSCloud provider, S3Action action) {
-		this.action = action;
-		this.headers = new HashMap<String,String>();
-		this.provider = provider;
-	}
-	
-	public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers) {
-		this.action = action;
-		this.headers = (headers == null ? new HashMap<String,String>() : headers);
-		this.provider = provider;
-		this.parameters = parameters;
-	}
-	
-	public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, String body) {
-		this.action = action;
-		this.headers = (headers == null ? new HashMap<String,String>() : headers);
-		this.contentType = contentType;
-		this.body = body;
-		this.provider = provider;
-		this.parameters = parameters;
-	}
-    
-	public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, File uploadFile) {
-		this.action = action;
-		this.headers = (headers == null ? new HashMap<String,String>() : headers);
-		this.contentType = contentType;
-		this.uploadFile = uploadFile;
-		this.provider = provider;
-		this.parameters = parameters;
-	}
-	
-	private String getDate() throws CloudException {
+    private S3Action           action      = null;
+    private int                attempts    = 0;
+    private String             body        = null;
+    private String             contentType = null;
+    private Map<String,String> headers     = null;
+    private Map<String,String> parameters  = null;
+    private AWSCloud           provider    = null;
+    private File               uploadFile  = null;
+
+    public S3Method(AWSCloud provider, S3Action action) {
+        this.action = action;
+        this.headers = new HashMap<String,String>();
+        this.provider = provider;
+    }
+
+    public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers) {
+        this.action = action;
+        this.headers = (headers == null ? new HashMap<String,String>() : headers);
+        this.provider = provider;
+        this.parameters = parameters;
+    }
+
+    public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, String body) {
+        this.action = action;
+        this.headers = (headers == null ? new HashMap<String,String>() : headers);
+        this.contentType = contentType;
+        this.body = body;
+        this.provider = provider;
+        this.parameters = parameters;
+    }
+
+    public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, File uploadFile) {
+        this.action = action;
+        this.headers = (headers == null ? new HashMap<String,String>() : headers);
+        this.contentType = contentType;
+        this.uploadFile = uploadFile;
+        this.provider = provider;
+        this.parameters = parameters;
+    }
+
+    private String getDate() throws CloudException {
         if( provider.getEC2Provider().isStorage() && "google".equalsIgnoreCase(provider.getProviderName()) ) {
             SimpleDateFormat format = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ssz", new Locale("US"));
             Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
@@ -195,11 +195,11 @@ public class S3Method {
             fmt.setCalendar(cal);
             return fmt.format(new Date());
         }
-	}
+    }
 
-	S3Response invoke(String bucket, String object) throws S3Exception, CloudException, InternalException {
-	    return invoke(bucket, object, null);
-	}
+    S3Response invoke(String bucket, String object) throws S3Exception, CloudException, InternalException {
+        return invoke(bucket, object, null);
+    }
 
     protected @Nonnull HttpClient getClient(String url, boolean multipart) throws InternalException {
         ProviderContext ctx = provider.getContext();
@@ -236,7 +236,7 @@ public class S3Method {
 
     static private final Logger wire = AWSCloud.getWireLogger(S3.class);
 
-	// TODO(stas): This method screams for some heavy refactoring
+    // TODO(stas): This method screams for some heavy refactoring
     S3Response invoke(@Nullable String bucket, @Nullable String object, @Nullable String temporaryEndpoint) throws S3Exception, CloudException, InternalException {
         if( wire.isDebugEnabled() ) {
             wire.debug("");
@@ -253,7 +253,7 @@ public class S3Method {
             if( bucket != null ) {
                 bucket = AWSCloud.encode(bucket, false);
             }
-            if( object != null && !object.startsWith("?")) {
+            if( object != null && !"?location".equalsIgnoreCase( object ) && !"?acl".equalsIgnoreCase( object )) {
                 object = AWSCloud.encode(object, false);
             }
             if( temporaryEndpoint != null ) {
