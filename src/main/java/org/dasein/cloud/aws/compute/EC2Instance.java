@@ -395,8 +395,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public
-    @Nullable String getPassword(@Nonnull String instanceId) throws InternalException, CloudException {
+    public @Nullable String getPassword(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getPassword");
         try {
             Callable<String> callable = new GetPassCallable(
@@ -418,7 +417,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    public static class GetPassCallable implements Callable {
+	public static class GetPassCallable implements Callable {
         private String instanceId;
         private Map<String, String> params;
         private AWSCloud awsProvider;
@@ -465,6 +464,78 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             return null;
         }
     }
+
+	@Override
+	public @Nullable String getUserData(@Nonnull String instanceId) throws InternalException, CloudException {
+		APITrace.begin(getProvider(), "getUserData");
+		try {
+			Callable<String> callable = new GetUserDataCallable(
+					instanceId,
+					getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCE_ATTRIBUTE),
+					getProvider(),
+					getProvider().getEc2Url()
+			);
+			return callable.call();
+		} catch( EC2Exception e ) {
+			logger.error(e.getSummary());
+			throw new CloudException(e);
+		} catch( CloudException ce ) {
+			throw ce;
+		} catch( Exception e ) {
+			throw new InternalException(e);
+		} finally {
+			APITrace.end();
+		}
+	}
+
+	public static class GetUserDataCallable implements Callable {
+		private String instanceId;
+		private Map<String, String> params;
+		private AWSCloud awsProvider;
+		private String ec2url;
+
+		public GetUserDataCallable(String iId, Map<String, String> p, AWSCloud ap, String eUrl) {
+			instanceId = iId;
+			params = p;
+			awsProvider = ap;
+			ec2url = eUrl;
+		}
+
+		public String call() throws CloudException {
+			EC2Method method;
+			NodeList blocks;
+			Document doc;
+
+			params.put("InstanceId", instanceId);
+			params.put("Attribute", "userData");
+			try {
+				method = new EC2Method(awsProvider, ec2url, params);
+			} catch( InternalException e ) {
+				logger.error(e.getMessage());
+				throw new CloudException(e);
+			}
+			try {
+				doc = method.invoke();
+			} catch( EC2Exception e ) {
+				logger.error(e.getSummary());
+				throw new CloudException(e);
+			} catch( InternalException e ) {
+				logger.error(e.getMessage());
+				throw new CloudException(e);
+			}
+			blocks = doc.getElementsByTagName("value");
+
+			if( blocks.getLength() > 0 ) {
+				Node pw = blocks.item(0);
+
+				if( pw.hasChildNodes() ) {
+					return pw.getFirstChild().getNodeValue();
+				}
+				return null;
+			}
+			return null;
+		}
+	}
 
     @Override
     public @Nonnull String getConsoleOutput(@Nonnull String instanceId) throws InternalException, CloudException {
@@ -661,8 +732,11 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                             logger.error(e.getMessage());
                             addresses = Collections.emptyList();
                         }
+                      VirtualMachine server = toVirtualMachine( ctx, instance, addresses );
 
-                        return toVirtualMachine(ctx, instance, addresses);
+                      if ( server != null && server.getProviderVirtualMachineId().equals( instanceId ) ) {
+                        return server;
+                      }
                     }
                 }
             }
@@ -1406,7 +1480,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     }
                 }
             }
-            if( cfg.getVlanId() == null ) {
+            if( cfg.getSubnetId() == null ) {
                 String[] ids = cfg.getFirewallIds();
                 if( ids.length > 0 ) {
                     int i = 1;
@@ -1447,7 +1521,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 }
             } else {
                 parameters.put("NetworkInterface.1.DeviceIndex", "0");
-                parameters.put("NetworkInterface.1.SubnetId", cfg.getVlanId());
+                parameters.put("NetworkInterface.1.SubnetId", cfg.getSubnetId());
                 parameters.put("NetworkInterface.1.AssociatePublicIpAddress", String.valueOf(cfg.isAssociatePublicIpAddress()));
                 if( cfg.getPrivateIp() != null ) {
                     parameters.put("NetworkInterface.1.PrivateIpAddress", cfg.getPrivateIp());

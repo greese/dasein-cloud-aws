@@ -1917,7 +1917,9 @@ public class VPC extends AbstractVLANSupport {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                e.printStackTrace();
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
                 throw new CloudException(e);
             }
             blocks = doc.getElementsByTagName("internetGatewaySet");
@@ -2055,7 +2057,9 @@ public class VPC extends AbstractVLANSupport {
                 method.invoke();
             } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                e.printStackTrace();
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
                 throw new CloudException(e);
             }
             removeGateway(gatewayId);
@@ -2084,7 +2088,9 @@ public class VPC extends AbstractVLANSupport {
                 method.invoke();
             } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                e.printStackTrace();
+                if( logger.isDebugEnabled() ) {
+                  e.printStackTrace();
+                }
                 throw new CloudException(e);
             }
             removeGateway(id);
@@ -2104,7 +2110,9 @@ public class VPC extends AbstractVLANSupport {
             method.invoke();
         } catch( EC2Exception e ) {
             logger.error(e.getSummary());
-            e.printStackTrace();
+            if( logger.isDebugEnabled() ) {
+                e.printStackTrace();
+            }
             throw new CloudException(e);
         }
     }
@@ -2142,7 +2150,9 @@ public class VPC extends AbstractVLANSupport {
                 method.invoke();
             } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                e.printStackTrace();
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
                 throw new CloudException(e);
             }
         } finally {
@@ -2164,7 +2174,9 @@ public class VPC extends AbstractVLANSupport {
                 method.invoke();
             } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                e.printStackTrace();
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
                 throw new CloudException(e);
             }
         } finally {
@@ -2185,7 +2197,9 @@ public class VPC extends AbstractVLANSupport {
                 method.invoke();
             } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                e.printStackTrace();
+                if( logger.isDebugEnabled() ) {
+                    e.printStackTrace();
+                }
                 throw new CloudException(e);
             }
         } finally {

@@ -873,8 +873,22 @@ public class AutoScaling implements AutoScalingSupport {
         }
     }
 
-    @Override
-    public Collection<ScalingGroup> listScalingGroups() throws CloudException, InternalException {
+	/**
+	 * Provides backwards compatibility
+	 */
+	@Override
+	public Collection<ScalingGroup> listScalingGroups() throws CloudException, InternalException {
+		return listScalingGroups(AutoScalingGroupFilterOptions.getInstance());
+	}
+
+	/**
+	 * Returns filtered list of auto scaling groups.
+	 *
+	 * @param options the filter parameters
+	 * @return filtered list of scaling groups
+	 */
+	@Override
+    public Collection<ScalingGroup> listScalingGroups(AutoScalingGroupFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.listScalingGroups");
         try {
             ProviderContext ctx = provider.getContext();
@@ -907,7 +921,8 @@ public class AutoScaling implements AutoScalingSupport {
                     if( item.getNodeName().equals("member") ) {
                         ScalingGroup group = toScalingGroup(ctx, item);
 
-                        if( group != null ) {
+                        if( (group != null && (options != null && !options.hasCriteria()))
+		                        || (group != null && (options != null && options.hasCriteria() && options.matches(group))) ) {
                             list.add(group);
                         }
                     }
