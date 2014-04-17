@@ -50,6 +50,24 @@
             },
             {
                 "architectures":["I64"],
+                "id":"m3.large",
+                "name":"M3 Large Instance (m3.large)",
+                "description":"6.5 EC2 Compute Units (2 virtual cores with 3.25 EC2 Compute Units each)",
+                "cpuCount":2,
+                "rootVolumeSizeInGb":32,
+                "ramSizeInMb":7680
+            },
+            {
+                "architectures":["I64"],
+                "id":"m3.medium",
+                "name":"M3 Medium Instance (m3.medium)",
+                "description":"3 EC2 Compute Units (1 virtual core with 3 EC2 Compute Units each)",
+                "cpuCount":1,
+                "rootVolumeSizeInGb":4,
+                "ramSizeInMb":3840
+            },
+            {
+                "architectures":["I64"],
                 "id":"m3.2xlarge",
                 "name":"M3 Double Extra Large Instance (m3.2xlarge)",
                 "description":"26 EC2 Compute Units (8 virtual cores with 3.25 EC2 Compute Units each)",
@@ -164,15 +182,6 @@
                 "cpuCount":16,
                 "rootVolumeSizeInGb":49152,
                 "ramSizeInMb":125627
-            },
-            {
-                "architectures":["I64"],
-                "id":"cc1.4xlarge",
-                "name":"Cluster Compute Quadruple Extra Large (cc1.4xlarge)",
-                "description":"Cluster Compute Quadruple Extra Large (cc1.4xlarge)",
-                "cpuCount":16,
-                "rootVolumeSizeInGb":1690,
-                "ramSizeInMb":24159
             },
             {
                 "architectures":["I64"],
