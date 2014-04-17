@@ -185,15 +185,6 @@
             },
             {
                 "architectures":["I64"],
-                "id":"cc1.4xlarge",
-                "name":"Cluster Compute Quadruple Extra Large (cc1.4xlarge)",
-                "description":"Cluster Compute Quadruple Extra Large (cc1.4xlarge)",
-                "cpuCount":16,
-                "rootVolumeSizeInGb":1690,
-                "ramSizeInMb":24159
-            },
-            {
-                "architectures":["I64"],
                 "id":"c3.large",
                 "name":"Compute Optimized Large (c3.large)",
                 "description":"Compute Optimized Large (c3.large)",
