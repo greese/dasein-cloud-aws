@@ -23,7 +23,6 @@ import org.apache.http.*;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.conn.ClientConnectionManager;
 import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
@@ -597,10 +596,6 @@ public class EC2Method {
         }
     }
 
-	public Document invoke() throws EC2Exception, CloudException, InternalException {
-	    return invoke(false);
-	}
-
     protected @Nonnull HttpClient getClient() throws InternalException {
         ProviderContext ctx = provider.getContext();
 
@@ -633,7 +628,28 @@ public class EC2Method {
         return new DefaultHttpClient(params);
     }
 
-    public Document invoke(boolean debug) throws EC2Exception, CloudException, InternalException {
+    public Document invoke() throws EC2Exception, CloudException, InternalException {
+        return invoke(false);
+    }
+
+    public Document invoke(boolean debug) throws InternalException, CloudException, EC2Exception {
+        return this.invoke(debug, null);
+    }
+
+    /**
+     * The invoke method which isn't itself parsing the successful response,
+     * but relies on the callback to parse it.
+     *
+     * @param callback
+     * @throws InternalException
+     * @throws CloudException
+     * @throws EC2Exception
+     */
+    public void invoke(XmlStreamParser callback) throws InternalException, CloudException, EC2Exception {
+        this.invoke(false, callback);
+    }
+
+    private Document invoke(boolean debug, XmlStreamParser callback) throws EC2Exception, CloudException, InternalException {
 	    if( logger.isTraceEnabled() ) {
 	        logger.trace("ENTER - " + EC2Method.class.getName() + ".invoke(" + debug + ")");
 	    }
@@ -700,7 +716,16 @@ public class EC2Method {
                     InputStream input = entity.getContent();
 
                     try {
-                        return parseResponse(input);
+                        // When callback is passed, callback will parse the response, and therefore there
+                        // will be no DOM document created. The callback will likely take a list to populate
+                        // the results with.
+                        if (callback != null) {
+                            callback.parse(input);
+                            return null;
+                        }
+                        else {
+                            return parseResponse(input);
+                        }
                     }
                     finally {
                         input.close();
@@ -930,8 +955,9 @@ public class EC2Method {
 	}
 
 	private Document parseResponse(InputStream responseBodyAsStream) throws CloudException, InternalException {
+        BufferedReader in = null;
 		try {
-			BufferedReader in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
+			in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
 			StringBuilder sb = new StringBuilder();
 			String line;
 
@@ -939,12 +965,20 @@ public class EC2Method {
 				sb.append(line);
 				sb.append("\n");
 			}
-			in.close();
-
 			return parseResponse(sb.toString());
 		}
 		catch( IOException e ) {
 			throw new CloudException(e);
 		}
+        finally {
+            if( in != null ) {
+                try {
+                    in.close();
+                } catch( IOException e ) {
+                    // Ignore
+                }
+            }
+        }
     }
+
 }
