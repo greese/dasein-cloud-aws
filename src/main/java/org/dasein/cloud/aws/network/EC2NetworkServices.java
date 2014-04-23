@@ -20,8 +20,10 @@
 package org.dasein.cloud.aws.network;
 
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.aws.DelegateRemoteInvocationHandler;
 import org.dasein.cloud.network.AbstractNetworkServices;
 import org.dasein.cloud.network.DNSSupport;
+import org.dasein.cloud.network.LoadBalancerSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -50,9 +52,9 @@ public class EC2NetworkServices extends AbstractNetworkServices {
     }
     
     @Override
-    public @Nullable ElasticLoadBalancer getLoadBalancerSupport() {
+    public @Nullable LoadBalancerSupport getLoadBalancerSupport() {
         if( cloud.getEC2Provider().isAWS() || cloud.getEC2Provider().isEnStratus() ) {
-            return new ElasticLoadBalancer(cloud);
+            return DelegateRemoteInvocationHandler.getInstance(LoadBalancerSupport.class, new ElasticLoadBalancer(cloud), cloud);
         }
         return null;
     }
@@ -72,4 +74,5 @@ public class EC2NetworkServices extends AbstractNetworkServices {
         }
         return null;
     }
+
 }

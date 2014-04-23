@@ -19,26 +19,13 @@
 
 package org.dasein.cloud.aws.network;
 
-import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.servlet.http.HttpServletResponse;
-
+import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancing;
+import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient;
+import com.amazonaws.services.elasticloadbalancing.model.*;
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.Requirement;
-import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.aws.LogRequest;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
@@ -47,17 +34,25 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.servlet.http.HttpServletResponse;
+import java.io.UnsupportedEncodingException;
+import java.util.*;
+
 public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     static private final Logger logger = Logger.getLogger(ElasticLoadBalancer.class);
-    
+
     private AWSCloud provider = null;
     private volatile transient ElasticLoadBalancerCapabilities capabilities;
+    private AmazonElasticLoadBalancing amazonElasticLoadBalancing;
 
     ElasticLoadBalancer(AWSCloud provider) {
         super(provider);
         this.provider = provider;
+        amazonElasticLoadBalancing = new AmazonElasticLoadBalancingClient(provider.getAWSCredentials());
     }
-    
+
     @Override
     public void addDataCenters(@Nonnull String toLoadBalancerId, @Nonnull String ... availabilityZoneIds) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.addDataCenters");
@@ -267,16 +262,19 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             APITrace.end();
         }
     }
-    
+
     public int getMaxPublicPorts() {
         return 0;
     }
-    
+
     @Override
     public @Nullable LoadBalancer getLoadBalancer(@Nonnull String loadBalancerId) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.getLoadBalancer");
         try {
-            Map<String,String> parameters = getELBParameters(getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
+
+            return findLoadBalancer(loadBalancerId);
+
+            /*Map<String,String> parameters = getELBParameters(getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
             ELBMethod method;
             NodeList blocks;
             Document doc;
@@ -314,15 +312,15 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     }
                 }
             }
-            return null;
+            return null;*/
         }
         finally {
             APITrace.end();
         }
     }
-    
+
     static private volatile List<LbAlgorithm> algorithms;
-    
+
     @Override
     public @Nonnull Iterable<LbAlgorithm> listSupportedAlgorithms() {
         if( algorithms == null ) {
@@ -340,12 +338,12 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     static private volatile List<IPVersion> versions;
-    
+
     @Override
     public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
         if( versions == null ) {
             ArrayList<IPVersion> tmp = new ArrayList<IPVersion>();
-            
+
             tmp.add(IPVersion.IPV4);
             tmp.add(IPVersion.IPV6);
             versions = Collections.unmodifiableList(tmp);
@@ -359,7 +357,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     static private volatile List<LbProtocol> protocols;
-    
+
     @Override
     public @Nonnull Iterable<LbProtocol> listSupportedProtocols() {
         if( protocols == null ) {
@@ -371,7 +369,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
         return protocols;
     }
-    
+
     public @Nonnull String getProviderTermForLoadBalancer(@Nonnull Locale locale) {
         return "load balancer";
     }
@@ -692,9 +690,9 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.DELETE_LOAD_BALANCER };
         }
         else if( action.equals(LoadBalancerSupport.REMOVE_VMS) ) {
-            return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.DEREGISTER_INSTANCES };            
+            return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.DEREGISTER_INSTANCES };
         }
-        return new String[0]; 
+        return new String[0];
     }
 
     @SuppressWarnings("deprecation")
@@ -851,6 +849,71 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
     }
 
+    @LogRequest
+    @Override
+    public void attachFirewalls(@Nonnull String loadBalancerId, @Nonnull String... firewallIds) throws CloudException, InternalException {
+        ApplySecurityGroupsToLoadBalancerRequest applySecurityGroupsToLoadBalancerRequest = new ApplySecurityGroupsToLoadBalancerRequest()
+                .withLoadBalancerName(loadBalancerId)
+                .withSecurityGroups(firewallIds);
+
+        amazonElasticLoadBalancing.applySecurityGroupsToLoadBalancer(applySecurityGroupsToLoadBalancerRequest);
+    }
+
+    protected LoadBalancer findLoadBalancer(@Nonnull String loadBalancerId) throws CloudException {
+        DescribeLoadBalancersRequest loadBalancersRequest = new DescribeLoadBalancersRequest().withLoadBalancerNames(loadBalancerId);
+        List<LoadBalancerDescription> descriptions = amazonElasticLoadBalancing.describeLoadBalancers(loadBalancersRequest).getLoadBalancerDescriptions();
+        LoadBalancerDescription description = descriptions.get(0);
+        return toLoadBalancer(description);
+    }
+
+    private LoadBalancer toLoadBalancer(LoadBalancerDescription description) {
+        List<LbListener> listeners = getLbListeners(description);
+        int[] ports = new int[listeners.size()];
+
+        for (int j = 0; j < listeners.size(); j++) {
+            ports[j] = listeners.get(j).getPublicPort();
+        }
+
+        List<String> availabilityZones = description.getAvailabilityZones();
+        List<String> subnets = description.getSubnets();
+        List<String> firewallIds = description.getSecurityGroups();
+
+        LoadBalancer loadBalancer = LoadBalancer.getInstance(provider.getContext().getAccountNumber(),
+                provider.getContext().getRegionId(),
+                description.getLoadBalancerName(),
+                LoadBalancerState.ACTIVE,
+                description.getLoadBalancerName(),
+                description.getLoadBalancerName(),
+                LoadBalancerAddressType.DNS,
+                description.getDNSName(),
+                ports)
+                .supportingTraffic(IPVersion.IPV4, IPVersion.IPV6)
+                .createdAt(description.getCreatedTime().getTime())
+                .withListeners(listeners.toArray(new LbListener[listeners.size()]))
+                .withProviderSubnetIds(subnets.toArray(new String[subnets.size()]))
+                .operatingIn(availabilityZones.toArray(new String[availabilityZones.size()]))
+                .withFirewalls(firewallIds.toArray(new String[firewallIds.size()]));
+
+        List<String> serverIds = new ArrayList<String>();
+        for (Instance instance : description.getInstances()) {
+            serverIds.add(instance.getInstanceId());
+        }
+        loadBalancer.setProviderServerIds(serverIds.toArray(new String[serverIds.size()]));
+        loadBalancer.setType("internal".equals(description.getScheme()) ? LbType.INTERNAL : LbType.EXTERNAL);
+        return loadBalancer;
+    }
+
+    private List<LbListener> getLbListeners(LoadBalancerDescription description) {
+        List<LbListener> listeners = new ArrayList<LbListener>();
+        for (ListenerDescription listenerDescription : description.getListenerDescriptions()) {
+            Listener listener = listenerDescription.getListener();
+            LbProtocol protocol = ElasticLoadBalancer.toProtocol(listener.getProtocol());
+            LbListener lbListener = LbListener.getInstance(protocol, listener.getLoadBalancerPort(), listener.getInstancePort());
+            listeners.add(lbListener);
+        }
+        return listeners;
+    }
+
 //TODO: Get instance health
 //TODO: remove set as NoOp
 
@@ -913,7 +976,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         for( int i=0; i<attrs.getLength(); i++ ) {
             Node attr = attrs.item(i);
             String name;
-            
+
             name = attr.getNodeName().toLowerCase();
             if( name.equals("protocol") ) {
                 protocol = toProtocol(attr.getFirstChild().getNodeValue());
@@ -927,7 +990,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
         return LbListener.getInstance(protocol,  publicPort, privatePort);
     }
-    
+
     private @Nullable LoadBalancer toLoadBalancer(@Nullable Node node) throws CloudException, InternalException {
         if( node == null ) {
             return null;
@@ -950,12 +1013,12 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         for( int i=0; i<attrs.getLength(); i++ ) {
             Node attr = attrs.item(i);
             String name;
-            
+
             name = attr.getNodeName().toLowerCase();
             if( name.equals("listenerdescriptions") ) {
                 if( attr.hasChildNodes() ) {
                     NodeList listeners = attr.getChildNodes();
-                
+
                     if( listeners.getLength() > 0 ) {
                         for( int j=0; j<listeners.getLength(); j++ ) {
                           Node item = listeners.item(j);
@@ -985,18 +1048,18 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             else if( name.equals("instances") ) {
                 if( attr.hasChildNodes() ) {
                     NodeList instances = attr.getChildNodes();
-                
+
                     if( instances.getLength() > 0 ) {
                         for( int j=0; j<instances.getLength(); j++ ) {
                             Node instance = instances.item(j);
-                            
+
                             if( instance.getNodeName().equalsIgnoreCase("member") ) {
                                 if( instance.hasChildNodes() ) {
                                     NodeList idList = instance.getChildNodes();
-                                    
+
                                     for( int k=0; k<idList.getLength(); k++ ) {
                                         Node n = idList.item(k);
-                                        
+
                                         if( n.getNodeName().equalsIgnoreCase("instanceid") ) {
                                             serverIds.add(n.getFirstChild().getNodeValue());
                                         }
@@ -1024,17 +1087,17 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             else if( name.equals("availabilityzones") ) {
                 if( attr.hasChildNodes() ) {
                     NodeList zones = attr.getChildNodes();
-                
+
                     if( zones.getLength() > 0 ) {
                         for( int j=0; j<zones.getLength(); j++ ) {
                             Node zone = zones.item(j);
-                            
+
                             if( zone.hasChildNodes() ) {
                                 zoneList.add(zone.getFirstChild().getNodeValue());
                             }
                         }
                     }
-                }                
+                }
             }
             else if( name.equals("scheme") ) {
               if ( "internal".equals( provider.getTextValue( attr ) ) ) {
@@ -1093,8 +1156,8 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
         return lb;
     }
-    
-    private LbProtocol toProtocol(String txt) {
+
+    public static LbProtocol toProtocol(String txt) {
         if( txt.equals("HTTP") ) {
           return LbProtocol.HTTP;
         }
@@ -1230,10 +1293,10 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
     private String verifyName(String name) {
         StringBuilder str = new StringBuilder();
-        
+
         for( int i=0; i<name.length(); i++ ) {
             char c = name.charAt(i);
-            
+
             if( Character.isLetterOrDigit(c) ) {
                 str.append(c);
             }

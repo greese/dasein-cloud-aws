@@ -19,6 +19,11 @@
 
 package org.dasein.cloud.aws;
 
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.services.ec2.AmazonEC2;
+import com.amazonaws.services.ec2.AmazonEC2Client;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.http.NameValuePair;
@@ -62,6 +67,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class AWSCloud extends AbstractCloud {
+
     static private String getLastItem(String name) {
         int idx = name.lastIndexOf('.');
 
@@ -1422,5 +1428,29 @@ public class AWSCloud extends AbstractCloud {
     public boolean isEC2Supported() {
         fetchSupportedPlatforms();
         return supportsEC2 != null && supportsEC2;
+    }
+
+    public AmazonEC2 getAmazonEC2() {
+        return new AmazonEC2Client(getAWSCredentials());
+    }
+
+    /**
+     * Creates AWSCredentials from current context
+     * @return AWSCredentials
+     */
+    public AWSCredentials getAWSCredentials() {
+        String accessKey = new String(getContext().getAccessPublic());
+        String secretKey = new String(getContext().getAccessPrivate());
+
+        return new BasicAWSCredentials(accessKey, secretKey);
+    }
+
+    public static CloudException convertAmazonException(Throwable e) {
+        if (e instanceof AmazonServiceException) {
+            AmazonServiceException ace = (AmazonServiceException) e;
+            return new CloudException(CloudErrorType.GENERAL, ace.getStatusCode(), ace.getErrorCode(), ace.getLocalizedMessage(), e);
+        }
+
+        return new CloudException(e);
     }
 }
