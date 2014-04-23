@@ -42,7 +42,7 @@ public class ELBMethod extends EC2Method {
     static public final String ENABLE_AVAILABILITY_ZONES  = "EnableAvailabilityZonesForLoadBalancer";
     static public final String REGISTER_INSTANCES         = "RegisterInstancesWithLoadBalancer";
     static public final String CONFIGURE_HEALTH_CHECK     = "ConfigureHealthCheck";
-    
+
     static public @Nonnull ServiceAction[] asELBServiceAction(@Nonnull String action) {
         if( action.equals(CREATE_LOAD_BALANCER) ) {
             return new ServiceAction[] { LoadBalancerSupport.CREATE_LOAD_BALANCER };

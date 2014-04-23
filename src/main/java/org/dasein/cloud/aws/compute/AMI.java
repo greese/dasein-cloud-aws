@@ -26,10 +26,7 @@ import org.dasein.cloud.aws.storage.S3Method;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
-import org.dasein.util.CalendarWrapper;
-import org.dasein.util.Jiterator;
-import org.dasein.util.JiteratorPopulator;
-import org.dasein.util.PopulatorThread;
+import org.dasein.util.*;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -307,11 +304,16 @@ public class AMI extends AbstractImageSupport {
     private @Nonnull Iterable<MachineImage> executeImageSearch(int pass, boolean forPublic, @Nonnull ImageFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "Image.executeImageSearch");
         try {
-            ProviderContext ctx = provider.getContext();
+            final ProviderContext ctx = provider.getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
             }
+            final String regionId = ctx.getRegionId();
+            if( regionId == null ) {
+                throw new CloudException("No region was set for this request");
+            }
+
             Architecture architecture = options.getArchitecture();
 
             if( architecture != null && !architecture.equals(Architecture.I32) && !architecture.equals(Architecture.I64) ) {
@@ -321,7 +323,7 @@ public class AMI extends AbstractImageSupport {
             }
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
 
-            ArrayList<MachineImage> list = new ArrayList<MachineImage>();
+            final ArrayList<MachineImage> list = new ArrayList<MachineImage>();
             NodeList blocks;
             EC2Method method;
             Document doc;
@@ -342,33 +344,20 @@ public class AMI extends AbstractImageSupport {
                     parameters.put("Owner", "self");
                 }
             }
-            ImageFilterOptions finalOptions = fillImageFilterParameters(forPublic, options, parameters);
+            final ImageFilterOptions finalOptions = fillImageFilterParameters(forPublic, options, parameters);
 
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
-                doc = method.invoke();
+                method.invoke(
+                        new DescribeImagesResponseParser(
+                                provider.getContext().getRegionId(),
+                                (provider.getEC2Provider().isAWS() ? null : provider.getContext().getAccountNumber()),
+                                finalOptions,
+                                list));
             }
             catch( EC2Exception e ) {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("imagesSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
-                NodeList instances = blocks.item(i).getChildNodes();
-
-                for( int j=0; j<instances.getLength(); j++ ) {
-                    Node instance = instances.item(j);
-
-                    if( instance.getNodeName().equals("item") ) {
-                        MachineImage image = toMachineImage(instance);
-
-                        if( image != null ) {
-                            if( finalOptions.matches(image) ) {
-                                list.add(image);
-                            }
-                        }
-                    }
-                }
             }
             return list;
         }
@@ -1632,6 +1621,7 @@ public class AMI extends AbstractImageSupport {
             APITrace.end();
         }
     }
+
 
     private void waitForBundle(@Nonnull String bundleId, @Nonnull String manifest, @Nonnull Platform platform, @Nonnull String name, @Nonnull String description, AsynchronousTask<MachineImage> task) {
         APITrace.begin(getProvider(), "Image.waitForBundle");
