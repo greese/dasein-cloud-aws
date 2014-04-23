@@ -2383,6 +2383,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                  * function as a NAT instance, so we negate the value to indicate if it is allowed
                  */
                 server.setIpForwardingAllowed(!Boolean.valueOf(attr.getFirstChild().getNodeValue()));
+            } else if( "stateReasonMessage".equals(name) ) {
+                server.setStateReasonMessage(attr.getFirstChild().getNodeValue().trim());
             } else if( "iamInstanceProfile".equals(name) && attr.hasChildNodes() ) {
                 NodeList details = attr.getChildNodes();
 
