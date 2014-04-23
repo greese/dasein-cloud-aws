@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -19,13 +19,6 @@
 
 package org.dasein.cloud.aws;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
@@ -44,6 +37,7 @@ import org.w3c.dom.NodeList;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.*;
 
 public class RegionsAndZones implements DataCenterServices {
 	static private final Logger logger = Logger.getLogger(RegionsAndZones.class);
@@ -250,41 +244,35 @@ public class RegionsAndZones implements DataCenterServices {
                 }
                 throw new CloudException("No such region: " + regionId);
             }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
+            EC2Method method = new EC2Method(provider, provider.getEc2Url(regionId), parameters);
+            NodeList blocks;
+            Document doc;
+
+            dataCenters = new ArrayList<DataCenter>();
             try {
-                ctx.setRegionId(regionId);
-                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
-                EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
-                NodeList blocks;
-                Document doc;
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("availabilityZoneInfo");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList zones = blocks.item(i).getChildNodes();
 
-                dataCenters = new ArrayList<DataCenter>();
-                try {
-                    doc = method.invoke();
-                }
-                catch( EC2Exception e ) {
-                    logger.error(e.getSummary());
-                    throw new CloudException(e);
-                }
-                blocks = doc.getElementsByTagName("availabilityZoneInfo");
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    NodeList zones = blocks.item(i).getChildNodes();
+                for( int j=0; j<zones.getLength(); j++ ) {
+                    Node region = zones.item(j);
 
-                    for( int j=0; j<zones.getLength(); j++ ) {
-                        Node region = zones.item(j);
-
-                        if( region.getNodeName().equals("item") ) {
-                            dataCenters.add(toDataCenter(regionId, zones.item(j)));
-                        }
+                    if( region.getNodeName().equals("item") ) {
+                        dataCenters.add(toDataCenter(regionId, zones.item(j)));
                     }
                 }
-                if( cache != null ) {
-                    cache.put(ctx, dataCenters);
-                }
-                return dataCenters;
             }
-            finally {
-                ctx.setRegionId(originalRegionId);
+            if( cache != null ) {
+                cache.put(ctx, dataCenters);
             }
+            return dataCenters;
         }
         finally {
             APITrace.end();
@@ -435,7 +423,7 @@ public class RegionsAndZones implements DataCenterServices {
                                 if(value.getNodeType() == Node.TEXT_NODE)continue;
 
                                 if(supportedPlatform != null){
-                                    supportedPlatform = AWSCloud.EC2Classic;//For now if it can be either we'll use EC2-Classic
+                                    supportedPlatform = AWSCloud.PLATFORM_EC2;//For now if it can be either we'll use EC2-Classic
                                 }
                                 else{
                                     supportedPlatform = value.getFirstChild().getNodeValue().trim();

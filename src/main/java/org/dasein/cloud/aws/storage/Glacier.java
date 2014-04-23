@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -20,21 +20,12 @@
 package org.dasein.cloud.aws.storage;
 
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.NameRules;
-import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.storage.Blob;
-import org.dasein.cloud.storage.BlobStoreSupport;
-import org.dasein.cloud.storage.FileTransfer;
-import org.dasein.cloud.storage.OfflineStoreRequest;
-import org.dasein.cloud.storage.OfflineStoreRequestAction;
-import org.dasein.cloud.storage.OfflineStoreRequestStatus;
-import org.dasein.cloud.storage.OfflineStoreSupport;
+import org.dasein.cloud.storage.*;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.NamingConstraints;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
 import org.dasein.util.PopulatorThread;
@@ -50,15 +41,7 @@ import javax.annotation.Nullable;
 import java.io.File;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.SimpleTimeZone;
+import java.util.*;
 
 /**
  * Implements support for Amazon Glacier using the Dasein Cloud blob storage interface. Dasein Cloud buckets are
@@ -194,6 +177,11 @@ public class Glacier implements OfflineStoreSupport {
     @Override
     public Blob getObject(@Nullable String bucketName, @Nonnull String objectName) throws InternalException, CloudException {
         throw new OperationNotSupportedException("Glacier objects cannot be accessed synchronously");
+    }
+
+    @Override
+    public String getSignedObjectUrl(@Nonnull String bucket, @Nonnull String object, @Nonnull String expireEpoch) throws InternalException, CloudException {
+      throw new OperationNotSupportedException("Glacier URLs are not yet supported");
     }
 
     @Override
@@ -550,13 +538,13 @@ public class Glacier implements OfflineStoreSupport {
     }
 
     @Override
-    public @Nonnull NameRules getBucketNameRules() throws CloudException, InternalException {
-        return NameRules.getInstance(1, 255, false, true, true, new char[] { '-', '.' });
+    public @Nonnull NamingConstraints getBucketNameRules() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(1, 255).lowerCaseOnly().limitedToLatin1().constrainedBy(new char[] { '-', '.' });
     }
 
     @Override
-    public @Nonnull NameRules getObjectNameRules() throws CloudException, InternalException {
-        return NameRules.getInstance(1, 255, false, true, true, new char[] { '-', '.', ',', '#', '+' });
+    public @Nonnull NamingConstraints getObjectNameRules() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(1, 255).lowerCaseOnly().limitedToLatin1().constrainedBy(new char[] { '-', '.', ',', '#', '+' });
     }
 
     @Nonnull

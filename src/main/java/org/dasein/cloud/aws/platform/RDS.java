@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -266,7 +266,7 @@ public class RDS implements RelationalDatabaseSupport {
             parameters.put("Port", String.valueOf(hostPort));
 
             String ec2Type = provider.getDataCenterServices().isRegionEC2VPC(provider.getContext().getRegionId());
-            if(ec2Type.equals(AWSCloud.EC2Classic)){
+            if(ec2Type.equals(AWSCloud.PLATFORM_EC2)){
                 String securityGroupId = createSecurityGroup(id);
                 parameters.put("DBSecurityGroups.member.1", securityGroupId);
             }

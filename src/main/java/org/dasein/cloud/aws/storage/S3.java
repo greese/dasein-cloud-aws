@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -19,28 +19,9 @@
 
 package org.dasein.cloud.aws.storage;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Locale;
-import java.util.Random;
-
 import org.apache.http.Header;
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.NameRules;
-import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.storage.S3Method.S3Response;
 import org.dasein.cloud.identity.ServiceAction;
@@ -51,6 +32,7 @@ import org.dasein.cloud.storage.FileTransfer;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
+import org.dasein.cloud.util.NamingConstraints;
 import org.dasein.util.CalendarWrapper;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
@@ -64,7 +46,17 @@ import org.w3c.dom.NodeList;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import javax.servlet.http.HttpServletResponse;
+import javax.xml.bind.DatatypeConverter;
+import java.io.*;
+import java.net.URLEncoder;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 public class S3 extends AbstractBlobStoreSupport {
     static private final Logger logger = AWSCloud.getLogger(S3.class);
@@ -72,8 +64,10 @@ public class S3 extends AbstractBlobStoreSupport {
     static public final int                                       MAX_BUCKETS     = 100;
     static public final int                                       MAX_OBJECTS     = -1;
     static public final Storage<org.dasein.util.uom.storage.Byte> MAX_OBJECT_SIZE = new Storage<org.dasein.util.uom.storage.Byte>(5000000000L, Storage.BYTE);
+    static private final String HMAC_SHA1_ALGORITHM = "HmacSHA1";
 
-    static private final Random random = new Random();
+
+  static private final Random random = new Random();
 
     static private class Constraint {
         public String regionId;
@@ -90,7 +84,7 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     private AWSCloud provider = null;
-    
+
     public S3(AWSCloud provider) {
         this.provider = provider;
     }
@@ -453,6 +447,42 @@ public class S3 extends AbstractBlobStoreSupport {
         }
     }
 
+    @Override
+    public String getSignedObjectUrl(@Nonnull String bucket, @Nonnull String object, @Nonnull String expiresEpochInSeconds) throws InternalException, CloudException {
+      String signedUrl;
+      try {
+        SecretKeySpec signingKey = new SecretKeySpec(provider.getContext().getAccessPrivate(), HMAC_SHA1_ALGORITHM);
+        Mac mac = Mac.getInstance(HMAC_SHA1_ALGORITHM);
+        mac.init(signingKey);
+        String data = "GET\n\n\n" + expiresEpochInSeconds + "\n/" + bucket + "/" + object;
+        byte[] rawHmac = mac.doFinal(data.getBytes());
+        String signature = URLEncoder.encode( DatatypeConverter.printBase64Binary(rawHmac), "UTF-8");
+        signedUrl = "https://" + bucket + ".s3.amazonaws.com/" + object + "?AWSAccessKeyId=" +
+          new String(provider.getContext().getAccessPublic(), "UTF-8") + "&Signature=" + signature + "&Expires=" + expiresEpochInSeconds;
+      }
+      catch( NullPointerException e ) {
+        logger.error(e);
+        e.printStackTrace();
+        throw new InternalException(e);
+      }
+      catch ( NoSuchAlgorithmException e ) {
+        logger.error(e);
+        e.printStackTrace();
+        throw new InternalException(e);
+      }
+      catch ( InvalidKeyException e ) {
+        logger.error(e);
+        e.printStackTrace();
+        throw new InternalException(e);
+      }
+      catch ( UnsupportedEncodingException e ) {
+        logger.error(e);
+        e.printStackTrace();
+        throw new InternalException(e);
+      }
+      return signedUrl;
+    }
+
     private boolean belongsToAnother(@Nonnull String bucketName) throws InternalException, CloudException {
         APITrace.begin(provider, "Blob.belongsToAnother");
         try {
@@ -584,19 +614,19 @@ public class S3 extends AbstractBlobStoreSupport {
     			try {
     			    x = Integer.parseInt(postfix) + 1;
                     rawName = rawName.substring(0,idx) + "-" + x;
-    			}
-    			catch( NumberFormatException e ) {
-    			    rawName = rawName + "-1";
-    			}
-    		}
-    		if( prefix == null) {
-    			bucket = rawName;
-    		}
-    		else {
-    			bucket = prefix + "." + rawName;
-    		}
-    	}
-    	return bucket;
+                }
+                catch( NumberFormatException e ) {
+                    rawName = rawName + "-1";
+                }
+            }
+            if( prefix == null) {
+                bucket = rawName;
+            }
+            else {
+                bucket = prefix + "." + rawName;
+            }
+        }
+        return bucket;
     }
 
     @Override
@@ -656,18 +686,18 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     private @Nullable Document getAcl(@Nonnull String bucket, @Nullable String object) throws CloudException, InternalException {
-		S3Method method;
-	
-		method = new S3Method(provider, S3Action.GET_ACL);
-		try {
-			S3Response response = method.invoke(bucket, object == null ? "?acl" : object + "?acl");
-			
-			return (response == null ? null : response.document);
-		}
-		catch( S3Exception e ) {
-			logger.error(e.getSummary());
-			throw new CloudException(e);
-		}      	
+        S3Method method;
+
+        method = new S3Method(provider, S3Action.GET_ACL);
+        try {
+            S3Response response = method.invoke(bucket, object == null ? "?acl" : object + "?acl");
+
+            return (response == null ? null : response.document);
+        }
+        catch( S3Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
     }
 
     @Override
@@ -825,7 +855,7 @@ public class S3 extends AbstractBlobStoreSupport {
             APITrace.end();
         }
     }
-    
+
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "Blob.isSubscribed");
@@ -870,10 +900,10 @@ public class S3 extends AbstractBlobStoreSupport {
                 finally {
                     provider.release();
                 }
-    		}
-    	});
-    	populator.populate();
-    	return populator.getResult();
+            }
+        });
+        populator.populate();
+        return populator.getResult();
     }
 
     private void list(@Nonnull String regionId, @Nullable String bucket, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
@@ -905,32 +935,32 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     private void loadBuckets(@Nonnull String regionId, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
-    	S3Method method = new S3Method(provider, S3Action.LIST_BUCKETS);
-		S3Response response;
-		NodeList blocks;		
-		
-		try {
-			response = method.invoke(null, null);
-		}
-		catch( S3Exception e ) {
-			logger.error(e.getSummary());
-			throw new CloudException(e);
-		}
-		blocks = response.document.getElementsByTagName("Bucket");
-		for( int i=0; i<blocks.getLength(); i++ ) {
-			Node object = blocks.item(i);
+        S3Method method = new S3Method(provider, S3Action.LIST_BUCKETS);
+        S3Response response;
+        NodeList blocks;
+
+        try {
+            response = method.invoke(null, null);
+        }
+        catch( S3Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = response.document.getElementsByTagName("Bucket");
+        for( int i=0; i<blocks.getLength(); i++ ) {
+            Node object = blocks.item(i);
             String name = null;
             NodeList attrs;
             long ts = 0L;
 
             attrs = object.getChildNodes();
-			for( int j=0; j<attrs.getLength(); j++ ) {
-				Node attr = attrs.item(j);
-				
-				if( attr.getNodeName().equals("Name") ) {
-					name = attr.getFirstChild().getNodeValue().trim();
-				}
-				else if( attr.getNodeName().equals("CreationDate") ) {
+            for( int j=0; j<attrs.getLength(); j++ ) {
+                Node attr = attrs.item(j);
+
+                if( attr.getNodeName().equals("Name") ) {
+                    name = attr.getFirstChild().getNodeValue().trim();
+                }
+                else if( attr.getNodeName().equals("CreationDate") ) {
                     ts = provider.parseTime(attr.getFirstChild().getNodeValue().trim());
 				}
 			}
@@ -967,42 +997,42 @@ public class S3 extends AbstractBlobStoreSupport {
             }
 		}
     }
-    
-    private void loadObjects(@Nonnull String regionId, @Nonnull String bucket, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
-		HashMap<String,String> parameters = new HashMap<String,String>();
-		S3Response response;
-		String marker = null;
-		boolean done = false;
-		S3Method method;
-		
-		while( !done ) {
-			NodeList blocks;
-			
-			parameters.clear();
-			if( marker != null ) {
-				parameters.put("marker", marker);
-			}
-			parameters.put("max-keys", String.valueOf(30));
-			method = new S3Method(provider, S3Action.LIST_CONTENTS, parameters, null);
-			try {
-				response = method.invoke(bucket, null);
-			}
-			catch( S3Exception e ) {
-			    String code = e.getCode();
 
-			    if( code == null || !code.equals("SignatureDoesNotMatch") ) {
-			        throw new CloudException(e);
-			    }
-				logger.error(e.getSummary());
-				throw new CloudException(e);
-			}
-			blocks = response.document.getElementsByTagName("IsTruncated");
-			if( blocks.getLength() > 0 ) {
-				done = blocks.item(0).getFirstChild().getNodeValue().trim().equalsIgnoreCase("false");
-			}
-			blocks = response.document.getElementsByTagName("Contents");
-			for( int i=0; i<blocks.getLength(); i++ ) {
-				Node object = blocks.item(i);
+    private void loadObjects(@Nonnull String regionId, @Nonnull String bucket, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
+        HashMap<String,String> parameters = new HashMap<String,String>();
+        S3Response response;
+        String marker = null;
+        boolean done = false;
+        S3Method method;
+
+        while( !done ) {
+            NodeList blocks;
+
+            parameters.clear();
+            if( marker != null ) {
+                parameters.put("marker", marker);
+            }
+            parameters.put("max-keys", String.valueOf(30));
+            method = new S3Method(provider, S3Action.LIST_CONTENTS, parameters, null);
+            try {
+                response = method.invoke(bucket, null);
+            }
+            catch( S3Exception e ) {
+                String code = e.getCode();
+
+                if( code == null || !code.equals("SignatureDoesNotMatch") ) {
+                    throw new CloudException(e);
+                }
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = response.document.getElementsByTagName("IsTruncated");
+            if( blocks.getLength() > 0 ) {
+                done = blocks.item(0).getFirstChild().getNodeValue().trim().equalsIgnoreCase("false");
+            }
+            blocks = response.document.getElementsByTagName("Contents");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node object = blocks.item(i);
                 Storage<org.dasein.util.uom.storage.Byte> size = null;
                 String name = null;
                 long ts = -1L;
@@ -1041,13 +1071,13 @@ public class S3 extends AbstractBlobStoreSupport {
                     continue;
                 }
                 iterator.push(Blob.getInstance(regionId, getLocation(bucket, name), bucket, name, ts, size));
-			}
-		}    	
+            }
+        }
     }
 
     @Override
     public void makePublic(@Nonnull String bucket) throws InternalException, CloudException {
-    	makePublic(bucket, null);
+        makePublic(bucket, null);
     }
 
     @Override
@@ -1205,7 +1235,7 @@ public class S3 extends AbstractBlobStoreSupport {
         else if( action.equals(BlobStoreSupport.UPLOAD) ) {
             return new String[] { S3Method.S3_PREFIX + "PutObject" };
         }
-        return new String[0]; 
+        return new String[0];
     }
 
     @Override
@@ -1406,7 +1436,7 @@ public class S3 extends AbstractBlobStoreSupport {
             APITrace.end();
         }
     }
-    
+
     private void setAcl(@Nonnull String bucket, @Nullable String object, @Nonnull String body) throws CloudException, InternalException {
         APITrace.begin(provider, "Blob.setAcl");
         try {
@@ -1446,12 +1476,12 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     @Override
-    public @Nonnull NameRules getBucketNameRules() throws CloudException, InternalException {
-        return NameRules.getInstance(1, 255, false, true, true, new char[] { '-', '.' });
+    public @Nonnull NamingConstraints getBucketNameRules() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(1, 255).lowerCaseOnly().limitedToLatin1().constrainedBy(new char[] { '-', '.' });
     }
 
     @Override
-    public @Nonnull NameRules getObjectNameRules() throws CloudException, InternalException {
-        return NameRules.getInstance(1, 255, false, true, true, new char[] { '-', '.', ',', '#', '+' });
+    public @Nonnull NamingConstraints getObjectNameRules() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(1, 255).lowerCaseOnly().limitedToLatin1().constrainedBy(new char[] { '-', '.', ',', '#', '+' });
     }
 }

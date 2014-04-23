@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
@@ -17,26 +17,26 @@
  * ====================================================================
  */
 
-package org.dasein.cloud.aws.identity;
+package org.dasein.cloud.aws.compute;
 
-import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.identity.AbstractIdentityServices;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
 
-public class AWSIdentityServices extends AbstractIdentityServices {
-    private AWSCloud cloud;
-    
-    public AWSIdentityServices(AWSCloud cloud) { this.cloud = cloud; }
-    
-    @Override
-    public IAM getIdentityAndAccessSupport() {
-        if( cloud.getEC2Provider().isAWS() || cloud.getEC2Provider().isEnStratus() ) {
-            return new IAM(cloud);
-        }
-        return null;
-    }
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
 
-    @Override
-    public Keypairs getShellKeySupport() {
-        return new Keypairs(cloud);
-    }
+/**
+ * Interface to be used for stream parser implementations.
+ * <p>Created by Stas Maksimov: 11/04/2014 19:13</p>
+ *
+ * @author Stas Maksimov
+ * @version 2014.03 initial version
+ * @since 2014.03
+ * @see org.dasein.cloud.aws.compute.EC2Method#invoke(XmlStreamParser)
+ */
+public interface XmlStreamParser<T> {
+
+    List<T> parse(InputStream stream) throws IOException, CloudException, InternalException;
+
 }

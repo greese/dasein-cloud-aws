@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -29,14 +29,7 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.VPN;
-import org.dasein.cloud.network.VPNConnection;
-import org.dasein.cloud.network.VPNConnectionState;
-import org.dasein.cloud.network.VPNGateway;
-import org.dasein.cloud.network.VPNGatewayState;
-import org.dasein.cloud.network.VPNProtocol;
-import org.dasein.cloud.network.VPNState;
-import org.dasein.cloud.network.VPNSupport;
+import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -56,6 +49,7 @@ public class VPCGateway implements VPNSupport {
     Logger logger = AWSCloud.getLogger(VPCGateway.class);
 
     private AWSCloud provider;
+    private VPCGatewayCapabilities capabilities;
     
     public VPCGateway(@Nonnull AWSCloud provider) { this.provider = provider; }
     
@@ -338,6 +332,15 @@ public class VPCGateway implements VPNSupport {
         }
     }
 
+    @Nonnull
+    @Override
+    public VPNCapabilities getCapabilities() {
+        if( capabilities == null ) {
+            capabilities = new VPCGatewayCapabilities(provider);
+        }
+        return capabilities;
+    }
+
     private String getAWSProtocol(VPNProtocol protocol) throws CloudException {
         if( protocol.equals(VPNProtocol.IPSEC1) ) {
             return "ipsec.1";
@@ -375,8 +378,8 @@ public class VPCGateway implements VPNSupport {
     }
 
     @Override
-    public Requirement getVPNDataCenterConstraint() {
-        return Requirement.NONE;
+    public Requirement getVPNDataCenterConstraint() throws CloudException, InternalException {
+        return getCapabilities().getVPNDataCenterConstraint();
     }
 
     @Override
@@ -587,7 +590,7 @@ public class VPCGateway implements VPNSupport {
 
     @Override
     public @Nonnull Iterable<VPNProtocol> listSupportedVPNProtocols() throws CloudException, InternalException {
-        return Collections.singletonList(VPNProtocol.IPSEC1);
+        return getCapabilities().listSupportedVPNProtocols();
     }
 
     @Override

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -41,7 +41,8 @@ public class ELBMethod extends EC2Method {
     static public final String DISABLE_AVAILABILITY_ZONES = "DisableAvailabilityZonesForLoadBalancer";
     static public final String ENABLE_AVAILABILITY_ZONES  = "EnableAvailabilityZonesForLoadBalancer";
     static public final String REGISTER_INSTANCES         = "RegisterInstancesWithLoadBalancer";
-    
+    static public final String CONFIGURE_HEALTH_CHECK     = "ConfigureHealthCheck";
+
     static public @Nonnull ServiceAction[] asELBServiceAction(@Nonnull String action) {
         if( action.equals(CREATE_LOAD_BALANCER) ) {
             return new ServiceAction[] { LoadBalancerSupport.CREATE_LOAD_BALANCER };
@@ -66,6 +67,9 @@ public class ELBMethod extends EC2Method {
         }
         else if( action.equals(REGISTER_INSTANCES) ) {
             return new ServiceAction[] { LoadBalancerSupport.ADD_VMS };
+        }
+        else if( action.equals(CONFIGURE_HEALTH_CHECK) ) {
+            return new ServiceAction[] { LoadBalancerSupport.CONFIGURE_HEALTH_CHECK };
         }
         return new ServiceAction[0];
     }

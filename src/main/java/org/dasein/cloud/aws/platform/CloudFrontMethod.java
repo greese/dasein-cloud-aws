@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -106,8 +106,8 @@ public class CloudFrontMethod {
 		this.body = body;
 		this.provider = provider;
 	}
-	
-	private String getDate() throws CloudException {
+
+	private static String getDate() throws CloudException {
 		// TODO: sync regularly with CloudFront
 		return fmt.format(new Date());
 	}
