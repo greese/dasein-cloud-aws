@@ -763,7 +763,7 @@ public class EC2Method {
                                     requestId = id.getFirstChild().getNodeValue().trim();
                                 }
                                 if( message == null && code == null ) {
-                                    throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
+                                    throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/null");
                                 }
                                 else if( message == null ) {
                                     message = code;

@@ -154,7 +154,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             if( other == this ) {
                 return 0;
             }
-            return ( new Long(timestamp) ).compareTo(other.timestamp);
+            return ( Long.valueOf(timestamp) ).compareTo(other.timestamp);
         }
     }
 

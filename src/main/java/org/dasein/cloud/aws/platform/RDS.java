@@ -2174,6 +2174,9 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     private @Nullable ResourceStatus toDatabaseStatus(@Nullable Node dbNode) throws CloudException {
+        if( dbNode == null ) {
+            return null;
+        }
         NodeList attrs = dbNode.getChildNodes();
         DatabaseState state = DatabaseState.PENDING;
         String dbId = null;

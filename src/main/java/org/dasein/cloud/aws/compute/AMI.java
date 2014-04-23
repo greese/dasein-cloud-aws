@@ -1304,12 +1304,11 @@ public class AMI extends AbstractImageSupport {
         return getCapabilities().supportsPublicLibrary(cls);
     }
 
-    private class BundleTask {
+    private static class BundleTask {
         public String bundleId;
         public double progress;
         public String message;
         public String state;
-
     }
 
     private BundleTask toBundleTask(Node node) throws CloudException, InternalException {
@@ -1503,7 +1502,7 @@ public class AMI extends AbstractImageSupport {
                 if( attribute.getChildNodes().getLength() > 0 ) {
                     value = attribute.getFirstChild().getNodeValue();
                 }
-                image.setProviderOwnerId(value == null ? value : value.trim());
+                image.setProviderOwnerId(value == null ? null : value.trim());
             }
             else if( name.equals("isPublic") ) {
                 String value = null;
