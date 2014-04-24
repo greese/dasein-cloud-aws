@@ -244,8 +244,8 @@
                     </systemProperties>
                     <excludes>
                         <exclude>**/TestSuite.java</exclude>
-                        <exclude>**/compute/DescribeImagesResponseParserTest</exclude>
-                        <exclude>**/AWSSignatureV4Tests</exclude>
+                        <exclude>**/compute/DescribeImagesResponseParserTest.java</exclude>
+                        <exclude>**/AWSSignatureV4Tests.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>
