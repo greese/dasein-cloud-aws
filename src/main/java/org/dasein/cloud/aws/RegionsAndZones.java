@@ -423,7 +423,7 @@ public class RegionsAndZones implements DataCenterServices {
                                 if(value.getNodeType() == Node.TEXT_NODE)continue;
 
                                 if(supportedPlatform != null){
-                                    supportedPlatform = AWSCloud.EC2Classic;//For now if it can be either we'll use EC2-Classic
+                                    supportedPlatform = AWSCloud.PLATFORM_EC2;//For now if it can be either we'll use EC2-Classic
                                 }
                                 else{
                                     supportedPlatform = value.getFirstChild().getNodeValue().trim();

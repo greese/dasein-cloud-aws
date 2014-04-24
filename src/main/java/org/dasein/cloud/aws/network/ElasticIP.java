@@ -640,17 +640,47 @@ public class ElasticIP implements IpAddressSupport {
                 throw new OperationNotSupportedException(provider.getCloudName() + " does not support " + version);
             }
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
+            String ec2Type = provider.getDataCenterServices().isRegionEC2VPC(provider.getContext().getRegionId());
+            if(ec2Type.equals(AWSCloud.PLATFORM_EC2)){
+                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ALLOCATE_ADDRESS);
+                EC2Method method;
+                NodeList blocks;
+                Document doc;
+
+                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                blocks = doc.getElementsByTagName("publicIp");
+                if( blocks.getLength() > 0 ) {
+                    return blocks.item(0).getFirstChild().getNodeValue().trim();
+                }
+                throw new CloudException("Unable to create an address.");
             }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("allocationId");
-            if( blocks.getLength() > 0 ) {
-                return blocks.item(0).getFirstChild().getNodeValue().trim();
+            else{
+                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ALLOCATE_ADDRESS);
+                EC2Method method;
+                NodeList blocks;
+                Document doc;
+
+                parameters.put("Domain","vpc");
+                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                try {
+                    doc = method.invoke();
+                }
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                blocks = doc.getElementsByTagName("allocationId");
+                if( blocks.getLength() > 0 ) {
+                    return blocks.item(0).getFirstChild().getNodeValue().trim();
+                }
+                throw new CloudException("Unable to create an address.");
             }
         }
         finally {

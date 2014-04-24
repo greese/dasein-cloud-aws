@@ -106,7 +106,7 @@ public class CloudFrontMethod {
 		this.body = body;
 		this.provider = provider;
 	}
-	
+
 	private static String getDate() throws CloudException {
 		// TODO: sync regularly with CloudFront
 		return fmt.format(new Date());

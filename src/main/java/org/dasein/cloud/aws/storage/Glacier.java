@@ -336,16 +336,6 @@ public class Glacier implements OfflineStoreSupport {
         return null;
     }
 
-    private String getPaginationMarker(JSONObject jsonObject) throws JSONException {
-        if (jsonObject.has(MARKER) && !jsonObject.isNull(MARKER)) {
-            final String marker = jsonObject.getString(MARKER);
-            if (marker.length() > 0) {
-                return marker;
-            }
-        }
-        return null;
-    }
-
     private Blob loadVaultJson(JSONObject jsonObject, String regionId, String baseUrl) throws JSONException {
         String vaultName = jsonObject.getString("VaultName");
         String url;
