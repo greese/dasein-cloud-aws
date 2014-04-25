@@ -475,8 +475,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 					getProvider(),
 					getProvider().getEc2Url()
 			);
-			String encodedUserDataValue = callable.call();
-			return new String(Base64.decodeBase64(encodedUserDataValue));
+			return callable.call();
 		} catch( EC2Exception e ) {
 			logger.error(e.getSummary());
 			throw new CloudException(e);
