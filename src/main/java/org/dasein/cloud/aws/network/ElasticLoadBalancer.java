@@ -19,9 +19,6 @@
 
 package org.dasein.cloud.aws.network;
 
-import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancing;
-import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient;
-import com.amazonaws.services.elasticloadbalancing.model.*;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
@@ -45,12 +42,10 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
     private AWSCloud provider = null;
     private volatile transient ElasticLoadBalancerCapabilities capabilities;
-    private AmazonElasticLoadBalancing amazonElasticLoadBalancing;
 
     ElasticLoadBalancer(AWSCloud provider) {
         super(provider);
         this.provider = provider;
-        amazonElasticLoadBalancing = new AmazonElasticLoadBalancingClient(provider.getAWSCredentials());
     }
 
     @Override
@@ -272,9 +267,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         APITrace.begin(provider, "LB.getLoadBalancer");
         try {
 
-            return findLoadBalancer(loadBalancerId);
-
-            /*Map<String,String> parameters = getELBParameters(getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
+            Map<String,String> parameters = getELBParameters(getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
             ELBMethod method;
             NodeList blocks;
             Document doc;
@@ -312,7 +305,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     }
                 }
             }
-            return null;*/
+            return null;
         }
         finally {
             APITrace.end();
@@ -691,6 +684,8 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
         else if( action.equals(LoadBalancerSupport.REMOVE_VMS) ) {
             return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.DEREGISTER_INSTANCES };
+        } else if (action.equals(LoadBalancerSupport.ATTACH_FIREWALLS)) {
+            return new String[]{ELBMethod.APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER};
         }
         return new String[0];
     }
@@ -852,66 +847,27 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     @LogRequest
     @Override
     public void attachFirewalls(@Nonnull String loadBalancerId, @Nonnull String... firewallIds) throws CloudException, InternalException {
-        ApplySecurityGroupsToLoadBalancerRequest applySecurityGroupsToLoadBalancerRequest = new ApplySecurityGroupsToLoadBalancerRequest()
-                .withLoadBalancerName(loadBalancerId)
-                .withSecurityGroups(firewallIds);
+        ProviderContext ctx = provider.getContext();
 
-        amazonElasticLoadBalancing.applySecurityGroupsToLoadBalancer(applySecurityGroupsToLoadBalancerRequest);
-    }
-
-    protected LoadBalancer findLoadBalancer(@Nonnull String loadBalancerId) throws CloudException {
-        DescribeLoadBalancersRequest loadBalancersRequest = new DescribeLoadBalancersRequest().withLoadBalancerNames(loadBalancerId);
-        List<LoadBalancerDescription> descriptions = amazonElasticLoadBalancing.describeLoadBalancers(loadBalancersRequest).getLoadBalancerDescriptions();
-        LoadBalancerDescription description = descriptions.get(0);
-        return toLoadBalancer(description);
-    }
-
-    private LoadBalancer toLoadBalancer(LoadBalancerDescription description) {
-        List<LbListener> listeners = getLbListeners(description);
-        int[] ports = new int[listeners.size()];
-
-        for (int j = 0; j < listeners.size(); j++) {
-            ports[j] = listeners.get(j).getPublicPort();
+        if (ctx == null) {
+            throw new CloudException("No valid context is established for this request");
         }
 
-        List<String> availabilityZones = description.getAvailabilityZones();
-        List<String> subnets = description.getSubnets();
-        List<String> firewallIds = description.getSecurityGroups();
+        Map<String, String> parameters = getELBParameters(ctx, ELBMethod.APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER);
 
-        LoadBalancer loadBalancer = LoadBalancer.getInstance(provider.getContext().getAccountNumber(),
-                provider.getContext().getRegionId(),
-                description.getLoadBalancerName(),
-                LoadBalancerState.ACTIVE,
-                description.getLoadBalancerName(),
-                description.getLoadBalancerName(),
-                LoadBalancerAddressType.DNS,
-                description.getDNSName(),
-                ports)
-                .supportingTraffic(IPVersion.IPV4, IPVersion.IPV6)
-                .createdAt(description.getCreatedTime().getTime())
-                .withListeners(listeners.toArray(new LbListener[listeners.size()]))
-                .withProviderSubnetIds(subnets.toArray(new String[subnets.size()]))
-                .operatingIn(availabilityZones.toArray(new String[availabilityZones.size()]))
-                .withFirewalls(firewallIds.toArray(new String[firewallIds.size()]));
-
-        List<String> serverIds = new ArrayList<String>();
-        for (Instance instance : description.getInstances()) {
-            serverIds.add(instance.getInstanceId());
+        parameters.put("LoadBalancerName", loadBalancerId);
+        for (int i = 0; i < firewallIds.length; i++) {
+            parameters.put("SecurityGroups.member." + (i + 1), firewallIds[i]);
         }
-        loadBalancer.setProviderServerIds(serverIds.toArray(new String[serverIds.size()]));
-        loadBalancer.setType("internal".equals(description.getScheme()) ? LbType.INTERNAL : LbType.EXTERNAL);
-        return loadBalancer;
-    }
 
-    private List<LbListener> getLbListeners(LoadBalancerDescription description) {
-        List<LbListener> listeners = new ArrayList<LbListener>();
-        for (ListenerDescription listenerDescription : description.getListenerDescriptions()) {
-            Listener listener = listenerDescription.getListener();
-            LbProtocol protocol = ElasticLoadBalancer.toProtocol(listener.getProtocol());
-            LbListener lbListener = LbListener.getInstance(protocol, listener.getLoadBalancerPort(), listener.getInstancePort());
-            listeners.add(lbListener);
+        ELBMethod method = new ELBMethod(provider, ctx, parameters);
+
+        try {
+            method.invoke();
+        } catch (EC2Exception e) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
-        return listeners;
     }
 
 //TODO: Get instance health
@@ -999,6 +955,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         ArrayList<Integer> portList = new ArrayList<Integer>();
         ArrayList<String> zoneList = new ArrayList<String>();
         ArrayList<String> serverIds = new ArrayList<String>();
+        ArrayList<String> firewallIds = new ArrayList<String>();
         String regionId = getContext().getRegionId();
         String lbName = null, description = null, lbId = null, cname = null;
         long created = 0L;
@@ -1044,6 +1001,20 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 lbName = attr.getFirstChild().getNodeValue();
                 description = attr.getFirstChild().getNodeValue();
                 lbId = attr.getFirstChild().getNodeValue();
+            } else if(name.equalsIgnoreCase("securitygroups")) {
+                if (attr.hasChildNodes()) {
+                    NodeList firewalls = attr.getChildNodes();
+
+                    if (firewalls.getLength() > 0) {
+                        for (int j = 0; j < firewalls.getLength(); j++) {
+                            Node firewall = firewalls.item(j);
+
+                            if (firewall.hasChildNodes()) {
+                                firewallIds.add(AWSCloud.getTextValue(firewall));
+                            }
+                        }
+                    }
+                }
             }
             else if( name.equals("instances") ) {
                 if( attr.hasChildNodes() ) {
@@ -1138,6 +1109,9 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
         LoadBalancer lb = LoadBalancer.getInstance(getContext().getAccountNumber(), regionId, lbId, LoadBalancerState.ACTIVE, lbName, description, LoadBalancerAddressType.DNS, cname, ports).supportingTraffic(IPVersion.IPV4, IPVersion.IPV6).createdAt(created);
 
+        if (!firewallIds.isEmpty()) {
+            lb.setFirewallIds(firewallIds.toArray(new String[firewallIds.size()]));
+        }
         if( !serverIds.isEmpty() ) {
             //noinspection deprecation
             lb.setProviderServerIds(serverIds.toArray(new String[serverIds.size()]));
