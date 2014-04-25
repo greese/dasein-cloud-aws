@@ -623,37 +623,17 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
-            String ec2Type = provider.getDataCenterServices().isRegionEC2VPC(provider.getContext().getRegionId());
-            if( ec2Type.equals(AWSCloud.PLATFORM_EC2) ){
-
-                method = new EC2Method(provider, provider.getEc2Url(), parameters);
-                try {
-                    doc = method.invoke();
-                }
-                catch( EC2Exception e ) {
-                    logger.error(e.getSummary());
-                    throw new CloudException(e);
-                }
-                blocks = doc.getElementsByTagName("publicIp");
-                if( blocks.getLength() > 0 ) {
-                    return blocks.item(0).getFirstChild().getNodeValue().trim();
-                }
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
             }
-            else {
-
-                parameters.put("Domain","vpc");
-                method = new EC2Method(provider, provider.getEc2Url(), parameters);
-                try {
-                    doc = method.invoke();
-                }
-                catch( EC2Exception e ) {
-                    logger.error(e.getSummary());
-                    throw new CloudException(e);
-                }
-                blocks = doc.getElementsByTagName("allocationId");
-                if( blocks.getLength() > 0 ) {
-                    return blocks.item(0).getFirstChild().getNodeValue().trim();
-                }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("publicIp");
+            if( blocks.getLength() > 0 ) {
+                return blocks.item(0).getFirstChild().getNodeValue().trim();
             }
             throw new CloudException("Unable to create an address.");
         }

@@ -238,6 +238,9 @@ public class AWSCloud extends AbstractCloud {
             }
             authString.append(encode(key, false));
             authString.append("=");
+            if( value == null ) {
+                value = "";
+            }
             authString.append(encode(value, false));
         }
         return authString.toString();
