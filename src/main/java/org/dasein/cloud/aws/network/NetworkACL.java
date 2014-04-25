@@ -760,9 +760,9 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
                 else if( proto.equalsIgnoreCase("icmp") || proto.equals("1") || proto.equals("58") ) {
                     protocol = Protocol.ICMP;
                 }
-                else if( proto.equals("-1") || proto.equals("4") || proto.equals("41") ) {
-                    protocol = Protocol.ANY;
-                }
+//                else if( proto.equals("-1") || proto.equals("4") || proto.equals("41") ) {
+//                    protocol = Protocol.ANY;
+//                }
                 else {
                     protocol = Protocol.ANY;
                 }
