@@ -2498,6 +2498,11 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             } else {
                 prd.setRamSize(new Storage<Megabyte>(512, Storage.MEGABYTE));
             }
+            if( json.has("generation") ) {
+                prd.setGeneration(json.getString("generation"));
+            } else {
+                prd.setGeneration("current");
+            }
             if( json.has("standardHourlyRates") ) {
                 JSONArray rates = json.getJSONArray("standardHourlyRates");
 
