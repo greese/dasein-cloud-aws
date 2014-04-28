@@ -529,7 +529,15 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 				Node pw = blocks.item(0);
 
 				if( pw.hasChildNodes() ) {
-					return pw.getFirstChild().getNodeValue();
+					String encodedUserDataValue = pw.getFirstChild().getNodeValue();
+					if (encodedUserDataValue != null) {
+						try {
+							return new String(Base64.decodeBase64(encodedUserDataValue.getBytes("utf-8")), "utf-8");
+						} catch (UnsupportedEncodingException e) {
+							logger.error(e);
+							throw new CloudException(e);
+						}
+					}
 				}
 				return null;
 			}
