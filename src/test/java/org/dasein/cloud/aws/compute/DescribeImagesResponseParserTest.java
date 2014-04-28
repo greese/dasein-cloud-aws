@@ -69,7 +69,14 @@ public class DescribeImagesResponseParserTest {
                     "            <imageType>machine</imageType>\n" +
                     "            <kernelId>aki-71665e05</kernelId>\n" +
                     "            <rootDeviceType>instance-store</rootDeviceType>\n" +
-                    "            <blockDeviceMapping/>\n" +
+                    "            <blockDeviceMapping>\n" +
+                    "               <item>\n" +
+                    "                   <deviceName>sdb</deviceName>\n" +
+                    "               </item>\n" +
+                    "               <item>\n" +
+                    "                   <deviceName>sdc</deviceName>\n" +
+                    "               </item>\n" +
+                    "            </blockDeviceMapping>\n" +
                     "            <virtualizationType>paravirtual</virtualizationType>\n" +
                     "            <hypervisor>xen</hypervisor>\n" +
                     "            <stateReason>\n" +
