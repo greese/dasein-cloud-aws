@@ -371,16 +371,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     @Nullable String getPassword(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getPassword");
         try {
-            Callable<String> callable = new GetPassCallable(
-                    instanceId,
-                    getProvider().getStandardParameters(getProvider().getContext(), EC2Method.GET_PASSWORD_DATA),
-                    getProvider(),
-                    getProvider().getEc2Url()
-            );
-            return callable.call();
-        } catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
+            return new GetPassCallable(instanceId, getProvider()).call();
         } catch( CloudException ce ) {
             throw ce;
         } catch( Exception e ) {
@@ -392,22 +383,22 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
     public static class GetPassCallable implements Callable {
         private String instanceId;
-        private Map<String, String> params;
         private AWSCloud awsProvider;
         private String ec2url;
 
-        public GetPassCallable(String iId, Map<String, String> p, AWSCloud ap, String eUrl) {
+        public GetPassCallable(String iId, AWSCloud ap) {
             instanceId = iId;
-            params = p;
             awsProvider = ap;
-            ec2url = eUrl;
         }
 
-        public String call() throws CloudException {
+        public String call() throws CloudException, InternalException {
             EC2Method method;
             NodeList blocks;
             Document doc;
-
+            if( ec2url == null ) {
+                ec2url = awsProvider.getEc2Url();
+            }
+            Map<String, String> params = awsProvider.getStandardParameters(awsProvider.getContext(), EC2Method.GET_PASSWORD_DATA);
             params.put("InstanceId", instanceId);
             try {
                 method = new EC2Method(awsProvider, ec2url, params);
@@ -1346,12 +1337,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 try {
                     final String sid = server.getProviderVirtualMachineId();
                     try {
-                        Callable<String> callable = new GetPassCallable(
-                                sid,
-                                getProvider().getStandardParameters(getProvider().getContext(), EC2Method.GET_PASSWORD_DATA),
-                                getProvider(),
-                                getProvider().getEc2Url()
-                        );
+                        Callable<String> callable = new GetPassCallable( sid, getProvider() );
                         String password = callable.call();
 
                         if( password == null ) {
