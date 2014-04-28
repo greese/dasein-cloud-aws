@@ -136,7 +136,7 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
 
     @Override
     public @Nonnull Requirement identifyPasswordRequirement(Platform platform) throws CloudException, InternalException {
-        return platform.isWindows() ? Requirement.REQUIRED : Requirement.NONE;
+        return Requirement.NONE;
     }
 
     @Override
