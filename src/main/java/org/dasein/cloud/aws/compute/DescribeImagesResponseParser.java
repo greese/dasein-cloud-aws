@@ -76,7 +76,7 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
                         String name = reader.getLocalName();
                         if( "item".equalsIgnoreCase(name) ) {
                             MachineImage image = readItem(reader);
-                            if( image != null && ( filterOptions != null && filterOptions.matches(image) )) {
+                            if( image != null && image.getName() != null && ( filterOptions != null && filterOptions.matches(image) )) {
                                 list.add(image);
                             }
                         }
