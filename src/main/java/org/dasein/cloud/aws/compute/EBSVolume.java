@@ -270,7 +270,7 @@ public class EBSVolume extends AbstractVolumeSupport {
                 }
 
                 prds.add(VolumeProduct.getInstance("standard", "Standard", "Standard EBS with no IOPS Guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 0, 0, rawPrice, 0f));
-                prds.add(VolumeProduct.getInstance("io1", "IOPS EBS", "EBS Volume with IOPS guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 100, 1000, 0.125f, 0.1f));
+                prds.add(VolumeProduct.getInstance("io1", "IOPS EBS", "EBS Volume with IOPS guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 100, 4000, 0.125f, 0.1f));
                 cache.put(getContext(), prds);
                 products = prds;
             }

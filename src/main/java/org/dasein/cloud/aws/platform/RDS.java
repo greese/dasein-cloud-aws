@@ -254,8 +254,6 @@ public class RDS implements RelationalDatabaseSupport {
                 size = 5;
             }
             
-            String securityGroupId = createSecurityGroup(id);
-
             parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_INSTANCE);
             parameters.put("DBInstanceIdentifier", id);
             parameters.put("AllocatedStorage", String.valueOf(size));
@@ -265,8 +263,13 @@ public class RDS implements RelationalDatabaseSupport {
             parameters.put("MasterUsername", withAdminUser);
             parameters.put("MasterUserPassword", withAdminPassword);
             parameters.put("Port", String.valueOf(hostPort));
-            parameters.put("DBSecurityGroups.member.1", securityGroupId);
-            
+
+            String ec2Type = provider.getDataCenterServices().isRegionEC2VPC(provider.getContext().getRegionId());
+            if(ec2Type.equals(AWSCloud.PLATFORM_EC2)){
+                String securityGroupId = createSecurityGroup(id);
+                parameters.put("DBSecurityGroups.member.1", securityGroupId);
+            }
+
             if( product.getEngine().isMySQL() ) {
                 parameters.put("LicenseModel", "general-public-license");
             }
@@ -2174,6 +2177,9 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     private @Nullable ResourceStatus toDatabaseStatus(@Nullable Node dbNode) throws CloudException {
+        if( dbNode == null ) {
+            return null;
+        }
         NodeList attrs = dbNode.getChildNodes();
         DatabaseState state = DatabaseState.PENDING;
         String dbId = null;
