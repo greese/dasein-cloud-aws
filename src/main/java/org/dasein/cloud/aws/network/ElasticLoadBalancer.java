@@ -22,6 +22,7 @@ package org.dasein.cloud.aws.network;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.aws.AWSResourceNotFoundException;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.identity.IAMMethod;
 import org.dasein.cloud.identity.ServiceAction;
@@ -145,6 +146,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             }
             String name = verifyName(options.getName());
             parameters.put("LoadBalancerName", name);
+            Map<String, String> certificateId2arn = new HashMap<String, String>();
             int i = 1;
             for( LbListener listener : options.getListeners() ) {
                 switch( listener.getNetworkProtocol() ) {
@@ -155,7 +157,20 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 }
                 parameters.put("Listeners.member." + i + ".LoadBalancerPort", String.valueOf(listener.getPublicPort()));
                 parameters.put("Listeners.member." + i + ".InstancePort", String.valueOf(listener.getPrivatePort()));
-                parameters.put("Listeners.member." + i + ".SSLCertificateId", String.valueOf(listener.getProviderSslCertificateId()));
+                if ( listener.getSslCertificateId() != null ) {
+                    String certificateId = listener.getSslCertificateId();
+                    String arn = certificateId2arn.get( certificateId );
+                    if ( arn == null ) {
+                        SSLCertificate certificate = getSSLCertificate( certificateId );
+                        if ( certificate == null ) {
+                            throw new AWSResourceNotFoundException( "Could not find certificate by ID [" +
+                                                    certificateId + "] for listener " + listener );
+                        }
+                        arn = certificate.getProviderCertificateId();
+                        certificateId2arn.put( certificateId, arn );
+                    }
+                    parameters.put("Listeners.member." + i + ".SSLCertificateId", arn);
+                }
                 i++;
             }
             i = 1;
@@ -962,7 +977,8 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             // Find the certificate ARN first
             SSLCertificate certificate = getSSLCertificate(options.getSslCertificateId());
             if (certificate == null) {
-                throw new CloudException("Could not find SSL certificate by ID [" + options.getSslCertificateId() + "]");
+                throw new AWSResourceNotFoundException("Could not find SSL certificate by ID [" +
+                                                               options.getSslCertificateId() + "]");
             }
 
             Map<String, String> parameters = getELBParameters(ctx, ELBMethod.SET_LB_SSL_CERTIFICATE);
@@ -1088,7 +1104,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         return LoadBalancerHealthCheck.getInstance(protocol, port, path, interval, timeout, healthyCount, unHealthyCount);
     }
 
-    private LbListener toListener(Node node) {
+    private LbListener toListener(Node node, Map<String, String> arn2certificateIds) {
         NodeList attrs = node.getChildNodes();
 
         LbProtocol protocol = LbProtocol.RAW_TCP;
@@ -1111,7 +1127,8 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 privatePort = Integer.parseInt(attr.getFirstChild().getNodeValue());
             }
             else if ( name.equals("sslcertificateid") ) {
-                sslCertificateId = attr.getFirstChild().getNodeValue();
+                String arn = attr.getFirstChild().getNodeValue();
+                sslCertificateId = arn2certificateIds.get( arn );
             }
         }
         return LbListener.getInstance(protocol, publicPort, privatePort, sslCertificateId);
@@ -1146,6 +1163,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     NodeList listeners = attr.getChildNodes();
                 
                     if( listeners.getLength() > 0 ) {
+                        Map<String, String> arn2certificateIds = getArn2CertificatesMapping();
                         for( int j=0; j<listeners.getLength(); j++ ) {
                           Node item = listeners.item(j);
                           if ( item.getNodeName().equals( "member" ) ) {
@@ -1153,7 +1171,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                             for ( int k = 0; k < listenerMembers.getLength(); k++ ) {
                               Node listenerItem = listenerMembers.item( k );
                               if ( listenerItem.getNodeName().equals( "Listener" ) ) {
-                                LbListener l = toListener( listenerItem );
+                                LbListener l = toListener( listenerItem, arn2certificateIds );
 
                                 if ( l != null ) {
                                   listenerList.add( l );
@@ -1282,7 +1300,16 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
         return lb;
     }
-    
+
+    private Map<String, String> getArn2CertificatesMapping() throws CloudException, InternalException {
+        Map<String, String> mapping = new HashMap<String, String>();
+        Iterable<SSLCertificate> certificates = listSSLCertificates();
+        for ( SSLCertificate certificate : certificates ) {
+            mapping.put(certificate.getProviderCertificateId(), certificate.getCertificateId());
+        }
+        return mapping;
+    }
+
     private LbProtocol toProtocol(String txt) {
         if( txt.equals("HTTP") ) {
           return LbProtocol.HTTP;
