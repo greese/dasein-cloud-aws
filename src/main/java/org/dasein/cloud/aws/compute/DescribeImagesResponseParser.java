@@ -48,6 +48,7 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
     private final String providerOwnerId;
     private final String regionId;
     private final ImageFilterOptions filterOptions;
+    private int itemDepth;
 
     public DescribeImagesResponseParser(@Nonnull String regionId,
                                         @Nullable String providerOwnerId,
@@ -75,8 +76,9 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
                     case XMLStreamConstants.START_ELEMENT:
                         String name = reader.getLocalName();
                         if( "item".equalsIgnoreCase(name) ) {
+                            itemDepth++;
                             MachineImage image = readItem(reader);
-                            if( image != null && image.getName() != null && ( filterOptions != null && filterOptions.matches(image) )) {
+                            if( image != null && ( filterOptions != null && filterOptions.matches(image) ) ) {
                                 list.add(image);
                             }
                         }
@@ -149,6 +151,9 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
                     }
                     else if( "tagSet".equalsIgnoreCase(name) ) {
                         readTags(parser, tags);
+                    }
+                    else if( "item".equalsIgnoreCase(name) ) {
+                        itemDepth++;
                     }
                     break;
 
@@ -228,7 +233,10 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
                         readTags(parser, tags);
                     }
                     else if( "item".equals(name) ) {
-                        itemEnd = true;
+                        itemDepth--;
+                        if( itemDepth == 0 ) {
+                            itemEnd = true;
+                        }
                     }
                     break;
                 }
@@ -238,6 +246,7 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
         if( platform == null && location != null ) {
             platform = Platform.guess(location);
         }
+
         if( location != null ) {
             String[] parts = location.split("/");
 
@@ -252,21 +261,31 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
             if( imageName == null || imageName.isEmpty() ) {
                 imageName = location;
             }
+            if( platform == null || platform.equals(Platform.UNKNOWN) ) {
+                platform = Platform.guess(imageName);
+            }
             if( description == null || description.isEmpty() ) {
                 description = location + " (" + architecture.toString() + " " + platform.toString() + ")";
             }
         }
-        else {
-            if( imageName == null || imageName.isEmpty() ) {
-                imageName = providerMachineImageId;
-            }
-            if( description == null || description.isEmpty() ) {
-                description = imageName + " (" + architecture.toString() + " " + platform.toString() + ")";
-            }
+
+        if( imageName == null || imageName.isEmpty() ) {
+            imageName = providerMachineImageId;
         }
+        if( platform == null || platform.equals(Platform.UNKNOWN) ) {
+            platform = Platform.guess(imageName);
+        }
+        if( description == null || description.isEmpty() ) {
+            description = imageName + " (" + architecture.toString() + " " + platform.toString() + ")";
+        }
+        if( platform == null || platform.equals(Platform.UNKNOWN) ) {
+            platform = Platform.guess(description);
+        }
+
         if( this.providerOwnerId != null) {
             providerOwnerId = this.providerOwnerId;
         }
+
         MachineImage image = MachineImage.getImageInstance(providerOwnerId, regionId, providerMachineImageId, imageClass, imageState, imageName, description, architecture, platform, imageFormat);
 
         if( imageType != null ) {
@@ -286,6 +305,11 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
                 case XMLStreamConstants.CHARACTERS:
                     value = parser.getText().trim();
                     break;
+                case XMLStreamConstants.START_ELEMENT:
+                    if( "item".equalsIgnoreCase(parser.getLocalName()) ) {
+                        itemDepth++;
+                    }
+                    break;
                 case XMLStreamConstants.END_ELEMENT:
                     String name = parser.getLocalName();
                     if( "key".equalsIgnoreCase(name) ) {
@@ -298,6 +322,7 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
                         if( tagKey != null && tagValue != null ) {
                             tags.put(tagKey, tagValue);
                         }
+                        itemDepth--;
                         value = tagValue = tagKey = null;
                     }
                     else if( "tagSet".equalsIgnoreCase(name) ) {
