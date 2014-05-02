@@ -1372,7 +1372,7 @@ public class AWSCloud extends AbstractCloud {
                 throw new CloudException(e);
             }
 
-            blocks = doc.getElementsByTagName("accountValueSet");
+            blocks = doc.getElementsByTagName("attributeValueSet");
             for (int i = 0; i < blocks.getLength(); i++) {
                 NodeList items = blocks.item(i).getChildNodes();
 
