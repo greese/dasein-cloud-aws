@@ -146,7 +146,7 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
 
     @Override
     public @Nonnull Requirement identifyShellKeyRequirement(Platform platform) throws CloudException, InternalException {
-        return Requirement.OPTIONAL;
+        return platform.isWindows()? Requirement.REQUIRED : Requirement.OPTIONAL;
     }
 
     @Override
