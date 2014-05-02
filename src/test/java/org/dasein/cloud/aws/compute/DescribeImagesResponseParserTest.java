@@ -18,6 +18,8 @@
  */
 package org.dasein.cloud.aws.compute;
 
+import org.dasein.cloud.compute.ImageClass;
+import org.dasein.cloud.compute.ImageFilterOptions;
 import org.dasein.cloud.compute.MachineImage;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -67,7 +69,14 @@ public class DescribeImagesResponseParserTest {
                     "            <imageType>machine</imageType>\n" +
                     "            <kernelId>aki-71665e05</kernelId>\n" +
                     "            <rootDeviceType>instance-store</rootDeviceType>\n" +
-                    "            <blockDeviceMapping/>\n" +
+                    "            <blockDeviceMapping>\n" +
+                    "               <item>\n" +
+                    "                   <deviceName>sdb</deviceName>\n" +
+                    "               </item>\n" +
+                    "               <item>\n" +
+                    "                   <deviceName>sdc</deviceName>\n" +
+                    "               </item>\n" +
+                    "            </blockDeviceMapping>\n" +
                     "            <virtualizationType>paravirtual</virtualizationType>\n" +
                     "            <hypervisor>xen</hypervisor>\n" +
                     "            <stateReason>\n" +
@@ -107,13 +116,16 @@ public class DescribeImagesResponseParserTest {
 
     @BeforeClass
     public static void beforeClass() throws Exception {
-        new DescribeImagesResponseParser("test-region", null, null, singleImageResults).parse(new ByteArrayInputStream(TEST_XML_ONE_IMAGE.getBytes()));
+        ImageFilterOptions filterOptions = ImageFilterOptions.getInstance().withImageClass(ImageClass.MACHINE);
+
+        new DescribeImagesResponseParser("test-region", null, filterOptions, singleImageResults).parse(new ByteArrayInputStream(TEST_XML_ONE_IMAGE.getBytes()));
     }
 
     @Test
     public void testParseMultiImages() throws Exception {
+        ImageFilterOptions filterOptions = ImageFilterOptions.getInstance().withImageClass(ImageClass.MACHINE);
         List<MachineImage> list = new ArrayList<MachineImage>();
-        new DescribeImagesResponseParser("test-region", null, null, list).parse(new ByteArrayInputStream(TEST_XML_TWO_IMAGES.getBytes()));
+        new DescribeImagesResponseParser("test-region", null, filterOptions, list).parse(new ByteArrayInputStream(TEST_XML_TWO_IMAGES.getBytes()));
         assertEquals("Incorrect number of images parsed", 2, list.size());
         assertNotSame("Images should be different", list.get(0), list.get(1));
     }
