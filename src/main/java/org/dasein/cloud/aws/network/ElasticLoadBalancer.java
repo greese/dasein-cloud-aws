@@ -441,13 +441,8 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     if ( "member".equals(item.getNodeName()) ) {
                         ServerCertificateMetadata meta = toSSLCertificateMetadata(item);
                         if ( meta != null ) {
-                            // Get certificate body and chain by a separate call
-                            SSLCertificate certificate = getSSLCertificate(meta.id);
-                            // redundant object creation to force refactoring in case certificate body/chain is abandoned
-                            String body = certificate == null ? "" : certificate.getCertificateBody();
-                            String chain = certificate == null ? null : certificate.getCertificateChain();
                             list.add(SSLCertificate.getInstance(meta.id, meta.arn, meta.uploadDate,
-                                                                body, chain, meta.path));
+                                                                null, null, meta.path));
                         }
                     }
                 }
