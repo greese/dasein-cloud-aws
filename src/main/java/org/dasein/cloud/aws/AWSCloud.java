@@ -21,8 +21,17 @@ package org.dasein.cloud.aws;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.binary.Hex;
-import org.apache.http.NameValuePair;
+import org.apache.http.*;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.GzipDecompressingEntity;
 import org.apache.http.client.utils.URLEncodedUtils;
+import org.apache.http.conn.params.ConnRoutePNames;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.params.BasicHttpParams;
+import org.apache.http.params.HttpParams;
+import org.apache.http.params.HttpProtocolParams;
+import org.apache.http.protocol.HTTP;
+import org.apache.http.protocol.HttpContext;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.admin.AWSAdminServices;
@@ -238,7 +247,9 @@ public class AWSCloud extends AbstractCloud {
             }
             authString.append(encode(key, false));
             authString.append("=");
-            authString.append(encode(value, false));
+            if( value != null ) {
+                authString.append(encode(value, false));
+            }
         }
         return authString.toString();
     }
@@ -1341,6 +1352,7 @@ public class AWSCloud extends AbstractCloud {
     }
 
     private static volatile Boolean supportsEC2 = null;
+    private static volatile Boolean supportsVPC = null;
 
     /**
      * Retrieve current account number using DescribeSecurityGroups. May not always be reliable but is better than
@@ -1372,7 +1384,7 @@ public class AWSCloud extends AbstractCloud {
                 throw new CloudException(e);
             }
 
-            blocks = doc.getElementsByTagName("accountValueSet");
+            blocks = doc.getElementsByTagName("attributeValueSet");
             for (int i = 0; i < blocks.getLength(); i++) {
                 NodeList items = blocks.item(i).getChildNodes();
 
@@ -1384,9 +1396,12 @@ public class AWSCloud extends AbstractCloud {
                         for (int k = 0; k < attrs.getLength(); k++) {
                             Node attr = attrs.item(k);
                             if (attr.getNodeName().equals("attributeValue")) {
-                                if (PLATFORM_EC2.equalsIgnoreCase(attr.getFirstChild().getNodeValue().trim())) {
+                                String value = attr.getFirstChild().getNodeValue().trim();
+                                if( PLATFORM_EC2.equalsIgnoreCase(value) ) {
                                     supportsEC2 = Boolean.TRUE;
-                                    break;
+                                }
+                                else if( PLATFORM_VPC.equalsIgnoreCase(value) ) {
+                                    supportsVPC = Boolean.TRUE;
                                 }
                             }
                         }
@@ -1395,6 +1410,9 @@ public class AWSCloud extends AbstractCloud {
             }
             if( supportsEC2 == null ) {
                 supportsEC2 = Boolean.FALSE;
+            }
+            if( supportsVPC == null ) {
+                supportsVPC = Boolean.FALSE;
             }
         } catch ( InternalException e ) {
         } catch ( CloudException e ) {
@@ -1411,4 +1429,89 @@ public class AWSCloud extends AbstractCloud {
         fetchSupportedPlatforms();
         return supportsEC2 != null && supportsEC2;
     }
+
+    /**
+     *
+     * @return
+     */
+    public boolean isVPCSupported() {
+        fetchSupportedPlatforms();
+        return supportsVPC != null && supportsVPC;
+    }
+
+    public @Nonnull HttpClient getClient(@Nonnull String url) throws InternalException {
+        return getClient(url, false);
+    }
+
+    public @Nonnull HttpClient getClient(@Nonnull String url, boolean multipart) throws InternalException {
+        ProviderContext ctx = getContext();
+        if( ctx == null ) {
+            throw new InternalException("No context was specified for this request");
+        }
+        if( url == null ) {
+            throw new IllegalArgumentException("URL parameter is null");
+        }
+
+        boolean ssl = url.startsWith("https");
+        HttpParams params = new BasicHttpParams();
+
+        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
+        //noinspection deprecation
+        if( !multipart ) {
+            HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
+        }
+        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
+
+        Properties p = ctx.getCustomProperties();
+
+        if( p != null ) {
+            String proxyHost = p.getProperty("proxyHost");
+            String proxyPort = p.getProperty("proxyPort");
+
+            if( proxyHost != null ) {
+                int port = 0;
+
+                if( proxyPort != null && proxyPort.length() > 0 ) {
+                    port = Integer.parseInt(proxyPort);
+                }
+                params.setParameter(ConnRoutePNames.DEFAULT_PROXY, new HttpHost(proxyHost, port, ssl ? "https" : "http"));
+            }
+        }
+        DefaultHttpClient client = new DefaultHttpClient(params);
+        client.addRequestInterceptor(new HttpRequestInterceptor() {
+
+            public void process(
+                    final HttpRequest request,
+                    final HttpContext context) throws HttpException, IOException {
+                if (!request.containsHeader("Accept-Encoding")) {
+                    request.addHeader("Accept-Encoding", "gzip");
+                }
+            }
+
+        });
+        client.addResponseInterceptor(new HttpResponseInterceptor() {
+
+            public void process(
+                    final HttpResponse response,
+                    final HttpContext context) throws HttpException, IOException {
+                HttpEntity entity = response.getEntity();
+                if (entity != null) {
+                    Header ceheader = entity.getContentEncoding();
+                    if (ceheader != null) {
+                        HeaderElement[] codecs = ceheader.getElements();
+                        for (int i = 0; i < codecs.length; i++) {
+                            if (codecs[i].getName().equalsIgnoreCase("gzip")) {
+                                response.setEntity(
+                                        new GzipDecompressingEntity(response.getEntity()));
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
+        });
+        return client;
+    }
+
 }
