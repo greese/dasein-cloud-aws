@@ -41,7 +41,7 @@ import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-
+import static org.dasein.cloud.compute.VMLaunchOptions.*;
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -1145,23 +1145,12 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             if( cfg.isPreventApiTermination() ) {
                 parameters.put("DisableApiTermination", "true");
             }
-            String[] firewallIds = cfg.getFirewallIds();
-            VMLaunchOptions.NICConfig[] nics = cfg.getNetworkInterfaces();
-
-            // Add below only if there's no default VLAN (Classic)
-            if( firewallIds.length > 0 && getProvider().isEC2Supported() ) {
-                int i = 1;
-
-                for( String id : firewallIds ) {
-                    parameters.put(String.format("SecurityGroup.%d", i++), id);
-                }
-            }
             if( cfg.getDataCenterId() != null ) {
                 parameters.put("Placement.AvailabilityZone", cfg.getDataCenterId());
             } else if( cfg.getVolumes().length > 0 ) {
                 String dc = null;
 
-                for( VMLaunchOptions.VolumeAttachment a : cfg.getVolumes() ) {
+                for( VolumeAttachment a : cfg.getVolumes() ) {
                     if( a.volumeToCreate != null ) {
                         dc = a.volumeToCreate.getDataCenterId();
                         if( dc != null ) {
@@ -1179,7 +1168,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             if( getProvider().getEC2Provider().isAWS() ) {
                 parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
             }
-            final ArrayList<VMLaunchOptions.VolumeAttachment> existingVolumes = new ArrayList<VMLaunchOptions.VolumeAttachment>();
+            final ArrayList<VolumeAttachment> existingVolumes = new ArrayList<VolumeAttachment>();
             TreeSet<String> deviceIds = new TreeSet<String>();
 
             if( cfg.isIoOptimized() ) {
@@ -1190,7 +1179,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 Iterable<String> possibles = getProvider().getComputeServices().getVolumeSupport().listPossibleDeviceIds(img.getPlatform());
                 int i = 1;
 
-                for( VMLaunchOptions.VolumeAttachment a : cfg.getVolumes() ) {
+                for( VolumeAttachment a : cfg.getVolumes() ) {
                     if( a.deviceId != null ) {
                         deviceIds.add(a.deviceId);
                     } else if( a.volumeToCreate != null && a.volumeToCreate.getDeviceId() != null ) {
@@ -1198,7 +1187,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         a.deviceId = a.volumeToCreate.getDeviceId();
                     }
                 }
-                for( VMLaunchOptions.VolumeAttachment a : cfg.getVolumes() ) {
+                for( VolumeAttachment a : cfg.getVolumes() ) {
                     if( a.deviceId == null ) {
                         for( String id : possibles ) {
                             if( !deviceIds.contains(id) ) {
@@ -1231,12 +1220,26 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     }
                 }
             }
+            if( cfg.getSubnetId() == null ) {
+                String[] ids = cfg.getFirewallIds();
+                if( ids.length > 0 ) {
+                    int i = 1;
 
-            if( nics != null && nics.length > 0 ) {
+                    for( String id : ids ) {
+                        parameters.put("SecurityGroupId." + ( i++ ), id);
+                    }
+                }
+            }
+            else if( cfg.getNetworkInterfaces() != null && cfg.getNetworkInterfaces().length > 0 ) {
+                VMLaunchOptions.NICConfig[] nics = cfg.getNetworkInterfaces();
                 int i = 1;
 
                 for( VMLaunchOptions.NICConfig c : nics ) {
                     parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
+                    // this only applies for the first NIC
+                    if( i == 1 ) {
+                        parameters.put("NetworkInterface.1.AssociatePublicIpAddress", String.valueOf(cfg.isProvisionPublicIp()));
+                    }
                     if( c.nicId == null ) {
                         parameters.put("NetworkInterface." + i + ".SubnetId", c.nicToCreate.getSubnetId());
                         parameters.put("NetworkInterface." + i + ".Description", c.nicToCreate.getDescription());
@@ -1250,14 +1253,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                                 parameters.put("NetworkInterface." + i + ".SecurityGroupId." + j, id);
                                 j++;
                             }
-                        } else {
-                            if( firewallIds.length > 0 ) {
-                                int g = 1;
-                                for( String id : firewallIds ) {
-                                    parameters.put(String.format("NetworkInterface.%d.SecurityGroupId.%d", i, g++), id);
-                                }
-                            }
-
                         }
                     } else {
                         parameters.put("NetworkInterface." + i + ".NetworkInterfaceId", c.nicId);
@@ -1265,19 +1260,16 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     i++;
                 }
             } else {
-                if( cfg.getSubnetId() != null ) {
-                    parameters.put("NetworkInterface.0.AssociatePublicIpAddress", Boolean.toString(cfg.isProvisionPublicIp()));
-                    parameters.put("NetworkInterface.0.SubnetId", cfg.getSubnetId());
-                    if( cfg.getPrivateIp() != null ) {
-                        parameters.put("NetworkInterface.0.PrivateIpAddress", cfg.getPrivateIp());
-                    }
-                    if( firewallIds.length > 0 ) {
-                        int g = 1;
-                        for( String id : firewallIds ) {
-                            parameters.put(String.format("NetworkInterface.0.SecurityGroupId.%d", g++), id);
-                        }
-                    }
-                    parameters.put("NetworkInterface.0.DeviceIndex", "0");
+                parameters.put("NetworkInterface.1.DeviceIndex", "0");
+                parameters.put("NetworkInterface.1.SubnetId", cfg.getSubnetId());
+                parameters.put("NetworkInterface.1.AssociatePublicIpAddress", String.valueOf(cfg.isProvisionPublicIp()));
+                if( cfg.getPrivateIp() != null ) {
+                    parameters.put("NetworkInterface.1.PrivateIpAddress", cfg.getPrivateIp());
+                }
+                int securityGroupIndex = 1;
+                for( String id : cfg.getFirewallIds() ) {
+                    parameters.put("NetworkInterface.1.SecurityGroupId." + securityGroupIndex, id);
+                    securityGroupIndex++;
                 }
             }
             method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
@@ -1329,6 +1321,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         }
                     }
                 }
+            }
+            if( cfg.isIpForwardingAllowed() ) {
+                enableIpForwarding(server.getProviderVirtualMachineId());
             }
             if( cfg.isIpForwardingAllowed() ) {
                 enableIpForwarding(server.getProviderVirtualMachineId());
@@ -1397,7 +1392,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 Thread thread = new Thread() {
                     public void run() {
                         try {
-                            for( VMLaunchOptions.VolumeAttachment a : existingVolumes ) {
+                            for( VolumeAttachment a : existingVolumes ) {
                                 try {
                                     getProvider().getComputeServices().getVolumeSupport().attach(a.existingVolumeId, vm.getProviderMachineImageId(), a.deviceId);
                                 } catch( Throwable t ) {
@@ -1417,7 +1412,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             APITrace.end();
         }
     }
-
     private void enableIpForwarding(final String instanceId) throws CloudException {
 
         Thread t = new Thread() {
