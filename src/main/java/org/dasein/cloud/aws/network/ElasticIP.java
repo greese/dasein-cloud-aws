@@ -560,13 +560,12 @@ public class ElasticIP implements IpAddressSupport {
         if( address == null ) {
             throw new IllegalArgumentException("Invalid IP address: " + addressId);
         }
-        String associationId = address.getProviderAssociationId();
         if( address.isForVlan() ) {
-          if( disassociate != null && disassociate ) {
-            parameters.put("AssociationId" + postfix, associationId);
-          } else {
-            parameters.put("AllocationId" + postfix, addressId);
-          }
+            if( disassociate != null && disassociate ) {
+                parameters.put("AssociationId" + postfix, address.getProviderAssociationId());
+            } else {
+                parameters.put("AllocationId" + postfix, addressId);
+            }
         }
         else {
             parameters.put("PublicIp" + postfix, addressId);

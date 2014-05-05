@@ -91,6 +91,6 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
 
     @Override
     public boolean supportsVLANAddresses(@Nonnull IPVersion ofVersion) throws InternalException, CloudException {
-        return getProvider().isEC2Supported() ? false : IPVersion.IPV4.equals(ofVersion);
+        return getProvider().isVPCSupported() ? IPVersion.IPV4.equals(ofVersion) : false;
     }
 }
