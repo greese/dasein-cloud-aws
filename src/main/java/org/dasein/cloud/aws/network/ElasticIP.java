@@ -88,7 +88,6 @@ public class ElasticIP implements IpAddressSupport {
             EC2Method method;
             NodeList blocks;
             Document doc;
-
             setId("", parameters, getIpAddress(addressId), addressId, false);
             parameters.put("InstanceId", instanceId);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
@@ -183,7 +182,7 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
-            parameters.put("AllocationId.1", addressId);
+            parameters.put("PublicIp.1", addressId);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -581,16 +580,15 @@ public class ElasticIP implements IpAddressSupport {
         if( address == null ) {
             throw new CloudException("Invalid IP address: " + addressId);
         }
-        String associationId = address.getProviderAssociationId();
         if( address.isForVlan() ) {
-          if( disassociate != null && disassociate ) {
-            parameters.put("AssociationId" + postfix, associationId);
-          } else {
-            parameters.put("AllocationId" + postfix, addressId);
-          }
+            if( disassociate != null && disassociate ) {
+                parameters.put("AssociationId" + postfix, address.getProviderAssociationId());
+            } else {
+                parameters.put("AllocationId" + postfix, addressId);
+            }
         }
-        else{
-            parameters.put("AllocationId" + postfix, addressId);
+        else {
+            parameters.put("PublicIp" + postfix, address.getRawAddress().getIpAddress());
         }
     }
     
