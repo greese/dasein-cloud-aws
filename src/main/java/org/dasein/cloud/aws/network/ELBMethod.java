@@ -73,7 +73,7 @@ public class ELBMethod extends EC2Method {
             return new ServiceAction[] { LoadBalancerSupport.CONFIGURE_HEALTH_CHECK };
         }
         else if ( action.equals(APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER) ) {
-            return new ServiceAction[]{ LoadBalancerSupport.ATTACH_FIREWALLS};
+            return new ServiceAction[]{ LoadBalancerSupport.SET_FIREWALLS};
         }
         return new ServiceAction[0];
     }

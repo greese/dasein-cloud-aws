@@ -684,7 +684,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
         else if( action.equals(LoadBalancerSupport.REMOVE_VMS) ) {
             return new String[] { ELBMethod.ELB_PREFIX + ELBMethod.DEREGISTER_INSTANCES };
-        } else if (action.equals(LoadBalancerSupport.ATTACH_FIREWALLS)) {
+        } else if (action.equals(LoadBalancerSupport.SET_FIREWALLS)) {
             return new String[]{ELBMethod.APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER};
         }
         return new String[0];
@@ -846,7 +846,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
     @LogRequest
     @Override
-    public void attachFirewalls(@Nonnull String loadBalancerId, @Nonnull String... firewallIds) throws CloudException, InternalException {
+    public void setFirewalls(@Nonnull String loadBalancerId, @Nonnull String... firewallIds) throws CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
 
         if (ctx == null) {
