@@ -42,7 +42,7 @@ import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-
+import static org.dasein.cloud.compute.VMLaunchOptions.*;
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -1671,7 +1671,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             APITrace.end();
         }
     }
-
     private void enableIpForwarding(final String instanceId) throws CloudException {
 
         Thread t = new Thread() {
