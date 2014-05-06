@@ -406,7 +406,7 @@ public class Route53Method {
 	private Document parseResponse(String responseBody, boolean debug) throws CloudException, InternalException {
 	    try {
 	        if( debug ) { System.out.println(responseBody); }
-            return XMLParser.parse(new ByteArrayInputStream(responseBody.getBytes()));
+            return XMLParser.parse(new ByteArrayInputStream(responseBody.getBytes("UTF-8")));
 	    }
 	    catch( IOException e ) {
 	        throw new CloudException(e);
