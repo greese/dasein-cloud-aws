@@ -127,6 +127,7 @@ public class ElasticLoadBalancerCapabilities extends AbstractCapabilities<AWSClo
         if( protocols == null ) {
             protocols = Collections.unmodifiableList(Arrays.asList(
                     LbProtocol.HTTP,
+                    LbProtocol.HTTPS,
                     LbProtocol.RAW_TCP
             ));
         }
