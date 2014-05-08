@@ -136,8 +136,14 @@ public class SecurityGroup extends AbstractFirewallSupport {
                 } else {
                     parameters.put("IpPermissions.1.IpProtocol", protocol.name().toLowerCase());
                 }
+                if (beginPort == -1 && endPort == -1) {
+                    if (protocol == Protocol.TCP || protocol == Protocol.UDP) {
+                        beginPort = 0;
+                        endPort = 65535;
+                    }
+                }
                 parameters.put("IpPermissions.1.FromPort", String.valueOf(beginPort));
-                parameters.put("IpPermissions.1.ToPort", endPort == -1 ? String.valueOf(beginPort) : String.valueOf(endPort));
+                parameters.put("IpPermissions.1.ToPort", String.valueOf(endPort));
                 if( group ) {
                     if( targetGroupId.startsWith("sg-") ) {
                         parameters.put("IpPermissions.1.Groups.1.GroupId", targetGroupId);
