@@ -628,7 +628,7 @@ public class EC2Method {
     		}
 
             HttpPost post = new HttpPost(url);
-            client = provider.getClient(url);
+            client = provider.getClient();
 
             HttpResponse response;
 

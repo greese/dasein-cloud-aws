@@ -168,7 +168,7 @@ public class Route53Method {
 		}
         HttpClient client = null;
 		try {
-            client = provider.getClient(url);
+            client = provider.getClient();
             HttpResponse response;
     		int status;
     

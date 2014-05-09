@@ -394,6 +394,17 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return ( "https://monitoring." + ctx.getRegionId() + ".amazonaws.com" );
     }
 
+    /**
+     * Get encrypted initial Windows password. This method only definitely works with standard Amazon AMIs:
+     * http://aws.amazon.com/windows/amis/
+     * Other AMIs in the public library may have had their password changed, and it will not be retrievable on instances
+     * launched from those.
+     *
+     * @param instanceId
+     * @return
+     * @throws InternalException
+     * @throws CloudException
+     */
     @Override
     public @Nullable String getPassword(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getPassword");

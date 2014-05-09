@@ -463,7 +463,10 @@ public class AWSCloud extends AbstractCloud {
 
     @Override
     public @Nonnull ContextRequirements getContextRequirements() {
-        return new ContextRequirements(new ContextRequirements.Field(DSN_ACCESS_KEY, "AWS API access keys", ContextRequirements.FieldType.KEYPAIR, ContextRequirements.Field.ACCESS_KEYS, true));
+        return new ContextRequirements(
+                new ContextRequirements.Field(DSN_ACCESS_KEY, "AWS API access keys", ContextRequirements.FieldType.KEYPAIR, ContextRequirements.Field.ACCESS_KEYS, true),
+                new ContextRequirements.Field("proxyHost", "Proxy host", ContextRequirements.FieldType.TEXT, false),
+                new ContextRequirements.Field("proxyPort", "Proxy port", ContextRequirements.FieldType.TEXT, false));
     }
 
     public byte[][] getAccessKey( ProviderContext ctx ) {
@@ -1425,77 +1428,66 @@ public class AWSCloud extends AbstractCloud {
         return supportsVPC != null && supportsVPC;
     }
 
-    public @Nonnull HttpClient getClient(@Nonnull String url) throws InternalException {
-        return getClient(url, false);
+    public @Nonnull HttpClient getClient() throws InternalException {
+        return getClient(false);
     }
 
-    public @Nonnull HttpClient getClient(@Nonnull String url, boolean multipart) throws InternalException {
+    public @Nonnull HttpClient getClient(boolean multipart) throws InternalException {
         ProviderContext ctx = getContext();
         if( ctx == null ) {
             throw new InternalException("No context was specified for this request");
         }
-        if( url == null ) {
-            throw new IllegalArgumentException("URL parameter is null");
-        }
 
-        boolean ssl = url.startsWith("https");
-        HttpParams params = new BasicHttpParams();
+        final HttpParams params = new BasicHttpParams();
 
         HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-        //noinspection deprecation
         if( !multipart ) {
-            HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
+            HttpProtocolParams.setContentCharset(params, Consts.UTF_8.toString());
         }
         HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
 
         Properties p = ctx.getCustomProperties();
-
         if( p != null ) {
             String proxyHost = p.getProperty("proxyHost");
             String proxyPort = p.getProperty("proxyPort");
 
-            if( proxyHost != null ) {
-                int port = 0;
-
-                if( proxyPort != null && proxyPort.length() > 0 ) {
-                    port = Integer.parseInt(proxyPort);
-                }
-                params.setParameter(ConnRoutePNames.DEFAULT_PROXY, new HttpHost(proxyHost, port, ssl ? "https" : "http"));
+            if( proxyHost != null && proxyHost.length() > 0 && proxyPort != null && proxyPort.length() > 0 ) {
+                int port = Integer.parseInt(proxyPort);
+                boolean ssl = proxyHost.startsWith("https");
+                params.setParameter(ConnRoutePNames.DEFAULT_PROXY,
+                        new HttpHost(proxyHost, port, ssl ? "https" : "http")
+                );
             }
         }
         DefaultHttpClient client = new DefaultHttpClient(params);
         client.addRequestInterceptor(new HttpRequestInterceptor() {
-
             public void process(
                     final HttpRequest request,
                     final HttpContext context) throws HttpException, IOException {
-                if (!request.containsHeader("Accept-Encoding")) {
+                if( !request.containsHeader("Accept-Encoding") ) {
                     request.addHeader("Accept-Encoding", "gzip");
                 }
+                request.setParams(params);
             }
-
         });
         client.addResponseInterceptor(new HttpResponseInterceptor() {
-
             public void process(
                     final HttpResponse response,
                     final HttpContext context) throws HttpException, IOException {
                 HttpEntity entity = response.getEntity();
-                if (entity != null) {
-                    Header ceheader = entity.getContentEncoding();
-                    if (ceheader != null) {
-                        HeaderElement[] codecs = ceheader.getElements();
-                        for (int i = 0; i < codecs.length; i++) {
-                            if (codecs[i].getName().equalsIgnoreCase("gzip")) {
+                if( entity != null ) {
+                    Header header = entity.getContentEncoding();
+                    if( header != null ) {
+                        for( HeaderElement codec : header.getElements() ) {
+                            if( codec.getName().equalsIgnoreCase("gzip") ) {
                                 response.setEntity(
                                         new GzipDecompressingEntity(response.getEntity()));
-                                return;
+                                break;
                             }
                         }
                     }
                 }
             }
-
         });
         return client;
     }
