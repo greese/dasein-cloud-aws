@@ -1099,7 +1099,8 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         return LoadBalancerHealthCheck.getInstance(protocol, port, path, interval, timeout, healthyCount, unHealthyCount);
     }
 
-    private LbListener toListener(Node node, Map<String, String> arn2certificateNames) {
+    private LbListener toListener(Node node, LazyObject<Map<String, String>> arn2certificateNames)
+            throws CloudException, InternalException {
         NodeList attrs = node.getChildNodes();
 
         LbProtocol protocol = LbProtocol.RAW_TCP;
@@ -1123,7 +1124,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             }
             else if ( name.equals("sslcertificateid") ) {
                 String arn = attr.getFirstChild().getNodeValue();
-                sslCertificateName = arn2certificateNames.get( arn );
+                sslCertificateName = arn2certificateNames.get().get( arn );
             }
         }
         return LbListener.getInstance(protocol, publicPort, privatePort, sslCertificateName);
@@ -1158,7 +1159,14 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     NodeList listeners = attr.getChildNodes();
                 
                     if( listeners.getLength() > 0 ) {
-                        Map<String, String> arn2certificateNames = getArn2CertificatesMapping();
+
+                        LazyObject<Map<String, String>> arn2certificateNames = new LazyObject<Map<String, String>>() {
+                            @Override
+                            public Map<String, String> init() throws CloudException, InternalException {
+                                return getArn2CertificatesMapping();
+                            }
+                        };
+
                         for( int j=0; j<listeners.getLength(); j++ ) {
                           Node item = listeners.item(j);
                           if ( item.getNodeName().equals( "member" ) ) {
@@ -1557,6 +1565,20 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             this.path = path;
             this.id = id;
             this.uploadDate = uploadDate;
+        }
+    }
+
+    private abstract class LazyObject<T> {
+
+        T value;
+
+        protected abstract T init() throws CloudException, InternalException;
+
+        public T get() throws CloudException, InternalException {
+            if (value == null) {
+                value = init();
+            }
+            return value;
         }
     }
 
