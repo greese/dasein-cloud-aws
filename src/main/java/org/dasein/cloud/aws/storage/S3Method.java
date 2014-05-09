@@ -389,7 +389,7 @@ public class S3Method {
                 ((HttpEntityEnclosingRequestBase)method).setEntity(new FileEntity(uploadFile, contentType));
             }
             attempts++;
-            client = provider.getClient(url.toString(), body == null && uploadFile == null);
+            client = provider.getClient(body == null && uploadFile == null);
             
             if( wire.isDebugEnabled() ) {
                 wire.debug("[" + url.toString() + "]");

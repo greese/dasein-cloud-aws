@@ -145,7 +145,7 @@ public class CloudFrontMethod {
             }
         }
 		attempts++;
-        client = provider.getClient(url.toString());
+        client = provider.getClient();
         CloudFrontResponse response = new CloudFrontResponse();
 
         HttpResponse httpResponse;

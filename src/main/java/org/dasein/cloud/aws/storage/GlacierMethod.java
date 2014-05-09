@@ -176,7 +176,7 @@ public class GlacierMethod {
             }
             final HttpRequestBase method = action.getMethod(url);
 
-            final HttpClient client = provider.getClient(url);
+            final HttpClient client = provider.getClient();
 
             final String accessId;
             final String secret;
