@@ -1123,7 +1123,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             }
             else if ( name.equals("sslcertificateid") ) {
                 String arn = attr.getFirstChild().getNodeValue();
-                sslCertificateName = arn2certificateNames.get( arn );
+                //sslCertificateName = arn2certificateNames.get( arn );
             }
         }
         return LbListener.getInstance(protocol, publicPort, privatePort, sslCertificateName);
@@ -1158,7 +1158,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     NodeList listeners = attr.getChildNodes();
                 
                     if( listeners.getLength() > 0 ) {
-                        Map<String, String> arn2certificateNames = getArn2CertificatesMapping();
+                        Map<String, String> arn2certificateNames = null; //getArn2CertificatesMapping();
                         for( int j=0; j<listeners.getLength(); j++ ) {
                           Node item = listeners.item(j);
                           if ( item.getNodeName().equals( "member" ) ) {
