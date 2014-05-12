@@ -246,8 +246,10 @@ public class AutoScaling implements AutoScalingSupport {
           parameters.put("InstanceType", options.getSize().getProviderProductId());
         }
         int i = 1;
-        for( String fw : options.getFirewallIds() ) {
-          parameters.put("SecurityGroups.member." + (i++), fw);
+        if( options.getFirewallIds() != null ) {
+          for (String fw : options.getFirewallIds()) {
+            parameters.put("SecurityGroups.member." + (i++), fw);
+          }
         }
         if(options.getAssociatePublicIPAddress() != null) {
           parameters.put("AssociatePublicIpAddress", options.getAssociatePublicIPAddress().toString());

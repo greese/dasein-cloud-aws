@@ -19,18 +19,14 @@
 
 package org.dasein.cloud.aws.compute;
 
-import org.apache.http.*;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.conn.ClientConnectionManager;
-import org.apache.http.conn.params.ConnRoutePNames;
-import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
-import org.apache.http.params.BasicHttpParams;
-import org.apache.http.params.HttpParams;
-import org.apache.http.params.HttpProtocolParams;
-import org.apache.http.protocol.HTTP;
 import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudErrorType;
@@ -58,7 +54,6 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 public class EC2Method {
     static private final Logger logger = AWSCloud.getLogger(EC2Method.class);
@@ -597,43 +592,28 @@ public class EC2Method {
         }
     }
 
-	public Document invoke() throws EC2Exception, CloudException, InternalException {
-	    return invoke(false);
-	}
-
-    protected @Nonnull HttpClient getClient() throws InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new InternalException("No context was specified for this request");
-        }
-        boolean ssl = url.startsWith("https");
-        HttpParams params = new BasicHttpParams();
-
-        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-        //noinspection deprecation
-        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
-        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
-
-        Properties p = ctx.getCustomProperties();
-
-        if( p != null ) {
-            String proxyHost = p.getProperty("proxyHost");
-            String proxyPort = p.getProperty("proxyPort");
-
-            if( proxyHost != null ) {
-                int port = 0;
-
-                if( proxyPort != null && proxyPort.length() > 0 ) {
-                    port = Integer.parseInt(proxyPort);
-                }
-                params.setParameter(ConnRoutePNames.DEFAULT_PROXY, new HttpHost(proxyHost, port, ssl ? "https" : "http"));
-            }
-        }
-        return new DefaultHttpClient(params);
+    public Document invoke() throws EC2Exception, CloudException, InternalException {
+        return invoke(false);
     }
 
-    public Document invoke(boolean debug) throws EC2Exception, CloudException, InternalException {
+    public Document invoke(boolean debug) throws InternalException, CloudException, EC2Exception {
+        return this.invoke(debug, null);
+    }
+
+    /**
+     * The invoke method which isn't itself parsing the successful response,
+     * but relies on the callback to parse it.
+     *
+     * @param callback
+     * @throws InternalException
+     * @throws CloudException
+     * @throws EC2Exception
+     */
+    public void invoke(XmlStreamParser callback) throws InternalException, CloudException, EC2Exception {
+        this.invoke(false, callback);
+    }
+
+    private Document invoke(boolean debug, XmlStreamParser callback) throws EC2Exception, CloudException, InternalException {
 	    if( logger.isTraceEnabled() ) {
 	        logger.trace("ENTER - " + EC2Method.class.getName() + ".invoke(" + debug + ")");
 	    }
@@ -648,7 +628,7 @@ public class EC2Method {
     		}
 
             HttpPost post = new HttpPost(url);
-            client = getClient();
+            client = provider.getClient();
 
             HttpResponse response;
 
@@ -700,7 +680,16 @@ public class EC2Method {
                     InputStream input = entity.getContent();
 
                     try {
-                        return parseResponse(input);
+                        // When callback is passed, callback will parse the response, and therefore there
+                        // will be no DOM document created. The callback will likely take a list to populate
+                        // the results with.
+                        if (callback != null) {
+                            callback.parse(input);
+                            return null;
+                        }
+                        else {
+                            return parseResponse(input);
+                        }
                     }
                     finally {
                         input.close();
@@ -763,7 +752,7 @@ public class EC2Method {
                                     requestId = id.getFirstChild().getNodeValue().trim();
                                 }
                                 if( message == null && code == null ) {
-                                    throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
+                                    throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/null");
                                 }
                                 else if( message == null ) {
                                     message = code;
@@ -930,8 +919,9 @@ public class EC2Method {
 	}
 
 	private Document parseResponse(InputStream responseBodyAsStream) throws CloudException, InternalException {
+        BufferedReader in = null;
 		try {
-			BufferedReader in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
+			in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
 			StringBuilder sb = new StringBuilder();
 			String line;
 
@@ -939,12 +929,20 @@ public class EC2Method {
 				sb.append(line);
 				sb.append("\n");
 			}
-			in.close();
-
 			return parseResponse(sb.toString());
 		}
 		catch( IOException e ) {
 			throw new CloudException(e);
 		}
+        finally {
+            if( in != null ) {
+                try {
+                    in.close();
+                } catch( IOException e ) {
+                    // Ignore
+                }
+            }
+        }
     }
+
 }
