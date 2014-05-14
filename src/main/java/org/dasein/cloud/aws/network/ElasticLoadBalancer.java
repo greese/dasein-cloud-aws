@@ -1302,15 +1302,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         return lb;
     }
 
-    private Map<String, String> getArn2CertificatesMapping() throws CloudException, InternalException {
-        Map<String, String> mapping = new HashMap<String, String>();
-        Iterable<SSLCertificate> certificates = listSSLCertificates();
-        for ( SSLCertificate certificate : certificates ) {
-            mapping.put(certificate.getProviderCertificateId(), certificate.getCertificateName());
-        }
-        return mapping;
-    }
-
     private LbProtocol toProtocol(String txt) {
         if( txt.equals("HTTP") ) {
           return LbProtocol.HTTP;
