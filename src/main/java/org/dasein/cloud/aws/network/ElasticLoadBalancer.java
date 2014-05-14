@@ -25,7 +25,7 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AWSResourceNotFoundException;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.identity.IAMMethod;
-import org.dasein.cloud.aws.identity.InvalidAmazonResourceName;
+import org.dasein.cloud.aws.identity.InvalidAmazonResourceNameException;
 import org.dasein.cloud.aws.identity.SSLCertificateResourceName;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
@@ -1127,7 +1127,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 try {
                     SSLCertificateResourceName sslCertificateResourceName = SSLCertificateResourceName.parseArn(attr.getFirstChild().getNodeValue());
                     sslCertificateName = sslCertificateResourceName.getCertificateName();
-                } catch (InvalidAmazonResourceName e) {
+                } catch (InvalidAmazonResourceNameException e) {
                     logger.error("Invalid amazon resource name: " + e.getInvalidResourceName(), e);
                 }
             }

@@ -53,19 +53,19 @@ public class SSLCertificateResourceName {
         return path;
     }
 
-    public static SSLCertificateResourceName parseArn(String sslCertificateArn) throws InvalidAmazonResourceName {
+    public static SSLCertificateResourceName parseArn(String sslCertificateArn) throws InvalidAmazonResourceNameException {
         if (sslCertificateArn == null) {
             throw new IllegalArgumentException("Provided SSL certificate resource name is null");
         }
 
         Matcher matcher = SSL_CERTIFICATE_RESOURCE_WITH_PATH_PATTERN.matcher(sslCertificateArn);
         if (matcher.matches()) {
-            return new SSLCertificateResourceName(matcher.group(1), "/" + matcher.group(2), matcher.group(3));
+            return new SSLCertificateResourceName(matcher.group(1), "/" + matcher.group(2) + "/", matcher.group(3));
         }
 
         matcher = SSL_CERTIFICATE_RESOURCE_PATTERN.matcher(sslCertificateArn);
         if (!matcher.matches()) {
-            throw new InvalidAmazonResourceName("Provided server certificate ARN [" + sslCertificateArn
+            throw new InvalidAmazonResourceNameException("Provided server certificate ARN [" + sslCertificateArn
                     + "] doesn't match pattern [" + SSL_CERTIFICATE_RESOURCE_PATTERN + "]", sslCertificateArn);
         }
         return new SSLCertificateResourceName(matcher.group(1), matcher.group(2));
@@ -73,7 +73,7 @@ public class SSLCertificateResourceName {
 
     @Override
     public String toString() {
-        return "arn:aws:iam::" + accountId + ":server-certificate/" + certificateName;
+        return "arn:aws:iam::" + accountId + ":server-certificate" + path + certificateName;
     }
 
 }

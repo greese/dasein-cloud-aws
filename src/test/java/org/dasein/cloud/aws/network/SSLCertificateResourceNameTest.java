@@ -1,6 +1,6 @@
 package org.dasein.cloud.aws.network;
 
-import org.dasein.cloud.aws.identity.InvalidAmazonResourceName;
+import org.dasein.cloud.aws.identity.InvalidAmazonResourceNameException;
 import org.junit.Test;
 
 import org.dasein.cloud.aws.identity.SSLCertificateResourceName;
@@ -13,7 +13,7 @@ import static org.junit.Assert.assertEquals;
 public class SSLCertificateResourceNameTest {
 
     @Test
-    public void testSSLCertificateNameMatches() throws InvalidAmazonResourceName {
+    public void testSSLCertificateNameMatches() throws InvalidAmazonResourceNameException {
         SSLCertificateResourceName sslCertificateResourceName = SSLCertificateResourceName
                 .parseArn("arn:aws:iam::123456789012:server-certificate/SomeCertName");
         assertEquals("Certificate name doesn't match", sslCertificateResourceName.getCertificateName(), "SomeCertName");
@@ -22,21 +22,21 @@ public class SSLCertificateResourceNameTest {
     }
 
     @Test
-    public void testSSLCertificateNameWithPathsMatches() throws InvalidAmazonResourceName {
+    public void testSSLCertificateNameWithPathsMatches() throws InvalidAmazonResourceNameException {
         SSLCertificateResourceName sslCertificateResourceName = SSLCertificateResourceName
                 .parseArn("arn:aws:iam::123456789012:server-certificate/division_abc/subdivision_xyz/SomeCertName");
         assertEquals("Certificate name doesn't match", sslCertificateResourceName.getCertificateName(), "SomeCertName");
         assertEquals( "Account ID doesn't match", sslCertificateResourceName.getAccountId(), "123456789012");
-        assertEquals("Path doesn't match", sslCertificateResourceName.getPath(), "/division_abc/subdivision_xyz");
+        assertEquals("Path doesn't match", sslCertificateResourceName.getPath(), "/division_abc/subdivision_xyz/");
     }
 
-    @Test(expected = InvalidAmazonResourceName.class)
-    public void negativeTestSSLCertificateNameWrongType() throws InvalidAmazonResourceName {
+    @Test(expected = InvalidAmazonResourceNameException.class)
+    public void negativeTestSSLCertificateNameWrongType() throws InvalidAmazonResourceNameException {
         SSLCertificateResourceName.parseArn("arn:aws:abc::123456789012:SomeCertName");
     }
 
-    @Test(expected = InvalidAmazonResourceName.class)
-    public void negativeTestSSLInvalidCertificateName() throws InvalidAmazonResourceName {
+    @Test(expected = InvalidAmazonResourceNameException.class)
+    public void negativeTestSSLInvalidCertificateName() throws InvalidAmazonResourceNameException {
         SSLCertificateResourceName.parseArn("Invalid-Certificate");
     }
 }
