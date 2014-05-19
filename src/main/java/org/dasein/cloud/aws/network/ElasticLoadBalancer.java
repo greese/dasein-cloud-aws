@@ -457,82 +457,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
     }
 
-    static private volatile List<LbAlgorithm> algorithms;
-
-    @Override
-    public @Nonnull Iterable<LbAlgorithm> listSupportedAlgorithms() {
-        if( algorithms == null ) {
-            List<LbAlgorithm> list = new ArrayList<LbAlgorithm>();
-
-            list.add(LbAlgorithm.ROUND_ROBIN);
-            algorithms = Collections.unmodifiableList(list);
-        }
-        return algorithms;
-    }
-
-    @Override
-    public @Nonnull Iterable<LbEndpointType> listSupportedEndpointTypes() throws CloudException, InternalException {
-        return Collections.singletonList(LbEndpointType.VM);
-    }
-
-    static private volatile List<IPVersion> versions;
-
-    @Override
-    public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
-        if( versions == null ) {
-            ArrayList<IPVersion> tmp = new ArrayList<IPVersion>();
-
-            tmp.add(IPVersion.IPV4);
-            tmp.add(IPVersion.IPV6);
-            versions = Collections.unmodifiableList(tmp);
-        }
-        return versions;
-    }
-
-    @Override
-    public @Nonnull Iterable<LbPersistence> listSupportedPersistenceOptions() throws CloudException, InternalException {
-        return Collections.singletonList(LbPersistence.NONE);
-    }
-
-    static private volatile List<LbProtocol> protocols;
-
-    @Override
-    public @Nonnull Iterable<LbProtocol> listSupportedProtocols() {
-        if( protocols == null ) {
-            List<LbProtocol> list = new ArrayList<LbProtocol>();
-
-            list.add(LbProtocol.HTTP);
-            list.add(LbProtocol.HTTPS);
-            list.add(LbProtocol.RAW_TCP);
-            protocols = Collections.unmodifiableList(list);
-        }
-        return protocols;
-    }
-
-    public @Nonnull String getProviderTermForLoadBalancer(@Nonnull Locale locale) {
-        return "load balancer";
-    }
-
-    @Override
-    public @Nonnull Requirement identifyEndpointsOnCreateRequirement() throws CloudException, InternalException {
-        return Requirement.OPTIONAL;
-    }
-
-    @Override
-    public @Nonnull Requirement identifyListenersOnCreateRequirement() throws CloudException, InternalException {
-        return Requirement.REQUIRED;
-    }
-
-    @Override
-    public boolean isAddressAssignedByProvider() {
-        return true;
-    }
-
-    @Override
-    public boolean isDataCenterLimited() {
-        return true;
-    }
-
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "LB.isSubscribed");
@@ -998,12 +922,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
-    public boolean supportsAddingEndpoints() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public LoadBalancerHealthCheck createLoadBalancerHealthCheck(@Nonnull LBHealthCheckCreateOptions options)throws CloudException, InternalException{
+    public LoadBalancerHealthCheck createLoadBalancerHealthCheck(@Nonnull HealthCheckOptions options)throws CloudException, InternalException{
         APITrace.begin(provider, "LB.configureHealthCheck");
         try{
             ProviderContext ctx = provider.getContext();
@@ -1027,8 +946,8 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 path = options.getPath();
             }
             parameters.put("HealthCheck.Target", options.getProtocol().name() + ":" + options.getPort() + path);
-            parameters.put("HealthCheck.Interval", options.getInterval().intValue() + "");
-            parameters.put("HealthCheck.Timeout", options.getTimeout().intValue() + "");
+            parameters.put("HealthCheck.Interval", String.valueOf(options.getInterval()));
+            parameters.put("HealthCheck.Timeout", String.valueOf(options.getTimeout()));
 
             method = new ELBMethod(provider, ctx, parameters);
             try{
@@ -1050,29 +969,24 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
 //TODO: Get instance health
-//TODO: remove set as NoOp
 
-    @Override
-    public boolean healthCheckRequiresLoadBalancer(){
-        return true;
-    }
 
     private LoadBalancerHealthCheck toLBHealthCheck(Node node){
         NodeList attrs = node.getChildNodes();
-        Double interval = 0.0;
         LoadBalancerHealthCheck.HCProtocol protocol = null;
         int port = 0;
         String path = "";
         int healthyCount = 0;
         int unHealthyCount = 0;
-        Double timeout = 0.0;
+        int timeout = 0;
+        int interval = 0;
 
         for(int i=0;i<attrs.getLength();i++){
             Node attr = attrs.item(i);
             String name = attr.getNodeName().toLowerCase();
 
             if(name.equals("interval")){
-                interval = Double.valueOf(attr.getFirstChild().getNodeValue());
+                interval = Integer.parseInt(attr.getFirstChild().getNodeValue());
             }
             else if(name.equals("target")){
                 String targetString = attr.getFirstChild().getNodeValue();
@@ -1095,7 +1009,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 unHealthyCount = Integer.parseInt(attr.getFirstChild().getNodeValue());
             }
             else if(name.equals("timeout")){
-                timeout = Double.valueOf(attr.getFirstChild().getNodeValue());
+                timeout = Integer.parseInt(attr.getFirstChild().getNodeValue());
             }
         }
         return LoadBalancerHealthCheck.getInstance(protocol, port, path, interval, timeout, healthyCount, unHealthyCount);
