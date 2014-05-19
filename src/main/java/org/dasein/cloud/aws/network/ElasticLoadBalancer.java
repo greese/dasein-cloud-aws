@@ -317,10 +317,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
     }
     
-    public int getMaxPublicPorts() {
-        return 0;
-    }
-    
     @Override
     public @Nullable LoadBalancer getLoadBalancer(@Nonnull String loadBalancerId) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.getLoadBalancer");
@@ -563,16 +559,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         finally {
             APITrace.end();
         }
-    }
-
-    @Override
-    public boolean supportsMonitoring() {
-        return true;
-    }
-
-    @Override
-    public boolean supportsMultipleTrafficTypes() throws CloudException, InternalException {
-        return true;
     }
 
     @Override
