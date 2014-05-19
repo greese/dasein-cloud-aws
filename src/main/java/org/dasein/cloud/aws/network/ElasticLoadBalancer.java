@@ -321,80 +321,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
     }
     
-    static private volatile List<LbAlgorithm> algorithms;
-    
-    @Override
-    public @Nonnull Iterable<LbAlgorithm> listSupportedAlgorithms() {
-        if( algorithms == null ) {
-            List<LbAlgorithm> list = new ArrayList<LbAlgorithm>();
-
-            list.add(LbAlgorithm.ROUND_ROBIN);
-            algorithms = Collections.unmodifiableList(list);
-        }
-        return algorithms;
-    }
-
-    @Override
-    public @Nonnull Iterable<LbEndpointType> listSupportedEndpointTypes() throws CloudException, InternalException {
-        return Collections.singletonList(LbEndpointType.VM);
-    }
-
-    static private volatile List<IPVersion> versions;
-    
-    @Override
-    public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
-        if( versions == null ) {
-            ArrayList<IPVersion> tmp = new ArrayList<IPVersion>();
-            
-            tmp.add(IPVersion.IPV4);
-            tmp.add(IPVersion.IPV6);
-            versions = Collections.unmodifiableList(tmp);
-        }
-        return versions;
-    }
-
-    @Override
-    public @Nonnull Iterable<LbPersistence> listSupportedPersistenceOptions() throws CloudException, InternalException {
-        return Collections.singletonList(LbPersistence.NONE);
-    }
-
-    static private volatile List<LbProtocol> protocols;
-    
-    @Override
-    public @Nonnull Iterable<LbProtocol> listSupportedProtocols() {
-        if( protocols == null ) {
-            List<LbProtocol> list = new ArrayList<LbProtocol>();
-
-            list.add(LbProtocol.HTTP);
-            list.add(LbProtocol.RAW_TCP);
-            protocols = Collections.unmodifiableList(list);
-        }
-        return protocols;
-    }
-    
-    public @Nonnull String getProviderTermForLoadBalancer(@Nonnull Locale locale) {
-        return "load balancer";
-    }
-
-    @Override
-    public @Nonnull Requirement identifyEndpointsOnCreateRequirement() throws CloudException, InternalException {
-        return Requirement.OPTIONAL;
-    }
-
-    @Override
-    public @Nonnull Requirement identifyListenersOnCreateRequirement() throws CloudException, InternalException {
-        return Requirement.REQUIRED;
-    }
-
-    @Override
-    public boolean isAddressAssignedByProvider() {
-        return true;
-    }
-
-    @Override
-    public boolean isDataCenterLimited() {
-        return true;
-    }
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
@@ -852,12 +778,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
 //TODO: Get instance health
-//TODO: remove set as NoOp
 
-    @Override
-    public boolean healthCheckRequiresLoadBalancer(){
-        return true;
-    }
 
     private LoadBalancerHealthCheck toLBHealthCheck(Node node){
         NodeList attrs = node.getChildNodes();
