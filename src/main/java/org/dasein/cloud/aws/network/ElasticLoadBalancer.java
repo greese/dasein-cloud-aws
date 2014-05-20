@@ -679,7 +679,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
-    public LoadBalancerHealthCheck createLoadBalancerHealthCheck( @Nonnull LBHealthCheckCreateOptions options ) throws CloudException, InternalException {
+    public LoadBalancerHealthCheck createLoadBalancerHealthCheck( @Nonnull HealthCheckOptions options ) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.configureHealthCheck");
         try {
             ProviderContext ctx = provider.getContext();
@@ -726,11 +726,11 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     //TODO: Get instance health
 
     @Override
-    public @Nonnull String createLBWithHealthCheck( @Nonnull LoadBalancerCreateOptions lbOptions, @Nonnull LBHealthCheckCreateOptions lbhcOptions ) throws CloudException, InternalException {
+    public @Nonnull String createLBWithHealthCheck( @Nonnull LoadBalancerCreateOptions lbOptions, @Nonnull HealthCheckOptions hcOptions ) throws CloudException, InternalException {
         String lbId = createLoadBalancer(lbOptions);
-        lbhcOptions.setLoadBalancerId(lbId);
+        hcOptions.setLoadBalancerId(lbId);
         try {
-            createLoadBalancerHealthCheck(lbhcOptions);
+            createLoadBalancerHealthCheck(hcOptions);
         } catch (CloudException e) {
             // let's try and be transactional
             removeLoadBalancer(lbId);
@@ -836,7 +836,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
-    public LoadBalancerHealthCheck modifyHealthCheck( @Nonnull String providerLBHealthCheckId, @Nullable String providerLoadBalancerId, @Nonnull LBHealthCheckCreateOptions options ) throws InternalException, CloudException {
+    public LoadBalancerHealthCheck modifyHealthCheck( @Nonnull String providerLBHealthCheckId, @Nonnull HealthCheckOptions options ) throws InternalException, CloudException {
         // we ignore the providerLBHealthCheckId and also providerLoadBalancerId would be set in the options
         return createLoadBalancerHealthCheck(options);
     }
