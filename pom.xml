@@ -103,11 +103,7 @@
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-test</artifactId>
-<<<<<<< HEAD
             <version>2014.07.1-SNAPSHOT</version>
-=======
-            <version>2014.05.1-SNAPSHOT</version>
->>>>>>> ad461bc... Fixes for bugs discovered by new tests.
             <scope>test</scope>
             <optional>false</optional>
         </dependency>

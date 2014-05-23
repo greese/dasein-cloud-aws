@@ -899,6 +899,10 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 throw new CloudException("No valid context is established for this request");
             }
 
+            if( options.getProviderLoadBalancerId() == null ) {
+                throw new InternalException("HealthCheck options must include the load balancer ID");
+            }
+
             NodeList blocks;
             Document doc;
             Map<String, String> parameters = getELBParameters(getContext(), ELBMethod.CONFIGURE_HEALTH_CHECK);
@@ -1062,11 +1066,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
     @Override
     public LoadBalancerHealthCheck modifyHealthCheck( @Nonnull String providerLBHealthCheckId, @Nonnull HealthCheckOptions options ) throws InternalException, CloudException {
-        // TODO: we should get rid of the providerLBHealthCheckId and demand it to be in options - if this
-        // is compatible with other clouds.
-        if( providerLBHealthCheckId != null ) {
-            options = options.withProviderLoadBalancerId(providerLBHealthCheckId);
-        }
         return createLoadBalancerHealthCheck(options);
     }
 
