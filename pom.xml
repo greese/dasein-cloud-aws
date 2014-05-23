@@ -19,7 +19,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.dasein</groupId>
     <artifactId>dasein-cloud-aws</artifactId>
-    <version>2014.03.6-SNAPSHOT</version>
+    <version>2014.05.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>dasein-cloud-aws</name>
@@ -62,7 +62,7 @@
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-core</artifactId>
-            <version>2014.03.2</version>
+            <version>2014.05.1-SNAPSHOT</version>
             <scope>compile</scope>
             <optional>false</optional>
         </dependency>
@@ -102,7 +102,7 @@
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-test</artifactId>
-            <version>2014.03.2</version>
+            <version>2014.05.1-SNAPSHOT</version>
             <scope>test</scope>
             <optional>false</optional>
         </dependency>
@@ -242,11 +242,9 @@
                             <value>${test.shareAccount}</value>
                         </property>
                     </systemProperties>
-                    <excludes>
-                        <exclude>**/TestSuite.java</exclude>
-                        <exclude>**/compute/DescribeImagesResponseParserTest.java</exclude>
-                        <exclude>**/AWSSignatureV4Tests.java</exclude>
-                    </excludes>
+                    <includes>
+                        <include>**/TestSuite.java</include>
+                    </includes>
                 </configuration>
             </plugin>
             <plugin>
