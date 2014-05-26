@@ -20,11 +20,7 @@
 package org.dasein.cloud.aws.network;
 
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AWSResourceNotFoundException;
 import org.dasein.cloud.aws.compute.EC2Exception;
@@ -226,6 +222,12 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         } finally {
             APITrace.end();
         }
+    }
+
+    @Nonnull @Override public String createLBWithHealthCheck( @Nonnull LoadBalancerCreateOptions lbOptions, @Nonnull HealthCheckOptions lbhcOptions ) throws CloudException, InternalException {
+        // half completed work by Dasein team - this is still being implemented I suppose
+        // need this method so we can compile and continue using develop branch
+        throw new OperationNotSupportedException("createLBWithHealthCheck not yet implemented");
     }
 
     @SuppressWarnings( "deprecation" ) @Override @Deprecated
