@@ -23,7 +23,6 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AWSResourceNotFoundException;
-import org.dasein.cloud.aws.LogRequest;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.identity.IAMMethod;
 import org.dasein.cloud.identity.ServiceAction;
@@ -1051,7 +1050,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
     }
 
-    @LogRequest
     @Override
     public void setFirewalls(@Nonnull String loadBalancerId, @Nonnull String... firewallIds) throws CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
