@@ -1044,8 +1044,24 @@ public class IAM implements IdentityAndAccessSupport {
         else if( action.equals(IdentityAndAccessSupport.UPDATE_USER) ) {
             return new String[] { IAMMethod.IAM_PREFIX + IAMMethod.UPDATE_USER };
         }
+
+        /* SSL certificates were explicitly requested to be included into LoadBalancingSupport
+         * by the upstream author */
+        else if( action.equals(LoadBalancerSupport.LIST_SSL_CERTIFICATES) ) {
+            return new String[] { IAMMethod.IAM_PREFIX + IAMMethod.LIST_SSL_CERTIFICATES };
+        }
+        else if( action.equals(LoadBalancerSupport.GET_SSL_CERTIFICATE) ) {
+            return new String[] { IAMMethod.IAM_PREFIX + IAMMethod.GET_SSL_CERTIFICATE };
+        }
+        else if( action.equals(LoadBalancerSupport.CREATE_SSL_CERTIFICATE) ) {
+            return new String[] { IAMMethod.IAM_PREFIX + IAMMethod.CREATE_SSL_CERTIFICATE };
+        }
+        else if( action.equals(LoadBalancerSupport.DELETE_SSL_CERTIFICATE) ) {
+            return new String[] { IAMMethod.IAM_PREFIX + IAMMethod.DELETE_SSL_CERTIFICATE };
+        }
         return new String[0];
     }
+
     public void removeAccessKey(@Nonnull String sharedKeyPart) throws CloudException, InternalException {
     	//nothing for aws
     }

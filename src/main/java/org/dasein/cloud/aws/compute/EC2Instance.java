@@ -42,7 +42,7 @@ import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-
+import static org.dasein.cloud.compute.VMLaunchOptions.*;
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -394,6 +394,17 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return ( "https://monitoring." + ctx.getRegionId() + ".amazonaws.com" );
     }
 
+    /**
+     * Get encrypted initial Windows password. This method only definitely works with standard Amazon AMIs:
+     * http://aws.amazon.com/windows/amis/
+     * Other AMIs in the public library may have had their password changed, and it will not be retrievable on instances
+     * launched from those.
+     *
+     * @param instanceId
+     * @return
+     * @throws InternalException
+     * @throws CloudException
+     */
     @Override
     public @Nullable String getPassword(@Nonnull String instanceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getPassword");
@@ -1671,7 +1682,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             APITrace.end();
         }
     }
-
     private void enableIpForwarding(final String instanceId) throws CloudException {
 
         Thread t = new Thread() {
@@ -2490,6 +2500,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 prd.setRamSize(new Storage<Megabyte>(json.getInt("ramSizeInMb"), Storage.MEGABYTE));
             } else {
                 prd.setRamSize(new Storage<Megabyte>(512, Storage.MEGABYTE));
+            }
+            if( json.has("generation") && json.getString("generation").equalsIgnoreCase("previous")) {      	
+                   prd.setStatusDeprecated();
             }
             if( json.has("standardHourlyRates") ) {
                 JSONArray rates = json.getJSONArray("standardHourlyRates");

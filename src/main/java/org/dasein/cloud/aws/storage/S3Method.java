@@ -20,23 +20,18 @@
 package org.dasein.cloud.aws.storage;
 
 import org.apache.commons.codec.binary.Base64;
-import org.apache.http.*;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.entity.FileEntity;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.params.BasicHttpParams;
-import org.apache.http.params.HttpParams;
-import org.apache.http.params.HttpProtocolParams;
-import org.apache.http.protocol.HTTP;
 import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.storage.BlobStoreSupport;
@@ -199,39 +194,6 @@ public class S3Method {
 
     S3Response invoke(String bucket, String object) throws S3Exception, CloudException, InternalException {
         return invoke(bucket, object, null);
-    }
-
-    protected @Nonnull HttpClient getClient(String url, boolean multipart) throws InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new InternalException("No context was specified for this request");
-        }
-        boolean ssl = url.startsWith("https");
-        HttpParams params = new BasicHttpParams();
-
-        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-        if( !multipart ) {
-            HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
-        }
-        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
-
-        Properties p = ctx.getCustomProperties();
-
-        if( p != null ) {
-            String proxyHost = p.getProperty("proxyHost");
-            String proxyPort = p.getProperty("proxyPort");
-
-            if( proxyHost != null ) {
-                int port = 0;
-
-                if( proxyPort != null && proxyPort.length() > 0 ) {
-                    port = Integer.parseInt(proxyPort);
-                }
-                params.setParameter(ConnRoutePNames.DEFAULT_PROXY, new HttpHost(proxyHost, port, ssl ? "https" : "http"));
-            }
-        }
-        return new DefaultHttpClient(params);
     }
 
     static private final Logger wire = AWSCloud.getWireLogger(S3.class);
@@ -427,7 +389,7 @@ public class S3Method {
                 ((HttpEntityEnclosingRequestBase)method).setEntity(new FileEntity(uploadFile, contentType));
             }
             attempts++;
-            client = getClient(url.toString(), body == null && uploadFile == null);
+            client = provider.getClient(body == null && uploadFile == null);
             
             if( wire.isDebugEnabled() ) {
                 wire.debug("[" + url.toString() + "]");
