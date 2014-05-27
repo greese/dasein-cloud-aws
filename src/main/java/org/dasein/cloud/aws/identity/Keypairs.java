@@ -20,12 +20,15 @@
 package org.dasein.cloud.aws.identity;
 
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 
+import org.apache.commons.codec.binary.Base64;
+import org.apache.http.client.utils.URIUtils;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
@@ -298,7 +301,12 @@ public class Keypairs implements ShellKeySupport {
             Document doc;
 
             parameters.put("KeyName", name);
-            parameters.put("PublicKeyMaterial", material);
+	        try {
+				parameters.put("PublicKeyMaterial", Base64.encodeBase64String(material.getBytes("utf-8")));
+	        }
+	        catch( UnsupportedEncodingException e ) {
+		        throw new InternalException(e);
+	        }
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
