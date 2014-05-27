@@ -1490,6 +1490,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     }
                 }
             }
+            if (cfg.getPlacementGroupId() != null ) {
+                parameters.put( "Placement.GroupName", cfg.getPlacementGroupId() );
+            }
             if( cfg.getSubnetId() == null ) {
                 String[] ids = cfg.getFirewallIds();
                 if( ids.length > 0 ) {
