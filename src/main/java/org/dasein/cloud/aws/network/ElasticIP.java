@@ -19,6 +19,7 @@
 
 package org.dasein.cloud.aws.network;
 
+import org.apache.http.conn.util.InetAddressUtils;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
@@ -165,9 +166,11 @@ public class ElasticIP implements IpAddressSupport {
     public @Nullable IpAddress getIpAddress(@Nonnull String addressId) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.getIpAddress");
         try {
-            IpAddress address = getEC2Address(addressId);
-        
-            return (((address == null || address.isForVlan()) && provider.getEC2Provider().isAWS()) ? getVPCAddress(addressId) : address);
+            if( isIPAddress(addressId) ) {
+                return getEC2Address(addressId);
+            }
+
+            return getVPCAddress(addressId);
         }
         finally {
             APITrace.end();
@@ -213,7 +216,9 @@ public class ElasticIP implements IpAddressSupport {
 
                     if( item.getNodeName().equals("item") ) {
                         address = toAddress(ctx, item);
-                        if( address != null && addressId.equals(address.getProviderIpAddressId())) {
+                        // In case of EC2 the addressId should be the actual "x.x.x.x" address,
+                        // and not the "eipalloc-XXXX" since latter simply not available.
+                        if( address != null && addressId.equals(address.getRawAddress().getIpAddress())) {
                             return address;
                         }
                     }
@@ -358,7 +363,7 @@ public class ElasticIP implements IpAddressSupport {
     public @Nonnull Iterable<IpAddress> listIpPool(@Nonnull IPVersion version, boolean unassignedOnly) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.listIpPool");
         try {
-          Future<Iterable<IpAddress>> ipPoolFuture = listIpPoolConcurrently( IPVersion.IPV4, false );
+          Future<Iterable<IpAddress>> ipPoolFuture = listIpPoolConcurrently(version, unassignedOnly);
           return ipPoolFuture.get();
         } catch (CloudException ce) {
           throw ce;
@@ -420,7 +425,8 @@ public class ElasticIP implements IpAddressSupport {
             if( item.getNodeName().equals("item") ) {
               IpAddress address = toAddress(ctx, item);
 
-              if( address != null && (!unassignedOnly || (address.getServerId() == null && address.getProviderLoadBalancerId() == null)) ) {
+              if( address != null && address.getVersion().equals(version) &&
+                      (!unassignedOnly || (address.getServerId() == null && address.getProviderLoadBalancerId() == null)) ) {
                 list.add(address);
               }
             }
@@ -533,6 +539,12 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
+            if( !isIPAddress(addressId) ) {
+                // If releasing an addressId (eipalloc-xxx) from a VM,
+                // we need to look up its associationId (eipassoc-xxx)
+                IpAddress address = getVPCAddress(addressId);
+                addressId = address.getProviderAssociationId();
+            }
             setId("", parameters, addressId, true);
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
@@ -554,21 +566,26 @@ public class ElasticIP implements IpAddressSupport {
         }
     }
 
+    /**
+     * Identify if the string is an IP address, e.g. x.x.x.x or x:x:x:x:x:x:x:x
+     * @param address IP address to test
+     * @return true if parameter is a normal IPv4 or IPv6 address
+     */
+    private boolean isIPAddress(@Nonnull String address) {
+        return ( InetAddressUtils.isIPv4Address(address) || InetAddressUtils.isIPv6Address(address) );
+    }
+
     private void setId(@Nonnull String postfix, @Nonnull Map<String,String> parameters, @Nonnull String addressId,
                        @Nullable Boolean disassociate) throws CloudException, InternalException {
-        IpAddress address = getIpAddress(addressId);
-        if( address == null ) {
-            throw new IllegalArgumentException("Invalid IP address: " + addressId);
+        if( isIPAddress(addressId) ) {
+            parameters.put("PublicIp" + postfix, addressId);
         }
-        if( address.isForVlan() ) {
+        else {
             if( disassociate != null && disassociate ) {
-                parameters.put("AssociationId" + postfix, address.getProviderAssociationId());
+                parameters.put("AssociationId" + postfix, addressId);
             } else {
                 parameters.put("AllocationId" + postfix, addressId);
             }
-        }
-        else {
-            parameters.put("PublicIp" + postfix, addressId);
         }
     }
 
@@ -630,10 +647,19 @@ public class ElasticIP implements IpAddressSupport {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
+
+            // First, let's see if there's a VPC-style id there
+            blocks = doc.getElementsByTagName("allocationId");
+            if( blocks.getLength() > 0 ) {
+                return blocks.item(0).getFirstChild().getNodeValue().trim();
+            }
+
+            // Otherwise, it's probably the case of EC2-Classic, so an IP address will be our addressId
             blocks = doc.getElementsByTagName("publicIp");
             if( blocks.getLength() > 0 ) {
                 return blocks.item(0).getFirstChild().getNodeValue().trim();
             }
+
             throw new CloudException("Unable to create an address.");
         }
         finally {
