@@ -1054,26 +1054,32 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
     @Override
     public void setFirewalls(@Nonnull String loadBalancerId, @Nonnull String... firewallIds) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if (ctx == null) {
-            throw new CloudException("No valid context is established for this request");
-        }
-
-        Map<String, String> parameters = getELBParameters(ctx, ELBMethod.APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER);
-
-        parameters.put("LoadBalancerName", loadBalancerId);
-        for (int i = 0; i < firewallIds.length; i++) {
-            parameters.put("SecurityGroups.member." + (i + 1), firewallIds[i]);
-        }
-
-        ELBMethod method = new ELBMethod(provider, ctx, parameters);
-
+        APITrace.begin(provider, "LB.setFirewalls");
         try {
-            method.invoke();
-        } catch (EC2Exception e) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
+            ProviderContext ctx = provider.getContext();
+
+            if (ctx == null) {
+                throw new CloudException("No valid context is established for this request");
+            }
+
+            Map<String, String> parameters = getELBParameters(ctx, ELBMethod.APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER);
+
+            parameters.put("LoadBalancerName", loadBalancerId);
+            for (int i = 0; i < firewallIds.length; i++) {
+                parameters.put("SecurityGroups.member." + (i + 1), firewallIds[i]);
+            }
+
+            ELBMethod method = new ELBMethod(provider, ctx, parameters);
+
+            try {
+                method.invoke();
+            } catch (EC2Exception e) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
         }
     }
 
@@ -1327,7 +1333,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         LoadBalancer lb = LoadBalancer.getInstance(getContext().getAccountNumber(), regionId, lbId, LoadBalancerState.ACTIVE, lbName, description, LoadBalancerAddressType.DNS, cname, ports).supportingTraffic(IPVersion.IPV4, IPVersion.IPV6).createdAt(created);
 
         if (!firewallIds.isEmpty()) {
-            lb.setFirewallIds(firewallIds.toArray(new String[firewallIds.size()]));
+            lb.setProviderFirewallIds(firewallIds.toArray(new String[firewallIds.size()]));
         }
         if( !serverIds.isEmpty() ) {
             //noinspection deprecation
