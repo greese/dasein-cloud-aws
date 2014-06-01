@@ -734,12 +734,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         else if( action.equals(LoadBalancerSupport.REMOVE_VMS) ) {
             return new String[]{ELBMethod.ELB_PREFIX + ELBMethod.DEREGISTER_INSTANCES};
         }
-        else if( action.equals(LoadBalancerSupport.ATTACH_LB_TO_SUBNETS) ) {
-            return new String[]{ELBMethod.ELB_PREFIX + ELBMethod.ATTACH_LB_TO_SUBNETS};
-        }
-        else if( action.equals(LoadBalancerSupport.DETACH_LB_FROM_SUBNETS) ) {
-            return new String[]{ELBMethod.ELB_PREFIX + ELBMethod.DETACH_LB_FROM_SUBNETS};
-        }
         return new String[0];
     }
 
@@ -1077,19 +1071,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         return createLoadBalancerHealthCheck(options);
     }
 
-	@Override
-	public void attachLoadBalancerToSubnets(@Nonnull String toLoadBalancerId, @Nonnull String... subnetIdsToAdd) throws CloudException, InternalException {
-		//TODO
-		String result = "";
-	}
-
-	@Override
-	public void detachLoadBalancerFromSubnets(@Nonnull String fromLoadBalancerId, @Nonnull String... subnetIdsToDelete) throws CloudException, InternalException {
-		//TODO
-		String result = "";
-	}
-
-	private LoadBalancerHealthCheck toLBHealthCheck( @Nullable String lbId, @Nonnull Node node ) {
+    private LoadBalancerHealthCheck toLBHealthCheck( @Nullable String lbId, @Nonnull Node node ) {
         NodeList attrs = node.getChildNodes();
         LoadBalancerHealthCheck.HCProtocol protocol = null;
         int port = 0;
