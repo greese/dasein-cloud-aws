@@ -52,6 +52,87 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
+    public void addListeners(@Nonnull String toLoadBalancerId, @Nullable LbListener[] listeners) throws CloudException, InternalException{
+        APITrace.begin(provider, "LB.addListeners");
+        try {
+            //noinspection ConstantConditions
+            if( listeners != null && listeners.length > 0 ) {
+                ProviderContext ctx = provider.getContext();
+
+                if( ctx == null ) {
+                    throw new CloudException("No valid context is established for this request");
+                }
+                Map<String, String> parameters = getELBParameters(getContext(), ELBMethod.CLEATE_LOAD_BALANCER_LISTENERS);
+                ELBMethod method;
+
+                parameters.put("LoadBalancerName", toLoadBalancerId);
+                int i = 1;
+                for( LbListener listener : listeners ) {
+                    switch( listener.getNetworkProtocol() ) {
+                        case HTTP: parameters.put("Listeners.member." + i + ".Protocol", "HTTP"); break;
+                        case HTTPS: parameters.put("Listeners.member." + i + ".Protocol", "HTTPS"); break;
+                        case RAW_TCP: parameters.put("Listeners.member." + i + ".Protocol", "TCP"); break;
+                        default: throw new CloudException("Invalid protocol: " + listener.getNetworkProtocol());
+                    }
+                    parameters.put("Listeners.member." + i + ".LoadBalancerPort", String.valueOf(listener.getPublicPort()));
+                    parameters.put("Listeners.member." + i + ".InstancePort", String.valueOf(listener.getPrivatePort()));
+                    if ( listener.getSslCertificateName() != null ) {
+                        String certificateName = listener.getSslCertificateName();
+                        SSLCertificate certificate = getSSLCertificate( certificateName );
+                        if ( certificate == null ) {
+                            throw new AWSResourceNotFoundException( "Could not find certificate by ID [" + certificateName + "] for listener " + listener );
+                        }
+                        parameters.put("Listeners.member." + i + ".SSLCertificateId", certificate.getProviderCertificateId());
+                    }
+                    i++;
+                }
+                method = new ELBMethod(provider, ctx, parameters);
+                try {
+                    method.invoke();
+                } catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+            }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void removeListeners(@Nonnull String toLoadBalancerId, @Nullable LbListener[] listeners) throws CloudException, InternalException{
+        APITrace.begin(provider, "LB.removeListeners");
+        try {
+            //noinspection ConstantConditions
+            if( listeners != null && listeners.length > 0 ) {
+                ProviderContext ctx = provider.getContext();
+
+                if( ctx == null ) {
+                    throw new CloudException("No valid context is established for this request");
+                }
+                Map<String, String> parameters = getELBParameters(getContext(), ELBMethod.DELETE_LOAD_BALANCER_LISTENERS);
+                ELBMethod method;
+
+                parameters.put("LoadBalancerName", toLoadBalancerId);
+                int i = 1;
+                for( LbListener listener : listeners ) {
+                    parameters.put("LoadBalancerPorts.member." + i, String.valueOf(listener.getPublicPort()));
+                    i++;
+                }
+                method = new ELBMethod(provider, ctx, parameters);
+                try {
+                    method.invoke();
+                } catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+            }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
     public void addDataCenters( @Nonnull String toLoadBalancerId, @Nonnull String... availabilityZoneIds ) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.addDataCenters");
         try {
@@ -162,7 +243,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                         SSLCertificate certificate = getSSLCertificate( certificateName );
                         if ( certificate == null ) {
                             throw new AWSResourceNotFoundException( "Could not find certificate by ID [" +
-                                                    certificateName + "] for listener " + listener );
+                                    certificateName + "] for listener " + listener );
                         }
                         arn = certificate.getProviderCertificateId();
                         certificateName2arn.put( certificateName, arn );
@@ -261,7 +342,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             }
 
             Map<String, String> parameters = provider.getStandardParameters(getContext(),
-                                                                IAMMethod.CREATE_SSL_CERTIFICATE, IAMMethod.VERSION);
+                    IAMMethod.CREATE_SSL_CERTIFICATE, IAMMethod.VERSION);
             provider.putValueIfNotNull(parameters, "CertificateBody", options.getCertificateBody());
             provider.putValueIfNotNull(parameters, "CertificateChain", options.getCertificateChain());
             provider.putValueIfNotNull(parameters, "Path", options.getPath());
@@ -282,7 +363,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 ServerCertificateMetadata meta = toSSLCertificateMetadata(blocks.item(i));
                 if (meta != null) {
                     return SSLCertificate.getInstance(meta.id, meta.arn, meta.uploadDate,
-                                      options.getCertificateBody(), options.getCertificateChain(), meta.path);
+                            options.getCertificateBody(), options.getCertificateChain(), meta.path);
                 }
             }
             return null;
@@ -384,7 +465,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             }
 
             Map<String, String> parameters = provider.getStandardParameters(getContext(),
-                                                                IAMMethod.GET_SSL_CERTIFICATE, IAMMethod.VERSION);
+                    IAMMethod.GET_SSL_CERTIFICATE, IAMMethod.VERSION);
             parameters.put("ServerCertificateName", certificateName);
             Document doc;
 
@@ -425,7 +506,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
             List<SSLCertificate> list  = new ArrayList<SSLCertificate>();
             Map<String, String> parameters = provider.getStandardParameters(getContext(),
-                                                            IAMMethod.LIST_SSL_CERTIFICATES, IAMMethod.VERSION);
+                    IAMMethod.LIST_SSL_CERTIFICATES, IAMMethod.VERSION);
             NodeList blocks;
             Document doc;
 
@@ -449,7 +530,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                         ServerCertificateMetadata meta = toSSLCertificateMetadata(item);
                         if ( meta != null ) {
                             list.add(SSLCertificate.getInstance(meta.id, meta.arn, meta.uploadDate,
-                                                                null, null, meta.path));
+                                    null, null, meta.path));
                         }
                     }
                 }
@@ -808,7 +889,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             }
 
             Map<String, String> parameters = provider.getStandardParameters(getContext(),
-                                                                IAMMethod.DELETE_SSL_CERTIFICATE, IAMMethod.VERSION);
+                    IAMMethod.DELETE_SSL_CERTIFICATE, IAMMethod.VERSION);
             parameters.put("ServerCertificateName", certificateName);
             IAMMethod method = new IAMMethod(provider, parameters);
             try {
@@ -870,7 +951,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             SSLCertificate certificate = getSSLCertificate(options.getSslCertificateName());
             if (certificate == null) {
                 throw new AWSResourceNotFoundException("Could not find SSL certificate by ID [" +
-                                                               options.getSslCertificateName() + "]");
+                        options.getSslCertificateName() + "]");
             }
 
             Map<String, String> parameters = getELBParameters(ctx, ELBMethod.SET_LB_SSL_CERTIFICATE);
