@@ -1077,65 +1077,65 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         return createLoadBalancerHealthCheck(options);
     }
 
-	@Override
-	public void attachLoadBalancerToSubnets(@Nonnull String toLoadBalancerId, @Nonnull String... subnetIdsToAdd) throws CloudException, InternalException {
-		APITrace.begin(provider, "LB.attachLoadBalancerToSubnets");
-		try {
-			ProviderContext ctx = provider.getContext();
-			if (ctx == null) {
-				throw new CloudException("No valid context is established for this request");
-			}
+    @Override
+    public void attachLoadBalancerToSubnets(@Nonnull String toLoadBalancerId, @Nonnull String... subnetIdsToAdd) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.attachLoadBalancerToSubnets");
+        try {
+            ProviderContext ctx = provider.getContext();
+            if (ctx == null) {
+                throw new CloudException("No valid context is established for this request");
+            }
 
-			Map<String, String> parameters = getELBParameters(ctx, ELBMethod.ATTACH_LB_TO_SUBNETS);
-			parameters.put("LoadBalancerName", toLoadBalancerId);
-			for(int i = 1; i <= subnetIdsToAdd.length; i++) {
-				parameters.put("Subnets.member." + i, subnetIdsToAdd[i - 1] );
-			}
+            Map<String, String> parameters = getELBParameters(ctx, ELBMethod.ATTACH_LB_TO_SUBNETS);
+            parameters.put("LoadBalancerName", toLoadBalancerId);
+            for(int i = 1; i <= subnetIdsToAdd.length; i++) {
+                parameters.put("Subnets.member." + i, subnetIdsToAdd[i - 1] );
+            }
 
-			ELBMethod method = new ELBMethod(provider, ctx, parameters);
-			try {
-				method.invoke();
-			}
-			catch ( EC2Exception e ) {
-				logger.error(e.getSummary());
-				throw new CloudException(e);
-			}
-		}
-		finally {
-			APITrace.end();
-		}
-	}
+            ELBMethod method = new ELBMethod(provider, ctx, parameters);
+            try {
+                method.invoke();
+            }
+            catch ( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
 
-	@Override
-	public void detachLoadBalancerFromSubnets(@Nonnull String fromLoadBalancerId, @Nonnull String... subnetIdsToDelete) throws CloudException, InternalException {
-		APITrace.begin(provider, "LB.detachLoadBalancerFromSubnets");
-		try {
-			ProviderContext ctx = provider.getContext();
-			if (ctx == null) {
-				throw new CloudException("No valid context is established for this request");
-			}
+    @Override
+    public void detachLoadBalancerFromSubnets(@Nonnull String fromLoadBalancerId, @Nonnull String... subnetIdsToDelete) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.detachLoadBalancerFromSubnets");
+        try {
+            ProviderContext ctx = provider.getContext();
+            if (ctx == null) {
+                throw new CloudException("No valid context is established for this request");
+            }
 
-			Map<String, String> parameters = getELBParameters(ctx, ELBMethod.DETACH_LB_FROM_SUBNETS);
-			parameters.put("LoadBalancerName", fromLoadBalancerId);
-			for(int i = 1; i <= subnetIdsToDelete.length; i++) {
-				parameters.put("Subnets.member." + i, subnetIdsToDelete[i - 1] );
-			}
+            Map<String, String> parameters = getELBParameters(ctx, ELBMethod.DETACH_LB_FROM_SUBNETS);
+            parameters.put("LoadBalancerName", fromLoadBalancerId);
+            for(int i = 1; i <= subnetIdsToDelete.length; i++) {
+                parameters.put("Subnets.member." + i, subnetIdsToDelete[i - 1] );
+            }
 
-			ELBMethod method = new ELBMethod(provider, ctx, parameters);
-			try {
-				method.invoke();
-			}
-			catch ( EC2Exception e ) {
-				logger.error(e.getSummary());
-				throw new CloudException(e);
-			}
-		}
-		finally {
-			APITrace.end();
-		}
-	}
+            ELBMethod method = new ELBMethod(provider, ctx, parameters);
+            try {
+                method.invoke();
+            }
+            catch ( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
 
-	private LoadBalancerHealthCheck toLBHealthCheck( @Nullable String lbId, @Nonnull Node node ) {
+    private LoadBalancerHealthCheck toLBHealthCheck( @Nullable String lbId, @Nonnull Node node ) {
         NodeList attrs = node.getChildNodes();
         LoadBalancerHealthCheck.HCProtocol protocol = null;
         int port = 0;
