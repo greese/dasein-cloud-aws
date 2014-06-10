@@ -1651,8 +1651,14 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             t = new Tag();
             t.setKey("Description");
             t.setValue(cfg.getDescription());
-            toCreate[i] = t;
+            toCreate[i++] = t;
 
+            if( cfg.getVirtualMachineGroup() != null ) {
+                t = new Tag();
+                t.setKey("dsnVMGroup");
+                t.setValue(cfg.getVirtualMachineGroup());
+                toCreate[i] = t;
+            }
             getProvider().createTags(server.getProviderVirtualMachineId(), toCreate);
 
             if( !existingVolumes.isEmpty() ) {
