@@ -2544,4 +2544,102 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         getProvider().removeTags(vmIds, tags);
     }
 
+    @Override
+    public void cancelSpotDataFeedSubscription() throws CloudException, InternalException {
+        super.cancelSpotDataFeedSubscription();
+    }
+
+    @Override
+    public void cancelSpotInstanceRequest( String providerSpotInstanceRequestID ) throws CloudException, InternalException {
+        super.cancelSpotInstanceRequest(providerSpotInstanceRequestID);
+    }
+
+    @Override
+    public @Nonnull SpotInstanceRequest createSpotInstanceRequest( SIRequestCreateOptions options ) throws CloudException, InternalException {
+        return super.createSpotInstanceRequest(options);
+    }
+
+    @Override
+    public void enableSpotDataFeedSubscription( String s3BucketName ) throws CloudException, InternalException {
+        super.enableSpotDataFeedSubscription(s3BucketName);
+    }
+
+    @Override
+    public Iterable<SpotPriceHistory> listSpotPriceHistories( SPHistoryFilterOptions options ) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "listSpotPriceHistories");
+        List<SpotPriceHistory> list = new ArrayList<SpotPriceHistory>();
+        try {
+            if( getProvider().getEC2Provider().isAWS() ) {
+                Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_SPOT_PRICE_HISTORY);
+                EC2Method method;
+                Document doc;
+                NodeList blocks;
+                int productIndex = 1;
+                for( String product : options.getProductIds() ) {
+                    parameters.put(String.format("InstanceType.%d", productIndex), product);
+                    productIndex++;
+                }
+                method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+                try {
+                    doc = method.invoke();
+                } catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+                blocks = doc.getElementsByTagName("spotPriceHistorySet");
+                for( int i = 0; i < blocks.getLength(); i++ ) {
+                    NodeList items = blocks.item(i).getChildNodes();
+
+                    for( int j = 0; j < items.getLength(); j++ ) {
+                        Node item = items.item(j);
+
+                        if( "item".equals(item.getNodeName()) ) {
+
+                            SpotPriceHistory sph = toSpotPriceHistory(ctx, item);
+
+                            if( options == null || options.matches(sph) ) {
+                                list.add(sph);
+                            }
+                        }
+                    }
+                }
+            }
+            return list;
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    private SpotPriceHistory toSpotPriceHistory(ProviderContext ctx, Node item) {
+        NodeList attrs = item.getChildNodes();
+        String timestamp = null;
+        String spotPrice = null;
+        String product = null;
+        String productDescription = null;
+        String availabilityZone = null;
+        for( int i = 0; i < attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String name = attr.getNodeName();
+            if( "instanceType".equals(name) ) {
+                product = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if( "productDescription".equals(name) ) {
+                productDescription = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if( "spotPrice".equals(name) ) {
+                spotPrice = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if( "timestamp".equals(name) ) {
+                timestamp = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if( "availabilityZone".equals(name) ) {
+                availabilityZone = attr.getFirstChild().getNodeValue().trim();
+            }
+        }
+        if( product == null || spotPrice == null || availabilityZone == null || timestamp == null ) {
+            return null;
+        }
+        return SpotPriceHistory.getInstance()
+
+    }
 }
