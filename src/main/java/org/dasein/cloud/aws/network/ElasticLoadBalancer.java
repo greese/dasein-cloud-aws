@@ -740,6 +740,9 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         else if( action.equals(LoadBalancerSupport.DETACH_LB_FROM_SUBNETS) ) {
             return new String[]{ELBMethod.ELB_PREFIX + ELBMethod.DETACH_LB_FROM_SUBNETS};
         }
+        else if (action.equals(LoadBalancerSupport.SET_FIREWALLS)) {
+            return new String[]{ELBMethod.APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER};
+        }
         return new String[0];
     }
 
@@ -1011,6 +1014,37 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
+    public void setFirewalls(@Nonnull String loadBalancerId, @Nonnull String... firewallIds) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.setFirewalls");
+        try {
+            ProviderContext ctx = provider.getContext();
+
+            if (ctx == null) {
+                throw new CloudException("No valid context is established for this request");
+            }
+
+            Map<String, String> parameters = getELBParameters(ctx, ELBMethod.APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER);
+
+            parameters.put("LoadBalancerName", loadBalancerId);
+            for (int i = 0; i < firewallIds.length; i++) {
+                parameters.put("SecurityGroups.member." + (i + 1), firewallIds[i]);
+            }
+
+            ELBMethod method = new ELBMethod(provider, ctx, parameters);
+
+            try {
+                method.invoke();
+            } catch (EC2Exception e) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+    
+    @Override
     public Iterable<LoadBalancerHealthCheck> listLBHealthChecks( @Nullable HealthCheckFilterOptions opts ) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.listLBHealthChecks");
         try {
@@ -1234,6 +1268,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         List<Integer> portList = new ArrayList<Integer>();
         List<String> zoneList = new ArrayList<String>();
         List<String> serverIds = new ArrayList<String>();
+        List<String> firewallIds = new ArrayList<String>();
         String regionId = getContext().getRegionId();
         String lbName = null, description = null, lbId = null, cname = null;
         boolean withHealthCheck = false;
@@ -1280,6 +1315,20 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 lbName = attr.getFirstChild().getNodeValue();
                 description = attr.getFirstChild().getNodeValue();
                 lbId = attr.getFirstChild().getNodeValue();
+            } else if(name.equalsIgnoreCase("securitygroups")) {
+                if (attr.hasChildNodes()) {
+                    NodeList firewalls = attr.getChildNodes();
+
+                    if (firewalls.getLength() > 0) {
+                        for (int j = 0; j < firewalls.getLength(); j++) {
+                            Node firewall = firewalls.item(j);
+
+                            if (firewall.hasChildNodes()) {
+                                firewallIds.add(AWSCloud.getTextValue(firewall));
+                            }
+                        }
+                    }
+                }
             }
             else if( name.equals("instances") ) {
                 if( attr.hasChildNodes() ) {
@@ -1373,6 +1422,9 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
         LoadBalancer lb = LoadBalancer.getInstance(getContext().getAccountNumber(), regionId, lbId, LoadBalancerState.ACTIVE, lbName, description, LoadBalancerAddressType.DNS, cname, ports).supportingTraffic(IPVersion.IPV4, IPVersion.IPV6).createdAt(created);
 
+        if (!firewallIds.isEmpty()) {
+            lb.setProviderFirewallIds(firewallIds.toArray(new String[firewallIds.size()]));
+        }
         if( !serverIds.isEmpty() ) {
             //noinspection deprecation
             lb.setProviderServerIds(serverIds.toArray(new String[serverIds.size()]));
