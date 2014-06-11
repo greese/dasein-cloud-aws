@@ -46,6 +46,7 @@ public class ELBMethod extends EC2Method {
     static public final String ATTACH_LB_TO_SUBNETS       = "AttachLoadBalancerToSubnets";
     static public final String DETACH_LB_FROM_SUBNETS     = "DetachLoadBalancerFromSubnets";
     static public final String APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER = "ApplySecurityGroupsToLoadBalancer";
+    static public final String MODIFY_LOADBALANCER_ATTRIBUTES         = "ModifyLoadBalancerAttributes";
 
     static public @Nonnull ServiceAction[] asELBServiceAction(@Nonnull String action) {
         if( action.equals(CREATE_LOAD_BALANCER) ) {
@@ -80,6 +81,9 @@ public class ELBMethod extends EC2Method {
         }
         else if ( action.equals(APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER) ) {
             return new ServiceAction[]{ LoadBalancerSupport.SET_FIREWALLS};
+        }
+        else if( action.equals(MODIFY_LOADBALANCER_ATTRIBUTES)) {
+            return new ServiceAction[]{ LoadBalancerSupport.MODIFY_LB_ATTRIBUTES};
         }
         return new ServiceAction[0];
     }
