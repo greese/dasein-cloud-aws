@@ -1045,7 +1045,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
-    public void modifyLoadBalancerAttributes(@Nonnull String id, boolean crossZone, boolean connectionDraining, int connectionDrainingTimeout) throws CloudException, InternalException {
+    public void modifyLoadBalancerAttributes(@Nonnull String id, boolean crossZone, boolean connectionDraining, @Nullable Integer connectionDrainingTimeout) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.modifyLoadBalancerAttributes");
         try {
             ProviderContext ctx = provider.getContext();
@@ -1058,7 +1058,10 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             parameters.put("LoadBalancerName", id);
             parameters.put("LoadBalancerAttributes.CrossZoneLoadBalancing.Enabled", String.valueOf(crossZone));
             parameters.put("LoadBalancerAttributes.ConnectionDraining.Enabled", String.valueOf(connectionDraining));
-            parameters.put("LoadBalancerAttributes.ConnectionDraining.Timeout", String.valueOf(connectionDrainingTimeout));
+
+            if (connectionDrainingTimeout != null) {
+                parameters.put("LoadBalancerAttributes.ConnectionDraining.Timeout", String.valueOf(connectionDrainingTimeout));
+            }
 
             ELBMethod method = new ELBMethod(provider, ctx, parameters);
             try {
