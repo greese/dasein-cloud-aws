@@ -98,6 +98,7 @@
             <version>20090211</version>
             <scope>compile</scope>
         </dependency>
+        
         <!-- Test -->
         <dependency>
             <groupId>org.dasein</groupId>
