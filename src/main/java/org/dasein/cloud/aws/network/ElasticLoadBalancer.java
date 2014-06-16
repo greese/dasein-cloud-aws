@@ -224,12 +224,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
     }
 
-    @Nonnull @Override public String createLBWithHealthCheck( @Nonnull LoadBalancerCreateOptions lbOptions, @Nonnull HealthCheckOptions lbhcOptions ) throws CloudException, InternalException {
-        // half completed work by Dasein team - this is still being implemented I suppose
-        // need this method so we can compile and continue using develop branch
-        throw new OperationNotSupportedException("createLBWithHealthCheck not yet implemented");
-    }
-
     @SuppressWarnings( "deprecation" ) @Override @Deprecated
     public @Nonnull String create( @Nonnull String name, @Nonnull String description, @Nullable String addressId, @Nullable String[] zoneIds, @Nullable LbListener[] listeners, @Nullable String[] serverIds, @Nullable String[] subnetIds, @Nullable LbType type ) throws CloudException, InternalException {
         LoadBalancerCreateOptions options = LoadBalancerCreateOptions.getInstance(name, description);
