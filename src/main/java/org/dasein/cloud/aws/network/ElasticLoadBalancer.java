@@ -916,7 +916,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 timeout = Integer.valueOf(attr.getFirstChild().getNodeValue());
             }
         }
-        LoadBalancerHealthCheck lbhc = LoadBalancerHealthCheck.getInstance(lbId, protocol, port, path, interval, timeout, unHealthyCount, healthyCount);
+        LoadBalancerHealthCheck lbhc = LoadBalancerHealthCheck.getInstance(lbId, protocol, port, path, interval, timeout, healthyCount, unHealthyCount);
         if( lbId != null ) {
             lbhc.addProviderLoadBalancerId(lbId);
             lbhc.setName(toHCName(lbId));
