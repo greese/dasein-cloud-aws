@@ -20,6 +20,7 @@
 package org.dasein.cloud.aws.compute;
 
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
@@ -42,7 +43,9 @@ import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+
 import static org.dasein.cloud.compute.VMLaunchOptions.*;
+
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -54,17 +57,17 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class EC2Instance extends AbstractVMSupport<AWSCloud> {
-    static private final Logger logger = Logger.getLogger(EC2Instance.class);
+    static private final Logger   logger       = Logger.getLogger(EC2Instance.class);
     static private final Calendar UTC_CALENDAR = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
 
     private transient volatile EC2InstanceCapabilities capabilities;
 
-    EC2Instance(AWSCloud provider) {
+    EC2Instance( AWSCloud provider ) {
         super(provider);
     }
 
     @Override
-    public VirtualMachine alterVirtualMachine(@Nonnull String vmId, @Nonnull VMScalingOptions options) throws InternalException, CloudException {
+    public VirtualMachine alterVirtualMachine( @Nonnull String vmId, @Nonnull VMScalingOptions options ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "alterVirtualMachine");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.MODIFY_INSTANCE_ATTRIBUTE);
@@ -89,7 +92,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public VirtualMachine modifyInstance(@Nonnull String vmId, @Nonnull String[] firewalls) throws InternalException, CloudException {
+    public VirtualMachine modifyInstance( @Nonnull String vmId, @Nonnull String[] firewalls ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "alterVirtualMachine");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.MODIFY_INSTANCE_ATTRIBUTE);
@@ -116,7 +119,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void start(@Nonnull String instanceId) throws InternalException, CloudException {
+    public void start( @Nonnull String instanceId ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "startVM");
         try {
             VirtualMachine vm = getVirtualMachine(instanceId);
@@ -144,13 +147,13 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     static private class Metric implements Comparable<Metric> {
-        int samples = 0;
-        long timestamp = -1L;
-        double minimum = -1.0;
-        double maximum = 0.0;
-        double average = 0.0;
+        int    samples   = 0;
+        long   timestamp = -1L;
+        double minimum   = -1.0;
+        double maximum   = 0.0;
+        double average   = 0.0;
 
-        public int compareTo(Metric other) {
+        public int compareTo( Metric other ) {
             if( other == this ) {
                 return 0;
             }
@@ -158,7 +161,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    private Set<Metric> calculate(String metric, String unit, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+    private Set<Metric> calculate( String metric, String unit, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "calculateVMAnalytics");
         try {
             if( !getProvider().getEC2Provider().isAWS() ) {
@@ -209,14 +212,18 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                             logger.error(e);
                             throw new InternalException(e);
                         }
-                    } else if( item.getNodeName().equals("Average") ) {
+                    }
+                    else if( item.getNodeName().equals("Average") ) {
                         m.average = Double.parseDouble(item.getFirstChild().getNodeValue());
-                    } else if( item.getNodeName().equals("Minimum") ) {
+                    }
+                    else if( item.getNodeName().equals("Minimum") ) {
                         m.minimum = Double.parseDouble(item.getFirstChild().getNodeValue());
-                    } else if( item.getNodeName().equals("Maximum") ) {
+                    }
+                    else if( item.getNodeName().equals("Maximum") ) {
                         m.maximum = Double.parseDouble(item.getFirstChild().getNodeValue());
-                    } else if( item.getNodeName().equals("Samples") ) {
-                        m.samples = (int) Double.parseDouble(item.getFirstChild().getNodeValue());
+                    }
+                    else if( item.getNodeName().equals("Samples") ) {
+                        m.samples = ( int ) Double.parseDouble(item.getFirstChild().getNodeValue());
                     }
                 }
                 metrics.add(m);
@@ -228,10 +235,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     private interface ApplyCalcs {
-        public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum);
+        public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum );
     }
 
-    private void calculate(VmStatistics stats, String metricName, String unit, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp, ApplyCalcs apply) throws CloudException, InternalException {
+    private void calculate( VmStatistics stats, String metricName, String unit, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp, ApplyCalcs apply ) throws CloudException, InternalException {
         Set<Metric> metrics = calculate(metricName, unit, id, idIsVolumeId, startTimestamp, endTimestamp);
         double minimum = -1.0, maximum = 0.0, sum = 0.0;
         long start = -1L, end = 0L;
@@ -268,9 +275,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         apply.apply(stats, start, end, samples, samples == 0 ? 0.0 : sum / samples, minimum, maximum);
     }
 
-    private void calculateCpuUtilization(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+    private void calculateCpuUtilization( VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
-            public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
+            public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setSamples(samples);
                 stats.setStartTimestamp(start);
                 stats.setMinimumCpuUtilization(minimum);
@@ -282,9 +289,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         calculate(statistics, "CPUUtilization", "Percent", instanceId, false, startTimestamp, endTimestamp, apply);
     }
 
-    private void calculateDiskReadBytes(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+    private void calculateDiskReadBytes( VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
-            public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
+            public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setMinimumDiskReadBytes(minimum);
                 stats.setAverageDiskReadBytes(average);
                 stats.setMaximumDiskReadBytes(maximum);
@@ -293,9 +300,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         calculate(statistics, idIsVolumeId ? "VolumeReadBytes" : "DiskReadBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
     }
 
-    private void calculateDiskReadOps(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+    private void calculateDiskReadOps( VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
-            public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
+            public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setMinimumDiskReadOperations(minimum);
                 stats.setAverageDiskReadOperations(average);
                 stats.setMaximumDiskReadOperations(maximum);
@@ -304,9 +311,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         calculate(statistics, idIsVolumeId ? "VolumeReadOps" : "DiskReadOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
     }
 
-    private void calculateDiskWriteBytes(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+    private void calculateDiskWriteBytes( VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
-            public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
+            public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setMinimumDiskWriteBytes(minimum);
                 stats.setAverageDiskWriteBytes(average);
                 stats.setMaximumDiskWriteBytes(maximum);
@@ -315,9 +322,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         calculate(statistics, idIsVolumeId ? "VolumeWriteBytes" : "DiskWriteBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
     }
 
-    private void calculateDiskWriteOps(VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+    private void calculateDiskWriteOps( VmStatistics statistics, String id, boolean idIsVolumeId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
-            public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
+            public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setMinimumDiskWriteOperations(minimum);
                 stats.setAverageDiskWriteOperations(average);
                 stats.setMaximumDiskWriteOperations(maximum);
@@ -326,9 +333,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         calculate(statistics, idIsVolumeId ? "VolumeWriteOps" : "DiskWriteOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp, apply);
     }
 
-    private void calculateNetworkIn(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+    private void calculateNetworkIn( VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
-            public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
+            public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setMinimumNetworkIn(minimum);
                 stats.setAverageNetworkIn(average);
                 stats.setMaximumNetworkIn(maximum);
@@ -337,9 +344,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         calculate(statistics, "NetworkIn", "Bytes", instanceId, false, startTimestamp, endTimestamp, apply);
     }
 
-    private void calculateNetworkOut(VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp) throws CloudException, InternalException {
+    private void calculateNetworkOut( VmStatistics statistics, String instanceId, long startTimestamp, long endTimestamp ) throws CloudException, InternalException {
         ApplyCalcs apply = new ApplyCalcs() {
-            public void apply(VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum) {
+            public void apply( VmStatistics stats, long start, long end, int samples, double average, double minimum, double maximum ) {
                 stats.setMinimumNetworkOut(minimum);
                 stats.setAverageNetworkOut(average);
                 stats.setMaximumNetworkOut(maximum);
@@ -349,12 +356,12 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull VirtualMachine clone(@Nonnull String vmId, @Nonnull String intoDcId, @Nonnull String name, @Nonnull String description, boolean powerOn, @Nullable String... firewallIds) throws InternalException, CloudException {
+    public @Nonnull VirtualMachine clone( @Nonnull String vmId, @Nonnull String intoDcId, @Nonnull String name, @Nonnull String description, boolean powerOn, @Nullable String... firewallIds ) throws InternalException, CloudException {
         throw new OperationNotSupportedException("AWS instances cannot be cloned.");
     }
 
     @Override
-    public void enableAnalytics(@Nonnull String instanceId) throws InternalException, CloudException {
+    public void enableAnalytics( @Nonnull String instanceId ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "enableVMAnalytics");
         try {
             if( getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus() ) {
@@ -375,10 +382,11 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    private Architecture getArchitecture(String size) {
+    private Architecture getArchitecture( String size ) {
         if( size.equals("m1.small") || size.equals("c1.medium") ) {
             return Architecture.I32;
-        } else {
+        }
+        else {
             return Architecture.I64;
         }
     }
@@ -390,7 +398,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return capabilities;
     }
 
-    private @Nonnull String getCloudWatchUrl(@Nonnull ProviderContext ctx) {
+    private @Nonnull String getCloudWatchUrl( @Nonnull ProviderContext ctx ) {
         return ( "https://monitoring." + ctx.getRegionId() + ".amazonaws.com" );
     }
 
@@ -406,7 +414,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
      * @throws CloudException
      */
     @Override
-    public @Nullable String getPassword(@Nonnull String instanceId) throws InternalException, CloudException {
+    public @Nullable String getPassword( @Nonnull String instanceId ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getPassword");
         try {
             return new GetPassCallable(instanceId, getProvider()).call();
@@ -419,12 +427,12 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-	public static class GetPassCallable implements Callable {
-        private String instanceId;
+    public static class GetPassCallable implements Callable {
+        private String   instanceId;
         private AWSCloud awsProvider;
-        private String ec2url;
+        private String   ec2url;
 
-        public GetPassCallable(String iId, AWSCloud ap) {
+        public GetPassCallable( String iId, AWSCloud ap ) {
             instanceId = iId;
             awsProvider = ap;
         }
@@ -467,88 +475,83 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-	@Override
-	public @Nullable String getUserData(@Nonnull String instanceId) throws InternalException, CloudException {
-		APITrace.begin(getProvider(), "getUserData");
-		try {
-			Callable<String> callable = new GetUserDataCallable(
-					instanceId,
-					getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCE_ATTRIBUTE),
-					getProvider(),
-					getProvider().getEc2Url()
-			);
-			return callable.call();
-		} catch( EC2Exception e ) {
-			logger.error(e.getSummary());
-			throw new CloudException(e);
-		} catch( CloudException ce ) {
-			throw ce;
-		} catch( Exception e ) {
-			throw new InternalException(e);
-		} finally {
-			APITrace.end();
-		}
-	}
+    @Override
+    public @Nullable String getUserData( @Nonnull String instanceId ) throws InternalException, CloudException {
+        APITrace.begin(getProvider(), "getUserData");
+        try {
+            Callable<String> callable = new GetUserDataCallable(instanceId, getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCE_ATTRIBUTE), getProvider(), getProvider().getEc2Url());
+            return callable.call();
+        } catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        } catch( CloudException ce ) {
+            throw ce;
+        } catch( Exception e ) {
+            throw new InternalException(e);
+        } finally {
+            APITrace.end();
+        }
+    }
 
-	public static class GetUserDataCallable implements Callable {
-		private String instanceId;
-		private Map<String, String> params;
-		private AWSCloud awsProvider;
-		private String ec2url;
+    public static class GetUserDataCallable implements Callable {
+        private String              instanceId;
+        private Map<String, String> params;
+        private AWSCloud            awsProvider;
+        private String              ec2url;
 
-		public GetUserDataCallable(String iId, Map<String, String> p, AWSCloud ap, String eUrl) {
-			instanceId = iId;
-			params = p;
-			awsProvider = ap;
-			ec2url = eUrl;
-		}
+        public GetUserDataCallable( String iId, Map<String, String> p, AWSCloud ap, String eUrl ) {
+            instanceId = iId;
+            params = p;
+            awsProvider = ap;
+            ec2url = eUrl;
+        }
 
-		public String call() throws CloudException {
-			EC2Method method;
-			NodeList blocks;
-			Document doc;
+        public String call() throws CloudException {
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-			params.put("InstanceId", instanceId);
-			params.put("Attribute", "userData");
-			try {
-				method = new EC2Method(awsProvider, ec2url, params);
-			} catch( InternalException e ) {
-				logger.error(e.getMessage());
-				throw new CloudException(e);
-			}
-			try {
-				doc = method.invoke();
-			} catch( EC2Exception e ) {
-				logger.error(e.getSummary());
-				throw new CloudException(e);
-			} catch( InternalException e ) {
-				logger.error(e.getMessage());
-				throw new CloudException(e);
-			}
-			blocks = doc.getElementsByTagName("value");
+            params.put("InstanceId", instanceId);
+            params.put("Attribute", "userData");
+            try {
+                method = new EC2Method(awsProvider, ec2url, params);
+            } catch( InternalException e ) {
+                logger.error(e.getMessage());
+                throw new CloudException(e);
+            }
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            } catch( InternalException e ) {
+                logger.error(e.getMessage());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("value");
 
-			if( blocks.getLength() > 0 ) {
-				Node pw = blocks.item(0);
+            if( blocks.getLength() > 0 ) {
+                Node pw = blocks.item(0);
 
-				if( pw.hasChildNodes() ) {
-					String encodedUserDataValue = pw.getFirstChild().getNodeValue();
-					if (encodedUserDataValue != null) {
-						try {
-							return new String(Base64.decodeBase64(encodedUserDataValue.getBytes("utf-8")), "utf-8");
-						} catch (UnsupportedEncodingException e) {
-							logger.error(e);
-							throw new CloudException(e);
-						}
-					}
-				}
-				return null;
-			}
-			return null;
-		}
-	}
+                if( pw.hasChildNodes() ) {
+                    String encodedUserDataValue = pw.getFirstChild().getNodeValue();
+                    if( encodedUserDataValue != null ) {
+                        try {
+                            return new String(Base64.decodeBase64(encodedUserDataValue.getBytes("utf-8")), "utf-8");
+                        } catch( UnsupportedEncodingException e ) {
+                            logger.error(e);
+                            throw new CloudException(e);
+                        }
+                    }
+                }
+                return null;
+            }
+            return null;
+        }
+    }
 
     @Override
-    public @Nonnull String getConsoleOutput(@Nonnull String instanceId) throws InternalException, CloudException {
+    public @Nonnull String getConsoleOutput( @Nonnull String instanceId ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getConsoleOutput");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.GET_CONSOLE_OUTPUT);
@@ -613,7 +616,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public int getCostFactor(@Nonnull VmState vmState) throws InternalException, CloudException {
+    public int getCostFactor( @Nonnull VmState vmState ) throws InternalException, CloudException {
         return ( vmState.equals(VmState.STOPPED) ? 0 : 100 );
     }
 
@@ -623,7 +626,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull Iterable<String> listFirewalls(@Nonnull String instanceId) throws InternalException, CloudException {
+    public @Nonnull Iterable<String> listFirewalls( @Nonnull String instanceId ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "listFirewallsForVM");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCES);
@@ -673,7 +676,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nullable VirtualMachine getVirtualMachine(@Nonnull String instanceId) throws InternalException, CloudException {
+    public @Nullable VirtualMachine getVirtualMachine( @Nonnull String instanceId ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getVirtualMachine");
         try {
             ProviderContext ctx = getProvider().getContext();
@@ -742,11 +745,11 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                             logger.error(e.getMessage());
                             addresses = Collections.emptyList();
                         }
-                      VirtualMachine server = toVirtualMachine( ctx, instance, addresses );
+                        VirtualMachine server = toVirtualMachine(ctx, instance, addresses);
 
-                      if ( server != null && server.getProviderVirtualMachineId().equals( instanceId ) ) {
-                        return server;
-                      }
+                        if( server != null && server.getProviderVirtualMachineId().equals(instanceId) ) {
+                            return server;
+                        }
                     }
                 }
             }
@@ -763,7 +766,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nullable VirtualMachineProduct getProduct(@Nonnull String sizeId) throws CloudException, InternalException {
+    public @Nullable VirtualMachineProduct getProduct( @Nonnull String sizeId ) throws CloudException, InternalException {
         for( Architecture a : getCapabilities().listSupportedArchitectures() ) {
             for( VirtualMachineProduct prd : listProducts(a) ) {
                 if( prd.getProviderProductId().equals(sizeId) ) {
@@ -774,20 +777,26 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return null;
     }
 
-    private VmState getServerState(String state) {
+    private VmState getServerState( String state ) {
         if( state.equals("pending") ) {
             return VmState.PENDING;
-        } else if( state.equals("running") ) {
+        }
+        else if( state.equals("running") ) {
             return VmState.RUNNING;
-        } else if( state.equals("terminating") || state.equals("stopping") ) {
+        }
+        else if( state.equals("terminating") || state.equals("stopping") ) {
             return VmState.STOPPING;
-        } else if( state.equals("stopped") ) {
+        }
+        else if( state.equals("stopped") ) {
             return VmState.STOPPED;
-        } else if( state.equals("shutting-down") ) {
+        }
+        else if( state.equals("shutting-down") ) {
             return VmState.STOPPING;
-        } else if( state.equals("terminated") ) {
+        }
+        else if( state.equals("terminated") ) {
             return VmState.TERMINATED;
-        } else if( state.equals("rebooting") ) {
+        }
+        else if( state.equals("rebooting") ) {
             return VmState.REBOOTING;
         }
         logger.warn("Unknown server state: " + state);
@@ -795,7 +804,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull VmStatistics getVMStatistics(@Nonnull String instanceId, @Nonnegative long startTimestamp, @Nonnegative long endTimestamp) throws InternalException, CloudException {
+    public @Nonnull VmStatistics getVMStatistics( @Nonnull String instanceId, @Nonnegative long startTimestamp, @Nonnegative long endTimestamp ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getVMStatistics");
         try {
             VmStatistics statistics = new VmStatistics();
@@ -808,7 +817,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 if( startTimestamp > ( endTimestamp - ( 2L * CalendarWrapper.MINUTE ) ) ) {
                     endTimestamp = startTimestamp + ( 2L * CalendarWrapper.MINUTE );
                 }
-            } else if( startTimestamp > ( endTimestamp - ( 2L * CalendarWrapper.MINUTE ) ) ) {
+            }
+            else if( startTimestamp > ( endTimestamp - ( 2L * CalendarWrapper.MINUTE ) ) ) {
                 startTimestamp = endTimestamp - ( 2L * CalendarWrapper.MINUTE );
             }
 
@@ -837,7 +847,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull Iterable<VmStatistics> getVMStatisticsForPeriod(@Nonnull String instanceId, long startTimestamp, long endTimestamp) throws InternalException, CloudException {
+    public @Nonnull Iterable<VmStatistics> getVMStatisticsForPeriod( @Nonnull String instanceId, long startTimestamp, long endTimestamp ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getVMStatisticsForPeriod");
         try {
             if( endTimestamp < 1L ) {
@@ -848,18 +858,19 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 if( startTimestamp > ( endTimestamp - ( 2L * CalendarWrapper.MINUTE ) ) ) {
                     endTimestamp = startTimestamp + ( 2L * CalendarWrapper.MINUTE );
                 }
-            } else if( startTimestamp > ( endTimestamp - ( 2L * CalendarWrapper.MINUTE ) ) ) {
+            }
+            else if( startTimestamp > ( endTimestamp - ( 2L * CalendarWrapper.MINUTE ) ) ) {
                 startTimestamp = endTimestamp - ( 2L * CalendarWrapper.MINUTE );
             }
             TreeMap<Integer, VmStatistics> statMap = new TreeMap<Integer, VmStatistics>();
-            int minutes = (int) ( ( endTimestamp - startTimestamp ) / CalendarWrapper.MINUTE );
+            int minutes = ( int ) ( ( endTimestamp - startTimestamp ) / CalendarWrapper.MINUTE );
 
             for( int i = 1; i <= minutes; i++ ) {
                 statMap.put(i, new VmStatistics());
             }
             Set<Metric> metrics = calculate("CPUUtilization", "Percent", instanceId, false, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
-                int minute = 1 + (int) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
+                int minute = 1 + ( int ) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
                 VmStatistics stats = statMap.get(minute);
 
                 if( stats == null ) {
@@ -884,7 +895,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             }
             metrics = calculate(idIsVolumeId ? "VolumeReadBytes" : "DiskReadBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
-                int minute = 1 + (int) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
+                int minute = 1 + ( int ) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
                 VmStatistics stats = statMap.get(minute);
 
                 if( stats == null ) {
@@ -900,7 +911,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             }
             metrics = calculate(idIsVolumeId ? "VolumeReadOps" : "DiskReadOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
-                int minute = 1 + (int) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
+                int minute = 1 + ( int ) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
                 VmStatistics stats = statMap.get(minute);
 
                 if( stats == null ) {
@@ -916,7 +927,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             }
             metrics = calculate(idIsVolumeId ? "VolumeWriteBytes" : "DiskWriteBytes", "Bytes", id, idIsVolumeId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
-                int minute = 1 + (int) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
+                int minute = 1 + ( int ) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
                 VmStatistics stats = statMap.get(minute);
 
                 if( stats == null ) {
@@ -932,7 +943,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             }
             metrics = calculate(idIsVolumeId ? "VolumeWriteOps" : "DiskWriteOps", "Count", id, idIsVolumeId, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
-                int minute = 1 + (int) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
+                int minute = 1 + ( int ) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
                 VmStatistics stats = statMap.get(minute);
 
                 if( stats == null ) {
@@ -948,7 +959,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             }
             metrics = calculate("NetworkIn", "Bytes", instanceId, false, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
-                int minute = 1 + (int) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
+                int minute = 1 + ( int ) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
                 VmStatistics stats = statMap.get(minute);
 
                 if( stats == null ) {
@@ -964,7 +975,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             }
             metrics = calculate("NetworkOut", "Bytes", instanceId, false, startTimestamp, endTimestamp);
             for( Metric m : metrics ) {
-                int minute = 1 + (int) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
+                int minute = 1 + ( int ) ( ( m.timestamp - startTimestamp ) / CalendarWrapper.MINUTE );
                 VmStatistics stats = statMap.get(minute);
 
                 if( stats == null ) {
@@ -993,13 +1004,13 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public Iterable<VirtualMachineStatus> getVMStatus(@Nullable String... vmIds) throws InternalException, CloudException {
+    public Iterable<VirtualMachineStatus> getVMStatus( @Nullable String... vmIds ) throws InternalException, CloudException {
         VmStatusFilterOptions filterOptions = vmIds != null ? VmStatusFilterOptions.getInstance().withVmIds(vmIds) : VmStatusFilterOptions.getInstance();
         return getVMStatus(filterOptions);
     }
 
     @Override
-    public @Nullable Iterable<VirtualMachineStatus> getVMStatus( @Nullable VmStatusFilterOptions filterOptions) throws InternalException, CloudException {
+    public @Nullable Iterable<VirtualMachineStatus> getVMStatus( @Nullable VmStatusFilterOptions filterOptions ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getVMStatus");
         try {
             ProviderContext ctx = getProvider().getContext();
@@ -1087,7 +1098,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    private Map<String, String> createFilterParametersFrom(@Nullable VmStatusFilterOptions options ) {
+    private Map<String, String> createFilterParametersFrom( @Nullable VmStatusFilterOptions options ) {
         if( options == null || options.isMatchesAny() ) {
             return Collections.emptyMap();
         }
@@ -1135,7 +1146,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull Iterable<VirtualMachineProduct> listProducts(Architecture architecture) throws InternalException, CloudException {
+    public @Nonnull Iterable<VirtualMachineProduct> listProducts( Architecture architecture ) throws InternalException, CloudException {
         ProviderContext ctx = getProvider().getContext();
 
         if( ctx == null ) {
@@ -1168,12 +1179,14 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
                         if( productSet.has("cloud") ) {
                             cloud = productSet.getString("cloud");
-                        } else {
+                        }
+                        else {
                             continue;
                         }
                         if( productSet.has("provider") ) {
                             providerName = productSet.getString("provider");
-                        } else {
+                        }
+                        else {
                             continue;
                         }
                         if( !productSet.has("products") ) {
@@ -1234,7 +1247,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         }
                     }
 
-                } else {
+                }
+                else {
                     logger.warn("No standard products resource exists for /org/dasein/cloud/aws/vmproducts.json");
                 }
                 input = EC2Instance.class.getResourceAsStream("/org/dasein/cloud/aws/vmproducts-custom.json");
@@ -1260,12 +1274,14 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
                         if( listing.has("cloud") ) {
                             cloud = listing.getString("cloud");
-                        } else {
+                        }
+                        else {
                             continue;
                         }
                         if( listing.has("provider") ) {
                             providerName = listing.getString("provider");
-                        } else {
+                        }
+                        else {
                             continue;
                         }
                         if( listing.has("endpoint") ) {
@@ -1359,7 +1375,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return products;
     }
 
-    private String guess(String privateDnsAddress) {
+    private String guess( String privateDnsAddress ) {
         String dnsAddress = privateDnsAddress;
         String[] parts = dnsAddress.split("\\.");
 
@@ -1374,7 +1390,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull VirtualMachine launch(@Nonnull VMLaunchOptions cfg) throws CloudException, InternalException {
+    public @Nonnull VirtualMachine launch( @Nonnull VMLaunchOptions cfg ) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "launchVM");
         try {
             ProviderContext ctx = getProvider().getContext();
@@ -1387,7 +1403,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 throw new AWSResourceNotFoundException("No such machine image: " + cfg.getMachineImageId());
             }
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.RUN_INSTANCES);
-            String ramdiskImage = (String) cfg.getMetaData().get("ramdiskImageId"), kernelImage = (String) cfg.getMetaData().get("kernelImageId");
+            String ramdiskImage = ( String ) cfg.getMetaData().get("ramdiskImageId"), kernelImage = ( String ) cfg.getMetaData().get("kernelImageId");
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -1417,7 +1433,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             }
             if( cfg.getDataCenterId() != null ) {
                 parameters.put("Placement.AvailabilityZone", cfg.getDataCenterId());
-            } else if( cfg.getVolumes().length > 0 ) {
+            }
+            else if( cfg.getVolumes().length > 0 ) {
                 String dc = null;
 
                 for( VolumeAttachment a : cfg.getVolumes() ) {
@@ -1452,7 +1469,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 for( VolumeAttachment a : cfg.getVolumes() ) {
                     if( a.deviceId != null ) {
                         deviceIds.add(a.deviceId);
-                    } else if( a.volumeToCreate != null && a.volumeToCreate.getDeviceId() != null ) {
+                    }
+                    else if( a.volumeToCreate != null && a.volumeToCreate.getDeviceId() != null ) {
                         deviceIds.add(a.volumeToCreate.getDeviceId());
                         a.deviceId = a.volumeToCreate.getDeviceId();
                     }
@@ -1481,11 +1499,13 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
                         if( a.volumeToCreate.getSnapshotId() != null ) {
                             parameters.put("BlockDeviceMapping." + i + ".Ebs.SnapshotId", a.volumeToCreate.getSnapshotId());
-                        } else {
+                        }
+                        else {
                             parameters.put("BlockDeviceMapping." + i + ".Ebs.VolumeSize", String.valueOf(a.volumeToCreate.getVolumeSize().getQuantity().intValue()));
                         }
                         i++;
-                    } else {
+                    }
+                    else {
                         existingVolumes.add(a);
                     }
                 }
@@ -1524,12 +1544,14 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                                 j++;
                             }
                         }
-                    } else {
+                    }
+                    else {
                         parameters.put("NetworkInterface." + i + ".NetworkInterfaceId", c.nicId);
                     }
                     i++;
                 }
-            } else {
+            }
+            else {
                 parameters.put("NetworkInterface.1.DeviceIndex", "0");
                 parameters.put("NetworkInterface.1.SubnetId", cfg.getSubnetId());
                 parameters.put("NetworkInterface.1.AssociatePublicIpAddress", String.valueOf(cfg.isAssociatePublicIpAddress()));
@@ -1602,13 +1624,14 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 try {
                     final String sid = server.getProviderVirtualMachineId();
                     try {
-                        Callable<String> callable = new GetPassCallable( sid, getProvider() );
+                        Callable<String> callable = new GetPassCallable(sid, getProvider());
                         String password = callable.call();
 
                         if( password == null ) {
                             server.setRootPassword(null);
                             server.setPasswordCallback(callable);
-                        } else {
+                        }
+                        else {
                             server.setRootPassword(password);
                         }
                         server.setPlatform(Platform.WINDOWS);
@@ -1625,7 +1648,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
             if( meta.isEmpty() ) {
                 toCreate = new Tag[2];
-            } else {
+            }
+            else {
                 int count = 0;
 
                 for( Map.Entry<String, Object> entry : meta.entrySet() ) {
@@ -1688,7 +1712,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             APITrace.end();
         }
     }
-    private void enableIpForwarding(final String instanceId) throws CloudException {
+
+    private void enableIpForwarding( final String instanceId ) throws CloudException {
 
         Thread t = new Thread() {
             public void run() {
@@ -1783,7 +1808,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull Iterable<VirtualMachine> listVirtualMachines(@Nullable VMFilterOptions options) throws InternalException, CloudException {
+    public @Nonnull Iterable<VirtualMachine> listVirtualMachines( @Nullable VMFilterOptions options ) throws InternalException, CloudException {
         Map<String, String> filterParameters = createFilterParametersFrom(options);
         if( options.getRegex() != null ) {
             // still have to match on regex
@@ -1797,7 +1822,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return listVirtualMachinesWithParams(filterParameters, options);
     }
 
-    private Map<String, String> createFilterParametersFrom(@Nullable VMFilterOptions options) {
+    private Map<String, String> createFilterParametersFrom( @Nullable VMFilterOptions options ) {
         if( options == null || options.isMatchesAny() ) {
             return Collections.emptyMap();
         }
@@ -1813,7 +1838,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return extraParameters;
     }
 
-    private @Nonnull Iterable<VirtualMachine> listVirtualMachinesWithParams(Map<String, String> extraParameters, @Nullable VMFilterOptions options) throws InternalException, CloudException {
+    private @Nonnull Iterable<VirtualMachine> listVirtualMachinesWithParams( Map<String, String> extraParameters, @Nullable VMFilterOptions options ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "listVirtualMachines");
         try {
             ProviderContext ctx = getProvider().getContext();
@@ -1895,40 +1920,50 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void pause(@Nonnull String vmId) throws InternalException, CloudException {
+    public void pause( @Nonnull String vmId ) throws InternalException, CloudException {
         throw new OperationNotSupportedException("Pause/unpause not supported by the EC2 API");
     }
 
     @Override
-    public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
+    public @Nonnull String[] mapServiceAction( @Nonnull ServiceAction action ) {
         if( action.equals(VirtualMachineSupport.ANY) ) {
             return new String[]{EC2Method.EC2_PREFIX + "*"};
-        } else if( action.equals(VirtualMachineSupport.BOOT) ) {
+        }
+        else if( action.equals(VirtualMachineSupport.BOOT) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.START_INSTANCES};
-        } else if( action.equals(VirtualMachineSupport.CLONE) ) {
+        }
+        else if( action.equals(VirtualMachineSupport.CLONE) ) {
             return new String[0];
-        } else if( action.equals(VirtualMachineSupport.CREATE_VM) ) {
+        }
+        else if( action.equals(VirtualMachineSupport.CREATE_VM) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.RUN_INSTANCES};
-        } else if( action.equals(VirtualMachineSupport.GET_VM) || action.equals(VirtualMachineSupport.LIST_VM) ) {
+        }
+        else if( action.equals(VirtualMachineSupport.GET_VM) || action.equals(VirtualMachineSupport.LIST_VM) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_INSTANCES};
-        } else if( action.equals(VirtualMachineSupport.PAUSE) ) {
+        }
+        else if( action.equals(VirtualMachineSupport.PAUSE) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.STOP_INSTANCES};
-        } else if( action.equals(VirtualMachineSupport.REBOOT) ) {
+        }
+        else if( action.equals(VirtualMachineSupport.REBOOT) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.REBOOT_INSTANCES};
-        } else if( action.equals(VirtualMachineSupport.REMOVE_VM) ) {
+        }
+        else if( action.equals(VirtualMachineSupport.REMOVE_VM) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.TERMINATE_INSTANCES};
-        } else if( action.equals(VirtualMachineSupport.TOGGLE_ANALYTICS) ) {
+        }
+        else if( action.equals(VirtualMachineSupport.TOGGLE_ANALYTICS) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.MONITOR_INSTANCES};
-        } else if( action.equals(VirtualMachineSupport.VIEW_ANALYTICS) ) {
+        }
+        else if( action.equals(VirtualMachineSupport.VIEW_ANALYTICS) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.GET_METRIC_STATISTICS};
-        } else if( action.equals(VirtualMachineSupport.VIEW_CONSOLE) ) {
+        }
+        else if( action.equals(VirtualMachineSupport.VIEW_CONSOLE) ) {
             return new String[]{EC2Method.EC2_PREFIX + EC2Method.GET_CONSOLE_OUTPUT};
         }
         return new String[0];
     }
 
     @Override
-    public void stop(@Nonnull String instanceId, boolean force) throws InternalException, CloudException {
+    public void stop( @Nonnull String instanceId, boolean force ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "stopVM");
         try {
             VirtualMachine vm = getVirtualMachine(instanceId);
@@ -1959,7 +1994,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void reboot(@Nonnull String instanceId) throws CloudException, InternalException {
+    public void reboot( @Nonnull String instanceId ) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "rebootVM");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.REBOOT_INSTANCES);
@@ -1979,17 +2014,17 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void resume(@Nonnull String vmId) throws CloudException, InternalException {
+    public void resume( @Nonnull String vmId ) throws CloudException, InternalException {
         throw new OperationNotSupportedException("Suspend/resume not supported by the EC2 API");
     }
 
     @Override
-    public void suspend(@Nonnull String vmId) throws CloudException, InternalException {
+    public void suspend( @Nonnull String vmId ) throws CloudException, InternalException {
         throw new OperationNotSupportedException("Suspend/resume not supported by the EC2 API");
     }
 
     @Override
-    public void terminate(@Nonnull String instanceId, @Nullable String explanation) throws InternalException, CloudException {
+    public void terminate( @Nonnull String instanceId, @Nullable String explanation ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "terminateVM");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.TERMINATE_INSTANCES);
@@ -2009,11 +2044,11 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void unpause(@Nonnull String vmId) throws CloudException, InternalException {
+    public void unpause( @Nonnull String vmId ) throws CloudException, InternalException {
         throw new OperationNotSupportedException("Pause/unpause not supported by the EC2 API");
     }
 
-    private @Nullable ResourceStatus toStatus(@Nullable Node instance) throws CloudException {
+    private @Nullable ResourceStatus toStatus( @Nullable Node instance ) throws CloudException {
         if( instance == null ) {
             return null;
         }
@@ -2028,7 +2063,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             name = attr.getNodeName();
             if( name.equals("instanceId") ) {
                 vmId = attr.getFirstChild().getNodeValue().trim();
-            } else if( name.equals("instanceState") ) {
+            }
+            else if( name.equals("instanceState") ) {
                 NodeList details = attr.getChildNodes();
 
                 for( int j = 0; j < details.getLength(); j++ ) {
@@ -2049,7 +2085,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return new ResourceStatus(vmId, state);
     }
 
-    private @Nullable VmStatus toVmStatus(@Nonnull String status ) {
+    private @Nullable VmStatus toVmStatus( @Nonnull String status ) {
         // ok | impaired | insufficient-data | not-applicable
         if( status.equalsIgnoreCase("ok") ) return VmStatus.OK;
         else if( status.equalsIgnoreCase("impaired") ) {
@@ -2066,7 +2102,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    private @Nullable VirtualMachine toVirtualMachine(@Nonnull ProviderContext ctx, @Nullable Node instance, @Nonnull Iterable<IpAddress> addresses) throws CloudException {
+    private @Nullable VirtualMachine toVirtualMachine( @Nonnull ProviderContext ctx, @Nullable Node instance, @Nonnull Iterable<IpAddress> addresses ) throws CloudException {
         if( instance == null ) {
             return null;
         }
@@ -2088,35 +2124,43 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 String value = attr.getFirstChild().getNodeValue().trim();
 
                 server.setProviderVirtualMachineId(value);
-            } else if( name.equals("architecture") ) {
+            }
+            else if( name.equals("architecture") ) {
                 String value = attr.getFirstChild().getNodeValue().trim();
                 Architecture architecture;
 
                 if( value.equalsIgnoreCase("i386") ) {
                     architecture = Architecture.I32;
-                } else {
+                }
+                else {
                     architecture = Architecture.I64;
                 }
                 server.setArchitecture(architecture);
-            } else if( name.equals("imageId") ) {
+            }
+            else if( name.equals("imageId") ) {
                 String value = attr.getFirstChild().getNodeValue().trim();
 
                 server.setProviderMachineImageId(value);
-            } else if( name.equals("kernelId") ) {
+            }
+            else if( name.equals("kernelId") ) {
                 String value = attr.getFirstChild().getNodeValue().trim();
 
                 server.setTag("kernelImageId", value);
                 server.setProviderKernelImageId(value);
-            } else if( name.equals("ramdiskId") ) {
+            }
+            else if( name.equals("ramdiskId") ) {
                 String value = attr.getFirstChild().getNodeValue().trim();
 
                 server.setTag("ramdiskImageId", value);
                 server.setProviderRamdiskImageId(value);
-            } else if( name.equalsIgnoreCase("subnetId") ) {
+            }
+            else if( name.equalsIgnoreCase("subnetId") ) {
                 server.setProviderSubnetId(attr.getFirstChild().getNodeValue().trim());
-            } else if( name.equalsIgnoreCase("vpcId") ) {
+            }
+            else if( name.equalsIgnoreCase("vpcId") ) {
                 server.setProviderVlanId(attr.getFirstChild().getNodeValue().trim());
-            } else if( name.equals("instanceState") ) {
+            }
+            else if( name.equals("instanceState") ) {
                 NodeList details = attr.getChildNodes();
 
                 for( int j = 0; j < details.getLength(); j++ ) {
@@ -2129,7 +2173,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         server.setCurrentState(getServerState(value));
                     }
                 }
-            } else if( name.equals("privateDnsName") ) {
+            }
+            else if( name.equals("privateDnsName") ) {
                 if( attr.hasChildNodes() ) {
                     String value = attr.getFirstChild().getNodeValue();
                     RawAddress[] addrs = server.getPrivateAddresses();
@@ -2142,20 +2187,23 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         }
                     }
                 }
-            } else if( name.equals("dnsName") ) {
+            }
+            else if( name.equals("dnsName") ) {
                 if( attr.hasChildNodes() ) {
                     String value = attr.getFirstChild().getNodeValue();
                     RawAddress[] addrs = server.getPublicAddresses();
 
                     server.setPublicDnsAddress(value);
                 }
-            } else if( name.equals("privateIpAddress") ) {
+            }
+            else if( name.equals("privateIpAddress") ) {
                 if( attr.hasChildNodes() ) {
                     String value = attr.getFirstChild().getNodeValue();
 
                     server.setPrivateAddresses(new RawAddress(value));
                 }
-            } else if( name.equals("ipAddress") ) {
+            }
+            else if( name.equals("ipAddress") ) {
                 if( attr.hasChildNodes() ) {
                     String value = attr.getFirstChild().getNodeValue();
 
@@ -2167,11 +2215,13 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         }
                     }
                 }
-            } else if( name.equals("rootDeviceType") ) {
+            }
+            else if( name.equals("rootDeviceType") ) {
                 if( attr.hasChildNodes() ) {
                     server.setPersistent(attr.getFirstChild().getNodeValue().equalsIgnoreCase("ebs"));
                 }
-            } else if( name.equals("tagSet") ) {
+            }
+            else if( name.equals("tagSet") ) {
 
                 Map<String, String> tags = getProvider().getTagsFromTagSet(attr);
                 if( tags != null && tags.size() > 0 ) {
@@ -2179,16 +2229,19 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     for( Map.Entry<String, String> entry : tags.entrySet() ) {
                         if( entry.getKey().equalsIgnoreCase("name") ) {
                             server.setName(entry.getValue());
-                        } else if( entry.getKey().equalsIgnoreCase("description") ) {
+                        }
+                        else if( entry.getKey().equalsIgnoreCase("description") ) {
                             server.setDescription(entry.getValue());
                         }
                     }
                 }
-            } else if( name.equals("instanceType") ) {
+            }
+            else if( name.equals("instanceType") ) {
                 String value = attr.getFirstChild().getNodeValue().trim();
 
                 server.setProductId(value);
-            } else if( name.equals("launchTime") ) {
+            }
+            else if( name.equals("launchTime") ) {
                 SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
                 fmt.setCalendar(UTC_CALENDAR);
                 String value = attr.getFirstChild().getNodeValue().trim();
@@ -2200,7 +2253,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     logger.error(e);
                     throw new CloudException(e);
                 }
-            } else if( name.equals("platform") ) {
+            }
+            else if( name.equals("platform") ) {
                 if( attr.hasChildNodes() ) {
                     Platform platform = Platform.guess(attr.getFirstChild().getNodeValue());
                     if( platform.equals(Platform.UNKNOWN) ) {
@@ -2208,7 +2262,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     }
                     server.setPlatform(platform);
                 }
-            } else if( name.equals("placement") ) {
+            }
+            else if( name.equals("placement") ) {
                 NodeList details = attr.getChildNodes();
 
                 for( int j = 0; j < details.getLength(); j++ ) {
@@ -2223,7 +2278,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         }
                     }
                 }
-            } else if( name.equals("networkInterfaceSet") ) {
+            }
+            else if( name.equals("networkInterfaceSet") ) {
                 ArrayList<String> networkInterfaceIds = new ArrayList<String>();
                 if( attr.hasChildNodes() ) {
                     NodeList items = attr.getChildNodes();
@@ -2304,10 +2360,12 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             </item>
           </networkInterfaceSet>
          */
-            } else if( name.equals("keyName") ) {
+            }
+            else if( name.equals("keyName") ) {
                 String value = attr.getFirstChild().getNodeValue().trim();
                 server.setProviderKeypairId(value);
-            } else if( name.equals("groupSet") ) {
+            }
+            else if( name.equals("groupSet") ) {
                 ArrayList<String> firewalls = new ArrayList<String>();
                 if( attr.hasChildNodes() ) {
                     NodeList tags = attr.getChildNodes();
@@ -2337,7 +2395,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 if( firewalls.size() > 0 ) {
                     server.setProviderFirewallIds(firewalls.toArray(new String[firewalls.size()]));
                 }
-            } else if( "blockDeviceMapping".equals(name) && attr.hasChildNodes() ) {
+            }
+            else if( "blockDeviceMapping".equals(name) && attr.hasChildNodes() ) {
                 List<Volume> volumes = new ArrayList<Volume>();
                 if( attr.hasChildNodes() ) {
                     NodeList blockDeviceMapping = attr.getChildNodes();
@@ -2355,7 +2414,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
                                 if( "deviceName".equals(itemNodeName) ) {
                                     volume.setDeviceId(AWSCloud.getTextValue(item));
-                                } else if( "ebs".equals(itemNodeName) ) {
+                                }
+                                else if( "ebs".equals(itemNodeName) ) {
                                     NodeList ebsNodeList = item.getChildNodes();
 
                                     for( int l = 0; l < ebsNodeList.getLength(); l++ ) {
@@ -2364,9 +2424,11 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
                                         if( "volumeId".equals(ebsNodeName) ) {
                                             volume.setProviderVolumeId(AWSCloud.getTextValue(ebsNode));
-                                        } else if( "status".equals(ebsNodeName) ) {
+                                        }
+                                        else if( "status".equals(ebsNodeName) ) {
                                             volume.setCurrentState(EBSVolume.toVolumeState(ebsNode));
-                                        } else if( "deleteOnTermination".equals(ebsNodeName) ) {
+                                        }
+                                        else if( "deleteOnTermination".equals(ebsNodeName) ) {
                                             volume.setDeleteOnVirtualMachineTermination(AWSCloud.getBooleanValue(ebsNode));
                                         }
                                     }
@@ -2383,19 +2445,24 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 if( volumes.size() > 0 ) {
                     server.setVolumes(volumes.toArray(new Volume[volumes.size()]));
                 }
-            } else if( "rootDeviceName".equals(name) && attr.hasChildNodes() ) {
+            }
+            else if( "rootDeviceName".equals(name) && attr.hasChildNodes() ) {
                 rootDeviceName = AWSCloud.getTextValue(attr);
-            } else if( "ebsOptimized".equals(name) && attr.hasChildNodes() ) {
+            }
+            else if( "ebsOptimized".equals(name) && attr.hasChildNodes() ) {
                 server.setIoOptimized(Boolean.valueOf(attr.getFirstChild().getNodeValue()));
-            } else if( "sourceDestCheck".equals(name) && attr.hasChildNodes() ) {
+            }
+            else if( "sourceDestCheck".equals(name) && attr.hasChildNodes() ) {
                 /**
                  * note: a value of <sourceDestCheck>true</sourceDestCheck> means this instance cannot
                  * function as a NAT instance, so we negate the value to indicate if it is allowed
                  */
                 server.setIpForwardingAllowed(!Boolean.valueOf(attr.getFirstChild().getNodeValue()));
-            } else if( "stateReasonMessage".equals(name) ) {
+            }
+            else if( "stateReasonMessage".equals(name) ) {
                 server.setStateReasonMessage(attr.getFirstChild().getNodeValue().trim());
-            } else if( "iamInstanceProfile".equals(name) && attr.hasChildNodes() ) {
+            }
+            else if( "iamInstanceProfile".equals(name) && attr.hasChildNodes() ) {
                 NodeList details = attr.getChildNodes();
 
                 for( int j = 0; j < details.getLength(); j++ ) {
@@ -2423,7 +2490,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
         if( server.getArchitecture() == null && server.getProductId() != null ) {
             server.setArchitecture(getArchitecture(server.getProductId()));
-        } else if( server.getArchitecture() == null ) {
+        }
+        else if( server.getArchitecture() == null ) {
             server.setArchitecture(Architecture.I64);
         }
 
@@ -2441,7 +2509,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void disableAnalytics(@Nonnull String instanceId) throws InternalException, CloudException {
+    public void disableAnalytics( @Nonnull String instanceId ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "disableVMAnalytics");
         try {
             if( getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus() ) {
@@ -2462,7 +2530,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    private @Nullable VirtualMachineProduct toProduct(@Nonnull JSONObject json) throws InternalException {
+    private @Nullable VirtualMachineProduct toProduct( @Nonnull JSONObject json ) throws InternalException {
         /*
                     {
                 "architectures":["I32"],
@@ -2479,32 +2547,38 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         try {
             if( json.has("id") ) {
                 prd.setProviderProductId(json.getString("id"));
-            } else {
+            }
+            else {
                 return null;
             }
             if( json.has("name") ) {
                 prd.setName(json.getString("name"));
-            } else {
+            }
+            else {
                 prd.setName(prd.getProviderProductId());
             }
             if( json.has("description") ) {
                 prd.setDescription(json.getString("description"));
-            } else {
+            }
+            else {
                 prd.setDescription(prd.getName());
             }
             if( json.has("cpuCount") ) {
                 prd.setCpuCount(json.getInt("cpuCount"));
-            } else {
+            }
+            else {
                 prd.setCpuCount(1);
             }
             if( json.has("rootVolumeSizeInGb") ) {
                 prd.setRootVolumeSize(new Storage<Gigabyte>(json.getInt("rootVolumeSizeInGb"), Storage.GIGABYTE));
-            } else {
+            }
+            else {
                 prd.setRootVolumeSize(new Storage<Gigabyte>(1, Storage.GIGABYTE));
             }
             if( json.has("ramSizeInMb") ) {
                 prd.setRamSize(new Storage<Megabyte>(json.getInt("ramSizeInMb"), Storage.MEGABYTE));
-            } else {
+            }
+            else {
                 prd.setRamSize(new Storage<Megabyte>(512, Storage.MEGABYTE));
             }
             if( json.has("standardHourlyRates") ) {
@@ -2514,7 +2588,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     JSONObject rate = rates.getJSONObject(i);
 
                     if( rate.has("rate") ) {
-                        prd.setStandardHourlyRate((float) rate.getDouble("rate"));
+                        prd.setStandardHourlyRate(( float ) rate.getDouble("rate"));
                     }
                 }
             }
@@ -2525,60 +2599,117 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void updateTags(@Nonnull String vmId, @Nonnull Tag... tags) throws CloudException, InternalException {
+    public void updateTags( @Nonnull String vmId, @Nonnull Tag... tags ) throws CloudException, InternalException {
         getProvider().createTags(vmId, tags);
     }
 
     @Override
-    public void updateTags(@Nonnull String[] vmIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+    public void updateTags( @Nonnull String[] vmIds, @Nonnull Tag... tags ) throws CloudException, InternalException {
         getProvider().createTags(vmIds, tags);
     }
 
     @Override
-    public void removeTags(@Nonnull String vmId, @Nonnull Tag... tags) throws CloudException, InternalException {
+    public void removeTags( @Nonnull String vmId, @Nonnull Tag... tags ) throws CloudException, InternalException {
         getProvider().removeTags(vmId, tags);
     }
 
     @Override
-    public void removeTags(@Nonnull String[] vmIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+    public void removeTags( @Nonnull String[] vmIds, @Nonnull Tag... tags ) throws CloudException, InternalException {
         getProvider().removeTags(vmIds, tags);
     }
 
     @Override
     public void cancelSpotDataFeedSubscription() throws CloudException, InternalException {
-        super.cancelSpotDataFeedSubscription();
+        if( getProvider().getEC2Provider().isAWS() ) {
+            try {
+                APITrace.begin(getProvider(), "cancelSpotVirtualMachineRequest");
+                Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DELETE_SPOT_DATAFEED_SUBSCRIPTION);
+                EC2Method method;
+                method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+                try {
+                    method.invoke();
+                } catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+            } finally {
+                APITrace.end();
+            }
+        }
+        else {
+            throw new OperationNotSupportedException("Spot VMs are not supported in " + getProvider().getCloudName());
+        }
     }
 
     @Override
-    public void cancelSpotInstanceRequest( String providerSpotInstanceRequestID ) throws CloudException, InternalException {
-        super.cancelSpotInstanceRequest(providerSpotInstanceRequestID);
+    public void cancelSpotVirtualMachineRequest( String providerSpotInstanceRequestID ) throws CloudException, InternalException {
+        if( getProvider().getEC2Provider().isAWS() ) {
+            try {
+                APITrace.begin(getProvider(), "cancelSpotVirtualMachineRequest");
+                Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.CANCEL_SPOT_INSTANCE_REQUESTS);
+                parameters.put("SpotInstanceRequestId.1", providerSpotInstanceRequestID);
+                EC2Method method;
+                method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+                try {
+                    method.invoke();
+                } catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+            } finally {
+                APITrace.end();
+            }
+        }
+        else {
+            throw new OperationNotSupportedException("Spot VMs are not supported in " + getProvider().getCloudName());
+        }
     }
 
     @Override
-    public @Nonnull SpotInstanceRequest createSpotInstanceRequest( SIRequestCreateOptions options ) throws CloudException, InternalException {
-        return super.createSpotInstanceRequest(options);
-    }
+    public @Nonnull SpotVirtualMachineRequest createSpotVirtualMachineRequest( SpotVirtualMachineRequestCreateOptions options ) throws CloudException, InternalException {
+        if( getProvider().getEC2Provider().isAWS() ) {
+            try {
+                APITrace.begin(getProvider(), "createSpotVirtualMachineRequest");
+                Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.REQUEST_SPOT_INSTANCES);
+                parameters.put("SpotPrice", String.valueOf(options.getMaximumPrice()));
+                parameters.put("InstanceCount", String.valueOf(options.getVmCount()));
+                if( options.getType() != null ) {
+                    parameters.put("Type", options.getType().name().toLowerCase());
+                }
+                if( options.getStartTimestamp() > 0 ) {
+                    parameters.put("ValidFrom", getProvider().getTimestamp(options.getStartTimestamp(), true));
+                }
+                if( options.getExpiryTimestamp() > 0 ) {
+                    parameters.put("ValidUntil", getProvider().getTimestamp(options.getExpiryTimestamp(), true));
+                }
+                if( options.getLaunchGroup() != null ) {
+                    parameters.put("LaunchGroup", options.getLaunchGroup());
+                }
+                if( options.getProviderMachineImageId() != null ) {
+                    parameters.put("LaunchSpecification.ImageId", options.getProviderMachineImageId());
+                }
+                if( options.getProviderIAMRoleId() != null ) {
+                    parameters.put("LaunchSpecification.IamInstanceProfile.Arn", options.getProviderIAMRoleId());
+                }
+                if( options.getProviderProductId() != null ) {
+                    parameters.put("LaunchSpecification.InstanceType", options.getProviderProductId());
+                }
+                if( options.getProviderSubnetId() != null ) {
+                    parameters.put("LaunchSpecification.SubnetId", options.getProviderSubnetId());
+                }
+                if( options.getUserData() != null ) {
+                    try {
+                        parameters.put("LaunchSpecification.UserData", Base64.encodeBase64String(options.getUserData().getBytes("utf-8")));
+                    } catch( UnsupportedEncodingException e ) {
+                        throw new InternalException(e);
+                    }
+                }
+                parameters.put("LaunchSpecification.Monitoring.Enabled", String.valueOf(options.isMonitoring()));
 
-    @Override
-    public void enableSpotDataFeedSubscription( String s3BucketName ) throws CloudException, InternalException {
-        super.enableSpotDataFeedSubscription(s3BucketName);
-    }
-
-    @Override
-    public Iterable<SpotPriceHistory> listSpotPriceHistories( SPHistoryFilterOptions options ) throws CloudException, InternalException {
-        APITrace.begin(getProvider(), "listSpotPriceHistories");
-        List<SpotPriceHistory> list = new ArrayList<SpotPriceHistory>();
-        try {
-            if( getProvider().getEC2Provider().isAWS() ) {
-                Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_SPOT_PRICE_HISTORY);
                 EC2Method method;
                 Document doc;
                 NodeList blocks;
-                int productIndex = 1;
-                for( String product : options.getProductIds() ) {
-                    parameters.put(String.format("InstanceType.%d", productIndex), product);
-                    productIndex++;
-                }
+
                 method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
                 try {
                     doc = method.invoke();
@@ -2586,7 +2717,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     logger.error(e.getSummary());
                     throw new CloudException(e);
                 }
-                blocks = doc.getElementsByTagName("spotPriceHistorySet");
+                blocks = doc.getElementsByTagName("spotInstanceRequestSet");
+
                 for( int i = 0; i < blocks.getLength(); i++ ) {
                     NodeList items = blocks.item(i).getChildNodes();
 
@@ -2594,52 +2726,217 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         Node item = items.item(j);
 
                         if( "item".equals(item.getNodeName()) ) {
-
-                            SpotPriceHistory sph = toSpotPriceHistory(ctx, item);
-
-                            if( options == null || options.matches(sph) ) {
-                                list.add(sph);
-                            }
+                            return toSpotVmRequest(item, options);
                         }
                     }
                 }
+            } finally {
+                APITrace.end();
             }
-            return list;
-        } finally {
-            APITrace.end();
+        }
+        else {
+            throw new OperationNotSupportedException("Spot VMs are not supported in " + getProvider().getCloudName());
+        }
+        throw new CloudException("Could not execute the spot VMs request.");
+    }
+
+    @Override
+    public void enableSpotDataFeedSubscription( String s3BucketName ) throws CloudException, InternalException {
+        if( getProvider().getEC2Provider().isAWS() ) {
+            try {
+                APITrace.begin(getProvider(), "enableSpotDataFeedSubscription");
+
+                Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.CREATE_SPOT_DATAFEED_SUBSCRIPTION);
+                parameters.put("Bucket", s3BucketName);
+                EC2Method method;
+                method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+                try {
+                    method.invoke();
+                } catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+            } finally {
+                APITrace.end();
+            }
+        }
+        else {
+            throw new OperationNotSupportedException("Spot VMs are not supported in " + getProvider().getCloudName());
         }
     }
 
-    private SpotPriceHistory toSpotPriceHistory(ProviderContext ctx, Node item) {
-        NodeList attrs = item.getChildNodes();
-        String timestamp = null;
-        String spotPrice = null;
-        String product = null;
-        String productDescription = null;
-        String availabilityZone = null;
-        for( int i = 0; i < attrs.getLength(); i++ ) {
-            Node attr = attrs.item(i);
-            String name = attr.getNodeName();
-            if( "instanceType".equals(name) ) {
-                product = attr.getFirstChild().getNodeValue().trim();
+    @Override
+    public Iterable<SpotPriceHistory> listSpotPriceHistories( @Nullable SpotPriceHistoryFilterOptions options ) throws CloudException, InternalException {
+        if( getProvider().getEC2Provider().isAWS() ) {
+
+            try {
+                APITrace.begin(getProvider(), "listSpotPriceHistories");
+                Map<Pair<String, String>, List<SpotPrice>> prices = new HashMap<Pair<String, String>, List<SpotPrice>>();
+                String token = null;
+                do {
+                    token = fetchSpotPriceHistories(prices, options, token);
+                } while( token != null );
+
+                List<SpotPriceHistory> list = new ArrayList<SpotPriceHistory>();
+                for( Pair<String, String> pair : prices.keySet() ) {
+                    SpotPriceHistory sph = SpotPriceHistory.getInstance(pair.getRight(), pair.getLeft(), prices.get(pair).toArray(new SpotPrice[]{}));
+                    if( options != null && options.matches(sph) ) {
+                        list.add(sph);
+                    }
+                }
+                return list;
+            } finally {
+                APITrace.end();
             }
-            else if( "productDescription".equals(name) ) {
-                productDescription = attr.getFirstChild().getNodeValue().trim();
+        }
+        else {
+            throw new OperationNotSupportedException("Spot VMs are not supported in " + getProvider().getCloudName());
+        }
+    }
+
+    /**
+     * @param prices
+     * @param options
+     * @param nextToken
+     * @return
+     * @throws CloudException
+     * @throws InternalException
+     */
+    private String fetchSpotPriceHistories( Map<Pair<String, String>, List<SpotPrice>> prices, @Nonnull @Nullable SpotPriceHistoryFilterOptions options, String nextToken ) throws CloudException, InternalException {
+        Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_SPOT_PRICE_HISTORY);
+        EC2Method method;
+        Document doc;
+        NodeList blocks;
+        int productIndex = 1;
+        if( options != null ) {
+            if( options.getProductIds() != null ) {
+                for( String product : options.getProductIds() ) {
+                    parameters.put(String.format("InstanceType.%d", productIndex), product);
+                    productIndex++;
+                }
+            }
+            if( options.hasCriteria() && options.getStartTimestamp() > 0 ) {
+                parameters.put("StartTime", getProvider().getTimestamp(options.getStartTimestamp(), true));
+                parameters.put("EndTime", getProvider().getTimestamp(options.getEndTimestamp(), true));
+            }
+        }
+        if( nextToken != null ) {
+            parameters.put("NextToken", nextToken);
+        }
+        method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        } catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("spotPriceHistorySet");
+
+        for( int i = 0; i < blocks.getLength(); i++ ) {
+            NodeList items = blocks.item(i).getChildNodes();
+
+            for( int j = 0; j < items.getLength(); j++ ) {
+                Node item = items.item(j);
+
+                if( "item".equals(item.getNodeName()) ) {
+                    NodeList attrs = item.getChildNodes();
+                    long timestamp = -1;
+                    float spotPrice = -1.0f;
+                    String product = null;
+                    String productDescription = null;
+                    String availabilityZone = null;
+
+                    for( int k = 0; k < attrs.getLength(); k++ ) {
+                        Node attr = attrs.item(k);
+                        String name = attr.getNodeName();
+                        if( "instanceType".equals(name) ) {
+                            product = attr.getFirstChild().getNodeValue().trim();
+                        }
+                        else if( "productDescription".equals(name) ) {
+                            productDescription = attr.getFirstChild().getNodeValue().trim();
+                        }
+                        else if( "spotPrice".equals(name) ) {
+                            spotPrice = Float.valueOf(attr.getFirstChild().getNodeValue().trim());
+                        }
+                        else if( "timestamp".equals(name) ) {
+                            timestamp = getProvider().getTimestampValue(attr);
+                        }
+                        else if( "availabilityZone".equals(name) ) {
+                            availabilityZone = attr.getFirstChild().getNodeValue().trim();
+                        }
+                    }
+                    if( product == null || spotPrice < 0 || availabilityZone == null || timestamp < 0 ) {
+                        continue;
+                    }
+                    // AWS is not returning the prices precisely in the time-bounds requested,
+                    // so filter out what is out of bounds.
+                    if( options != null && options.getStartTimestamp() > 0 && ( timestamp < options.getStartTimestamp() || options.getEndTimestamp() < timestamp ) ) {
+                        // this timestamp is out of bounds, skip this price
+                        continue;
+                    }
+                    SpotPrice price = SpotPrice.getInstance(timestamp, spotPrice);
+                    Pair<String, String> key = Pair.of(product, availabilityZone);
+                    List<SpotPrice> subList = prices.get(key);
+                    if( subList == null ) {
+                        subList = new ArrayList<SpotPrice>();
+                        prices.put(key, subList);
+                    }
+                    subList.add(price);
+                }
+            }
+        }
+        nextToken = "";
+        blocks = doc.getElementsByTagName("nextToken");
+        if( blocks.getLength() > 0 ) {
+            nextToken = AWSCloud.getTextValue(blocks.item(0));
+            if( nextToken != null && nextToken.trim().length() == 0 ) {
+                nextToken = null;
+            }
+        }
+        return nextToken;
+    }
+
+    private SpotVirtualMachineRequest toSpotVmRequest( @Nonnull Node node, SpotVirtualMachineRequestCreateOptions options ) throws CloudException {
+        NodeList el = node.getChildNodes();
+        String requestId = null;
+        float price = 0.0F;
+        SpotVirtualMachineRequestType type = options.getType();
+        long fulfillmentTs = 0;
+        String amiId = options.getProviderMachineImageId();
+        String productId = options.getProviderProductId();
+        long createdTs = 0;
+        String fulfillmentDcid = null;
+        String launchGroup = options.getLaunchGroup();
+
+        for( int i = 0; i < el.getLength(); i++ ) {
+            Node item = el.item(i);
+            String name = item.getNodeName();
+
+            if( "spotInstanceRequestId".equals(name) ) {
+                requestId = node.getFirstChild().getNodeValue().trim();
             }
             else if( "spotPrice".equals(name) ) {
-                spotPrice = attr.getFirstChild().getNodeValue().trim();
+                price = Float.parseFloat(node.getFirstChild().getNodeName().trim());
             }
-            else if( "timestamp".equals(name) ) {
-                timestamp = attr.getFirstChild().getNodeValue().trim();
+            else if( "type".equals(name) ) {
+                type = SpotVirtualMachineRequestType.valueOf(node.getFirstChild().getNodeName().trim());
             }
-            else if( "availabilityZone".equals(name) ) {
-                availabilityZone = attr.getFirstChild().getNodeValue().trim();
+            else if( "launchGroup".equals(name) ) {
+                launchGroup = node.getFirstChild().getNodeName().trim();
+            }
+            else if( "launchedAvailabilityZone".equals(name) ) {
+                fulfillmentDcid = node.getFirstChild().getNodeName().trim();
+            }
+            else if( "createTime".equals(name) ) {
+                createdTs = getProvider().getTimestampValue(node);
+            }
+            else if( "spotPrice".equals(name) ) {
+                price = Float.parseFloat(node.getFirstChild().getNodeName().trim());
+            }
+            else if( "spotPrice".equals(name) ) {
+                price = Float.parseFloat(node.getFirstChild().getNodeName().trim());
             }
         }
-        if( product == null || spotPrice == null || availabilityZone == null || timestamp == null ) {
-            return null;
-        }
-        return SpotPriceHistory.getInstance()
-
+        return SpotVirtualMachineRequest.getInstance(requestId, price, type, fulfillmentTs, amiId, productId, createdTs, fulfillmentDcid, launchGroup);
     }
 }
