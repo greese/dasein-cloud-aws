@@ -196,4 +196,8 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
         }
         return architectures;
     }
+
+    @Override public boolean supportsSpotVirtualMachines() throws InternalException, CloudException {
+        return (getProvider().getEC2Provider().isAWS());
+    }
 }
