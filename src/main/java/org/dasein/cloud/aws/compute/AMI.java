@@ -301,6 +301,63 @@ public class AMI extends AbstractImageSupport {
         }
     }
 
+    @Override
+    public @Nonnull MachineImage copyImage(@Nonnull ImageCopyOptions options) throws CloudException, InternalException {
+        APITrace.begin(provider, "copyImage");
+        try {
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.COPY_IMAGE);
+
+            parameters.put("SourceRegion", options.getSourceRegionId());
+            parameters.put("SourceImageId", options.getProviderImageId());
+            if (options.getName() != null) {
+                parameters.put("Name", options.getName());
+            }
+            if (options.getDescription() != null) {
+                parameters.put("Description", options.getDescription());
+            }
+
+            Document doc;
+            try {
+                EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            NodeList blocks = doc.getElementsByTagName("imageId");
+            if( blocks.getLength() > 0 ) {
+                Node imageIdNode = blocks.item(0);
+                String id = imageIdNode.getFirstChild().getNodeValue().trim();
+                MachineImage img = null;
+
+                // Wait until copied image is ACTIVE
+                long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30);
+                while ( timeout > System.currentTimeMillis() ) {
+                    img = getImage(id);
+                    if( img != null && MachineImageState.ACTIVE == img.getCurrentState() ) {
+                        break;
+                    }
+                    try {
+                        Thread.sleep( CalendarWrapper.SECOND * 10 );
+                    }
+                    catch ( InterruptedException ignore ) { }
+                }
+                if( img == null ) {
+                    throw new CloudException("No image exists for " + id + " as created during the capture process");
+                }
+                if ( MachineImageState.ACTIVE != img.getCurrentState() ) {
+                    throw new CloudException("Image " + id + " did not become ACTIVE within allotted timeout");
+                }
+                return img;
+            }
+            throw new CloudException("No error occurred during imaging, but no machine image was specified");
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
     private @Nonnull Iterable<MachineImage> executeImageSearch(int pass, boolean forPublic, @Nonnull ImageFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "Image.executeImageSearch");
         try {
@@ -748,6 +805,9 @@ public class AMI extends AbstractImageSupport {
         }
         else if( action.equals(MachineImageSupport.IMAGE_VM) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.CREATE_IMAGE, EC2Method.EC2_PREFIX + EC2Method.REGISTER_IMAGE };
+        }
+        else if( action.equals(MachineImageSupport.COPY_IMAGE) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.COPY_IMAGE };
         }
         else if( action.equals(MachineImageSupport.LIST_IMAGE) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_IMAGES };
