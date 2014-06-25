@@ -302,58 +302,71 @@ public class AMI extends AbstractImageSupport {
     }
 
     @Override
-    public @Nonnull MachineImage copyImage(@Nonnull ImageCopyOptions options) throws CloudException, InternalException {
+    public @Nonnull String copyImage(@Nonnull ImageCopyOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "copyImage");
+        AWSCloud targetProvider = null;
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.COPY_IMAGE);
+            /* Steps overview:
+             * 1. Connect to target region using the same account
+             * 2. Invoke EC2 'copyImage' method in the context of target region
+             */
+            final ProviderContext ctx = provider.getContext();
+            if( ctx == null ) {
+                throw new CloudException( "Provider context is necessary for this request" );
+            }
+            final String sourceRegionId = ctx.getRegionId();
+            final String targetRegionId = options.getTargetRegionId();
 
-            parameters.put("SourceRegion", options.getSourceRegionId());
-            parameters.put("SourceImageId", options.getProviderImageId());
+            // Build provider context, copying everything but the regionId
+            List<ContextRequirements.Field> fields = provider.getContextRequirements().getConfigurableValues();
+            List<ProviderContext.Value<Object>> values = new ArrayList<ProviderContext.Value<Object>>();
+            for ( ContextRequirements.Field f : fields ) {
+                Object value = ctx.getConfigurationValue(f);
+                if (value != null) {
+                    values.add(new ProviderContext.Value<Object>(f.name, value));
+                }
+            }
+            final ProviderContext targetContext = ctx.getCloud().createContext(
+                    ctx.getAccountNumber(), targetRegionId, values.toArray(new ProviderContext.Value[values.size()]));
+
+            targetProvider = ( AWSCloud ) targetContext.connect();
+            if ( targetProvider.testContext() == null ) {
+                throw new CloudException( "Could not connect with the same account to another region: " + targetRegionId );
+            }
+
+            // Invoke the EC2 method
+            Map<String,String> parameters = targetProvider.getStandardParameters(
+                    targetProvider.getContext(), EC2Method.COPY_IMAGE );
+
+            parameters.put( "SourceRegion", sourceRegionId );
+            parameters.put( "SourceImageId", options.getProviderImageId() );
             if (options.getName() != null) {
-                parameters.put("Name", options.getName());
+                parameters.put( "Name", options.getName() );
             }
             if (options.getDescription() != null) {
-                parameters.put("Description", options.getDescription());
+                parameters.put( "Description", options.getDescription() );
             }
 
             Document doc;
             try {
-                EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                EC2Method method = new EC2Method( targetProvider, targetProvider.getEc2Url(), parameters );
                 doc = method.invoke();
             }
             catch( EC2Exception e ) {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
-            NodeList blocks = doc.getElementsByTagName("imageId");
+            NodeList blocks = doc.getElementsByTagName( "imageId" );
             if( blocks.getLength() > 0 ) {
                 Node imageIdNode = blocks.item(0);
-                String id = imageIdNode.getFirstChild().getNodeValue().trim();
-                MachineImage img = null;
-
-                // Wait until copied image is ACTIVE
-                long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 30);
-                while ( timeout > System.currentTimeMillis() ) {
-                    img = getImage(id);
-                    if( img != null && MachineImageState.ACTIVE == img.getCurrentState() ) {
-                        break;
-                    }
-                    try {
-                        Thread.sleep( CalendarWrapper.SECOND * 10 );
-                    }
-                    catch ( InterruptedException ignore ) { }
-                }
-                if( img == null ) {
-                    throw new CloudException("No image exists for " + id + " as created during the capture process");
-                }
-                if ( MachineImageState.ACTIVE != img.getCurrentState() ) {
-                    throw new CloudException("Image " + id + " did not become ACTIVE within allotted timeout");
-                }
-                return img;
+                return imageIdNode.getFirstChild().getNodeValue().trim();
             }
-            throw new CloudException("No error occurred during imaging, but no machine image was specified");
+            throw new CloudException( "No error occurred during imaging, but no machine image was specified" );
         }
         finally {
+            if ( targetProvider != null ) {
+                targetProvider.close();
+            }
             APITrace.end();
         }
     }
