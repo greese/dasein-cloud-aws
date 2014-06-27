@@ -317,21 +317,11 @@ public class AMI extends AbstractImageSupport {
             final String sourceRegionId = ctx.getRegionId();
             final String targetRegionId = options.getTargetRegionId();
 
-            // Build provider context, copying everything but the regionId
-            List<ContextRequirements.Field> fields = provider.getContextRequirements().getConfigurableValues();
-            List<ProviderContext.Value<Object>> values = new ArrayList<ProviderContext.Value<Object>>();
-            for ( ContextRequirements.Field f : fields ) {
-                Object value = ctx.getConfigurationValue(f);
-                if (value != null) {
-                    values.add(new ProviderContext.Value<Object>(f.name, value));
-                }
-            }
-            final ProviderContext targetContext = ctx.getCloud().createContext(
-                    ctx.getAccountNumber(), targetRegionId, values.toArray(new ProviderContext.Value[values.size()]));
-
+            final ProviderContext targetContext = ctx.copy( targetRegionId );
             targetProvider = ( AWSCloud ) targetContext.connect();
             if ( targetProvider.testContext() == null ) {
-                throw new CloudException( "Could not connect with the same account to another region: " + targetRegionId );
+                throw new CloudException( "Could not connect with the same account to the copy target region: " +
+                                                  targetRegionId );
             }
 
             // Invoke the EC2 method
