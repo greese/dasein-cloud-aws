@@ -192,6 +192,16 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             }
             blocks = doc.getElementsByTagName("DNSName");
             if( blocks.getLength() > 0 ) {
+
+                modifyLoadBalancerAttributes(
+                        name,
+                        AttributesOptions.getInstance(
+                                options.getCrossZone(),
+                                options.getConnectionDraining(),
+                                options.getConnectionDrainingTimeout()
+                        )
+                );
+
                 for( LoadBalancerEndpoint endpoint : options.getEndpoints() ) {
                     if( endpoint.getEndpointType().equals(LbEndpointType.VM) ) {
                         addServers(name, endpoint.getEndpointValue());
@@ -1039,7 +1049,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
-    public void modifyLoadBalancerAttributes(@Nonnull String id, @Nullable Boolean crossZone, @Nullable Boolean connectionDraining, @Nullable Integer connectionDrainingTimeout) throws CloudException, InternalException {
+    public void modifyLoadBalancerAttributes(@Nonnull String id, @Nonnull AttributesOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.modifyLoadBalancerAttributes");
         try {
             ProviderContext ctx = provider.getContext();
@@ -1051,16 +1061,16 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
             parameters.put("LoadBalancerName", id);
 
-            if (crossZone != null) {
-                parameters.put("LoadBalancerAttributes.CrossZoneLoadBalancing.Enabled", crossZone.toString());
+            if (options.getCrossZone() != null) {
+                parameters.put("LoadBalancerAttributes.CrossZoneLoadBalancing.Enabled", options.getCrossZone().toString());
             }
 
-            if (connectionDraining != null) {
-                parameters.put("LoadBalancerAttributes.ConnectionDraining.Enabled", connectionDraining.toString());
+            if (options.getConnectionDraining() != null) {
+                parameters.put("LoadBalancerAttributes.ConnectionDraining.Enabled", options.getConnectionDraining().toString());
             }
 
-            if (connectionDrainingTimeout != null) {
-                parameters.put("LoadBalancerAttributes.ConnectionDraining.Timeout", connectionDrainingTimeout.toString());
+            if (options.getConnectionDrainingTimeout() != null) {
+                parameters.put("LoadBalancerAttributes.ConnectionDraining.Timeout", options.getConnectionDrainingTimeout().toString());
             }
 
             ELBMethod method = new ELBMethod(provider, ctx, parameters);
@@ -1070,6 +1080,70 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public AttributesOptions getLoadBalancerAttributes(@Nonnull String id) throws CloudException, InternalException {
+        APITrace.begin(provider,"LB.DescribeLoadBalancerAttributes");
+        try {
+            ProviderContext ctx = provider.getContext();
+            if (ctx == null) {
+                throw new CloudException("No valid context is established for this request");
+            }
+
+            Map<String, String> parameters = getELBParameters(ctx, ELBMethod.DESCRIBE_LOADBALANCER_ATTRIBUTES);
+
+            parameters.put("LoadBalancerName", id);
+            Boolean crossZoneLoadBalancingEnabled = null;
+            Boolean connectionDrainingEnabled = null;
+            Integer connectionDrainingTimeout = null;
+
+            ELBMethod method = new ELBMethod(provider, ctx, parameters);
+            Document doc;
+            NodeList blocks;
+            try {
+                doc = method.invoke();
+            } catch (EC2Exception e) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+
+            blocks = doc.getElementsByTagName("LoadBalancerAttributes");
+
+            for (int i = 0; i < blocks.getLength(); i++) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for (int j = 0; j < items.getLength(); j++) {
+                    Node item = items.item(j);
+
+                    if (item.getNodeName().equals("ConnectionDraining")) {
+                        NodeList attrs = item.getChildNodes();
+                        for (int k = 0; k < attrs.getLength(); k++) {
+                            Node attr = attrs.item(k);
+                            String name = attr.getNodeName();
+                            if ("Enabled".equalsIgnoreCase(name)) {
+                                connectionDrainingEnabled = Boolean.valueOf(attr.getFirstChild().getNodeValue());
+                            } else if ("Timeout".equalsIgnoreCase(name)) {
+                                connectionDrainingTimeout = Integer.valueOf(attr.getFirstChild().getNodeValue());
+                            }
+                        }
+                    } else if (item.getNodeName().equals("CrossZoneLoadBalancing")) {
+                        NodeList attrs = item.getChildNodes();
+                        for (int k = 0; k < attrs.getLength(); k++) {
+                            Node attr = attrs.item(k);
+                            String name = attr.getNodeName();
+                            if ("Enabled".equalsIgnoreCase(name)) {
+                                crossZoneLoadBalancingEnabled = Boolean.valueOf(attr.getFirstChild().getNodeValue());
+                            }
+                        }
+                    }
+                }
+            }
+
+            return AttributesOptions.getInstance(crossZoneLoadBalancingEnabled, connectionDrainingEnabled, connectionDrainingTimeout);
         } finally {
             APITrace.end();
         }
