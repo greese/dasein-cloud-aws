@@ -82,11 +82,11 @@ public class CloudWatch extends AbstractMonitoringSupport {
 
             // optional parameters per CloudWatch API Version 2010-08-01
             parameters.put("ActionsEnabled", String.valueOf(options.isEnabled()));
-            provider.putValueIfNotNull(parameters, "AlarmDescription", options.getAlarmDescription());
-            provider.putIndexedParameters(parameters, "OKActions.member.", options.getProviderOKActionIds());
-            provider.putIndexedParameters(parameters, "AlarmActions.member.", options.getProviderAlarmActionIds());
-            provider.putIndexedParameters(parameters, "InsufficientDataActions.member.", options.getProviderInsufficentDataActionIds());
-            provider.putIndexedMapParameters(parameters, "Dimensions.member.", options.getMetadata());
+            AWSCloud.addValueIfNotNull(parameters, "AlarmDescription", options.getAlarmDescription());
+            AWSCloud.addIndexedParameters(parameters, "OKActions.member.", options.getProviderOKActionIds());
+            AWSCloud.addIndexedParameters(parameters, "AlarmActions.member.", options.getProviderAlarmActionIds());
+            AWSCloud.addIndexedParameters(parameters, "InsufficientDataActions.member.", options.getProviderInsufficentDataActionIds());
+            AWSCloud.addIndexedParameters(parameters, "Dimensions.member.", options.getMetadata());
 
             EC2Method method;
             method = new EC2Method(provider, getCloudWatchUrl(), parameters);
@@ -138,7 +138,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
 
         Map<String, String> parameters = provider.getStandardCloudWatchParameters(ctx, action);
 
-        provider.putIndexedParameters(parameters, "AlarmNames.member.", alarmNames);
+        provider.addIndexedParameters(parameters, "AlarmNames.member.", alarmNames);
 
         EC2Method method;
         method = new EC2Method(provider, getCloudWatchUrl(), parameters);
@@ -161,7 +161,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
 
             Map<String, String> parameters = provider.getStandardCloudWatchParameters(ctx, EC2Method.DESCRIBE_ALARMS);
 
-            provider.putExtraParameters(parameters, getAlarmFilterParameters(options));
+            AWSCloud.addExtraParameters(parameters, getAlarmFilterParameters(options));
 
             List<Alarm> list = new ArrayList<Alarm>();
             NodeList blocks;
@@ -333,8 +333,8 @@ public class CloudWatch extends AbstractMonitoringSupport {
 
             Map<String, String> parameters = provider.getStandardCloudWatchParameters(ctx, EC2Method.LIST_METRICS);
 
-            provider.putExtraParameters(parameters, getMetricFilterParameters(options));
-            provider.putValueIfNotNull(parameters, "NextToken", nextToken);
+            AWSCloud.addExtraParameters(parameters, getMetricFilterParameters(options));
+            AWSCloud.addValueIfNotNull(parameters, "NextToken", nextToken);
 
             NodeList blocks;
             EC2Method method;
@@ -462,9 +462,9 @@ public class CloudWatch extends AbstractMonitoringSupport {
 
         Map<String, String> parameters = new HashMap<String, String>();
 
-        provider.putValueIfNotNull(parameters, "MetricName", options.getMetricName());
-        provider.putValueIfNotNull(parameters, "Namespace", options.getMetricNamespace());
-        provider.putIndexedMapParameters(parameters, "Dimensions.member.", options.getMetricMetadata());
+        AWSCloud.addValueIfNotNull(parameters, "MetricName", options.getMetricName());
+        AWSCloud.addValueIfNotNull(parameters, "Namespace", options.getMetricNamespace());
+        AWSCloud.addIndexedParameters(parameters, "Dimensions.member.", options.getMetricMetadata());
 
         if( parameters.size() == 0 ) {
             return null;
@@ -486,9 +486,10 @@ public class CloudWatch extends AbstractMonitoringSupport {
 
         Map<String, String> parameters = new HashMap<String, String>();
 
-        if( options.getStateValue() != null )
-            provider.putValueIfNotNull(parameters, "StateValue", options.getStateValue().name());
-        provider.putIndexedParameters(parameters, "AlarmNames.member.", options.getAlarmNames());
+        if( options.getStateValue() != null ) {
+            AWSCloud.addValueIfNotNull(parameters, "StateValue", options.getStateValue().name());
+        }
+        AWSCloud.addIndexedParameters(parameters, "AlarmNames.member.", options.getAlarmNames());
 
         if( parameters.size() == 0 ) {
             return null;
