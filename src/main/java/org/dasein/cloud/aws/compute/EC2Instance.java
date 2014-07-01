@@ -1022,7 +1022,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             NodeList blocks;
             Document doc;
             Map<String, String> filterParameters = createFilterParametersFrom(filterOptions);
-            getProvider().putExtraParameters(params, filterParameters);
+            AWSCloud.addExtraParameters(params, filterParameters);
             try {
                 method = new EC2Method(getProvider(), getProvider().getEc2Url(), params);
             } catch( InternalException e ) {
@@ -1106,8 +1106,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         Map<String, String> extraParameters = new HashMap<String, String>();
         int filterIndex = 0;
         if( options.getVmStatuses() != null ) {
-            getProvider().addFilterParameter(extraParameters, filterIndex++, "system-status.status", options.getVmStatuses());
-            getProvider().addFilterParameter(extraParameters, filterIndex++, "instance-status.status", options.getVmStatuses());
+            AWSCloud.addFilterParameters(extraParameters, filterIndex++, "system-status.status", options.getVmStatuses());
+            AWSCloud.addFilterParameters(extraParameters, filterIndex++, "instance-status.status", options.getVmStatuses());
         }
         String[] vmIds = options.getVmIds();
         if( vmIds != null ) {
@@ -1830,10 +1830,21 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         Map<String, String> extraParameters = new HashMap<String, String>();
         int filterIndex = 0;
         if( options.getTags() != null && !options.getTags().isEmpty() ) {
-            getProvider().putExtraParameters(extraParameters, getProvider().getTagFilterParams(options.getTags(), filterIndex));
+            AWSCloud.addExtraParameters(extraParameters, getProvider().getTagFilterParams(options.getTags(), filterIndex));
         }
         if( options.getVmStates() != null ) {
-            getProvider().addFilterParameter(extraParameters, filterIndex++, "instance-state-name", options.getVmStates());
+            AWSCloud.addFilterParameters(extraParameters, filterIndex++, "instance-state-name", options.getVmStates());
+        }
+        if( options.getLifecycles() != null ) {
+            List<VirtualMachineLifecycle> lifecycles = Arrays.asList(VirtualMachineLifecycle.SPOT);
+            // The only valid value for this filter in AWS is "spot"
+            if( options.getLifecycles().length == 1 && options.getLifecycles()[0].equals(VirtualMachineLifecycle.SPOT) ) {
+                // Only include it if it was the single lifecycle option, otherwise we don't filter by it
+                AWSCloud.addFilterParameters(extraParameters, filterIndex++, "instance-lifecycle", lifecycles);
+            }
+        }
+        if( options.getSpotRequestId() != null ) {
+            AWSCloud.addFilterParameters(extraParameters, filterIndex++, "spot-instance-request-id", Arrays.asList(options.getSpotRequestId()));
         }
         return extraParameters;
     }
@@ -1865,7 +1876,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCES);
 
-            getProvider().putExtraParameters(parameters, extraParameters);
+            AWSCloud.addExtraParameters(parameters, extraParameters);
 
             EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
             ArrayList<VirtualMachine> list = new ArrayList<VirtualMachine>();
@@ -2362,8 +2373,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
          */
             }
             else if( name.equals("keyName") ) {
-                String value = attr.getFirstChild().getNodeValue().trim();
-                server.setProviderKeypairId(value);
+                server.setProviderKeypairId(AWSCloud.getTextValue(attr));
             }
             else if( name.equals("groupSet") ) {
                 ArrayList<String> firewalls = new ArrayList<String>();
@@ -2450,17 +2460,17 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 rootDeviceName = AWSCloud.getTextValue(attr);
             }
             else if( "ebsOptimized".equals(name) && attr.hasChildNodes() ) {
-                server.setIoOptimized(Boolean.valueOf(attr.getFirstChild().getNodeValue()));
+                server.setIoOptimized(AWSCloud.getBooleanValue(attr));
             }
             else if( "sourceDestCheck".equals(name) && attr.hasChildNodes() ) {
                 /**
                  * note: a value of <sourceDestCheck>true</sourceDestCheck> means this instance cannot
                  * function as a NAT instance, so we negate the value to indicate if it is allowed
                  */
-                server.setIpForwardingAllowed(!Boolean.valueOf(attr.getFirstChild().getNodeValue()));
+                server.setIpForwardingAllowed(!AWSCloud.getBooleanValue(attr));
             }
             else if( "stateReasonMessage".equals(name) ) {
-                server.setStateReasonMessage(attr.getFirstChild().getNodeValue().trim());
+                server.setStateReasonMessage(AWSCloud.getTextValue(attr));
             }
             else if( "iamInstanceProfile".equals(name) && attr.hasChildNodes() ) {
                 NodeList details = attr.getChildNodes();
@@ -2476,6 +2486,15 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         }
                     }
                 }
+            }
+            else if( "instanceLifecycle".equals(name) ) {
+                String value = AWSCloud.getTextValue(attr);
+                if( value != null && "spot".equalsIgnoreCase(value) ) {
+                    server.setLifecycle(VirtualMachineLifecycle.SPOT);
+                }
+            }
+            else if( "spot-instance-request-id".equals(name) ) {
+                server.setSpotRequestId(AWSCloud.getTextValue(attr));
             }
         }
         if( server.getPlatform() == null ) {
@@ -2672,30 +2691,35 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 APITrace.begin(getProvider(), "createSpotVirtualMachineRequest");
                 Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.REQUEST_SPOT_INSTANCES);
                 parameters.put("SpotPrice", String.valueOf(options.getMaximumPrice()));
-                parameters.put("InstanceCount", String.valueOf(options.getVmCount()));
-                if( options.getType() != null ) {
-                    parameters.put("Type", options.getType().name().toLowerCase());
+                if( options.getVmCount() > 1 ) {
+                    parameters.put("InstanceCount", String.valueOf(options.getVmCount()));
                 }
-                if( options.getStartTimestamp() > 0 ) {
-                    parameters.put("ValidFrom", getProvider().getTimestamp(options.getStartTimestamp(), true));
+                if( SpotVirtualMachineRequestType.PERSISTENT.equals(options.getType()) ) {
+                    parameters.put("Type", "persistent");
                 }
-                if( options.getExpiryTimestamp() > 0 ) {
-                    parameters.put("ValidUntil", getProvider().getTimestamp(options.getExpiryTimestamp(), true));
+                if( options.getValidFromTimestamp() > 0 ) {
+                    parameters.put("ValidFrom", getProvider().getTimestamp(options.getValidFromTimestamp(), true));
+                }
+                if( options.getValidUntilTimestamp() > 0 ) {
+                    parameters.put("ValidUntil", getProvider().getTimestamp(options.getValidUntilTimestamp(), true));
                 }
                 if( options.getLaunchGroup() != null ) {
                     parameters.put("LaunchGroup", options.getLaunchGroup());
                 }
-                if( options.getProviderMachineImageId() != null ) {
-                    parameters.put("LaunchSpecification.ImageId", options.getProviderMachineImageId());
+                if( options.getMachineImageId() != null ) {
+                    parameters.put("LaunchSpecification.ImageId", options.getMachineImageId());
                 }
-                if( options.getProviderIAMRoleId() != null ) {
-                    parameters.put("LaunchSpecification.IamInstanceProfile.Arn", options.getProviderIAMRoleId());
+                if( options.getRoleId() != null ) {
+                    parameters.put("LaunchSpecification.IamInstanceProfile.Arn", options.getRoleId());
                 }
-                if( options.getProviderProductId() != null ) {
-                    parameters.put("LaunchSpecification.InstanceType", options.getProviderProductId());
+                if( options.getStandardProductId() != null ) {
+                    parameters.put("LaunchSpecification.InstanceType", options.getStandardProductId());
                 }
                 if( options.getProviderSubnetId() != null ) {
                     parameters.put("LaunchSpecification.SubnetId", options.getProviderSubnetId());
+                }
+                if( options.getBootstrapKey() != null ) {
+                    parameters.put("LaunchSpecification.KeyName", options.getBootstrapKey());
                 }
                 if( options.getUserData() != null ) {
                     try {
@@ -2791,6 +2815,81 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
         else {
             throw new OperationNotSupportedException("Spot VMs are not supported in " + getProvider().getCloudName());
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<SpotVirtualMachineRequest> listSpotVirtualMachineRequests( SpotVirtualMachineRequestFilterOptions options ) throws CloudException, InternalException {
+        if( !getProvider().getEC2Provider().isAWS() ) {
+            throw new OperationNotSupportedException("Spot VMs are not supported in " + getProvider().getCloudName());
+        }
+
+        try {
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_SPOT_INSTANCE_REQUESTS);
+            int paramIndex = 1;
+            if( options != null && options.hasCriteria() ) {
+                if( options.getSpotRequestIds() != null ) {
+                    AWSCloud.addIndexedParameters(parameters, "SpotInstanceRequestId", options.getSpotRequestIds());
+                }
+                if( options.getLaunchGroup() != null ) {
+                    AWSCloud.addFilterParameters(parameters, paramIndex++, "launch-group", options.getLaunchGroup());
+                }
+                if( options.getMachineImageId() != null ) {
+                    AWSCloud.addFilterParameters(parameters, paramIndex++, "launch.image-id", options.getMachineImageId());
+                }
+                if( options.getMaximumPrice() > 0f ) {
+                    AWSCloud.addFilterParameters(parameters, paramIndex++, "spot-price", String.valueOf(options.getMaximumPrice()));
+                }
+                if( options.getValidFromTimestamp() > 0 ) {
+                    AWSCloud.addFilterParameters(parameters, paramIndex++, "valid-from", String.valueOf(options.getValidFromTimestamp()));
+                }
+                if( options.getValidUntilTimestamp() > 0 ) {
+                    AWSCloud.addFilterParameters(parameters, paramIndex++, "valid-until", String.valueOf(options.getValidUntilTimestamp()));
+                }
+                if( options.getStandardProductId() != null ) {
+                    AWSCloud.addFilterParameters(parameters, paramIndex++, "launch.instance-type", options.getStandardProductId());
+                }
+                if( options.getType() != null ) {
+                    AWSCloud.addFilterParameters(parameters, paramIndex++, "type", options.getType() == SpotVirtualMachineRequestType.PERSISTENT ? "persistent" : "one-time");
+                }
+            }
+
+            EC2Method method;
+            Document doc;
+            NodeList blocks;
+            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            } catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+
+            List<SpotVirtualMachineRequest> results = new ArrayList<SpotVirtualMachineRequest>();
+
+            blocks = doc.getElementsByTagName("spotInstanceRequestSet");
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j = 0; j < items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( "item".equals(item.getNodeName()) ) {
+                        SpotVirtualMachineRequest request = toSpotVmRequest(item);
+                        if( options.hasCriteria() ) {
+                            if( options.matches(request) ) {
+                                results.add(request);
+                            }
+                        }
+                        else { // no criterion, add all
+                            results.add(request);
+                        }
+                    }
+                }
+            }
+            return results;
+        } finally {
+            APITrace.end();
         }
     }
 
@@ -2900,11 +2999,14 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         NodeList el = node.getChildNodes();
         String requestId = null;
         float price = 0.0F;
+        // TODO: get these from the response
         SpotVirtualMachineRequestType type = options.getType();
-        long fulfillmentTs = 0;
-        String amiId = options.getProviderMachineImageId();
-        String productId = options.getProviderProductId();
+        String amiId = options.getMachineImageId();
+        String productId = options.getStandardProductId();
         long createdTs = 0;
+        long validFromTs = options.getValidFromTimestamp();
+        long validUntilTs = options.getValidUntilTimestamp();
+        long fulfillmentTs = 0;
         String fulfillmentDcid = null;
         String launchGroup = options.getLaunchGroup();
 
@@ -2913,30 +3015,112 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             String name = item.getNodeName();
 
             if( "spotInstanceRequestId".equals(name) ) {
-                requestId = node.getFirstChild().getNodeValue().trim();
+                requestId = item.getFirstChild().getNodeValue().trim();
             }
             else if( "spotPrice".equals(name) ) {
-                price = Float.parseFloat(node.getFirstChild().getNodeName().trim());
+                price = Float.parseFloat(item.getFirstChild().getNodeValue().trim());
             }
             else if( "type".equals(name) ) {
-                type = SpotVirtualMachineRequestType.valueOf(node.getFirstChild().getNodeName().trim());
+                type = SpotVirtualMachineRequestType.ONE_TIME;
+                if( "persistent".equals(item.getFirstChild().getNodeValue().trim()) ) {
+                    type = SpotVirtualMachineRequestType.PERSISTENT;
+                }
             }
             else if( "launchGroup".equals(name) ) {
-                launchGroup = node.getFirstChild().getNodeName().trim();
+                launchGroup = item.getFirstChild().getNodeValue().trim();
             }
             else if( "launchedAvailabilityZone".equals(name) ) {
-                fulfillmentDcid = node.getFirstChild().getNodeName().trim();
+                fulfillmentDcid = item.getFirstChild().getNodeValue().trim();
             }
             else if( "createTime".equals(name) ) {
-                createdTs = getProvider().getTimestampValue(node);
+                createdTs = getProvider().getTimestampValue(item);
             }
-            else if( "spotPrice".equals(name) ) {
-                price = Float.parseFloat(node.getFirstChild().getNodeName().trim());
+            else if( "validFrom".equals(name) ) {
+                validFromTs = getProvider().getTimestampValue(item);
             }
-            else if( "spotPrice".equals(name) ) {
-                price = Float.parseFloat(node.getFirstChild().getNodeName().trim());
+            else if( "validUntil".equals(name) ) {
+                validUntilTs = getProvider().getTimestampValue(item);
             }
         }
-        return SpotVirtualMachineRequest.getInstance(requestId, price, type, fulfillmentTs, amiId, productId, createdTs, fulfillmentDcid, launchGroup);
+        return SpotVirtualMachineRequest.getInstance(requestId, price, type, amiId, productId, createdTs, validFromTs, validUntilTs, fulfillmentTs, fulfillmentDcid, launchGroup);
     }
+
+    /**
+     * Parse a SpotVirtualMachineRequest, make a DescribeInstances call if instanceId is returned
+     * to gather more information
+     * @param node
+     * @return
+     * @throws CloudException
+     */
+    private SpotVirtualMachineRequest toSpotVmRequest( @Nonnull Node node ) throws CloudException {
+        NodeList el = node.getChildNodes();
+        String requestId = null;
+        float price = 0.0F;
+        SpotVirtualMachineRequestType type = null;
+        long createdTs = 0;
+        long validFromTs = 0;
+        long validUntilTs = 0;
+        String fulfillmentDcid = null;
+        String launchGroup = null;
+
+        // use to look up the instance
+        String instanceId = null;
+
+        // get these from the instance if fulfilled
+        String amiId = null;
+        String productId = null;
+        long fulfillmentTs = 0;
+
+        for( int i = 0; i < el.getLength(); i++ ) {
+            Node item = el.item(i);
+            String name = item.getNodeName();
+
+            if( "spotInstanceRequestId".equals(name) ) {
+                requestId = item.getFirstChild().getNodeValue().trim();
+            }
+            else if( "spotPrice".equals(name) ) {
+                price = AWSCloud.getFloatValue(item);
+            }
+            else if( "type".equals(name) ) {
+                type = SpotVirtualMachineRequestType.ONE_TIME;
+                String value = AWSCloud.getTextValue(item);
+                if( "persistent".equals(value) ) {
+                    type = SpotVirtualMachineRequestType.PERSISTENT;
+                }
+            }
+            else if( "launchGroup".equals(name) ) {
+                launchGroup = AWSCloud.getTextValue(item);
+            }
+            else if( "launchedAvailabilityZone".equals(name) ) {
+                fulfillmentDcid = AWSCloud.getTextValue(item);
+            }
+            else if( "createTime".equals(name) ) {
+                createdTs = AWSCloud.getTimestampValue(item);
+            }
+            else if( "validFrom".equals(name) ) {
+                validFromTs = AWSCloud.getTimestampValue(item);
+            }
+            else if( "validUntil".equals(name) ) {
+                validUntilTs = AWSCloud.getTimestampValue(item);
+            }
+            else if( "instanceId".equals(name) ) {
+                instanceId = AWSCloud.getTextValue(item);
+            }
+        }
+        if( instanceId != null ) {
+            try {
+                // see if the instance is there
+                VirtualMachine vm = getVirtualMachine(instanceId);
+                productId = vm.getProductId();
+                fulfillmentTs = vm.getCreationTimestamp();
+                amiId = vm.getProviderMachineImageId();
+            } catch (CloudException ce) {
+                // ignore
+            } catch( InternalException e ) {
+                // ignore
+            }
+        }
+        return SpotVirtualMachineRequest.getInstance(requestId, price, type, amiId, productId, createdTs, validFromTs, validUntilTs, fulfillmentTs, fulfillmentDcid, launchGroup);
+    }
+
 }
