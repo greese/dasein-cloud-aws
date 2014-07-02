@@ -2587,7 +2587,7 @@ public class VPC extends AbstractVLANSupport {
                 table.setRoutes(routes.toArray(new Route[routes.size()]));
             } else if( nodeName.equalsIgnoreCase("associationSet") && child.hasChildNodes() ) {
                 ArrayList<String> associations = new ArrayList<String>();
-                Boolean main = false;   //default
+                boolean main = false;   //default
                 NodeList set = child.getChildNodes();
                 for( int j = 0; j < set.getLength(); j++ ) {
                     Node item = set.item(j);
