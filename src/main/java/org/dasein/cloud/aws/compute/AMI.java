@@ -1606,6 +1606,26 @@ public class AMI extends AbstractImageSupport {
     }
 
     @Override
+    public void updateTags(@Nonnull String imageId, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
+        updateTags(new String[]{imageId}, asynchronous, tags);
+    }
+
+    @Override
+    public void updateTags(@Nonnull String[] imageIds, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Image.updateTags");
+        try {
+            if(asynchronous) {
+                provider.createTags(imageIds, tags);
+            } else {
+                provider.createTagsSynchronously(imageIds, tags);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
     public void removeTags(@Nonnull String imageId, @Nonnull Tag... tags) throws CloudException, InternalException {
         removeTags(new String[]{imageId}, tags);
     }
