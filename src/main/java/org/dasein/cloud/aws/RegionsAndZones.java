@@ -535,4 +535,19 @@ public class RegionsAndZones implements DataCenterServices {
 		}
 		return r;
 	}
+	
+	@Override
+	public boolean supportsResourcePools() {
+		return false;
+	}
+	
+	@Override
+	public Collection<ResourcePool> listResourcePools(String providerDataCenterId) throws InternalException, CloudException {
+		return Collections.emptyList();
+	}
+	
+	@Override
+	public ResourcePool getResourcePool(String providerResourcePoolId) throws InternalException, CloudException {
+		return null;
+	}
 }
