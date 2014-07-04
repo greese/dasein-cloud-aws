@@ -19,11 +19,7 @@
 
 package org.dasein.cloud.aws.compute;
 
-import org.dasein.cloud.AbstractCapabilities;
-import org.dasein.cloud.Capabilities;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.Requirement;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.Architecture;
 import org.dasein.cloud.compute.ImageClass;
@@ -116,6 +112,18 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
     @Override
     public @Nonnull NamingConstraints getVirtualMachineNamingConstraints() {
         return NamingConstraints.getAlphaNumeric(1, 100);
+    }
+
+    @Nullable
+    @Override
+    public VisibleScope getVirtualMachineVisibleScope() {
+        return null;
+    }
+
+    @Nullable
+    @Override
+    public VisibleScope getVirtualMachineProductVisibleScope() {
+        return null;
     }
 
     @Override
