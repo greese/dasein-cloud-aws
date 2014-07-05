@@ -19,13 +19,7 @@
 
 package org.dasein.cloud.aws.platform;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -467,19 +461,19 @@ public class RDS implements RelationalDatabaseSupport {
         }
     }
 
-    static private volatile ArrayList<DatabaseEngine> engines = null;
+    static private volatile List<DatabaseEngine> engines = null;
     
     @Override
     public Iterable<DatabaseEngine> getDatabaseEngines() {
-        ArrayList<DatabaseEngine> tmp = engines;
-        
-        if( tmp == null ) {
-            tmp = new ArrayList<DatabaseEngine>(); 
-            tmp.add(DatabaseEngine.MYSQL);
-            tmp.add(DatabaseEngine.ORACLE11G);
-            tmp.add(DatabaseEngine.ORACLE11GX);
-            tmp.add(DatabaseEngine.ORACLE11GEX);
-            engines = tmp;
+        if( engines == null ) {
+            engines = Arrays.asList(
+                    DatabaseEngine.MYSQL,
+                    DatabaseEngine.ORACLE11G,
+                    DatabaseEngine.ORACLE11GX,
+                    DatabaseEngine.ORACLE11GEX,
+                    DatabaseEngine.MSSQL,
+                    DatabaseEngine.POSTGRES
+            );
         }
         return engines;
     }
@@ -614,11 +608,11 @@ public class RDS implements RelationalDatabaseSupport {
         }
     }
     
-    private volatile ArrayList<DatabaseProduct> databaseProducts = null;
+    private volatile List<DatabaseProduct> databaseProducts = null;
     
     @Override
     public Iterable<DatabaseProduct> getDatabaseProducts(DatabaseEngine engine) {
-        ArrayList<DatabaseProduct> products = databaseProducts;
+        List<DatabaseProduct> products = databaseProducts;
         
         if( products == null ) {
             @SuppressWarnings("ConstantConditions") boolean us = provider.getContext().getRegionId().equals("us-east-1");
@@ -962,6 +956,8 @@ public class RDS implements RelationalDatabaseSupport {
             case ORACLE11G: return "oracle-se1";
             case ORACLE11GX: return "oracle-se";
             case ORACLE11GEX: return "oracle-ee";
+            case MSSQL: return "sqlserver-se";
+            case POSTGRES: return "postgres";
             default: return "MySQL";
         }
     }
