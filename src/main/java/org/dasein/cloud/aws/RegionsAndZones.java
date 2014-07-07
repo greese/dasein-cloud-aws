@@ -62,6 +62,16 @@ public class RegionsAndZones implements DataCenterServices {
         }
 	}
 
+    private transient volatile RegionsAndZonesCapabilities capabilities;
+    @Nonnull
+    @Override
+    public DataCenterCapabilities getCapabilities() throws InternalException, CloudException {
+        if( capabilities == null ) {
+            capabilities = new RegionsAndZonesCapabilities(provider);
+        }
+        return capabilities;
+    }
+    
     private @Nonnull DataCenter getZone() {
         DataCenter dc = new DataCenter() ;
 
@@ -534,11 +544,6 @@ public class RegionsAndZones implements DataCenterServices {
 		    r.setJurisdiction("US");
 		}
 		return r;
-	}
-	
-	@Override
-	public boolean supportsResourcePools() {
-		return false;
 	}
 	
 	@Override
