@@ -1510,6 +1510,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     }
                 }
             }
+            if (cfg.getPlacementGroupId() != null ) {
+                parameters.put( "Placement.GroupName", cfg.getPlacementGroupId() );
+            }
             if( cfg.getSubnetId() == null ) {
                 String[] ids = cfg.getFirewallIds();
                 if( ids.length > 0 ) {
@@ -2599,6 +2602,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             }
             else {
                 prd.setRamSize(new Storage<Megabyte>(512, Storage.MEGABYTE));
+            }
+            if( json.has("generation") && json.getString("generation").equalsIgnoreCase("previous")) {      	
+                   prd.setStatusDeprecated();
             }
             if( json.has("standardHourlyRates") ) {
                 JSONArray rates = json.getJSONArray("standardHourlyRates");
