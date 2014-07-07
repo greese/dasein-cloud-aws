@@ -17,7 +17,7 @@ public class RegionsAndZonesCapabilities extends AbstractCapabilities<AWSCloud> 
     }
     @Override
     public String getProviderTermForDataCenter(Locale locale) {
-        return "zone";
+        return "availability zone";
     }
 
     @Override
