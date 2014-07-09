@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
@@ -16,19 +16,16 @@
  * limitations under the License.
  * ====================================================================
  */
+
 package org.dasein.cloud.aws.network;
 
-import org.dasein.cloud.AbstractCapabilities;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.Requirement;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.network.*;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Locale;
+import javax.annotation.Nullable;
+import java.util.*;
 
 /**
  * Describes the capabilities of AWS with respect to Dasein firewall operations.
@@ -53,6 +50,12 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
         return "security group";
     }
 
+    @Nullable
+    @Override
+    public VisibleScope getFirewallVisibleScope() {
+        return null;
+    }
+
     @Nonnull
     @Override
     public Requirement identifyPrecedenceRequirement(boolean inVlan) throws InternalException, CloudException {
@@ -70,15 +73,14 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
         return Collections.singletonList(RuleTargetType.GLOBAL);
     }
 
+    static private volatile List<Direction> supportedDirectionsVlan =
+            Collections.unmodifiableList(Arrays.asList(Direction.EGRESS, Direction.INGRESS));
+
     @Nonnull
     @Override
     public Iterable<Direction> listSupportedDirections(boolean inVlan) throws InternalException, CloudException {
         if( inVlan ) {
-            ArrayList<Direction> list = new ArrayList<Direction>();
-
-            list.add(Direction.EGRESS);
-            list.add(Direction.INGRESS);
-            return list;
+            return supportedDirectionsVlan;
         }
         else {
             return Collections.singletonList(Direction.INGRESS);
@@ -91,14 +93,13 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
         return Collections.singletonList(Permission.ALLOW);
     }
 
+    static private volatile List<RuleTargetType> supportedSourceTypes =
+            Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.GLOBAL));
+
     @Nonnull
     @Override
     public Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan) throws InternalException, CloudException {
-        ArrayList<RuleTargetType>  types = new ArrayList<RuleTargetType>();
-
-        types.add(RuleTargetType.CIDR);
-        types.add(RuleTargetType.GLOBAL);
-        return types;
+        return supportedSourceTypes;
     }
 
     @Override
@@ -109,7 +110,8 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
 
     @Override
     public Requirement requiresVLAN() throws CloudException, InternalException {
-        return Requirement.OPTIONAL;
+        // no VLAN support in EC2-Classic, it's optional in EC2-VPC - the default VPC will be used if not specified
+        return getProvider().isEC2Supported() ? Requirement.NONE : Requirement.OPTIONAL;
     }
 
     @Override

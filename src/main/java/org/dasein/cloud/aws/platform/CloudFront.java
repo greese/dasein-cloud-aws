@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 
+import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
@@ -53,7 +54,7 @@ public class CloudFront implements CDNSupport {
 	}
 	
 	@Override
-	public @Nonnull String create(@Nonnull String bucket, @Nonnull String name, boolean active, @Nullable String ... cnames) throws InternalException, CloudException {
+	public @Nonnull String create(@Nonnull String bucket, @Nonnull String name, boolean active, @CheckForNull String ... cnames) throws InternalException, CloudException {
         APITrace.begin(provider, "CDN.create");
         try {
             ProviderContext ctx = provider.getContext();
@@ -334,11 +335,11 @@ public class CloudFront implements CDNSupport {
     }
 
 	@Override
-	public void update(@Nonnull String distributionId, @Nonnull String name, boolean active, @Nullable String ... cnames) throws InternalException, CloudException {
+	public void update(@Nonnull String distributionId, @Nonnull String name, boolean active, @CheckForNull String ... cnames) throws InternalException, CloudException {
 		updateWithReturn(distributionId, name, active, cnames);
 	}
 
-	private String updateWithReturn(@Nonnull String distributionId, @Nonnull String name, boolean active, @Nullable String ... cnames) throws InternalException, CloudException {
+	private String updateWithReturn(@Nonnull String distributionId, @Nonnull String name, boolean active, @CheckForNull String ... cnames) throws InternalException, CloudException {
         APITrace.begin(provider, "CDN.update");
         try {
             ProviderContext ctx = provider.getContext();
@@ -383,7 +384,7 @@ public class CloudFront implements CDNSupport {
         }
 	}
 	
-	private @Nonnull String toConfigXml(@Nonnull String bucket, @Nonnull String name, @Nullable String callerReference, @Nullable String logDirectory, @Nullable String logName, boolean active, @Nullable String ... cnames) {
+	private @Nonnull String toConfigXml(@Nonnull String bucket, @Nonnull String name, @Nullable String callerReference, @Nullable String logDirectory, @Nullable String logName, boolean active, @CheckForNull String ... cnames) {
 		StringBuilder xml = new StringBuilder();
 	
 		xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");

@@ -26,8 +26,10 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.dc.DataCenter;
+import org.dasein.cloud.dc.DataCenterCapabilities;
 import org.dasein.cloud.dc.DataCenterServices;
 import org.dasein.cloud.dc.Region;
+import org.dasein.cloud.dc.ResourcePool;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
@@ -62,6 +64,16 @@ public class RegionsAndZones implements DataCenterServices {
         }
 	}
 
+    private transient volatile RegionsAndZonesCapabilities capabilities;
+    @Nonnull
+    @Override
+    public DataCenterCapabilities getCapabilities() throws InternalException, CloudException {
+        if( capabilities == null ) {
+            capabilities = new RegionsAndZonesCapabilities(provider);
+        }
+        return capabilities;
+    }
+    
     private @Nonnull DataCenter getZone() {
         DataCenter dc = new DataCenter() ;
 
@@ -244,41 +256,35 @@ public class RegionsAndZones implements DataCenterServices {
                 }
                 throw new CloudException("No such region: " + regionId);
             }
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
+            EC2Method method = new EC2Method(provider, provider.getEc2Url(regionId), parameters);
+            NodeList blocks;
+            Document doc;
+
+            dataCenters = new ArrayList<DataCenter>();
             try {
-                ctx.setRegionId(regionId);
-                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
-                EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
-                NodeList blocks;
-                Document doc;
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("availabilityZoneInfo");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList zones = blocks.item(i).getChildNodes();
 
-                dataCenters = new ArrayList<DataCenter>();
-                try {
-                    doc = method.invoke();
-                }
-                catch( EC2Exception e ) {
-                    logger.error(e.getSummary());
-                    throw new CloudException(e);
-                }
-                blocks = doc.getElementsByTagName("availabilityZoneInfo");
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    NodeList zones = blocks.item(i).getChildNodes();
+                for( int j=0; j<zones.getLength(); j++ ) {
+                    Node region = zones.item(j);
 
-                    for( int j=0; j<zones.getLength(); j++ ) {
-                        Node region = zones.item(j);
-
-                        if( region.getNodeName().equals("item") ) {
-                            dataCenters.add(toDataCenter(regionId, zones.item(j)));
-                        }
+                    if( region.getNodeName().equals("item") ) {
+                        dataCenters.add(toDataCenter(regionId, zones.item(j)));
                     }
                 }
-                if( cache != null ) {
-                    cache.put(ctx, dataCenters);
-                }
-                return dataCenters;
             }
-            finally {
-                ctx.setRegionId(originalRegionId);
+            if( cache != null ) {
+                cache.put(ctx, dataCenters);
             }
+            return dataCenters;
         }
         finally {
             APITrace.end();
@@ -395,7 +401,64 @@ public class RegionsAndZones implements DataCenterServices {
             APITrace.end();
         }
 	}
-	
+
+    public String isRegionEC2VPC(String regionId) throws CloudException, InternalException{
+        ProviderContext ctx = provider.getContext();
+
+        Cache<HashMap> cache = Cache.getInstance(provider, "ec2-types", HashMap.class, CacheLevel.CLOUD_ACCOUNT);
+        Collection<HashMap> region2Ec2Types = (Collection<HashMap>)cache.get(ctx);
+        HashMap<String, String> platformMap = null;
+
+        if(region2Ec2Types == null){
+            region2Ec2Types = new ArrayList<HashMap>();
+            Collection<Region> regions = listRegions();
+            platformMap = new HashMap<String, String>();
+
+            for(Region r : regions){
+                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ACCOUNT_ATTRIBUTES);
+                parameters.put("AttributeName.1", "supported-platforms");
+                EC2Method method = new EC2Method(provider, provider.getEc2Url(r.getProviderRegionId()), parameters);
+                try{
+                    Document doc = method.invoke();
+
+                    String supportedPlatform = null;
+                    NodeList attributes = doc.getElementsByTagName("attributeValueSet").item(0).getChildNodes();
+                    for(int i=0;i<attributes.getLength();i++){
+                        Node attribute = attributes.item(i);
+                        if(attribute.getNodeType() == Node.TEXT_NODE)continue;
+
+                        if(attribute.getNodeName().equals("item")){
+                            NodeList data = attribute.getChildNodes();
+
+                            for(int j=0;j<data.getLength();j++){
+                                Node value = data.item(j);
+                                if(value.getNodeType() == Node.TEXT_NODE)continue;
+
+                                if(supportedPlatform != null){
+                                    supportedPlatform = AWSCloud.PLATFORM_EC2;//For now if it can be either we'll use EC2-Classic
+                                }
+                                else{
+                                    supportedPlatform = value.getFirstChild().getNodeValue().trim();
+                                }
+                                platformMap.put(r.getProviderRegionId(), supportedPlatform);
+                            }
+                        }
+                    }
+                }
+                catch( EC2Exception e ) {
+                    logger.error(e.getSummary());
+                    throw new CloudException(e);
+                }
+            }
+            region2Ec2Types.add(platformMap);
+            cache.put(ctx, region2Ec2Types);
+        }
+        else{
+            platformMap = region2Ec2Types.iterator().next();
+        }
+        return platformMap.get(regionId);
+    }
+
 	private DataCenter toDataCenter(String regionId, Node zone) throws CloudException {
 		NodeList data = zone.getChildNodes();
 		DataCenter dc = new DataCenter();
@@ -483,5 +546,15 @@ public class RegionsAndZones implements DataCenterServices {
 		    r.setJurisdiction("US");
 		}
 		return r;
+	}
+	
+	@Override
+	public Collection<ResourcePool> listResourcePools(String providerDataCenterId) throws InternalException, CloudException {
+		return Collections.emptyList();
+	}
+	
+	@Override
+	public ResourcePool getResourcePool(String providerResourcePoolId) throws InternalException, CloudException {
+		return null;
 	}
 }

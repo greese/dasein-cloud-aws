@@ -28,6 +28,8 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.util.uom.storage.Gigabyte;
+import org.dasein.util.uom.storage.Storage;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -214,65 +216,123 @@ public class AutoScaling implements AutoScalingSupport {
 
     @Override
     public String createLaunchConfiguration(String name, String imageId, VirtualMachineProduct size, String keyPairName, String userData, String providerRoleId, Boolean detailedMonitoring, String ... firewalls) throws InternalException, CloudException {
-        APITrace.begin(provider, "AutoScaling.createLaunchConfigursation");
-        try {
-            Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_LAUNCH_CONFIGURATION);
-            EC2Method method;
+        return createLaunchConfiguration(new LaunchConfigurationCreateOptions(name, imageId, size, keyPairName, userData, providerRoleId, detailedMonitoring, firewalls));
+    }
 
-            parameters.put("LaunchConfigurationName", name);
-            parameters.put("ImageId", imageId);
-            if(keyPairName != null) {
-              parameters.put("KeyName", keyPairName);
-            }
-            if(userData != null) {
-              parameters.put("UserData", userData);
-            }
-            if(providerRoleId != null) {
-              parameters.put("IamInstanceProfile", providerRoleId);
-            }
-            if(detailedMonitoring != null) {
-              parameters.put("InstanceMonitoring.Enabled", detailedMonitoring.toString());
-            }
-            parameters.put("InstanceType", size.getProviderProductId());
-            int i = 1;
-            for( String fw : firewalls ) {
-                parameters.put("SecurityGroups.member." + (i++), fw);
-            }
-            method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+    @Override
+    public String createLaunchConfiguration(@Nonnull LaunchConfigurationCreateOptions options) throws InternalException, CloudException {
+      APITrace.begin(provider, "AutoScaling.createLaunchConfigursation");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_LAUNCH_CONFIGURATION);
+        EC2Method method;
+
+        parameters.put("LaunchConfigurationName", options.getName());
+        if(options.getImageId() != null) {
+          parameters.put("ImageId", options.getImageId());
+        }
+        if(options.getKeypairName() != null) {
+          parameters.put("KeyName", options.getKeypairName());
+        }
+        if(options.getUserData() != null) {
+          parameters.put("UserData", options.getUserData());
+        }
+        if(options.getProviderRoleId() != null) {
+          parameters.put("IamInstanceProfile", options.getProviderRoleId());
+        }
+        if(options.getDetailedMonitoring() != null) {
+          parameters.put("InstanceMonitoring.Enabled", options.getDetailedMonitoring().toString());
+        }
+        if(options.getSize() != null) {
+          parameters.put("InstanceType", options.getSize().getProviderProductId());
+        }
+        int i = 1;
+        if( options.getFirewallIds() != null ) {
+          for (String fw : options.getFirewallIds()) {
+            parameters.put("SecurityGroups.member." + (i++), fw);
+          }
+        }
+        if(options.getAssociatePublicIPAddress() != null) {
+          parameters.put("AssociatePublicIpAddress", options.getAssociatePublicIPAddress().toString());
+        }
+        if(options.getIOOptimized() != null) {
+          parameters.put("EbsOptimized", options.getIOOptimized().toString());
+        }
+        if( options.getVolumeAttachment() != null ) {
+          int z = 1;
+          for( VolumeAttachment va : options.getVolumeAttachment() ) {
+            parameters.put("BlockDeviceMappings.member." + z + ".DeviceName", va.deviceId);
+            EBSVolume ebsv = new EBSVolume( provider );
+            String volType = null;
             try {
-                method.invoke();
+              VolumeProduct prd = ebsv.getVolumeProduct( va.volumeToCreate.getVolumeProductId() );
+              volType = prd.getProviderProductId();
+            } catch ( Exception e ) {
+              // toss it
             }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
+            if( volType == null ) {
+              if( options.getIOOptimized() && va.volumeToCreate.getIops() > 0 ) {
+                parameters.put("BlockDeviceMappings.member." + z + ".Ebs.VolumeType", "io1");
+              }
+            } else {
+              parameters.put("BlockDeviceMappings.member." + z + ".Ebs.VolumeType", volType);
             }
-            return name;
+            if(va.volumeToCreate.getIops() > 0) {
+              parameters.put("BlockDeviceMappings.member." + z + ".Ebs.Iops", String.valueOf(va.volumeToCreate.getIops()));
+            }
+            if(va.volumeToCreate.getSnapshotId() != null) {
+              parameters.put("BlockDeviceMappings.member." + z + ".Ebs.SnapshotId", va.volumeToCreate.getSnapshotId());
+            }
+            if(va.volumeToCreate.getVolumeSize().getQuantity().intValue() > 0) {
+              parameters.put("BlockDeviceMappings.member." + z + ".Ebs.VolumeSize", String.valueOf(va.volumeToCreate.getVolumeSize().getQuantity().intValue()));
+            }
+            z++;
+          }
         }
-        finally {
-            APITrace.end();
+        if(options.getVirtualMachineIdToClone() != null) {
+          parameters.put("InstanceId", options.getVirtualMachineIdToClone());
         }
+
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          method.invoke();
+        }
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
+        }
+        return options.getName();
+      }
+      finally {
+        APITrace.end();
+      }
     }
 
     @Override
     public void deleteAutoScalingGroup(String providerAutoScalingGroupId) throws InternalException, CloudException {
-        APITrace.begin(provider, "AutoScaling.deleteAutoScalingGroup");
-        try {
-            Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DELETE_AUTO_SCALING_GROUP);
-            EC2Method method;
+      deleteAutoScalingGroup( new AutoScalingGroupDeleteOptions( providerAutoScalingGroupId ) );
+    }
 
-            parameters.put("AutoScalingGroupName", providerAutoScalingGroupId);
-            method = new EC2Method(provider, getAutoScalingUrl(), parameters);
-            try {
-                method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+    @Override
+    public void deleteAutoScalingGroup( @Nonnull AutoScalingGroupDeleteOptions options ) throws InternalException, CloudException {
+      APITrace.begin(provider, "AutoScaling.deleteAutoScalingGroup");
+      try {
+        Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DELETE_AUTO_SCALING_GROUP);
+        EC2Method method;
+
+        parameters.put( "AutoScalingGroupName", options.getProviderAutoScalingGroupId() );
+        parameters.put( "ForceDelete", options.getForceDelete().toString() );
+        method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+        try {
+          method.invoke();
         }
-        finally {
-            APITrace.end();
+        catch( EC2Exception e ) {
+          logger.error(e.getSummary());
+          throw new CloudException(e);
         }
+      }
+      finally {
+        APITrace.end();
+      }
     }
 
     @Override
@@ -815,8 +875,22 @@ public class AutoScaling implements AutoScalingSupport {
         }
     }
 
-    @Override
-    public Collection<ScalingGroup> listScalingGroups() throws CloudException, InternalException {
+	/**
+	 * Provides backwards compatibility
+	 */
+	@Override
+	public Collection<ScalingGroup> listScalingGroups() throws CloudException, InternalException {
+		return listScalingGroups(AutoScalingGroupFilterOptions.getInstance());
+	}
+
+	/**
+	 * Returns filtered list of auto scaling groups.
+	 *
+	 * @param options the filter parameters
+	 * @return filtered list of scaling groups
+	 */
+	@Override
+    public Collection<ScalingGroup> listScalingGroups(AutoScalingGroupFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.listScalingGroups");
         try {
             ProviderContext ctx = provider.getContext();
@@ -849,7 +923,8 @@ public class AutoScaling implements AutoScalingSupport {
                     if( item.getNodeName().equals("member") ) {
                         ScalingGroup group = toScalingGroup(ctx, item);
 
-                        if( group != null ) {
+                        if( (group != null && (options != null && !options.hasCriteria()))
+		                        || (group != null && (options != null && options.hasCriteria() && options.matches(group))) ) {
                             list.add(group);
                         }
                     }
@@ -941,27 +1016,27 @@ public class AutoScaling implements AutoScalingSupport {
         }
     }
 
-  @Override
-  public void updateTags( @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
-    APITrace.begin( provider, "AutoScaling.removeTags" );
-    try {
-      handleTagRequest( EC2Method.UPDATE_AUTO_SCALING_GROUP_TAGS, providerScalingGroupIds, tags );
-    }
-    finally {
-      APITrace.end();
-    }
-  }
+   @Override
+   public void updateTags( @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
+     APITrace.begin( provider, "AutoScaling.removeTags" );
+     try {
+       handleTagRequest( EC2Method.UPDATE_AUTO_SCALING_GROUP_TAGS, providerScalingGroupIds, tags );
+     }
+     finally {
+       APITrace.end();
+     }
+   }
 
-  @Override
-  public void removeTags( @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
-    APITrace.begin( provider, "AutoScaling.removeTags" );
-    try {
-      handleTagRequest( EC2Method.DELETE_AUTO_SCALING_GROUP_TAGS, providerScalingGroupIds, tags );
-    }
-    finally {
-      APITrace.end();
-    }
-  }
+   @Override
+   public void removeTags( @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
+     APITrace.begin( provider, "AutoScaling.removeTags" );
+     try {
+       handleTagRequest( EC2Method.DELETE_AUTO_SCALING_GROUP_TAGS, providerScalingGroupIds, tags );
+     }
+     finally {
+       APITrace.end();
+     }
+   }
 
   private void handleTagRequest( @Nonnull String methodName, @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
     Map<String, String> parameters = getAutoScalingParameters( provider.getContext(), methodName );
@@ -1022,7 +1097,7 @@ public class AutoScaling implements AutoScalingSupport {
             return null;
         }
         return new ResourceStatus(groupId, true);
-    }
+  }
 
     private @Nullable LaunchConfiguration toLaunchConfiguration(@Nullable Node item) {
         if( item == null ) {
@@ -1128,6 +1203,91 @@ public class AutoScaling implements AutoScalingSupport {
                 }
               }
             }
+            else if( name.equalsIgnoreCase("AssociatePublicIpAddress") ) {
+              if(attr.getFirstChild() != null){
+                cfg.setAssociatePublicIPAddress( Boolean.valueOf(attr.getFirstChild().getNodeValue()) );
+              }
+            }
+            else if( name.equalsIgnoreCase("EbsOptimized") ) {
+              if(attr.getFirstChild() != null){
+                cfg.setIoOptimized(Boolean.valueOf(attr.getFirstChild().getNodeValue()));
+              }
+            }
+            else if( name.equalsIgnoreCase("BlockDeviceMappings") ) {
+              ArrayList<VolumeAttachment> VAs = new ArrayList<VolumeAttachment>();
+              VolumeAttachment[] VAArray;
+
+              if( attr.hasChildNodes() ) {
+                NodeList blockDeviceMaps = attr.getChildNodes();
+
+                for( int j=0; j<blockDeviceMaps.getLength(); j++ ) {
+                  Node blockDeviceMap = blockDeviceMaps.item(j);
+
+                  if( blockDeviceMap.getNodeName().equalsIgnoreCase("member") ) {
+
+                    VolumeAttachment va = new VolumeAttachment();
+
+                    if( blockDeviceMap.hasChildNodes() ) {
+                      NodeList blockDeviceChildren = blockDeviceMap.getChildNodes();
+                      for( int y=0; y<blockDeviceChildren.getLength(); y++ ) {
+                        Node blockDeviceChild = blockDeviceChildren.item(y);
+
+                        String blockDeviceChildName = blockDeviceChild.getNodeName();
+
+                        if( blockDeviceChildName.equalsIgnoreCase("DeviceName") ) {
+
+                          String value = blockDeviceChild.getFirstChild().getNodeValue().trim();
+                          va.setDeviceId(value);
+
+                        } else if( blockDeviceChildName.equalsIgnoreCase("Ebs") ) {
+                          if( blockDeviceChild.hasChildNodes() ) {
+                            NodeList ebsChildren = blockDeviceChild.getChildNodes();
+                            int size = 0;
+                            String iops = null;
+                            String snapShotId = null;
+                            String volumeType = null;
+
+                            for( int q=0; q<ebsChildren.getLength(); q++ ) {
+                              Node ebsChild = ebsChildren.item(q);
+                              String ebsChildName = ebsChild.getNodeName();
+
+                              if( ebsChildName.equalsIgnoreCase("Iops") ) {
+                                iops = ebsChild.getFirstChild().getNodeValue().trim();
+                              } else if( ebsChildName.equalsIgnoreCase("VolumeSize") ) {
+                                String value = ebsChild.getFirstChild().getNodeValue().trim();
+                                size = Integer.parseInt(value);
+                              } else if( ebsChildName.equalsIgnoreCase("SnapshotId") ) {
+                                snapShotId = ebsChild.getFirstChild().getNodeValue().trim();
+                              } else if( ebsChildName.equalsIgnoreCase("VolumeType") ) {
+                                volumeType = ebsChild.getFirstChild().getNodeValue().trim();
+                              }
+                            }
+                            VolumeCreateOptions vco = VolumeCreateOptions.getInstance( new Storage<Gigabyte>(size, Storage.GIGABYTE), "", "" );
+                            try {
+                              vco.setIops( Integer.parseInt( iops ) );
+                            } catch( NumberFormatException nfe ) {
+                              vco.setIops( 0 );
+                            }
+                            vco.setSnapshotId( snapShotId );
+                            vco.setVolumeProductId( volumeType );
+                            va.setVolumeToCreate( vco );
+                          }
+                        }
+                      }
+                      VAs.add( va );
+                    }
+                  }
+                }
+                VAArray = new VolumeAttachment[VAs.size()];
+                int v=0;
+                for( VolumeAttachment va : VAs ) {
+                  VAArray[v++] = va;
+                }
+              } else {
+                VAArray = new VolumeAttachment[0];
+              }
+              cfg.setVolumeAttachment( VAArray );
+            }
         }
         return cfg;
     }
@@ -1172,7 +1332,7 @@ public class AutoScaling implements AutoScalingSupport {
                 group.setMaxServers(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
             else if( name.equalsIgnoreCase("DefaultCooldown") ) {
-                group.setDefaultCoolcown(Integer.parseInt(attr.getFirstChild().getNodeValue()));
+                group.setDefaultCooldown(Integer.parseInt(attr.getFirstChild().getNodeValue()));
             }
             else if( name.equalsIgnoreCase("CreatedTime") ) {
                 SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");

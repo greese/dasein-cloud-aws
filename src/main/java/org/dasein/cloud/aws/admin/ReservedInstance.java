@@ -370,6 +370,9 @@ public class ReservedInstance implements PrepaymentSupport {
 			else if( name.equals("instanceType") ) {
 				prepayment.setSize(attr.getFirstChild().getNodeValue().trim());
 			}
+      else if( name.equals("offeringType") ) {
+        prepayment.setUtilization(attr.getFirstChild().getNodeValue().trim());
+      }
 			else if( name.equals("availabilityZone") ) {
 				prepayment.setDataCenterId(attr.getFirstChild().getNodeValue().trim());
 			}

@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
@@ -16,16 +16,15 @@
  * limitations under the License.
  * ====================================================================
  */
+
 package org.dasein.cloud.aws.compute;
 
-import org.dasein.cloud.AbstractCapabilities;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.Requirement;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.*;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.*;
 
 /**
@@ -67,6 +66,11 @@ public class AMICapabilities extends AbstractCapabilities<AWSCloud> implements I
     @Override
     public String getProviderTermForCustomImage(@Nonnull Locale locale, @Nonnull ImageClass imageClass) {
         return getProviderTermForImage(locale, imageClass);
+    }
+
+    @Override
+    public @Nullable VisibleScope getImageVisibleScope() {
+        return null;
     }
 
     @Nonnull

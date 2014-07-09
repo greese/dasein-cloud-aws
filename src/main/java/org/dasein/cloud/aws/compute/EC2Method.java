@@ -19,17 +19,14 @@
 
 package org.dasein.cloud.aws.compute;
 
-import org.apache.http.*;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.conn.params.ConnRoutePNames;
-import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
-import org.apache.http.params.BasicHttpParams;
-import org.apache.http.params.HttpParams;
-import org.apache.http.params.HttpProtocolParams;
-import org.apache.http.protocol.HTTP;
 import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudErrorType;
@@ -57,7 +54,6 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 public class EC2Method {
     static private final Logger logger = AWSCloud.getLogger(EC2Method.class);
@@ -82,7 +78,6 @@ public class EC2Method {
     static public final String UPDATE_AUTO_SCALING_GROUP        = "UpdateAutoScalingGroup";
     static public final String UPDATE_AUTO_SCALING_GROUP_TAGS   = "CreateOrUpdateTags";
     static public final String DELETE_AUTO_SCALING_GROUP_TAGS   = "DeleteTags";
-
 
     static public @Nonnull ServiceAction[] asAutoScalingServiceAction(@Nonnull String action) {
         if( action.equals(CREATE_AUTO_SCALING_GROUP) ) {
@@ -162,18 +157,20 @@ public class EC2Method {
     static public final String RELEASE_ADDRESS      = "ReleaseAddress";
 
     // Instance operations
-    static public final String DESCRIBE_INSTANCES    = "DescribeInstances";
-    static public final String GET_CONSOLE_OUTPUT    = "GetConsoleOutput";
-    static public final String GET_METRIC_STATISTICS = "GetMetricStatistics";
-    static public final String GET_PASSWORD_DATA     = "GetPasswordData";
-    static public final String MONITOR_INSTANCES     = "MonitorInstances";
-    static public final String REBOOT_INSTANCES      = "RebootInstances";
-    static public final String RUN_INSTANCES         = "RunInstances";
-    static public final String START_INSTANCES       = "StartInstances";
-    static public final String STOP_INSTANCES        = "StopInstances";
-    static public final String TERMINATE_INSTANCES   = "TerminateInstances";
-    static public final String UNMONITOR_INSTANCES   = "UnmonitorInstances";
-    static public final String MODIFY_INSTANCE_ATTRIBUTE     = "ModifyInstanceAttribute";
+    static public final String DESCRIBE_INSTANCES          = "DescribeInstances";
+    static public final String GET_CONSOLE_OUTPUT          = "GetConsoleOutput";
+    static public final String GET_METRIC_STATISTICS       = "GetMetricStatistics";
+    static public final String GET_PASSWORD_DATA           = "GetPasswordData";
+    static public final String MONITOR_INSTANCES           = "MonitorInstances";
+    static public final String REBOOT_INSTANCES            = "RebootInstances";
+    static public final String RUN_INSTANCES               = "RunInstances";
+    static public final String START_INSTANCES             = "StartInstances";
+    static public final String STOP_INSTANCES              = "StopInstances";
+    static public final String TERMINATE_INSTANCES         = "TerminateInstances";
+    static public final String UNMONITOR_INSTANCES         = "UnmonitorInstances";
+    static public final String MODIFY_INSTANCE_ATTRIBUTE   = "ModifyInstanceAttribute";
+	static public final String DESCRIBE_INSTANCE_ATTRIBUTE = "DescribeInstanceAttribute";
+    static public final String DESCRIBE_INSTANCE_STATUS    = "DescribeInstanceStatus";
 
     // Keypair operations
     static public final String CREATE_KEY_PAIR    = "CreateKeyPair";
@@ -263,6 +260,20 @@ public class EC2Method {
     static public final String DELETE_ALARMS = "DeleteAlarms";
     static public final String ENABLE_ALARM_ACTIONS = "EnableAlarmActions";
     static public final String DISABLE_ALARM_ACTIONS = "DisableAlarmActions";
+
+    // Account operations
+    static public final String DESCRIBE_ACCOUNT_ATTRIBUTES      = "DescribeAccountAttributes";
+
+    // Spot instances
+    static public final String CREATE_SPOT_DATAFEED_SUBSCRIPTION    = "CreateSpotDatafeedSubscription";
+    static public final String DESCRIBE_SPOT_DATAFEED_SUBSCRIPTION  = "DescribeSpotDatafeedSubscription";
+    static public final String DELETE_SPOT_DATAFEED_SUBSCRIPTION    = "DeleteSpotDatafeedSubscription";
+    static public final String REQUEST_SPOT_INSTANCES               = "RequestSpotInstances";
+    static public final String DESCRIBE_SPOT_INSTANCE_REQUESTS      = "DescribeSpotInstanceRequests";
+    static public final String CANCEL_SPOT_INSTANCE_REQUESTS        = "CancelSpotInstanceRequests";
+    static public final String DESCRIBE_SPOT_PRICE_HISTORY          = "DescribeSpotPriceHistory";
+
+
 
     static public @Nonnull ServiceAction[] asEC2ServiceAction(@Nonnull String action) {
         // TODO: implement me
@@ -591,43 +602,28 @@ public class EC2Method {
         }
     }
 
-	public Document invoke() throws EC2Exception, CloudException, InternalException {
-	    return invoke(false);
-	}
-
-    protected @Nonnull HttpClient getClient() throws InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new InternalException("No context was specified for this request");
-        }
-        boolean ssl = url.startsWith("https");
-        HttpParams params = new BasicHttpParams();
-
-        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-        //noinspection deprecation
-        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
-        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
-
-        Properties p = ctx.getCustomProperties();
-
-        if( p != null ) {
-            String proxyHost = p.getProperty("proxyHost");
-            String proxyPort = p.getProperty("proxyPort");
-
-            if( proxyHost != null ) {
-                int port = 0;
-
-                if( proxyPort != null && proxyPort.length() > 0 ) {
-                    port = Integer.parseInt(proxyPort);
-                }
-                params.setParameter(ConnRoutePNames.DEFAULT_PROXY, new HttpHost(proxyHost, port, ssl ? "https" : "http"));
-            }
-        }
-        return new DefaultHttpClient(params);
+    public Document invoke() throws EC2Exception, CloudException, InternalException {
+        return invoke(false);
     }
 
-    public Document invoke(boolean debug) throws EC2Exception, CloudException, InternalException {
+    public Document invoke(boolean debug) throws InternalException, CloudException, EC2Exception {
+        return this.invoke(debug, null);
+    }
+
+    /**
+     * The invoke method which isn't itself parsing the successful response,
+     * but relies on the callback to parse it.
+     *
+     * @param callback
+     * @throws InternalException
+     * @throws CloudException
+     * @throws EC2Exception
+     */
+    public void invoke(XmlStreamParser callback) throws InternalException, CloudException, EC2Exception {
+        this.invoke(false, callback);
+    }
+
+    private Document invoke(boolean debug, XmlStreamParser callback) throws EC2Exception, CloudException, InternalException {
 	    if( logger.isTraceEnabled() ) {
 	        logger.trace("ENTER - " + EC2Method.class.getName() + ".invoke(" + debug + ")");
 	    }
@@ -635,13 +631,14 @@ public class EC2Method {
             wire.debug("");
             wire.debug("--------------------------------------------------------------------------------------");
         }
+        HttpClient client = null;
 	    try {
     		if( logger.isDebugEnabled() ) {
     			logger.debug("Talking to server at " + url);
     		}
 
             HttpPost post = new HttpPost(url);
-            HttpClient client = getClient();
+            client = provider.getClient();
 
             HttpResponse response;
 
@@ -680,7 +677,6 @@ public class EC2Method {
             }
             catch( IOException e ) {
                 logger.error("I/O error from server communications: " + e.getMessage());
-                e.printStackTrace();
                 throw new InternalException(e);
             }
             int status = response.getStatusLine().getStatusCode();
@@ -689,12 +685,21 @@ public class EC2Method {
                     HttpEntity entity = response.getEntity();
 
                     if( entity == null ) {
-                        throw new EC2Exception(status, null, "NoResponse", "No response body was specified");
+                        throw EC2Exception.create(status);
                     }
                     InputStream input = entity.getContent();
 
                     try {
-                        return parseResponse(input);
+                        // When callback is passed, callback will parse the response, and therefore there
+                        // will be no DOM document created. The callback will likely take a list to populate
+                        // the results with.
+                        if (callback != null) {
+                            callback.parse(input);
+                            return null;
+                        }
+                        else {
+                            return parseResponse(input);
+                        }
                     }
                     finally {
                         input.close();
@@ -702,7 +707,6 @@ public class EC2Method {
                 }
                 catch( IOException e ) {
                     logger.error("Error parsing response from AWS: " + e.getMessage());
-                    e.printStackTrace();
                     throw new CloudException(CloudErrorType.COMMUNICATION, status, null, e.getMessage());
                 }
             }
@@ -713,7 +717,7 @@ public class EC2Method {
                     HttpEntity entity = response.getEntity();
 
                     if( entity == null ) {
-                        throw new EC2Exception(status, null, "NoResponse", "No response body was specified");
+                        throw EC2Exception.create(status);
                     }
                     InputStream input = entity.getContent();
 
@@ -758,12 +762,12 @@ public class EC2Method {
                                     requestId = id.getFirstChild().getNodeValue().trim();
                                 }
                                 if( message == null && code == null ) {
-                                    throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
+                                    throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/null");
                                 }
                                 else if( message == null ) {
                                     message = code;
                                 }
-                                throw new EC2Exception(status, requestId, code, message);
+                                throw EC2Exception.create(status, requestId, code, message);
                             }
                         }
                         catch( RuntimeException ignore  ) {
@@ -806,7 +810,7 @@ public class EC2Method {
                                 HttpEntity entity = response.getEntity();
 
                                 if( entity == null ) {
-                                    throw new EC2Exception(status, null, "NoResponse", "No response body was specified");
+                                    throw EC2Exception.create(status);
                                 }
                                 msg = msg + "Response from server was:\n" + EntityUtils.toString(entity);
                             }
@@ -833,7 +837,7 @@ public class EC2Method {
                     HttpEntity entity = response.getEntity();
 
                     if( entity == null ) {
-                        throw new EC2Exception(status, null, "NoResponse", "No response body was specified");
+                        throw EC2Exception.create(status);
                     }
                     InputStream input = entity.getContent();
                     Document doc;
@@ -874,18 +878,20 @@ public class EC2Method {
                         if( message == null ) {
                             throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
                         }
-                        throw new EC2Exception(status, requestId, code, message);
+                        throw EC2Exception.create(status, requestId, code, message);
                     }
                     throw new CloudException("Unable to parse error.");
                 }
                 catch( IOException e ) {
                     logger.error(e);
-                    e.printStackTrace();
                     throw new CloudException(e);
                 }
             }
 	    }
 	    finally {
+            if (client != null) {
+                client.getConnectionManager().shutdown();
+            }
 	        if( logger.isTraceEnabled() ) {
 	            logger.trace("EXIT - " + EC2Method.class.getName() + ".invoke()");
 	        }
@@ -923,8 +929,9 @@ public class EC2Method {
 	}
 
 	private Document parseResponse(InputStream responseBodyAsStream) throws CloudException, InternalException {
+        BufferedReader in = null;
 		try {
-			BufferedReader in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
+			in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
 			StringBuilder sb = new StringBuilder();
 			String line;
 
@@ -932,12 +939,20 @@ public class EC2Method {
 				sb.append(line);
 				sb.append("\n");
 			}
-			in.close();
-
 			return parseResponse(sb.toString());
 		}
 		catch( IOException e ) {
 			throw new CloudException(e);
 		}
+        finally {
+            if( in != null ) {
+                try {
+                    in.close();
+                } catch( IOException e ) {
+                    // Ignore
+                }
+            }
+        }
     }
+
 }

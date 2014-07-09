@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
@@ -17,40 +17,26 @@
  * ====================================================================
  */
 
-package org.dasein.cloud.aws.network;
+package org.dasein.cloud.aws.compute;
 
-import org.dasein.cloud.AbstractCapabilities;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
-import org.dasein.cloud.Requirement;
-import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.network.VPNCapabilities;
-import org.dasein.cloud.network.VPNProtocol;
 
-import javax.annotation.Nonnull;
-import java.util.Collections;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
 
 /**
- * Describes the capabilities of AWS with respect to Dasein VPN operations.
- * <p>Created by Stas Maksimov: 10/03/2014 00:48</p>
+ * Interface to be used for stream parser implementations.
+ * <p>Created by Stas Maksimov: 11/04/2014 19:13</p>
  *
  * @author Stas Maksimov
  * @version 2014.03 initial version
  * @since 2014.03
+ * @see org.dasein.cloud.aws.compute.EC2Method#invoke(XmlStreamParser)
  */
-public class VPCGatewayCapabilities extends AbstractCapabilities<AWSCloud> implements VPNCapabilities {
-    public VPCGatewayCapabilities(AWSCloud provider) {
-        super(provider);
-    }
+public interface XmlStreamParser<T> {
 
-    @Override
-    public Requirement getVPNDataCenterConstraint() {
-        return Requirement.NONE;
-    }
+    List<T> parse(InputStream stream) throws IOException, CloudException, InternalException;
 
-    @Nonnull
-    @Override
-    public Iterable<VPNProtocol> listSupportedVPNProtocols() throws CloudException, InternalException {
-        return Collections.singletonList(VPNProtocol.IPSEC1);
-    }
 }

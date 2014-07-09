@@ -20,23 +20,18 @@
 package org.dasein.cloud.aws.storage;
 
 import org.apache.commons.codec.binary.Base64;
-import org.apache.http.*;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.entity.FileEntity;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.params.BasicHttpParams;
-import org.apache.http.params.HttpParams;
-import org.apache.http.params.HttpProtocolParams;
-import org.apache.http.protocol.HTTP;
 import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.storage.BlobStoreSupport;
@@ -139,48 +134,48 @@ public class S3Method {
         
         return new String(b64);
     }
-    
-	private S3Action           action      = null;
-	private int                attempts    = 0;
-	private String             body        = null;
-	private String             contentType = null;
-	private Map<String,String> headers     = null;
-	private Map<String,String> parameters  = null;
-	private AWSCloud           provider    = null;
-	private File               uploadFile  = null;
 
-	public S3Method(AWSCloud provider, S3Action action) {
-		this.action = action;
-		this.headers = new HashMap<String,String>();
-		this.provider = provider;
-	}
-	
-	public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers) {
-		this.action = action;
-		this.headers = (headers == null ? new HashMap<String,String>() : headers);
-		this.provider = provider;
-		this.parameters = parameters;
-	}
-	
-	public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, String body) {
-		this.action = action;
-		this.headers = (headers == null ? new HashMap<String,String>() : headers);
-		this.contentType = contentType;
-		this.body = body;
-		this.provider = provider;
-		this.parameters = parameters;
-	}
-    
-	public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, File uploadFile) {
-		this.action = action;
-		this.headers = (headers == null ? new HashMap<String,String>() : headers);
-		this.contentType = contentType;
-		this.uploadFile = uploadFile;
-		this.provider = provider;
-		this.parameters = parameters;
-	}
-	
-	private String getDate() throws CloudException {
+    private S3Action           action      = null;
+    private int                attempts    = 0;
+    private String             body        = null;
+    private String             contentType = null;
+    private Map<String,String> headers     = null;
+    private Map<String,String> parameters  = null;
+    private AWSCloud           provider    = null;
+    private File               uploadFile  = null;
+
+    public S3Method(AWSCloud provider, S3Action action) {
+        this.action = action;
+        this.headers = new HashMap<String,String>();
+        this.provider = provider;
+    }
+
+    public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers) {
+        this.action = action;
+        this.headers = (headers == null ? new HashMap<String,String>() : headers);
+        this.provider = provider;
+        this.parameters = parameters;
+    }
+
+    public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, String body) {
+        this.action = action;
+        this.headers = (headers == null ? new HashMap<String,String>() : headers);
+        this.contentType = contentType;
+        this.body = body;
+        this.provider = provider;
+        this.parameters = parameters;
+    }
+
+    public S3Method(AWSCloud provider, S3Action action, Map<String,String> parameters, Map<String,String> headers, String contentType, File uploadFile) {
+        this.action = action;
+        this.headers = (headers == null ? new HashMap<String,String>() : headers);
+        this.contentType = contentType;
+        this.uploadFile = uploadFile;
+        this.provider = provider;
+        this.parameters = parameters;
+    }
+
+    private String getDate() throws CloudException {
         if( provider.getEC2Provider().isStorage() && "google".equalsIgnoreCase(provider.getProviderName()) ) {
             SimpleDateFormat format = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ssz", new Locale("US"));
             Calendar cal = Calendar.getInstance(new SimpleTimeZone(0, "GMT"));
@@ -195,65 +190,32 @@ public class S3Method {
             fmt.setCalendar(cal);
             return fmt.format(new Date());
         }
-	}
+    }
 
-	S3Response invoke(String bucket, String object) throws S3Exception, CloudException, InternalException {
-	    return invoke(bucket, object, null);
-	}
-
-    protected @Nonnull HttpClient getClient(String url, boolean multipart) throws InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new InternalException("No context was specified for this request");
-        }
-        boolean ssl = url.startsWith("https");
-        HttpParams params = new BasicHttpParams();
-
-        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-        if( !multipart ) {
-            HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
-        }
-        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
-
-        Properties p = ctx.getCustomProperties();
-
-        if( p != null ) {
-            String proxyHost = p.getProperty("proxyHost");
-            String proxyPort = p.getProperty("proxyPort");
-
-            if( proxyHost != null ) {
-                int port = 0;
-
-                if( proxyPort != null && proxyPort.length() > 0 ) {
-                    port = Integer.parseInt(proxyPort);
-                }
-                params.setParameter(ConnRoutePNames.DEFAULT_PROXY, new HttpHost(proxyHost, port, ssl ? "https" : "http"));
-            }
-        }
-        return new DefaultHttpClient(params);
+    S3Response invoke(String bucket, String object) throws S3Exception, CloudException, InternalException {
+        return invoke(bucket, object, null);
     }
 
     static private final Logger wire = AWSCloud.getWireLogger(S3.class);
 
-	// TODO(stas): This method screams for some heavy refactoring
+    // TODO(stas): This method screams for some heavy refactoring
     S3Response invoke(@Nullable String bucket, @Nullable String object, @Nullable String temporaryEndpoint) throws S3Exception, CloudException, InternalException {
         if( wire.isDebugEnabled() ) {
             wire.debug("");
             wire.debug("----------------------------------------------------------------------------------");
         }
+        HttpClient client = null;
+        boolean leaveOpen = false;
         try {
             StringBuilder url = new StringBuilder();
-            boolean leaveOpen = false;
             HttpRequestBase method;
-            HttpClient client;
             int status;
 
             // Sanitise the parameters as they may have spaces and who knows what else
             if( bucket != null ) {
                 bucket = AWSCloud.encode(bucket, false);
             }
-            if( object != null && !object.startsWith("?")) {
+            if( object != null && !"?location".equalsIgnoreCase( object ) && !"?acl".equalsIgnoreCase( object )) {
                 object = AWSCloud.encode(object, false);
             }
             if( temporaryEndpoint != null ) {
@@ -427,7 +389,7 @@ public class S3Method {
                 ((HttpEntityEnclosingRequestBase)method).setEntity(new FileEntity(uploadFile, contentType));
             }
             attempts++;
-            client = getClient(url.toString(), body == null && uploadFile == null);
+            client = provider.getClient(body == null && uploadFile == null);
             
             if( wire.isDebugEnabled() ) {
                 wire.debug("[" + url.toString() + "]");
@@ -639,6 +601,9 @@ public class S3Method {
             }
         }
         finally {
+            if (!leaveOpen && client != null) {
+                client.getConnectionManager().shutdown();
+            }
             if( wire.isDebugEnabled() ) {
                 wire.debug("----------------------------------------------------------------------------------");
                 wire.debug("");

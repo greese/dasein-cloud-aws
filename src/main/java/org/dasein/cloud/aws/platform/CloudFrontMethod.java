@@ -19,36 +19,13 @@
 
 package org.dasein.cloud.aws.platform;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Map;
-import java.util.Properties;
-
-import javax.annotation.Nonnull;
-import javax.servlet.http.HttpServletResponse;
-import javax.xml.parsers.ParserConfigurationException;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
-import org.apache.http.HttpVersion;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.params.BasicHttpParams;
-import org.apache.http.params.HttpParams;
-import org.apache.http.params.HttpProtocolParams;
-import org.apache.http.protocol.HTTP;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
@@ -63,9 +40,22 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
+import javax.annotation.Nonnull;
+import javax.servlet.http.HttpServletResponse;
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.*;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Map;
+import java.util.SimpleTimeZone;
+
 public class CloudFrontMethod {
 	static private final Logger logger = Logger.getLogger(CloudFrontMethod.class);
-	
+    static SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
+    static {
+        fmt.setCalendar(Calendar.getInstance(new SimpleTimeZone(0, "GMT")));
+    }
     static public final String CF_PREFIX = "cloudfront:";
 
     static public @Nonnull ServiceAction[] asCloudFrontServiceAction(@Nonnull String action) {
@@ -106,47 +96,11 @@ public class CloudFrontMethod {
 		this.provider = provider;
 	}
 	
-	private String getDate() throws CloudException {
-		SimpleDateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
-
+	private static String getDate() throws CloudException {
 		// TODO: sync regularly with CloudFront
 		return fmt.format(new Date());
 	}
 
-    protected @Nonnull HttpClient getClient(String url) throws InternalException {
-        ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new InternalException("No context was specified for this request");
-        }
-        boolean ssl = url.startsWith("https");
-        HttpParams params = new BasicHttpParams();
-
-        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
-        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
-        HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-        HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);
-        HttpProtocolParams.setUserAgent(params, "Dasein Cloud");
-
-        Properties p = ctx.getCustomProperties();
-
-        if( p != null ) {
-            String proxyHost = p.getProperty("proxyHost");
-            String proxyPort = p.getProperty("proxyPort");
-
-            if( proxyHost != null ) {
-                int port = 0;
-
-                if( proxyPort != null && proxyPort.length() > 0 ) {
-                    port = Integer.parseInt(proxyPort);
-                }
-                params.setParameter(ConnRoutePNames.DEFAULT_PROXY, new HttpHost(proxyHost, port, ssl ? "https" : "http"));
-            }
-        }
-        return new DefaultHttpClient(params);
-    }
-	
 	CloudFrontResponse invoke(String ... args) throws CloudFrontException, CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
 
@@ -191,149 +145,155 @@ public class CloudFrontMethod {
             }
         }
 		attempts++;
-        client = getClient(url.toString());
+        client = provider.getClient();
         CloudFrontResponse response = new CloudFrontResponse();
 
         HttpResponse httpResponse;
         int status;
 
         try {
-            APITrace.trace(provider, action.toString());
-            httpResponse = client.execute(method);
-            status = httpResponse.getStatusLine().getStatusCode();
-
-        }
-        catch( IOException e ) {
-            logger.error(e);
-            e.printStackTrace();
-            throw new InternalException(e);
-        }
-        Header header = httpResponse.getFirstHeader("ETag");
-
-        if( header != null ) {
-            response.etag = header.getValue();
-        }
-        else {
-            response.etag = null;
-        }
-        if( status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_CREATED || status == HttpServletResponse.SC_ACCEPTED ) {
             try {
-                HttpEntity entity = httpResponse.getEntity();
+                APITrace.trace(provider, action.toString());
+                httpResponse = client.execute(method);
+                status = httpResponse.getStatusLine().getStatusCode();
 
-                if( entity == null ) {
-                    throw new CloudFrontException(status, null, null, "NoResponse", "No response body was specified");
-                }
-                InputStream input;
-
-                try {
-                    input = entity.getContent();
-                }
-                catch( IOException e ) {
-                    throw new CloudException(e);
-                }
-                try {
-                    response.document = parseResponse(input);
-                    return response;
-                }
-                finally {
-                    input.close();
-                }
             }
             catch( IOException e ) {
                 logger.error(e);
                 e.printStackTrace();
-                throw new CloudException(e);
+                throw new InternalException(e);
             }
-        }
-        else if( status == HttpServletResponse.SC_NO_CONTENT ) {
-            return null;
-        }
-        else {
-            if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE || status == HttpServletResponse.SC_INTERNAL_SERVER_ERROR ) {
-                if( attempts >= 5 ) {
-                    String msg;
+            Header header = httpResponse.getFirstHeader("ETag");
 
-                    if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE ) {
-                        msg = "Cloud service is currently unavailable.";
+            if( header != null ) {
+                response.etag = header.getValue();
+            }
+            else {
+                response.etag = null;
+            }
+            if( status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_CREATED || status == HttpServletResponse.SC_ACCEPTED ) {
+                try {
+                    HttpEntity entity = httpResponse.getEntity();
+
+                    if( entity == null ) {
+                        throw new CloudFrontException(status, null, null, "NoResponse", "No response body was specified");
+                    }
+                    InputStream input;
+
+                    try {
+                        input = entity.getContent();
+                    }
+                    catch( IOException e ) {
+                        throw new CloudException(e);
+                    }
+                    try {
+                        response.document = parseResponse(input);
+                        return response;
+                    }
+                    finally {
+                        input.close();
+                    }
+                }
+                catch( IOException e ) {
+                    logger.error(e);
+                    e.printStackTrace();
+                    throw new CloudException(e);
+                }
+            }
+            else if( status == HttpServletResponse.SC_NO_CONTENT ) {
+                return null;
+            }
+            else {
+                if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE || status == HttpServletResponse.SC_INTERNAL_SERVER_ERROR ) {
+                    if( attempts >= 5 ) {
+                        String msg;
+
+                        if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE ) {
+                            msg = "Cloud service is currently unavailable.";
+                        }
+                        else {
+                            msg = "The cloud service encountered a server error while processing your request.";
+                        }
+                        logger.error(msg);
+                        throw new CloudException(msg);
                     }
                     else {
-                        msg = "The cloud service encountered a server error while processing your request.";
+                        try { Thread.sleep(5000L); }
+                        catch( InterruptedException ignore ) { }
+                        return invoke(args);
                     }
-                    logger.error(msg);
-                    throw new CloudException(msg);
                 }
-                else {
-                    try { Thread.sleep(5000L); }
-                    catch( InterruptedException ignore ) { }
-                    return invoke(args);
-                }
-            }
-            try {
-                HttpEntity entity = httpResponse.getEntity();
-
-                if( entity == null ) {
-                    throw new CloudFrontException(status, null, null, "NoResponse", "No response body was specified");
-                }
-                InputStream input;
-
                 try {
-                    input = entity.getContent();
+                    HttpEntity entity = httpResponse.getEntity();
+
+                    if( entity == null ) {
+                        throw new CloudFrontException(status, null, null, "NoResponse", "No response body was specified");
+                    }
+                    InputStream input;
+
+                    try {
+                        input = entity.getContent();
+                    }
+                    catch( IOException e ) {
+                        throw new CloudException(e);
+                    }
+                    Document doc;
+
+                    try {
+                        doc = parseResponse(input);
+                    }
+                    finally {
+                        input.close();
+                    }
+                    if( doc != null ) {
+                        String code = null, message = null, requestId = null, type = null;
+                        NodeList blocks = doc.getElementsByTagName("Error");
+
+                        if( blocks.getLength() > 0 ) {
+                            Node error = blocks.item(0);
+                            NodeList attrs;
+
+                            attrs = error.getChildNodes();
+                            for( int i=0; i<attrs.getLength(); i++ ) {
+                                Node attr = attrs.item(i);
+
+                                if( attr.getNodeName().equals("Code") ) {
+                                    code = attr.getFirstChild().getNodeValue().trim();
+                                }
+                                else if( attr.getNodeName().equals("Type") ) {
+                                    type = attr.getFirstChild().getNodeValue().trim();
+                                }
+                                else if( attr.getNodeName().equals("Message") ) {
+                                    message = attr.getFirstChild().getNodeValue().trim();
+                                }
+                            }
+
+                        }
+                        blocks = doc.getElementsByTagName("RequestId");
+                        if( blocks.getLength() > 0 ) {
+                            Node id = blocks.item(0);
+
+                            requestId = id.getFirstChild().getNodeValue().trim();
+                        }
+                        if( message == null ) {
+                            throw new CloudException("Unable to identify error condition: " + status + "/" + requestId + "/" + code);
+                        }
+                        throw new CloudFrontException(status, requestId, type, code, message);
+                    }
+                    throw new CloudException("Unable to parse error.");
                 }
                 catch( IOException e ) {
+                    logger.error(e);
+                    e.printStackTrace();
                     throw new CloudException(e);
                 }
-                Document doc;
-
-                try {
-                    doc = parseResponse(input);
-                }
-                finally {
-                    input.close();
-                }
-                if( doc != null ) {
-                    String code = null, message = null, requestId = null, type = null;
-                    NodeList blocks = doc.getElementsByTagName("Error");
-
-                    if( blocks.getLength() > 0 ) {
-                        Node error = blocks.item(0);
-                        NodeList attrs;
-
-                        attrs = error.getChildNodes();
-                        for( int i=0; i<attrs.getLength(); i++ ) {
-                            Node attr = attrs.item(i);
-
-                            if( attr.getNodeName().equals("Code") ) {
-                                code = attr.getFirstChild().getNodeValue().trim();
-                            }
-                            else if( attr.getNodeName().equals("Type") ) {
-                                type = attr.getFirstChild().getNodeValue().trim();
-                            }
-                            else if( attr.getNodeName().equals("Message") ) {
-                                message = attr.getFirstChild().getNodeValue().trim();
-                            }
-                        }
-
-                    }
-                    blocks = doc.getElementsByTagName("RequestId");
-                    if( blocks.getLength() > 0 ) {
-                        Node id = blocks.item(0);
-
-                        requestId = id.getFirstChild().getNodeValue().trim();
-                    }
-                    if( message == null ) {
-                        throw new CloudException("Unable to identify error condition: " + status + "/" + requestId + "/" + code);
-                    }
-                    throw new CloudFrontException(status, requestId, type, code, message);
-                }
-                throw new CloudException("Unable to parse error.");
             }
-            catch( IOException e ) {
-                logger.error(e);
-                e.printStackTrace();
-                throw new CloudException(e);
+        } finally {
+            if (client != null) {
+                client.getConnectionManager().shutdown();
             }
         }
-	}
+    }
 	
 	private Document parseResponse(InputStream responseBodyAsStream) throws CloudException, InternalException {
 		try {

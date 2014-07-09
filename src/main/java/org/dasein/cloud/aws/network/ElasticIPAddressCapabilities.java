@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
@@ -16,6 +16,7 @@
  * limitations under the License.
  * ====================================================================
  */
+
 package org.dasein.cloud.aws.network;
 
 import org.dasein.cloud.AbstractCapabilities;
@@ -24,7 +25,6 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.VmState;
-import org.dasein.cloud.network.AddressType;
 import org.dasein.cloud.network.IPAddressCapabilities;
 import org.dasein.cloud.network.IPVersion;
 
@@ -91,6 +91,6 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
 
     @Override
     public boolean supportsVLANAddresses(@Nonnull IPVersion ofVersion) throws InternalException, CloudException {
-        return IPVersion.IPV4.equals(ofVersion);
+        return getProvider().isVPCSupported() ? IPVersion.IPV4.equals(ofVersion) : false;
     }
 }
