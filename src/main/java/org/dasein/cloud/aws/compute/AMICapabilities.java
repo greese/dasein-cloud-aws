@@ -121,6 +121,11 @@ public class AMICapabilities extends AbstractCapabilities<AWSCloud> implements I
     }
 
     @Override
+    public boolean supportsImageCopy() {
+        return true;
+    }
+
+    @Override
     public boolean supportsImageSharing() {
         return getProvider().getEC2Provider().isAWS();
     }

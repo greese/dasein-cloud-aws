@@ -135,6 +135,7 @@ public class EC2Method {
     // AMI operations
     static public final String BUNDLE_INSTANCE          = "BundleInstance";
     static public final String CREATE_IMAGE             = "CreateImage";
+    static public final String COPY_IMAGE               = "CopyImage";
     static public final String DESCRIBE_BUNDLE_TASKS    = "DescribeBundleTasks";
     static public final String DEREGISTER_IMAGE         = "DeregisterImage";
     static public final String DESCRIBE_IMAGE_ATTRIBUTE = "DescribeImageAttribute";
@@ -273,6 +274,9 @@ public class EC2Method {
         }
         else if( action.equals(CREATE_IMAGE) || action.equals(REGISTER_IMAGE) ) {
             return new ServiceAction[] { MachineImageSupport.REGISTER_IMAGE };
+        }
+        else if( action.equals(COPY_IMAGE) ) {
+            return new ServiceAction[] { MachineImageSupport.COPY_IMAGE };
         }
         else if( action.equals(DESCRIBE_BUNDLE_TASKS) ) {
             return new ServiceAction[0];
