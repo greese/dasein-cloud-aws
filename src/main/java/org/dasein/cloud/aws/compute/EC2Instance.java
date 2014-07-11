@@ -44,8 +44,6 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import static org.dasein.cloud.compute.VMLaunchOptions.*;
-
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -1510,8 +1508,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     }
                 }
             }
-            if (cfg.getPlacementGroupId() != null ) {
-                parameters.put( "Placement.GroupName", cfg.getPlacementGroupId() );
+            if (cfg.getAffinityGroupId() != null ) {
+                parameters.put( "Placement.GroupName", cfg.getAffinityGroupId() );
             }
             if( cfg.getSubnetId() == null ) {
                 String[] ids = cfg.getFirewallIds();
