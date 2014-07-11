@@ -28,6 +28,9 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.util.Jiterator;
+import org.dasein.util.JiteratorPopulator;
+import org.dasein.util.PopulatorThread;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
 import org.w3c.dom.Document;
@@ -40,10 +43,7 @@ import javax.annotation.Nullable;
 import java.io.UnsupportedEncodingException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class AutoScaling implements AutoScalingSupport {
     static private final Logger logger = Logger.getLogger(AutoScaling.class);
@@ -1038,7 +1038,102 @@ public class AutoScaling implements AutoScalingSupport {
      }
    }
 
-  private void handleTagRequest( @Nonnull String methodName, @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
+    @Override
+    public void setNotificationConfig(@Nonnull String scalingGroupId, @Nonnull String topicARN, @Nonnull String[] notificationTypes) throws CloudException, InternalException {
+        APITrace.begin(provider, "AutoScaling.setNotificationConfig");
+        try {
+
+            Map<String, String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.PUT_NOTIFICATION_CONFIGURATION);
+
+            parameters.put("AutoScalingGroupName", scalingGroupId);
+            parameters.put("TopicARN", topicARN);
+            for (int i = 0; i < notificationTypes.length; i++) {
+                parameters.put("NotificationTypes.member." + (i + 1), notificationTypes[i]);
+            }
+
+            EC2Method method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+            method.invoke();
+
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public Collection<AutoScalingGroupNotificationConfig> listNotificationConfigs(final String[] scalingGroupIds) throws CloudException, InternalException {
+        PopulatorThread<AutoScalingGroupNotificationConfig> populatorThread;
+
+        provider.hold();
+        populatorThread = new PopulatorThread<AutoScalingGroupNotificationConfig>(new JiteratorPopulator<AutoScalingGroupNotificationConfig>() {
+            @Override
+            public void populate(@Nonnull Jiterator<AutoScalingGroupNotificationConfig> autoScalingGroupNotificationConfigs) throws Exception {
+                try {
+                    populateNotificationConfig(autoScalingGroupNotificationConfigs, null, scalingGroupIds);
+                } finally {
+                    provider.release();
+                }
+            }
+        });
+
+        populatorThread.populate();
+        return populatorThread.getResult();
+    }
+
+    private void populateNotificationConfig(@Nonnull Jiterator<AutoScalingGroupNotificationConfig> asgNotificationConfig, @Nullable String token, String[] scalingGroupIds) throws CloudException, InternalException {
+        APITrace.begin(provider, "AutoScaling.listNotificationConfigs");
+        try {
+
+            Map<String, String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_NOTIFICATION_CONFIGURATIONS);
+            provider.putValueIfNotNull(parameters, "NextToken", token);
+            for (int i = 0; i < scalingGroupIds.length; i++) {
+                provider.putValueIfNotNull(parameters, "AutoScalingGroupNames.member." + (i + 1), scalingGroupIds[i]);
+            }
+
+            EC2Method method = new EC2Method(provider, getAutoScalingUrl(), parameters);
+            Document document = method.invoke();
+
+            NodeList blocks = document.getElementsByTagName("NotificationConfigurations");
+            if (blocks == null) return;
+            NodeList result = blocks.item(0).getChildNodes();
+
+            for (int i = 0; i < result.getLength(); i++) {
+                Node configNode = result.item(i);
+                if (configNode.getNodeName().equalsIgnoreCase("member")) {
+                    AutoScalingGroupNotificationConfig nc = toASGNotificationConfig(configNode.getChildNodes());
+                    if (nc != null) asgNotificationConfig.push(nc);
+                }
+            }
+
+            blocks = document.getElementsByTagName("NextToken");
+            if( blocks != null && blocks.getLength() == 1 && blocks.item(0).hasChildNodes() ) {
+                String nextToken = AWSCloud.getTextValue(blocks.item(0));
+                populateNotificationConfig(asgNotificationConfig, nextToken, scalingGroupIds);
+            }
+
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    private AutoScalingGroupNotificationConfig toASGNotificationConfig(NodeList attributes) {
+        if (attributes != null && attributes.getLength() != 0) {
+            AutoScalingGroupNotificationConfig result = new AutoScalingGroupNotificationConfig();
+            for (int i = 0; i < attributes.getLength(); i++) {
+                Node attr = attributes.item(i);
+                if (attr.getNodeName().equalsIgnoreCase("TopicARN")) {
+                    result.setTopic(attr.getFirstChild().getNodeValue());
+                } else if (attr.getNodeName().equalsIgnoreCase("AutoScalingGroupName")) {
+                    result.setAutoScalingGroupName(attr.getFirstChild().getNodeValue());
+                } else if (attr.getNodeName().equalsIgnoreCase("NotificationType")) {
+                    result.setNotificationType(attr.getFirstChild().getNodeValue());
+                }
+            }
+            return result;
+        }
+        return null;
+    }
+
+    private void handleTagRequest( @Nonnull String methodName, @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
     Map<String, String> parameters = getAutoScalingParameters( provider.getContext(), methodName );
     EC2Method method;
 
