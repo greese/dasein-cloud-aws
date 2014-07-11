@@ -2587,6 +2587,7 @@ public class VPC extends AbstractVLANSupport {
                 table.setRoutes(routes.toArray(new Route[routes.size()]));
             } else if( nodeName.equalsIgnoreCase("associationSet") && child.hasChildNodes() ) {
                 ArrayList<String> associations = new ArrayList<String>();
+                boolean main = false;   //default
                 NodeList set = child.getChildNodes();
                 for( int j = 0; j < set.getLength(); j++ ) {
                     Node item = set.item(j);
@@ -2597,6 +2598,8 @@ public class VPC extends AbstractVLANSupport {
                             Node attr = attrs.item(k);
                             if( attr.getNodeName().equalsIgnoreCase("subnetId") && attr.hasChildNodes() ) {
                                 subnet = attr.getFirstChild().getNodeValue().trim();
+                            } else if(attr.getNodeName().equalsIgnoreCase("main") && attr.hasChildNodes() ) {
+                                main = main || Boolean.valueOf(attr.getFirstChild().getNodeValue().trim());
                             }
                         }
                         if( subnet != null ) {
@@ -2604,6 +2607,7 @@ public class VPC extends AbstractVLANSupport {
                         }
                     }
                 }
+                table.setMain(main);
                 table.setProviderSubnetIds(associations.toArray(new String[associations.size()]));
             } else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
                 provider.setTags(child, table);
