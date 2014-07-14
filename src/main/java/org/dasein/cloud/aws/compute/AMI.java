@@ -301,6 +301,66 @@ public class AMI extends AbstractImageSupport {
         }
     }
 
+    @Override
+    public @Nonnull String copyImage(@Nonnull ImageCopyOptions options) throws CloudException, InternalException {
+        APITrace.begin(provider, "copyImage");
+        AWSCloud targetProvider = null;
+        try {
+            /* Steps overview:
+             * 1. Connect to target region using the same account
+             * 2. Invoke EC2 'copyImage' method in the context of target region
+             */
+            final ProviderContext ctx = provider.getContext();
+            if( ctx == null ) {
+                throw new CloudException( "Provider context is necessary for this request" );
+            }
+            final String sourceRegionId = ctx.getRegionId();
+            final String targetRegionId = options.getTargetRegionId();
+
+            final ProviderContext targetContext = ctx.copy( targetRegionId );
+            targetProvider = ( AWSCloud ) targetContext.connect();
+            if ( targetProvider.testContext() == null ) {
+                throw new CloudException( "Could not connect with the same account to the copy target region: " +
+                                                  targetRegionId );
+            }
+
+            // Invoke the EC2 method
+            Map<String,String> parameters = targetProvider.getStandardParameters(
+                    targetProvider.getContext(), EC2Method.COPY_IMAGE );
+
+            parameters.put( "SourceRegion", sourceRegionId );
+            parameters.put( "SourceImageId", options.getProviderImageId() );
+            if (options.getName() != null) {
+                parameters.put( "Name", options.getName() );
+            }
+            if (options.getDescription() != null) {
+                parameters.put( "Description", options.getDescription() );
+            }
+
+            Document doc;
+            try {
+                EC2Method method = new EC2Method( targetProvider, targetProvider.getEc2Url(), parameters );
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            NodeList blocks = doc.getElementsByTagName( "imageId" );
+            if( blocks.getLength() > 0 ) {
+                Node imageIdNode = blocks.item(0);
+                return imageIdNode.getFirstChild().getNodeValue().trim();
+            }
+            throw new CloudException( "No error occurred during imaging, but no machine image was specified" );
+        }
+        finally {
+            if ( targetProvider != null ) {
+                targetProvider.close();
+            }
+            APITrace.end();
+        }
+    }
+
     private @Nonnull Iterable<MachineImage> executeImageSearch(int pass, boolean forPublic, @Nonnull ImageFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "Image.executeImageSearch");
         try {
@@ -748,6 +808,9 @@ public class AMI extends AbstractImageSupport {
         }
         else if( action.equals(MachineImageSupport.IMAGE_VM) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.CREATE_IMAGE, EC2Method.EC2_PREFIX + EC2Method.REGISTER_IMAGE };
+        }
+        else if( action.equals(MachineImageSupport.COPY_IMAGE) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.COPY_IMAGE };
         }
         else if( action.equals(MachineImageSupport.LIST_IMAGE) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_IMAGES };

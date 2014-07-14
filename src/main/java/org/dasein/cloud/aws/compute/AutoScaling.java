@@ -55,8 +55,8 @@ public class AutoScaling implements AutoScalingSupport {
       Map<String, String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.CREATE_AUTO_SCALING_GROUP);
       EC2Method method;
 
-      int minServers = 0;
-      if (autoScalingGroupOptions.getMinServers() < 0) {
+      int minServers = autoScalingGroupOptions.getMinServers();
+      if (minServers < 0) {
         minServers = 0;
       }
       int maxServers = autoScalingGroupOptions.getMaxServers();
