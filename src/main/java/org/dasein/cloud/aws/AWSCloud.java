@@ -30,7 +30,6 @@ import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpParams;
 import org.apache.http.params.HttpProtocolParams;
-import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
@@ -366,6 +365,93 @@ public class AWSCloud extends AbstractCloud {
         }
     }
 
+    public void setTags(String resourceId, Tag... tags) throws CloudException, InternalException {
+        setTags(new String[]{resourceId}, tags);
+    }
+
+    public void setTags(String[] resourceIds, Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(this, "Cloud.setTags");
+        try {
+            for (String resourceId : resourceIds) {
+                Collection<Tag> collectionForDelete = getTagsForDelete(getTags(resourceId), tags);
+
+                if (collectionForDelete != null) {
+                    removeTags(resourceId, collectionForDelete.toArray(new Tag[collectionForDelete.size()]));
+                }
+
+                //todo change to sync
+                createTags(resourceId, tags);
+            }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    public Collection<Tag> getTags(@Nullable String resourceId) throws CloudException, InternalException {
+        APITrace.begin(this, "Cloud.getTags");
+        try {
+            Map<String, String> parameters = getStandardParameters( getContext(), EC2Method.DESCRIBE_TAGS);
+            addFilterParameter(parameters, 0, "resource-id", Arrays.asList(resourceId));
+
+            EC2Method method = new EC2Method( this, getEc2Url(), parameters );
+            Collection<Tag> result = new ArrayList<Tag>();
+            Document doc;
+
+            try {
+                doc = method.invoke();
+            }
+            catch ( EC2Exception e ) {
+                logger.error( e.getSummary() );
+                throw new CloudException( e );
+            }
+            Node describeTagsResult = doc.getElementsByTagName("DescribeTagsResponse").item(0);
+            if (describeTagsResult == null) {
+                return null;
+            }
+            NodeList describe = describeTagsResult.getChildNodes();
+            for (int i = 0; i < describe.getLength(); i++) {
+                Node item = describe.item(i);
+
+                if(item.getNodeName().equalsIgnoreCase("tagSet")) {
+                    NodeList tagSet = item.getChildNodes();
+
+                    for (int j = 0; j < tagSet.getLength(); j++) {
+                        Node tag = tagSet.item(j);
+
+                        if (tag.getNodeName().equalsIgnoreCase("item")) {
+                            result.add(toTag(tag));
+                        }
+                    }
+                }
+            }
+            return result;
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    private Collection<Tag> getTagsForDelete(Collection<? extends Tag> all, Tag[] tags) {
+        Collection<Tag> result = null;
+        if (all != null) {
+            result = new ArrayList<Tag>();
+            for (Tag tag : all) {
+                if (!isTagInTags(tag, tags)) {
+                    result.add(tag);
+                }
+            }
+        }
+        return result;
+    }
+
+    private boolean isTagInTags(Tag tag, Tag[] tags) {
+        for (Tag t : tags) {
+            if (t.getKey().equals(tag.getKey())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public Map<String, String> getTagsFromTagSet( Node attr ) {
         if( attr == null || !attr.hasChildNodes() ) {
             return null;
@@ -373,32 +459,38 @@ public class AWSCloud extends AbstractCloud {
         Map<String, String> tags = new HashMap<String, String>();
         NodeList tagNodes = attr.getChildNodes();
         for( int j = 0; j < tagNodes.getLength(); j++ ) {
-            Node tag = tagNodes.item(j);
 
-            if( tag.getNodeName().equals("item") && tag.hasChildNodes() ) {
-                NodeList parts = tag.getChildNodes();
-                String key = null, value = null;
-
-                for( int k = 0; k < parts.getLength(); k++ ) {
-                    Node part = parts.item(k);
-
-                    if( part.getNodeName().equalsIgnoreCase("key") ) {
-                        if( part.hasChildNodes() ) {
-                            key = part.getFirstChild().getNodeValue().trim();
-                        }
-                    }
-                    else if( part.getNodeName().equalsIgnoreCase("value") ) {
-                        if( part.hasChildNodes() ) {
-                            value = part.getFirstChild().getNodeValue().trim();
-                        }
-                    }
-                    if( key != null && value != null ) {
-                        tags.put(key, value);
-                    }
-                }
+            Tag t = toTag(tagNodes.item(j));
+            if (t != null) {
+                tags.put(t.getKey(), t.getValue());
             }
         }
         return tags;
+    }
+
+    public Tag toTag(@Nonnull Node tag) {
+        if (tag.getNodeName().equals("item") && tag.hasChildNodes()) {
+            NodeList parts = tag.getChildNodes();
+            String key = null, value = null;
+
+            for (int k = 0; k < parts.getLength(); k++) {
+                Node part = parts.item(k);
+
+                if (part.getNodeName().equalsIgnoreCase("key")) {
+                    if (part.hasChildNodes()) {
+                        key = part.getFirstChild().getNodeValue().trim();
+                    }
+                } else if (part.getNodeName().equalsIgnoreCase("value")) {
+                    if (part.hasChildNodes()) {
+                        value = part.getFirstChild().getNodeValue().trim();
+                    }
+                }
+            }
+            if (key != null && value != null) {
+                return new Tag(key, value);
+            }
+        }
+        return null;
     }
 
     @Override
@@ -1195,29 +1287,10 @@ public class AWSCloud extends AbstractCloud {
             NodeList tags = attr.getChildNodes();
 
             for( int j = 0; j < tags.getLength(); j++ ) {
-                Node tag = tags.item(j);
+                Tag t = toTag(tags.item(j));
 
-                if( tag.getNodeName().equals("item") && tag.hasChildNodes() ) {
-                    NodeList parts = tag.getChildNodes();
-                    String key = null, value = null;
-
-                    for( int k = 0; k < parts.getLength(); k++ ) {
-                        Node part = parts.item(k);
-
-                        if( part.getNodeName().equalsIgnoreCase("key") ) {
-                            if( part.hasChildNodes() ) {
-                                key = part.getFirstChild().getNodeValue().trim();
-                            }
-                        }
-                        else if( part.getNodeName().equalsIgnoreCase("value") ) {
-                            if( part.hasChildNodes() ) {
-                                value = part.getFirstChild().getNodeValue().trim();
-                            }
-                        }
-                    }
-                    if( key != null && value != null ) {
-                        item.setTag(key, value);
-                    }
+                if (t != null && t.getValue() != null) {
+                    item.setTag(t.getKey(), t.getValue());
                 }
             }
         }

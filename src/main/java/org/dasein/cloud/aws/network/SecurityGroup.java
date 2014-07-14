@@ -683,6 +683,21 @@ public class SecurityGroup extends AbstractFirewallSupport {
     }
 
     @Override
+    public void setTags(@Nonnull String firewallId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        setTags(new String[]{firewallId}, tags);
+    }
+
+    @Override
+    public void setTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Firewall.setTags");
+        try {
+            provider.setTags(firewallIds, tags);
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
     public void revoke(@Nonnull String providerFirewallRuleId) throws InternalException, CloudException {
         FirewallRule rule = null;
 

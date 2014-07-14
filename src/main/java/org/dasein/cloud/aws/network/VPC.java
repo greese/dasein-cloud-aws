@@ -2138,6 +2138,21 @@ public class VPC extends AbstractVLANSupport {
     }
 
     @Override
+    public void setInternetGatewayTags(@Nonnull String internetGatewayId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        setInternetGatewayTags(new String[]{internetGatewayId}, tags);
+    }
+
+    @Override
+    public void setInternetGatewayTags(@Nonnull String[] internetGatewayIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "InternetGateway.setInternetGatewayTags");
+        try {
+            provider.setTags(internetGatewayIds , tags);
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
     public void removeNetworkInterface(@Nonnull String nicId) throws CloudException, InternalException {
         APITrace.begin(provider, "VLAN.removeNetworkInterface");
         try {
@@ -2222,6 +2237,21 @@ public class VPC extends AbstractVLANSupport {
         APITrace.begin(getProvider(), "RoutingTable.createTags");
         try {
             provider.createTags(routingTableId, tags);
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void setRoutingTableTags(@Nonnull String routingTableId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        setRoutingTableTags(new String[]{routingTableId}, tags);
+    }
+
+    @Override
+    public void setRoutingTableTags(@Nonnull String[] routingTableIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "RoutingTable.setTags");
+        try {
+            provider.setTags(routingTableIds, tags);
         } finally {
             APITrace.end();
         }
@@ -2890,6 +2920,21 @@ public class VPC extends AbstractVLANSupport {
     @Override
     public void removeSubnetTags(@Nonnull String[] subnetIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         ( (AWSCloud) getProvider() ).removeTags(subnetIds, tags);
+    }
+
+    @Override
+    public void setSubnetTags(@Nonnull String subnetId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        setSubnetTags(new String[]{subnetId}, tags);
+    }
+
+    @Override
+    public void setSubnetTags(@Nonnull String[] subnetIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "RoutingTable.setSubnetTags");
+        try {
+            provider.setTags(subnetIds, tags);
+        } finally {
+            APITrace.end();
+        }
     }
 
     @Override

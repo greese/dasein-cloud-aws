@@ -537,6 +537,22 @@ public class EBSVolume extends AbstractVolumeSupport {
         }
     }
 
+    @Override
+    public void setTags(@Nonnull String volumeId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        setTags(new String[]{volumeId}, tags);
+    }
+
+    @Override
+    public void setTags(@Nonnull String[] volumeIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Volume.setTags");
+        try {
+            provider.setTags(volumeIds, tags);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
     public VolumeProduct getVolumeProduct(String volumeProductId) throws InternalException, CloudException{
       VolumeProduct prd = null;
 

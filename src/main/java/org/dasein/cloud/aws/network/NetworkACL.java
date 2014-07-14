@@ -639,6 +639,22 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
         }
     }
 
+    @Override
+    public void setTags(@Nonnull String firewallId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        setTags(new String[]{firewallId}, tags);
+    }
+
+    @Override
+    public void setTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "NetworkFirewall.setTags");
+        try {
+            ((AWSCloud)getProvider()).setTags(firewallIds, tags);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
     private @Nullable Firewall toFirewall(@Nullable Node networkAcl) throws CloudException, InternalException {
         if( networkAcl == null ) {
             return null;

@@ -20,10 +20,7 @@
 package org.dasein.cloud.aws.compute;
 
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
@@ -40,10 +37,7 @@ import javax.annotation.Nullable;
 import java.io.UnsupportedEncodingException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class AutoScaling implements AutoScalingSupport {
     static private final Logger logger = Logger.getLogger(AutoScaling.class);
@@ -1037,6 +1031,56 @@ public class AutoScaling implements AutoScalingSupport {
        APITrace.end();
      }
    }
+
+    @Override
+    public void setTags(@Nonnull String providerScalingGroupId, @Nonnull AutoScalingTag... tags) throws CloudException, InternalException {
+        setTags(new String[]{providerScalingGroupId}, tags);
+    }
+
+    @Override
+    public void setTags(@Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags) throws CloudException, InternalException {
+        APITrace.begin(provider, "AutoScaling.setTags");
+        try {
+            for(String providerScalingGroupId: providerScalingGroupIds ) {
+                Collection<AutoScalingTag> collectionForDelete = getTagsForDelete(getTags(providerScalingGroupId), tags);
+
+                if (collectionForDelete != null) {
+                    removeTags(providerScalingGroupIds, collectionForDelete.toArray(new AutoScalingTag[collectionForDelete.size()]));
+                }
+
+                updateTags(providerScalingGroupIds, tags);
+            }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    public Collection<AutoScalingTag> getTags(@Nonnull String providerScalingGroupId) throws CloudException, InternalException {
+        AutoScalingTag[] tags = getScalingGroup(providerScalingGroupId).getTags();
+        return tags!=null ? Arrays.asList(tags) : null;
+    }
+
+    private Collection<AutoScalingTag> getTagsForDelete(Collection<AutoScalingTag> all, AutoScalingTag[] tags) {
+        Collection<AutoScalingTag> result = null;
+        if (all != null) {
+            result = new ArrayList<AutoScalingTag>();
+            for (AutoScalingTag tag : all) {
+                if (!isTagInTags(tag, tags)) {
+                    result.add(tag);
+                }
+            }
+        }
+        return result;
+    }
+
+    private boolean isTagInTags(AutoScalingTag tag, AutoScalingTag[] tags) {
+        for (AutoScalingTag t : tags) {
+            if (t.getKey().equals(tag.getKey())) {
+                return true;
+            }
+        }
+        return false;
+    }
 
   private void handleTagRequest( @Nonnull String methodName, @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
     Map<String, String> parameters = getAutoScalingParameters( provider.getContext(), methodName );
