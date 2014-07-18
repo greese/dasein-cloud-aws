@@ -1644,7 +1644,7 @@ public class AMI extends AbstractImageSupport {
                                         } else if (ebsName.equalsIgnoreCase("volumeType")) {
                                             volume.setVolumeType(ebs.item(k).getFirstChild().getNodeValue().trim());
                                         } else if (ebsName.equalsIgnoreCase("iops")) {
-                                            volume.setIops(ebs.item(k).getFirstChild().getNodeValue().trim());
+                                            volume.setIops(Integer.valueOf(ebs.item(k).getFirstChild().getNodeValue().trim()));
                                         }
                                     }
                                 }
