@@ -99,7 +99,7 @@
                 "name": "Burstable Instance(t2.micro)",
                 "description":"Burstable Instance(t2.micro)",
                 "cpuCount":1,
-                "rootVolumeSizeInGb":0,
+                "rootVolumeSizeInGb":1,
                 "ramSizeInMb":1073,
                 "generation":"current"
             },
@@ -109,7 +109,7 @@
                 "name":"Burstable Instance(t2.small)",
                 "description":"Burstable Instance(t2.small)",
                 "cpuCount":1,
-                "rootVolumeSizeInGb":0,
+                "rootVolumeSizeInGb":1,
                 "ramSizeInMb":2147,
                 "generation":"current"
             },
@@ -119,7 +119,7 @@
                 "name":"Burstable Instance(t2.medium)",
                 "description":"Burstable Instance(t2.medium)",
                 "cpuCount":2,
-                "rootVolumeSizeInGb":0,
+                "rootVolumeSizeInGb":1,
                 "ramSizeInMb":4294,
                 "generation":"current"
             },
