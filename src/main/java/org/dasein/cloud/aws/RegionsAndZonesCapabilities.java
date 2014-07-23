@@ -25,6 +25,10 @@ public class RegionsAndZonesCapabilities extends AbstractCapabilities<AWSCloud> 
         return "region";
     }
 
+    @Override public boolean supportsAffinityGroups() {
+        return false;
+    }
+
     @Override
     public boolean supportsResourcePools() {
         return false;
