@@ -1,7 +1,7 @@
 [ {
   "cloud" : "AWS",
   "provider" : "AWS",
-  "created" : 1406040879991,
+  "created" : 1406128437099,
   "engines" : [ {
     "name" : "MySQL",
     "regions" : [ {
@@ -1457,6 +1457,102 @@
         "storageRate" : 0.38,
         "minStorage" : 10,
         "license" : "included"
+      }, {
+        "name" : "db.t1.micro",
+        "highAvailability" : false,
+        "hourlyRate" : 0.025,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 5,
+        "license" : "byol"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.055,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 5,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
+        "hourlyRate" : 0.09,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 5,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.185,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 5,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.37,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 5,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.74,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 5,
+        "license" : "byol"
+      }, {
+        "name" : "db.t1.micro",
+        "highAvailability" : true,
+        "hourlyRate" : 0.05,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 5,
+        "license" : "byol"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : true,
+        "hourlyRate" : 0.11,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 5,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : true,
+        "hourlyRate" : 0.18,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 5,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : true,
+        "hourlyRate" : 0.37,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 5,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 0.74,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 5,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 1.48,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 5,
+        "license" : "byol"
       } ]
     }, {
       "name" : "us-west-2",
@@ -1556,706 +1652,7 @@
         "storageRate" : 0.38,
         "minStorage" : 10,
         "license" : "included"
-      } ]
-    }, {
-      "name" : "us-west-1",
-      "products" : [ {
-        "name" : "db.t1.micro",
-        "highAvailability" : false,
-        "hourlyRate" : 0.05,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
       }, {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.14,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.245,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.49,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.98,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.96,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.t1.micro",
-        "highAvailability" : true,
-        "hourlyRate" : 0.1,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : true,
-        "hourlyRate" : 0.28,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : true,
-        "hourlyRate" : 0.49,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : true,
-        "hourlyRate" : 0.98,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 1.96,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 3.92,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      } ]
-    }, {
-      "name" : "eu-west-1",
-      "products" : [ {
-        "name" : "db.t1.micro",
-        "highAvailability" : false,
-        "hourlyRate" : 0.05,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.14,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.245,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.49,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.98,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.96,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.t1.micro",
-        "highAvailability" : true,
-        "hourlyRate" : 0.1,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : true,
-        "hourlyRate" : 0.28,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : true,
-        "hourlyRate" : 0.49,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : true,
-        "hourlyRate" : 0.98,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 1.96,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 3.92,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      } ]
-    }, {
-      "name" : "ap-southeast-1",
-      "products" : [ {
-        "name" : "db.t1.micro",
-        "highAvailability" : false,
-        "hourlyRate" : 0.05,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.135,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.24,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.48,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.96,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.92,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.t1.micro",
-        "highAvailability" : true,
-        "hourlyRate" : 0.1,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : true,
-        "hourlyRate" : 0.27,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : true,
-        "hourlyRate" : 0.48,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : true,
-        "hourlyRate" : 0.96,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 1.92,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 3.84,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      } ]
-    }, {
-      "name" : "ap-northeast-1",
-      "products" : [ {
-        "name" : "db.t1.micro",
-        "highAvailability" : false,
-        "hourlyRate" : 0.045,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.135,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.245,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.49,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.98,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.96,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.t1.micro",
-        "highAvailability" : true,
-        "hourlyRate" : 0.09,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : true,
-        "hourlyRate" : 0.27,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : true,
-        "hourlyRate" : 0.49,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : true,
-        "hourlyRate" : 0.98,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 1.96,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 3.92,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      } ]
-    }, {
-      "name" : "ap-southeast-2",
-      "products" : [ {
-        "name" : "db.t1.micro",
-        "highAvailability" : false,
-        "hourlyRate" : 0.05,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.135,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.24,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.48,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.96,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.92,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.t1.micro",
-        "highAvailability" : true,
-        "hourlyRate" : 0.1,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : true,
-        "hourlyRate" : 0.27,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : true,
-        "hourlyRate" : 0.48,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : true,
-        "hourlyRate" : 0.96,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 1.92,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 3.84,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      } ]
-    }, {
-      "name" : "sa-east-1",
-      "products" : [ {
-        "name" : "db.t1.micro",
-        "highAvailability" : false,
-        "hourlyRate" : 0.05,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.135,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.235,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.47,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.94,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.88,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.t1.micro",
-        "highAvailability" : true,
-        "hourlyRate" : 0.1,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : true,
-        "hourlyRate" : 0.27,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : true,
-        "hourlyRate" : 0.47,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : true,
-        "hourlyRate" : 0.94,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 1.88,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 3.76,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 10,
-        "license" : "included"
-      } ]
-    } ]
-  }, {
-    "name" : "oracle-se",
-    "regions" : [ {
-      "name" : "us-east-1",
-      "products" : [ {
-        "name" : "db.t1.micro",
-        "highAvailability" : false,
-        "hourlyRate" : 0.025,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 5,
-        "license" : "byol"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.055,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 5,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.09,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 5,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.185,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 5,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.37,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 5,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.74,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 5,
-        "license" : "byol"
-      }, {
-        "name" : "db.t1.micro",
-        "highAvailability" : true,
-        "hourlyRate" : 0.05,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 5,
-        "license" : "byol"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : true,
-        "hourlyRate" : 0.11,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 5,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : true,
-        "hourlyRate" : 0.18,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 5,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : true,
-        "hourlyRate" : 0.37,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 5,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 0.74,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 5,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 1.48,
-        "ioRate" : 0.14,
-        "storageRate" : 0.38,
-        "minStorage" : 5,
-        "license" : "byol"
-      } ]
-    }, {
-      "name" : "us-west-2",
-      "products" : [ {
         "name" : "db.t1.micro",
         "highAvailability" : false,
         "hourlyRate" : 0.025,
@@ -2355,6 +1752,102 @@
     }, {
       "name" : "us-west-1",
       "products" : [ {
+        "name" : "db.t1.micro",
+        "highAvailability" : false,
+        "hourlyRate" : 0.05,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.14,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
+        "hourlyRate" : 0.245,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.49,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.98,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.96,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.t1.micro",
+        "highAvailability" : true,
+        "hourlyRate" : 0.1,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : true,
+        "hourlyRate" : 0.28,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : true,
+        "hourlyRate" : 0.49,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : true,
+        "hourlyRate" : 0.98,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 1.96,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 3.92,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
         "name" : "db.t1.micro",
         "highAvailability" : false,
         "hourlyRate" : 0.035,
@@ -2456,6 +1949,102 @@
       "products" : [ {
         "name" : "db.t1.micro",
         "highAvailability" : false,
+        "hourlyRate" : 0.05,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.14,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
+        "hourlyRate" : 0.245,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.49,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.98,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.96,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.t1.micro",
+        "highAvailability" : true,
+        "hourlyRate" : 0.1,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : true,
+        "hourlyRate" : 0.28,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : true,
+        "hourlyRate" : 0.49,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : true,
+        "hourlyRate" : 0.98,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 1.96,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 3.92,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.t1.micro",
+        "highAvailability" : false,
         "hourlyRate" : 0.035,
         "ioRate" : 0.14,
         "storageRate" : 0.19,
@@ -2553,6 +2142,102 @@
     }, {
       "name" : "ap-southeast-1",
       "products" : [ {
+        "name" : "db.t1.micro",
+        "highAvailability" : false,
+        "hourlyRate" : 0.05,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.135,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
+        "hourlyRate" : 0.24,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.48,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.96,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.92,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.t1.micro",
+        "highAvailability" : true,
+        "hourlyRate" : 0.1,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : true,
+        "hourlyRate" : 0.27,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : true,
+        "hourlyRate" : 0.48,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : true,
+        "hourlyRate" : 0.96,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 1.92,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 3.84,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
         "name" : "db.t1.micro",
         "highAvailability" : false,
         "hourlyRate" : 0.035,
@@ -2654,6 +2339,102 @@
       "products" : [ {
         "name" : "db.t1.micro",
         "highAvailability" : false,
+        "hourlyRate" : 0.045,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.135,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
+        "hourlyRate" : 0.245,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.49,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.98,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.96,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.t1.micro",
+        "highAvailability" : true,
+        "hourlyRate" : 0.09,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : true,
+        "hourlyRate" : 0.27,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : true,
+        "hourlyRate" : 0.49,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : true,
+        "hourlyRate" : 0.98,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 1.96,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 3.92,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.t1.micro",
+        "highAvailability" : false,
         "hourlyRate" : 0.03,
         "ioRate" : 0.14,
         "storageRate" : 0.19,
@@ -2753,6 +2534,102 @@
       "products" : [ {
         "name" : "db.t1.micro",
         "highAvailability" : false,
+        "hourlyRate" : 0.05,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.135,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
+        "hourlyRate" : 0.24,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.48,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.96,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.92,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.t1.micro",
+        "highAvailability" : true,
+        "hourlyRate" : 0.1,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : true,
+        "hourlyRate" : 0.27,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : true,
+        "hourlyRate" : 0.48,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : true,
+        "hourlyRate" : 0.96,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 1.92,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 3.84,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.t1.micro",
+        "highAvailability" : false,
         "hourlyRate" : 0.035,
         "ioRate" : 0.14,
         "storageRate" : 0.19,
@@ -2850,6 +2727,102 @@
     }, {
       "name" : "sa-east-1",
       "products" : [ {
+        "name" : "db.t1.micro",
+        "highAvailability" : false,
+        "hourlyRate" : 0.05,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.135,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
+        "hourlyRate" : 0.235,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.47,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.94,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.88,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.t1.micro",
+        "highAvailability" : true,
+        "hourlyRate" : 0.1,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : true,
+        "hourlyRate" : 0.27,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : true,
+        "hourlyRate" : 0.47,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : true,
+        "hourlyRate" : 0.94,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 1.88,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 3.76,
+        "ioRate" : 0.14,
+        "storageRate" : 0.38,
+        "minStorage" : 10,
+        "license" : "included"
+      }, {
         "name" : "db.t1.micro",
         "highAvailability" : false,
         "hourlyRate" : 0.035,
@@ -3749,6 +3722,166 @@
         "storageRate" : 0.19,
         "minStorage" : 200,
         "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
+        "hourlyRate" : 0.155,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.315,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.625,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.245,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.365,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.725,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.33,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.4xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 2.435,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.8xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 4.485,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.09,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : true,
+        "hourlyRate" : 0.31,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : true,
+        "hourlyRate" : 0.63,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 1.25,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 2.49,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.large",
+        "highAvailability" : true,
+        "hourlyRate" : 0.73,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 1.45,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.2xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 2.66,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.4xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 4.87,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.8xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 8.97,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : true,
+        "hourlyRate" : 0.18,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
       } ]
     }, {
       "name" : "us-west-2",
@@ -3880,6 +4013,166 @@
         "storageRate" : 0.19,
         "minStorage" : 200,
         "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
+        "hourlyRate" : 0.155,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.315,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.625,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.245,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.365,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.725,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.33,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.4xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 2.435,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.8xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 4.485,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.09,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : true,
+        "hourlyRate" : 0.31,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : true,
+        "hourlyRate" : 0.63,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 1.25,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 2.49,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.large",
+        "highAvailability" : true,
+        "hourlyRate" : 0.73,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 1.45,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.2xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 2.66,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.4xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 4.87,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.8xlarge",
+        "highAvailability" : true,
+        "hourlyRate" : 8.97,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : true,
+        "hourlyRate" : 0.18,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
       } ]
     }, {
       "name" : "us-west-1",
@@ -3947,6 +4240,86 @@
         "storageRate" : 0.19,
         "minStorage" : 200,
         "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
+        "hourlyRate" : 0.16,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.33,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.655,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.3,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.4,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 0.795,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.45,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.4xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 2.665,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.r3.8xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 4.895,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.095,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "byol"
       } ]
     }, {
       "name" : "eu-west-1",
@@ -4078,666 +4451,7 @@
         "storageRate" : 0.19,
         "minStorage" : 200,
         "license" : "included"
-      } ]
-    }, {
-      "name" : "ap-southeast-1",
-      "products" : [ {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.685,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
       }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.87,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.345,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 2.685,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.r3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 1.065,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.r3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.64,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.r3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 3.255,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.645,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      } ]
-    }, {
-      "name" : "ap-northeast-1",
-      "products" : [ {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.67,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.84,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.335,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 2.66,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.r3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 1.05,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.r3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.6,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.r3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 3.21,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.7,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      } ]
-    }, {
-      "name" : "ap-southeast-2",
-      "products" : [ {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.685,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.87,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.345,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 2.685,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.r3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 1.065,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.r3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.64,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.r3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 3.255,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.645,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      } ]
-    }, {
-      "name" : "sa-east-1",
-      "products" : [ {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.68,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.68,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.885,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.535,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 3.065,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "included"
-      } ]
-    } ]
-  }, {
-    "name" : "sqlserver-se",
-    "regions" : [ {
-      "name" : "us-east-1",
-      "products" : [ {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.155,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.315,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.625,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.245,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.365,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.725,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.33,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.4xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 2.435,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.8xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 4.485,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.09,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : true,
-        "hourlyRate" : 0.31,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : true,
-        "hourlyRate" : 0.63,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 1.25,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 2.49,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.large",
-        "highAvailability" : true,
-        "hourlyRate" : 0.73,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 1.45,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.2xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 2.66,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.4xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 4.87,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.8xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 8.97,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : true,
-        "hourlyRate" : 0.18,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      } ]
-    }, {
-      "name" : "us-west-2",
-      "products" : [ {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.155,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.315,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.625,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.245,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.365,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.725,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.33,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.4xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 2.435,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.8xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 4.485,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.09,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.medium",
-        "highAvailability" : true,
-        "hourlyRate" : 0.31,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : true,
-        "hourlyRate" : 0.63,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 1.25,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 2.49,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.large",
-        "highAvailability" : true,
-        "hourlyRate" : 0.73,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 1.45,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.2xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 2.66,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.4xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 4.87,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.8xlarge",
-        "highAvailability" : true,
-        "hourlyRate" : 8.97,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : true,
-        "hourlyRate" : 0.18,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      } ]
-    }, {
-      "name" : "us-west-1",
-      "products" : [ {
-        "name" : "db.m3.medium",
-        "highAvailability" : false,
-        "hourlyRate" : 0.16,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.33,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.655,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.3,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.large",
-        "highAvailability" : false,
-        "hourlyRate" : 0.4,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 0.795,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.2xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 1.45,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.4xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 2.665,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.r3.8xlarge",
-        "highAvailability" : false,
-        "hourlyRate" : 4.895,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      }, {
-        "name" : "db.m1.small",
-        "highAvailability" : false,
-        "hourlyRate" : 0.095,
-        "ioRate" : 0.14,
-        "storageRate" : 0.19,
-        "minStorage" : 200,
-        "license" : "byol"
-      } ]
-    }, {
-      "name" : "eu-west-1",
-      "products" : [ {
         "name" : "db.m3.medium",
         "highAvailability" : false,
         "hourlyRate" : 0.15,
@@ -4903,6 +4617,70 @@
       "products" : [ {
         "name" : "db.m3.medium",
         "highAvailability" : false,
+        "hourlyRate" : 0.685,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.87,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.345,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 2.685,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.r3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 1.065,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.r3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.64,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.r3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 3.255,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.645,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
         "hourlyRate" : 0.185,
         "ioRate" : 0.14,
         "storageRate" : 0.19,
@@ -4984,6 +4762,70 @@
     }, {
       "name" : "ap-northeast-1",
       "products" : [ {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
+        "hourlyRate" : 0.67,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.84,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.335,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 2.66,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.r3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 1.05,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.r3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.6,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.r3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 3.21,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.7,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
         "name" : "db.m3.medium",
         "highAvailability" : false,
         "hourlyRate" : 0.17,
@@ -5069,6 +4911,70 @@
       "products" : [ {
         "name" : "db.m3.medium",
         "highAvailability" : false,
+        "hourlyRate" : 0.685,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.87,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.345,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 2.685,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.r3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 1.065,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.r3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.64,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.r3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 3.255,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.645,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
         "hourlyRate" : 0.185,
         "ioRate" : 0.14,
         "storageRate" : 0.19,
@@ -5150,6 +5056,46 @@
     }, {
       "name" : "sa-east-1",
       "products" : [ {
+        "name" : "db.m1.small",
+        "highAvailability" : false,
+        "hourlyRate" : 0.68,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.medium",
+        "highAvailability" : false,
+        "hourlyRate" : 0.68,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.large",
+        "highAvailability" : false,
+        "hourlyRate" : 0.885,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 1.535,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
+        "name" : "db.m3.2xlarge",
+        "highAvailability" : false,
+        "hourlyRate" : 3.065,
+        "ioRate" : 0.14,
+        "storageRate" : 0.19,
+        "minStorage" : 200,
+        "license" : "included"
+      }, {
         "name" : "db.m1.small",
         "highAvailability" : false,
         "hourlyRate" : 0.105,
