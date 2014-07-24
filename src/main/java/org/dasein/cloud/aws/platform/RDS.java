@@ -656,6 +656,7 @@ public class RDS implements RelationalDatabaseSupport {
                                 lic = POSTGRESQL_LICENSE;
                             }
                             product.setLicenseModel(lic);
+                            product.setCurrency(databaseProduct.getCurrency());
                             DatabaseProductDefinition def = databaseProvider.findProductDefinition(databaseProduct.getName());
                             if( def != null) {
                                 product.setName(String.format("%.2fGB RAM, %d CPU, %s Network Performance", def.getMemory(), def.getvCpus(), def.getNetworkPerformance()));

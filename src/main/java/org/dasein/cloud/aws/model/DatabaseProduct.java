@@ -23,8 +23,8 @@ package org.dasein.cloud.aws.model;
  * <p>Created by Stas Maksimov: 14/07/2014 17:03</p>
  *
  * @author Stas Maksimov
- * @version 2014.03 initial version
- * @since 2014.03
+ * @version 2014.07 initial version
+ * @since 2014.07
  */
 public class DatabaseProduct {
     String  name;
@@ -32,8 +32,9 @@ public class DatabaseProduct {
     float   hourlyRate;
     float   ioRate;
     float   storageRate;
-    int    minStorage;
+    int     minStorage;
     String  license;
+    String  currency;
 
     public String getLicense() {
         return license;
@@ -41,6 +42,14 @@ public class DatabaseProduct {
 
     public void setLicense( String license ) {
         this.license = license;
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+
+    public void setCurrency( String currency ) {
+        this.currency = currency;
     }
 
     public String getName() {
