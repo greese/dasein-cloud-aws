@@ -91,6 +91,36 @@
                 "cpuCount":1,
                 "rootVolumeSizeInGb":1,
                 "ramSizeInMb":660,
+                "generation":"previous"
+            },
+            {
+                "architectures":["I64"],
+                "id": "t2.micro",
+                "name": "Burstable Instance (t2.micro)",
+                "description":"Burstable Instance (t2.micro)",
+                "cpuCount":1,
+                "rootVolumeSizeInGb":1,
+                "ramSizeInMb":1073,
+                "generation":"current"
+            },
+            {
+                "architectures":["I64"],
+                "id": "t2.small",
+                "name":"Burstable Instance (t2.small)",
+                "description":"Burstable Instance (t2.small)",
+                "cpuCount":1,
+                "rootVolumeSizeInGb":1,
+                "ramSizeInMb":2147,
+                "generation":"current"
+            },
+            {
+                "architectures":["I64"],
+                "id":"t2.medium",
+                "name":"Burstable Instance (t2.medium)",
+                "description":"Burstable Instance (t2.medium)",
+                "cpuCount":2,
+                "rootVolumeSizeInGb":1,
+                "ramSizeInMb":4294,
                 "generation":"current"
             },
             {
