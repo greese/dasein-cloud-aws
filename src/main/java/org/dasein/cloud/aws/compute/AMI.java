@@ -1483,7 +1483,7 @@ public class AMI extends AbstractImageSupport {
         }
         NodeList attributes = node.getChildNodes();
         MachineImage image = new MachineImage();
-        Collection<SnapshotVolume> volumes = null;
+        Collection<MachineImageVolume> volumes = null;
         String location = null;
 
         image.setSoftware(""); // TODO: guess software
@@ -1619,11 +1619,11 @@ public class AMI extends AbstractImageSupport {
 
                 if (attribute.hasChildNodes()) {
                     NodeList devices = attribute.getChildNodes();
-                    volumes = new ArrayList<SnapshotVolume>();
+                    volumes = new ArrayList<MachineImageVolume>();
 
                     for (int z = 0; z < devices.getLength(); z++) {
                         NodeList param = devices.item(z).getChildNodes();
-                        SnapshotVolume volume = new SnapshotVolume();
+                        MachineImageVolume volume = new MachineImageVolume();
 
                         if (devices.item(z).getNodeName().equalsIgnoreCase("item")) {
                             for (int j = 0; j < param.getLength(); j++) {
@@ -1698,7 +1698,7 @@ public class AMI extends AbstractImageSupport {
             image.setProviderOwnerId(ctx.getAccountNumber());
         }
         if (volumes != null) {
-            image.setSnapshotVolume(volumes);
+            image.setVolumes(volumes);
         }
         return image;
     }
