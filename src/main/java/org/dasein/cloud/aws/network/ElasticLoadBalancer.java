@@ -1466,6 +1466,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         List<String> firewallIds = new ArrayList<String>();
         String regionId = getContext().getRegionId();
         String lbName = null, description = null, lbId = null, cname = null;
+        LoadBalancerHealthCheck lbhc = null;
         boolean withHealthCheck = false;
         long created = 0L;
         LbType type = null;
@@ -1524,6 +1525,11 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                         }
                     }
                 }
+            }
+            else if(name.equalsIgnoreCase("healthcheck")) {
+                lbhc = toLBHealthCheck(lbName, attr);
+                lbhc.addProviderLoadBalancerId(lbName);
+                lbhc.setName(toHCName(lbName));
             }
             else if( name.equals("instances") ) {
                 if( attr.hasChildNodes() ) {
@@ -1639,7 +1645,9 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         if( withHealthCheck ) {
             lb.setProviderLBHealthCheckId(lbId);
         }
-
+        if (lbhc != null) {
+            lb.setHealthCheck(lbhc);
+        }
         return lb;
     }
 
