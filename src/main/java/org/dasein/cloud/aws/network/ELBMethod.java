@@ -45,7 +45,11 @@ public class ELBMethod extends EC2Method {
     static public final String SET_LB_SSL_CERTIFICATE     = "SetLoadBalancerListenerSSLCertificate";
     static public final String CLEATE_LOAD_BALANCER_LISTENERS     = "CreateLoadBalancerListeners";
     static public final String DELETE_LOAD_BALANCER_LISTENERS     = "DeleteLoadBalancerListeners";
-
+    static public final String ATTACH_LB_TO_SUBNETS       = "AttachLoadBalancerToSubnets";
+    static public final String DETACH_LB_FROM_SUBNETS     = "DetachLoadBalancerFromSubnets";
+    static public final String APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER = "ApplySecurityGroupsToLoadBalancer";
+    static public final String MODIFY_LOADBALANCER_ATTRIBUTES         = "ModifyLoadBalancerAttributes";
+    static public final String DESCRIBE_LOADBALANCER_ATTRIBUTES         = "DescribeLoadBalancerAttributes";
 
     static public @Nonnull ServiceAction[] asELBServiceAction(@Nonnull String action) {
         if( action.equals(CREATE_LOAD_BALANCER) ) {
@@ -83,6 +87,15 @@ public class ELBMethod extends EC2Method {
         }
         else if ( action.equals(DELETE_LOAD_BALANCER_LISTENERS) ) {
             return new ServiceAction[] { LoadBalancerSupport.DELETE_LOAD_BALANCER_LISTENERS };
+        }
+        else if ( action.equals(APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER) ) {
+            return new ServiceAction[]{ LoadBalancerSupport.SET_FIREWALLS};
+        }
+        else if( action.equals(MODIFY_LOADBALANCER_ATTRIBUTES)) {
+            return new ServiceAction[]{ LoadBalancerSupport.MODIFY_LB_ATTRIBUTES};
+        }
+        else if(action.equals(DESCRIBE_LOADBALANCER_ATTRIBUTES)) {
+            return new ServiceAction[] {LoadBalancerSupport.DESCRIBE_LOADBALANCER_ATTRIBUTES};
         }
         return new ServiceAction[0];
     }
