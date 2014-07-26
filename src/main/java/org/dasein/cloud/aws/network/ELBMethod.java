@@ -43,6 +43,8 @@ public class ELBMethod extends EC2Method {
     static public final String REGISTER_INSTANCES         = "RegisterInstancesWithLoadBalancer";
     static public final String CONFIGURE_HEALTH_CHECK     = "ConfigureHealthCheck";
     static public final String SET_LB_SSL_CERTIFICATE     = "SetLoadBalancerListenerSSLCertificate";
+    static public final String CREATE_LOAD_BALANCER_LISTENERS = "CreateLoadBalancerListeners";
+    static public final String DELETE_LOAD_BALANCER_LISTENERS     = "DeleteLoadBalancerListeners";
     static public final String ATTACH_LB_TO_SUBNETS       = "AttachLoadBalancerToSubnets";
     static public final String DETACH_LB_FROM_SUBNETS     = "DetachLoadBalancerFromSubnets";
     static public final String APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER = "ApplySecurityGroupsToLoadBalancer";
@@ -60,10 +62,10 @@ public class ELBMethod extends EC2Method {
             return new ServiceAction[] { LoadBalancerSupport.REMOVE_VMS };
         }
         else if( action.equals(DESCRIBE_LOAD_BALANCERS) ) {
-          return new ServiceAction[] { LoadBalancerSupport.GET_LOAD_BALANCER, LoadBalancerSupport.LIST_LOAD_BALANCER };
+            return new ServiceAction[] { LoadBalancerSupport.GET_LOAD_BALANCER, LoadBalancerSupport.LIST_LOAD_BALANCER };
         }
         else if( action.equals(DESCRIBE_INSTANCE_HEALTH) ) {
-          return new ServiceAction[] { LoadBalancerSupport.GET_LOAD_BALANCER_SERVER_HEALTH };
+            return new ServiceAction[] { LoadBalancerSupport.GET_LOAD_BALANCER_SERVER_HEALTH };
         }
         else if( action.equals(DISABLE_AVAILABILITY_ZONES) ) {
             return new ServiceAction[] { LoadBalancerSupport.REMOVE_DATA_CENTERS };
@@ -79,6 +81,12 @@ public class ELBMethod extends EC2Method {
         }
         else if ( action.equals(SET_LB_SSL_CERTIFICATE) ) {
             return new ServiceAction[] { LoadBalancerSupport.SET_LB_SSL_CERTIFICATE };
+        }
+        else if ( action.equals( CREATE_LOAD_BALANCER_LISTENERS ) ) {
+            return new ServiceAction[] { LoadBalancerSupport.CLEATE_LOAD_BALANCER_LISTENERS };
+        }
+        else if ( action.equals(DELETE_LOAD_BALANCER_LISTENERS) ) {
+            return new ServiceAction[] { LoadBalancerSupport.DELETE_LOAD_BALANCER_LISTENERS };
         }
         else if ( action.equals(APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER) ) {
             return new ServiceAction[]{ LoadBalancerSupport.SET_FIREWALLS};
