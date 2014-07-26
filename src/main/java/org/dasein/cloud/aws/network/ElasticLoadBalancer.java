@@ -260,7 +260,10 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             for( String subnetId : options.getProviderSubnetIds() ) {
                 parameters.put("Subnets.member." + ( i++ ), subnetId);
             }
-
+            i = 1;
+            for( String firewallId : options.getFirewallIds() ) {
+                parameters.put("SecurityGroups.member." + ( i++ ), firewallId);
+            }
             if( options.getType() != null && options.getType() == LbType.INTERNAL ) {
                 parameters.put("Scheme", "internal");
             }
