@@ -195,8 +195,8 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
                 modifyLoadBalancerAttributes(
                         name,
-                        AttributesOptions.getInstance(
-                                options.getCrossZone(),
+                        LbAttributesOptions.getInstance(
+                                options.getCrossDataCenter(),
                                 options.getConnectionDraining(),
                                 options.getConnectionDrainingTimeout(),
                                 options.getIdleConnectionTimeout()
@@ -1050,7 +1050,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
-    public void modifyLoadBalancerAttributes(@Nonnull String id, @Nonnull AttributesOptions options) throws CloudException, InternalException {
+    public void modifyLoadBalancerAttributes(@Nonnull String id, @Nonnull LbAttributesOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.modifyLoadBalancerAttributes");
         try {
             ProviderContext ctx = provider.getContext();
@@ -1062,8 +1062,8 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
             parameters.put("LoadBalancerName", id);
 
-            if (options.getCrossZone() != null) {
-                parameters.put("LoadBalancerAttributes.CrossZoneLoadBalancing.Enabled", options.getCrossZone().toString());
+            if (options.getCrossDataCenter() != null) {
+                parameters.put("LoadBalancerAttributes.CrossZoneLoadBalancing.Enabled", options.getCrossDataCenter().toString());
             }
 
             if (options.getConnectionDraining() != null) {
@@ -1091,7 +1091,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
-    public AttributesOptions getLoadBalancerAttributes(@Nonnull String id) throws CloudException, InternalException {
+    public LbAttributesOptions getLoadBalancerAttributes(@Nonnull String id) throws CloudException, InternalException {
         APITrace.begin(provider,"LB.DescribeLoadBalancerAttributes");
         try {
             ProviderContext ctx = provider.getContext();
@@ -1102,7 +1102,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             Map<String, String> parameters = getELBParameters(ctx, ELBMethod.DESCRIBE_LOADBALANCER_ATTRIBUTES);
 
             parameters.put("LoadBalancerName", id);
-            Boolean crossZoneLoadBalancingEnabled = null;
+            Boolean crossDataCenterLoadBalancingEnabled = null;
             Boolean connectionDrainingEnabled = null;
             Integer connectionDrainingTimeout = null;
             Integer idleConnectionTimeout = null;
@@ -1130,14 +1130,14 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                         connectionDrainingEnabled = Boolean.valueOf(connDraining.get("Enabled"));
                         connectionDrainingTimeout = Integer.valueOf(connDraining.get("Timeout"));
                     } else if ("CrossZoneLoadBalancing".equals(item.getNodeName())) {
-                        crossZoneLoadBalancingEnabled = Boolean.valueOf(getChildNodeValuesOnly(item).get("Enabled"));
+                        crossDataCenterLoadBalancingEnabled = Boolean.valueOf(getChildNodeValuesOnly(item).get("Enabled"));
                     } else if ("ConnectionSettings".equals(item.getNodeName())) {
                         idleConnectionTimeout = Integer.valueOf(getChildNodeValuesOnly(item).get("IdleTimeout"));
                     }
                 }
             }
 
-            return AttributesOptions.getInstance(crossZoneLoadBalancingEnabled, connectionDrainingEnabled, connectionDrainingTimeout, idleConnectionTimeout);
+            return LbAttributesOptions.getInstance(crossDataCenterLoadBalancingEnabled, connectionDrainingEnabled, connectionDrainingTimeout, idleConnectionTimeout);
         } finally {
             APITrace.end();
         }
