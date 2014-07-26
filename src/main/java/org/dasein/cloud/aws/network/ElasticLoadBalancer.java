@@ -62,7 +62,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 if( ctx == null ) {
                     throw new CloudException("No valid context is established for this request");
                 }
-                Map<String, String> parameters = getELBParameters(getContext(), ELBMethod.CLEATE_LOAD_BALANCER_LISTENERS);
+                Map<String, String> parameters = getELBParameters(getContext(), ELBMethod.CREATE_LOAD_BALANCER_LISTENERS );
                 ELBMethod method;
 
                 parameters.put("LoadBalancerName", toLoadBalancerId);
@@ -489,7 +489,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             }
             NodeList blocks = doc.getElementsByTagName("ServerCertificate");
             for ( int i = 0; i < blocks.getLength(); i++ ) {
-                Node item = blocks.item(i);
+                Node item = blocks.item( i );
                 SSLCertificate certificate = toSSLCertificate(item);
                 if (certificate != null) {
                     return certificate;
@@ -679,7 +679,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     Node item = items.item(j);
 
                     if( item.getNodeName().equals("member") ) {
-                        ResourceStatus status = toStatus(item);
+                        ResourceStatus status = toStatus( item );
 
                         if( status != null ) {
                             list.add(status);
@@ -722,7 +722,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     Node item = items.item(j);
 
                     if( item.getNodeName().equals("member") ) {
-                        LoadBalancer loadBalancer = toLoadBalancer(item);
+                        LoadBalancer loadBalancer = toLoadBalancer( item );
 
                         if( loadBalancer != null ) {
                             list.add(loadBalancer);
@@ -839,7 +839,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
     @Override
     public void removeLoadBalancer( @Nonnull String loadBalancerId ) throws CloudException, InternalException {
-        APITrace.begin(provider, "LB.remove");
+        APITrace.begin( provider, "LB.remove" );
         try {
             ProviderContext ctx = provider.getContext();
 

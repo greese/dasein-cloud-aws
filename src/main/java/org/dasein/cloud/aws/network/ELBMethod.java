@@ -43,7 +43,7 @@ public class ELBMethod extends EC2Method {
     static public final String REGISTER_INSTANCES         = "RegisterInstancesWithLoadBalancer";
     static public final String CONFIGURE_HEALTH_CHECK     = "ConfigureHealthCheck";
     static public final String SET_LB_SSL_CERTIFICATE     = "SetLoadBalancerListenerSSLCertificate";
-    static public final String CLEATE_LOAD_BALANCER_LISTENERS     = "CreateLoadBalancerListeners";
+    static public final String CREATE_LOAD_BALANCER_LISTENERS = "CreateLoadBalancerListeners";
     static public final String DELETE_LOAD_BALANCER_LISTENERS     = "DeleteLoadBalancerListeners";
     static public final String ATTACH_LB_TO_SUBNETS       = "AttachLoadBalancerToSubnets";
     static public final String DETACH_LB_FROM_SUBNETS     = "DetachLoadBalancerFromSubnets";
@@ -82,7 +82,7 @@ public class ELBMethod extends EC2Method {
         else if ( action.equals(SET_LB_SSL_CERTIFICATE) ) {
             return new ServiceAction[] { LoadBalancerSupport.SET_LB_SSL_CERTIFICATE };
         }
-        else if ( action.equals(CLEATE_LOAD_BALANCER_LISTENERS) ) {
+        else if ( action.equals( CREATE_LOAD_BALANCER_LISTENERS ) ) {
             return new ServiceAction[] { LoadBalancerSupport.CLEATE_LOAD_BALANCER_LISTENERS };
         }
         else if ( action.equals(DELETE_LOAD_BALANCER_LISTENERS) ) {
