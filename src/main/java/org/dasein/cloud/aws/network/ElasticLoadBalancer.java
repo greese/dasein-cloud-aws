@@ -192,6 +192,17 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             }
             blocks = doc.getElementsByTagName("DNSName");
             if( blocks.getLength() > 0 ) {
+
+                modifyLoadBalancerAttributes(
+                        name,
+                        LbAttributesOptions.getInstance(
+                                options.getCrossDataCenter(),
+                                options.getConnectionDraining(),
+                                options.getConnectionDrainingTimeout(),
+                                options.getIdleConnectionTimeout()
+                        )
+                );
+
                 for( LoadBalancerEndpoint endpoint : options.getEndpoints() ) {
                     if( endpoint.getEndpointType().equals(LbEndpointType.VM) ) {
                         addServers(name, endpoint.getEndpointValue());
@@ -1037,7 +1048,101 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             APITrace.end();
         }
     }
-    
+
+    @Override
+    public void modifyLoadBalancerAttributes(@Nonnull String id, @Nonnull LbAttributesOptions options) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.modifyLoadBalancerAttributes");
+        try {
+            ProviderContext ctx = provider.getContext();
+            if (ctx == null) {
+                throw new CloudException("No valid context is established for this request");
+            }
+
+            Map<String, String> parameters = getELBParameters(ctx, ELBMethod.MODIFY_LOADBALANCER_ATTRIBUTES);
+
+            parameters.put("LoadBalancerName", id);
+
+            if (options.getCrossDataCenter() != null) {
+                parameters.put("LoadBalancerAttributes.CrossZoneLoadBalancing.Enabled", options.getCrossDataCenter().toString());
+            }
+
+            if (options.getConnectionDraining() != null) {
+                parameters.put("LoadBalancerAttributes.ConnectionDraining.Enabled", options.getConnectionDraining().toString());
+            }
+
+            if (options.getConnectionDrainingTimeout() != null) {
+                parameters.put("LoadBalancerAttributes.ConnectionDraining.Timeout", options.getConnectionDrainingTimeout().toString());
+            }
+
+            if (options.getIdleConnectionTimeout() != null) {
+                parameters.put("LoadBalancerAttributes.ConnectionSettings.IdleTimeout", options.getIdleConnectionTimeout().toString());
+            }
+
+            ELBMethod method = new ELBMethod(provider, ctx, parameters);
+            try {
+                method.invoke();
+            } catch (EC2Exception e) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public LbAttributesOptions getLoadBalancerAttributes(@Nonnull String id) throws CloudException, InternalException {
+        APITrace.begin(provider,"LB.DescribeLoadBalancerAttributes");
+        try {
+            ProviderContext ctx = provider.getContext();
+            if (ctx == null) {
+                throw new CloudException("No valid context is established for this request");
+            }
+
+            Map<String, String> parameters = getELBParameters(ctx, ELBMethod.DESCRIBE_LOADBALANCER_ATTRIBUTES);
+
+            parameters.put("LoadBalancerName", id);
+            Boolean crossDataCenterLoadBalancingEnabled = null;
+            Boolean connectionDrainingEnabled = null;
+            Integer connectionDrainingTimeout = null;
+            Integer idleConnectionTimeout = null;
+
+            ELBMethod method = new ELBMethod(provider, ctx, parameters);
+            Document doc;
+            NodeList blocks;
+            try {
+                doc = method.invoke();
+            } catch (EC2Exception e) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+
+            blocks = doc.getElementsByTagName("LoadBalancerAttributes");
+
+            for (int i = 0; i < blocks.getLength(); i++) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for (int j = 0; j < items.getLength(); j++) {
+                    Node item = items.item(j);
+
+                    if ("ConnectionDraining".equals(item.getNodeName())) {
+                        Map<String,String> connDraining = getChildNodeValuesOnly(item);
+                        connectionDrainingEnabled = Boolean.valueOf(connDraining.get("Enabled"));
+                        connectionDrainingTimeout = Integer.valueOf(connDraining.get("Timeout"));
+                    } else if ("CrossZoneLoadBalancing".equals(item.getNodeName())) {
+                        crossDataCenterLoadBalancingEnabled = Boolean.valueOf(getChildNodeValuesOnly(item).get("Enabled"));
+                    } else if ("ConnectionSettings".equals(item.getNodeName())) {
+                        idleConnectionTimeout = Integer.valueOf(getChildNodeValuesOnly(item).get("IdleTimeout"));
+                    }
+                }
+            }
+
+            return LbAttributesOptions.getInstance(crossDataCenterLoadBalancingEnabled, connectionDrainingEnabled, connectionDrainingTimeout, idleConnectionTimeout);
+        } finally {
+            APITrace.end();
+        }
+    }
+
     @Override
     public Iterable<LoadBalancerHealthCheck> listLBHealthChecks( @Nullable HealthCheckFilterOptions opts ) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.listLBHealthChecks");
@@ -1161,6 +1266,18 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         finally {
             APITrace.end();
         }
+    }
+
+    private Map<String,String> getChildNodeValuesOnly(Node item) {
+        Map<String, String> result = new HashMap<String, String>();
+        NodeList attrs = item.getChildNodes();
+        for (int k = 0; k < attrs.getLength(); k++) {
+            Node attr = attrs.item(k);
+            if (attr != null && attr.getFirstChild() != null) {
+                result.put(attr.getNodeName(), attr.getFirstChild().getNodeValue());
+            }
+        }
+        return result;
     }
 
     private LoadBalancerHealthCheck toLBHealthCheck( @Nullable String lbId, @Nonnull Node node ) {
