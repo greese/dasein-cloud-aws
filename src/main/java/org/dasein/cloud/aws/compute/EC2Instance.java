@@ -1388,230 +1388,257 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull VirtualMachine launch( @Nonnull VMLaunchOptions cfg ) throws CloudException, InternalException {
-        APITrace.begin(getProvider(), "launchVM");
+    public @Nonnull VirtualMachine launch( @Nonnull VMLaunchOptions withLaunchOptions ) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "launch");
         try {
-            ProviderContext ctx = getProvider().getContext();
-            if( ctx == null ) {
-                throw new CloudException("No context was established for this request");
+            List<VirtualMachine> servers = launchManyVMs(withLaunchOptions, 1);
+            if( servers.size() == 1 ) {
+                return servers.get(0);
             }
-            MachineImage img = getProvider().getComputeServices().getImageSupport().getMachineImage(cfg.getMachineImageId());
+            throw new InternalException("Couldn't launch a virtual machine");
+        } finally {
+            APITrace.end();
+        }
+    }
 
-            if( img == null ) {
-                throw new AWSResourceNotFoundException("No such machine image: " + cfg.getMachineImageId());
+    @Override
+    public @Nonnull Iterable<String> launchMany( @Nonnull VMLaunchOptions withLaunchOptions, @Nonnegative int count ) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "launchMany");
+        List<String> instanceIds = new ArrayList<String>();
+        try {
+            List<VirtualMachine> servers = launchManyVMs(withLaunchOptions, count);
+            for( VirtualMachine server : servers ) {
+                instanceIds.add(server.getProviderVirtualMachineId());
             }
-            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.RUN_INSTANCES);
-            String ramdiskImage = ( String ) cfg.getMetaData().get("ramdiskImageId"), kernelImage = ( String ) cfg.getMetaData().get("kernelImageId");
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+        } finally {
+            APITrace.end();
+        }
+        return instanceIds;
+    }
 
-            parameters.put("ImageId", cfg.getMachineImageId());
-            parameters.put("MinCount", "1");
-            parameters.put("MaxCount", "1");
-            parameters.put("InstanceType", cfg.getStandardProductId());
-            if( ramdiskImage != null ) {
-                parameters.put("ramdiskId", ramdiskImage);
+    private @Nonnull List<VirtualMachine> launchManyVMs( @Nonnull VMLaunchOptions cfg, @Nonnegative int machineCount ) throws CloudException, InternalException {
+        List<VirtualMachine> servers = new ArrayList<VirtualMachine>();
+        ProviderContext ctx = getProvider().getContext();
+        if( ctx == null ) {
+            throw new CloudException("No context was established for this request");
+        }
+        MachineImage img = getProvider().getComputeServices().getImageSupport().getMachineImage(cfg.getMachineImageId());
+
+        if( img == null ) {
+            throw new AWSResourceNotFoundException("No such machine image: " + cfg.getMachineImageId());
+        }
+        Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.RUN_INSTANCES);
+        String ramdiskImage = ( String ) cfg.getMetaData().get("ramdiskImageId"), kernelImage = ( String ) cfg.getMetaData().get("kernelImageId");
+        EC2Method method;
+        NodeList blocks;
+        Document doc;
+
+        parameters.put("ImageId", cfg.getMachineImageId());
+        parameters.put("MinCount", String.valueOf(machineCount));
+        parameters.put("MaxCount", String.valueOf(machineCount));
+        parameters.put("InstanceType", cfg.getStandardProductId());
+        if( ramdiskImage != null ) {
+            parameters.put("ramdiskId", ramdiskImage);
+        }
+        if( kernelImage != null ) {
+            parameters.put("kernelId", kernelImage);
+        }
+        if( cfg.getRoleId() != null ) {
+            parameters.put("IamInstanceProfile.Arn", cfg.getRoleId());
+        }
+        if( cfg.getUserData() != null ) {
+            try {
+                parameters.put("UserData", Base64.encodeBase64String(cfg.getUserData().getBytes("utf-8")));
+            } catch( UnsupportedEncodingException e ) {
+                throw new InternalException(e);
             }
-            if( kernelImage != null ) {
-                parameters.put("kernelId", kernelImage);
-            }
-            if( cfg.getRoleId() != null ) {
-                parameters.put("IamInstanceProfile.Arn", cfg.getRoleId());
-            }
-            if( cfg.getUserData() != null ) {
-                try {
-                    parameters.put("UserData", Base64.encodeBase64String(cfg.getUserData().getBytes("utf-8")));
-                } catch( UnsupportedEncodingException e ) {
-                    throw new InternalException(e);
+        }
+        if( cfg.isPreventApiTermination() ) {
+            parameters.put("DisableApiTermination", "true");
+        }
+        if( cfg.getDataCenterId() != null ) {
+            parameters.put("Placement.AvailabilityZone", cfg.getDataCenterId());
+        }
+        else if( cfg.getVolumes().length > 0 ) {
+            String dc = null;
+
+            for( VolumeAttachment a : cfg.getVolumes() ) {
+                if( a.volumeToCreate != null ) {
+                    dc = a.volumeToCreate.getDataCenterId();
+                    if( dc != null ) {
+                        break;
+                    }
                 }
             }
-            if( cfg.isPreventApiTermination() ) {
-                parameters.put("DisableApiTermination", "true");
+            if( dc != null ) {
+                cfg.inDataCenter(dc);
             }
-            if( cfg.getDataCenterId() != null ) {
-                parameters.put("Placement.AvailabilityZone", cfg.getDataCenterId());
-            }
-            else if( cfg.getVolumes().length > 0 ) {
-                String dc = null;
+        }
+        if( cfg.getBootstrapKey() != null ) {
+            parameters.put("KeyName", cfg.getBootstrapKey());
+        }
+        if( getProvider().getEC2Provider().isAWS() ) {
+            parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
+        }
+        final ArrayList<VolumeAttachment> existingVolumes = new ArrayList<VolumeAttachment>();
+        TreeSet<String> deviceIds = new TreeSet<String>();
 
-                for( VolumeAttachment a : cfg.getVolumes() ) {
-                    if( a.volumeToCreate != null ) {
-                        dc = a.volumeToCreate.getDataCenterId();
-                        if( dc != null ) {
-                            break;
+        if( cfg.isIoOptimized() ) {
+            parameters.put("EbsOptimized", "true");
+        }
+
+        if( cfg.getVolumes().length > 0 ) {
+            Iterable<String> possibles = getProvider().getComputeServices().getVolumeSupport().listPossibleDeviceIds(img.getPlatform());
+            int i = 1;
+
+            for( VolumeAttachment a : cfg.getVolumes() ) {
+                if( a.deviceId != null ) {
+                    deviceIds.add(a.deviceId);
+                }
+                else if( a.volumeToCreate != null && a.volumeToCreate.getDeviceId() != null ) {
+                    deviceIds.add(a.volumeToCreate.getDeviceId());
+                    a.deviceId = a.volumeToCreate.getDeviceId();
+                }
+            }
+            for( VolumeAttachment a : cfg.getVolumes() ) {
+                if( a.deviceId == null ) {
+                    for( String id : possibles ) {
+                        if( !deviceIds.contains(id) ) {
+                            a.deviceId = id;
+                            deviceIds.add(id);
                         }
                     }
-                }
-                if( dc != null ) {
-                    cfg.inDataCenter(dc);
-                }
-            }
-            if( cfg.getBootstrapKey() != null ) {
-                parameters.put("KeyName", cfg.getBootstrapKey());
-            }
-            if( getProvider().getEC2Provider().isAWS() ) {
-                parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
-            }
-            final ArrayList<VolumeAttachment> existingVolumes = new ArrayList<VolumeAttachment>();
-            TreeSet<String> deviceIds = new TreeSet<String>();
-
-            if( cfg.isIoOptimized() ) {
-                parameters.put("EbsOptimized", "true");
-            }
-
-            if( cfg.getVolumes().length > 0 ) {
-                Iterable<String> possibles = getProvider().getComputeServices().getVolumeSupport().listPossibleDeviceIds(img.getPlatform());
-                int i = 1;
-
-                for( VolumeAttachment a : cfg.getVolumes() ) {
-                    if( a.deviceId != null ) {
-                        deviceIds.add(a.deviceId);
-                    }
-                    else if( a.volumeToCreate != null && a.volumeToCreate.getDeviceId() != null ) {
-                        deviceIds.add(a.volumeToCreate.getDeviceId());
-                        a.deviceId = a.volumeToCreate.getDeviceId();
-                    }
-                }
-                for( VolumeAttachment a : cfg.getVolumes() ) {
                     if( a.deviceId == null ) {
-                        for( String id : possibles ) {
-                            if( !deviceIds.contains(id) ) {
-                                a.deviceId = id;
-                                deviceIds.add(id);
-                            }
-                        }
-                        if( a.deviceId == null ) {
-                            throw new InternalException("Unable to identify a device ID for volume");
-                        }
-                    }
-                    if( a.existingVolumeId == null ) {
-                        parameters.put("BlockDeviceMapping." + i + ".DeviceName", a.deviceId);
-
-                        VolumeProduct prd = getProvider().getComputeServices().getVolumeSupport().getVolumeProduct(a.volumeToCreate.getVolumeProductId());
-                        parameters.put("BlockDeviceMapping." + i + ".Ebs.VolumeType", prd.getProviderProductId());
-
-                        if( a.volumeToCreate.getIops() > 0 ) {
-                            parameters.put("BlockDeviceMapping." + i + ".Ebs.Iops", String.valueOf(a.volumeToCreate.getIops()));
-                        }
-
-                        if( a.volumeToCreate.getSnapshotId() != null ) {
-                            parameters.put("BlockDeviceMapping." + i + ".Ebs.SnapshotId", a.volumeToCreate.getSnapshotId());
-                        }
-                        else {
-                            parameters.put("BlockDeviceMapping." + i + ".Ebs.VolumeSize", String.valueOf(a.volumeToCreate.getVolumeSize().getQuantity().intValue()));
-                        }
-                        i++;
-                    }
-                    else {
-                        existingVolumes.add(a);
+                        throw new InternalException("Unable to identify a device ID for volume");
                     }
                 }
-            }
-            if (cfg.getAffinityGroupId() != null ) {
-                parameters.put( "Placement.GroupName", cfg.getAffinityGroupId() );
-            }
-            if( cfg.getSubnetId() == null ) {
-                String[] ids = cfg.getFirewallIds();
-                if( ids.length > 0 ) {
-                    int i = 1;
+                if( a.existingVolumeId == null ) {
+                    parameters.put("BlockDeviceMapping." + i + ".DeviceName", a.deviceId);
 
-                    for( String id : ids ) {
-                        parameters.put("SecurityGroupId." + ( i++ ), id);
+                    VolumeProduct prd = getProvider().getComputeServices().getVolumeSupport().getVolumeProduct(a.volumeToCreate.getVolumeProductId());
+                    parameters.put("BlockDeviceMapping." + i + ".Ebs.VolumeType", prd.getProviderProductId());
+
+                    if( a.volumeToCreate.getIops() > 0 ) {
+                        parameters.put("BlockDeviceMapping." + i + ".Ebs.Iops", String.valueOf(a.volumeToCreate.getIops()));
                     }
-                }
-            }
-            else if( cfg.getNetworkInterfaces() != null && cfg.getNetworkInterfaces().length > 0 ) {
-                VMLaunchOptions.NICConfig[] nics = cfg.getNetworkInterfaces();
-                int i = 1;
 
-                for( VMLaunchOptions.NICConfig c : nics ) {
-                    parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
-                    // this only applies for the first NIC
-                    if( i == 1 ) {
-                        parameters.put("NetworkInterface.1.AssociatePublicIpAddress", String.valueOf(cfg.isAssociatePublicIpAddress()));
-                    }
-                    if( c.nicId == null ) {
-                        parameters.put("NetworkInterface." + i + ".SubnetId", c.nicToCreate.getSubnetId());
-                        parameters.put("NetworkInterface." + i + ".Description", c.nicToCreate.getDescription());
-                        if( c.nicToCreate.getIpAddress() != null ) {
-                            parameters.put("NetworkInterface." + i + ".PrivateIpAddress", c.nicToCreate.getIpAddress());
-                        }
-                        if( c.nicToCreate.getFirewallIds().length > 0 ) {
-                            int j = 1;
-
-                            for( String id : c.nicToCreate.getFirewallIds() ) {
-                                parameters.put("NetworkInterface." + i + ".SecurityGroupId." + j, id);
-                                j++;
-                            }
-                        }
+                    if( a.volumeToCreate.getSnapshotId() != null ) {
+                        parameters.put("BlockDeviceMapping." + i + ".Ebs.SnapshotId", a.volumeToCreate.getSnapshotId());
                     }
                     else {
-                        parameters.put("NetworkInterface." + i + ".NetworkInterfaceId", c.nicId);
+                        parameters.put("BlockDeviceMapping." + i + ".Ebs.VolumeSize", String.valueOf(a.volumeToCreate.getVolumeSize().getQuantity().intValue()));
                     }
                     i++;
                 }
-            }
-            else {
-                parameters.put("NetworkInterface.1.DeviceIndex", "0");
-                parameters.put("NetworkInterface.1.SubnetId", cfg.getSubnetId());
-                parameters.put("NetworkInterface.1.AssociatePublicIpAddress", String.valueOf(cfg.isAssociatePublicIpAddress()));
-                if( cfg.getPrivateIp() != null ) {
-                    parameters.put("NetworkInterface.1.PrivateIpAddress", cfg.getPrivateIp());
-                }
-                int securityGroupIndex = 1;
-                for( String id : cfg.getFirewallIds() ) {
-                    parameters.put("NetworkInterface.1.SecurityGroupId." + securityGroupIndex, id);
-                    securityGroupIndex++;
+                else {
+                    existingVolumes.add(a);
                 }
             }
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
-            try {
-                doc = method.invoke();
-            } catch( EC2Exception e ) {
-                String code = e.getCode();
+        }
+        if (cfg.getAffinityGroupId() != null ) {
+            parameters.put( "Placement.GroupName", cfg.getAffinityGroupId() );
+        }
+        if( cfg.getSubnetId() == null ) {
+            String[] ids = cfg.getFirewallIds();
+            if( ids.length > 0 ) {
+                int i = 1;
 
-                if( code != null && code.equals("InsufficientInstanceCapacity") ) {
-                    return null;
+                for( String id : ids ) {
+                    parameters.put("SecurityGroupId." + ( i++ ), id);
                 }
-                logger.error(e.getSummary());
-                throw new CloudException(e);
             }
-            blocks = doc.getElementsByTagName("instancesSet");
-            VirtualMachine server = null;
-            for( int i = 0; i < blocks.getLength(); i++ ) {
-                NodeList instances = blocks.item(i).getChildNodes();
+        }
+        else if( cfg.getNetworkInterfaces() != null && cfg.getNetworkInterfaces().length > 0 ) {
+            VMLaunchOptions.NICConfig[] nics = cfg.getNetworkInterfaces();
+            int i = 1;
 
-                for( int j = 0; j < instances.getLength(); j++ ) {
-                    Node instance = instances.item(j);
+            for( VMLaunchOptions.NICConfig c : nics ) {
+                parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
+                // this only applies for the first NIC
+                if( i == 1 ) {
+                    parameters.put("NetworkInterface.1.AssociatePublicIpAddress", String.valueOf(cfg.isAssociatePublicIpAddress()));
+                }
+                if( c.nicId == null ) {
+                    parameters.put("NetworkInterface." + i + ".SubnetId", c.nicToCreate.getSubnetId());
+                    parameters.put("NetworkInterface." + i + ".Description", c.nicToCreate.getDescription());
+                    if( c.nicToCreate.getIpAddress() != null ) {
+                        parameters.put("NetworkInterface." + i + ".PrivateIpAddress", c.nicToCreate.getIpAddress());
+                    }
+                    if( c.nicToCreate.getFirewallIds().length > 0 ) {
+                        int j = 1;
 
-                    if( instance.getNodeName().equals("item") ) {
-                        server = toVirtualMachine(ctx, instance, new ArrayList<IpAddress>() /* can't be an elastic IP */);
-                        if( server != null ) {
-                            break;
+                        for( String id : c.nicToCreate.getFirewallIds() ) {
+                            parameters.put("NetworkInterface." + i + ".SecurityGroupId." + j, id);
+                            j++;
                         }
                     }
                 }
+                else {
+                    parameters.put("NetworkInterface." + i + ".NetworkInterfaceId", c.nicId);
+                }
+                i++;
             }
-            if( server != null ) {
-                // wait for EC2 to figure out the server exists
-                VirtualMachine copy = getVirtualMachine(server.getProviderVirtualMachineId());
+        }
+        else {
+            parameters.put("NetworkInterface.1.DeviceIndex", "0");
+            parameters.put("NetworkInterface.1.SubnetId", cfg.getSubnetId());
+            parameters.put("NetworkInterface.1.AssociatePublicIpAddress", String.valueOf(cfg.isAssociatePublicIpAddress()));
+            if( cfg.getPrivateIp() != null ) {
+                parameters.put("NetworkInterface.1.PrivateIpAddress", cfg.getPrivateIp());
+            }
+            int securityGroupIndex = 1;
+            for( String id : cfg.getFirewallIds() ) {
+                parameters.put("NetworkInterface.1.SecurityGroupId." + securityGroupIndex, id);
+                securityGroupIndex++;
+            }
+        }
+        method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+        try {
+            doc = method.invoke();
+        } catch( EC2Exception e ) {
+            String code = e.getCode();
 
-                if( copy == null ) {
-                    long timeout = System.currentTimeMillis() + CalendarWrapper.MINUTE;
+            if( code != null && code.equals("InsufficientInstanceCapacity") ) {
+                return null;
+            }
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        blocks = doc.getElementsByTagName("instancesSet");
 
-                    while( timeout > System.currentTimeMillis() ) {
-                        try {
-                            Thread.sleep(5000L);
-                        } catch( InterruptedException ignore ) {
-                        }
-                        try {
-                            copy = getVirtualMachine(server.getProviderVirtualMachineId());
-                        } catch( Throwable ignore ) {
-                        }
-                        if( copy != null ) {
-                            break;
-                        }
+        for( int i = 0; i < blocks.getLength(); i++ ) {
+            NodeList instances = blocks.item(i).getChildNodes();
+
+            for( int j = 0; j < instances.getLength(); j++ ) {
+                Node instance = instances.item(j);
+
+                if( instance.getNodeName().equals("item") ) {
+                    VirtualMachine server = toVirtualMachine(ctx, instance, new ArrayList<IpAddress>() /* can't be an elastic IP */);
+                    if( server != null ) {
+                        servers.add(server);
+                    }
+                }
+            }
+        }
+
+        for( VirtualMachine server : servers ) {
+            // wait for EC2 to figure out the server exists
+            VirtualMachine copy = getVirtualMachine(server.getProviderVirtualMachineId());
+
+            if( copy == null ) {
+                long timeout = System.currentTimeMillis() + CalendarWrapper.MINUTE;
+
+                while( timeout > System.currentTimeMillis() ) {
+                    try {
+                        Thread.sleep(5000L);
+                    } catch( InterruptedException ignore ) {
+                    }
+                    try {
+                        copy = getVirtualMachine(server.getProviderVirtualMachineId());
+                    } catch( Throwable ignore ) {
+                    }
+                    if( copy != null ) {
+                        break;
                     }
                 }
             }
@@ -1708,10 +1735,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 thread.setName("Volume Mounter for " + server);
                 thread.start();
             }
-            return server;
-        } finally {
-            APITrace.end();
         }
+        return servers;
     }
 
     private void enableIpForwarding( final String instanceId ) throws CloudException {
