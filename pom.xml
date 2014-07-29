@@ -243,9 +243,9 @@
                     <value>${test.shareAccount}</value>
                 </property>
             </systemProperties>
-          <includes>
-              <include>**/TestSuite.java</include>
-          </includes>
+          <excludes>
+              <exclude>**/TestSuite.java</exclude>
+          </excludes>
 	  <argLine>-Xmx1024m</argLine>
         </configuration>
       </plugin>
