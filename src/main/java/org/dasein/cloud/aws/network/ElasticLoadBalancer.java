@@ -777,7 +777,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             NodeList blocks;
             Document doc;
 
-            if( providerLoadBalancerId.length() > 32 ) {
+            if( providerLoadBalancerId != null && providerLoadBalancerId.length() > 32 ) {
                 return null;
             }
             parameters.put("LoadBalancerNames.member.1", providerLoadBalancerId);
