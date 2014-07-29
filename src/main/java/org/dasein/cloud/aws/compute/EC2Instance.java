@@ -1391,7 +1391,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     public @Nonnull VirtualMachine launch( @Nonnull VMLaunchOptions withLaunchOptions ) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "launch");
         try {
-            List<VirtualMachine> servers = launchManyVMs(withLaunchOptions, 1);
+            List<VirtualMachine> servers = runInstances(withLaunchOptions, 1);
             if( servers.size() == 1 ) {
                 return servers.get(0);
             }
@@ -1406,7 +1406,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         APITrace.begin(getProvider(), "launchMany");
         List<String> instanceIds = new ArrayList<String>();
         try {
-            List<VirtualMachine> servers = launchManyVMs(withLaunchOptions, count);
+            List<VirtualMachine> servers = runInstances(withLaunchOptions, count);
             for( VirtualMachine server : servers ) {
                 instanceIds.add(server.getProviderVirtualMachineId());
             }
@@ -1416,7 +1416,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return instanceIds;
     }
 
-    private @Nonnull List<VirtualMachine> launchManyVMs( @Nonnull VMLaunchOptions cfg, @Nonnegative int machineCount ) throws CloudException, InternalException {
+    private @Nonnull List<VirtualMachine> runInstances( @Nonnull VMLaunchOptions cfg, @Nonnegative int instanceCount ) throws CloudException, InternalException {
         List<VirtualMachine> servers = new ArrayList<VirtualMachine>();
         ProviderContext ctx = getProvider().getContext();
         if( ctx == null ) {
@@ -1434,8 +1434,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         Document doc;
 
         parameters.put("ImageId", cfg.getMachineImageId());
-        parameters.put("MinCount", String.valueOf(machineCount));
-        parameters.put("MaxCount", String.valueOf(machineCount));
+        parameters.put("MinCount", String.valueOf(instanceCount));
+        parameters.put("MaxCount", String.valueOf(instanceCount));
         parameters.put("InstanceType", cfg.getStandardProductId());
         if( ramdiskImage != null ) {
             parameters.put("ramdiskId", ramdiskImage);
@@ -1641,9 +1641,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         break;
                     }
                 }
-            }
-            if( cfg.isIpForwardingAllowed() ) {
-                enableIpForwarding(server.getProviderVirtualMachineId());
             }
             if( cfg.isIpForwardingAllowed() ) {
                 enableIpForwarding(server.getProviderVirtualMachineId());
