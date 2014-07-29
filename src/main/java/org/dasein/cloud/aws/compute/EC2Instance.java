@@ -1215,7 +1215,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 parameters.put("KeyName", cfg.getBootstrapKey());
             }
             if( cfg.getVlanId() != null ) {
-                parameters.put("SubnetId", cfg.getVlanId());
+                parameters.put("VpcId", cfg.getVlanId());
             }
             if( getProvider().getEC2Provider().isAWS() ) {
                 parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
