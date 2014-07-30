@@ -487,7 +487,7 @@ public class AWSCloud extends AbstractCloud {
         return provider;
     }
 
-    public @Nullable String getEc2Url() throws InternalException, CloudException {
+    public @Nullable String getEc2Url() {
         ProviderContext ctx = getContext();
         String url = getEc2Url(ctx == null ? null : ctx.getRegionId());
 
@@ -499,7 +499,7 @@ public class AWSCloud extends AbstractCloud {
         }
     }
 
-    public @Nullable String getEc2Url( @Nullable String regionId ) throws InternalException, CloudException {
+    public @Nullable String getEc2Url( @Nullable String regionId ) {
         ProviderContext ctx = getContext();
         String url;
 
