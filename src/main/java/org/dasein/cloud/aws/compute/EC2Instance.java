@@ -2541,16 +2541,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void setTags(@Nonnull String vmId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        getProvider().setTags(vmId, tags);
-    }
-
-    @Override
-    public void setTags(@Nonnull String[] vmIds, @Nonnull Tag... tags) throws CloudException, InternalException {
-        getProvider().setTags(vmIds, tags);
-    }
-
-    @Override
     public void removeTags(@Nonnull String vmId, @Nonnull Tag... tags) throws CloudException, InternalException {
         getProvider().removeTags(vmId, tags);
     }

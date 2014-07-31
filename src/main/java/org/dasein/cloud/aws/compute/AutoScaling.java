@@ -39,12 +39,13 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-public class AutoScaling implements AutoScalingSupport {
+public class AutoScaling extends AbstractAutoScalingSupport {
     static private final Logger logger = Logger.getLogger(AutoScaling.class);
 
     private AWSCloud provider = null;
 
     AutoScaling(AWSCloud provider) {
+        super(provider);
         this.provider = provider;
     }
 
@@ -1033,37 +1034,20 @@ public class AutoScaling implements AutoScalingSupport {
    }
 
     @Override
-    public void setTags(@Nonnull String providerScalingGroupId, @Nonnull AutoScalingTag... tags) throws CloudException, InternalException {
-        setTags(new String[]{providerScalingGroupId}, tags);
-    }
-
-    @Override
-    public void setTags(@Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags) throws CloudException, InternalException {
-        APITrace.begin(provider, "AutoScaling.setTags");
-        try {
-            for(String providerScalingGroupId: providerScalingGroupIds ) {
-                Collection<AutoScalingTag> collectionForDelete = getTagsForDelete(getTags(providerScalingGroupId), tags);
-
-                if (collectionForDelete != null) {
-                    removeTags(providerScalingGroupIds, collectionForDelete.toArray(new AutoScalingTag[collectionForDelete.size()]));
-                }
-
-                updateTags(providerScalingGroupIds, tags);
-            }
-        } finally {
-            APITrace.end();
-        }
-    }
-
-    public Collection<AutoScalingTag> getTags(@Nonnull String providerScalingGroupId) throws CloudException, InternalException {
+    public Collection<AutoScalingTag> getTags(@Nullable String resourceId) throws CloudException, InternalException {
         /*
         have to get full scaling group because DescribeTags for asg is not working for me
-        with the parameters below i get exception form aws: "Unexpected list element termination'
+        with the parameters below i get exception form aws: "Unexpected list element termination"
         parameters.put("Filters.member.1.Name","auto-scaling-group");
         parameters.put("Filters.member.1.Values.1", providerScalingGroupId);
         */
-        AutoScalingTag[] tags = getScalingGroup(providerScalingGroupId).getTags();
-        return tags != null ? Arrays.asList(tags) : null;
+        APITrace.begin(provider, "AutoScaling.getTags");
+        try {
+            AutoScalingTag[] tags = getScalingGroup(resourceId).getTags();
+            return tags != null ? Arrays.asList(tags) : null;
+        } finally {
+            APITrace.end();
+        }
     }
 
     private Collection<AutoScalingTag> getTagsForDelete(@Nullable Collection<AutoScalingTag> all, @Nonnull AutoScalingTag[] tags) {

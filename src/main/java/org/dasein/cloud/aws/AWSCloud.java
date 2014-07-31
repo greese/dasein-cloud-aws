@@ -365,28 +365,7 @@ public class AWSCloud extends AbstractCloud {
         }
     }
 
-    public void setTags(String resourceId, Tag... tags) throws CloudException, InternalException {
-        setTags(new String[]{resourceId}, tags);
-    }
-
-    public void setTags(String[] resourceIds, Tag... tags) throws CloudException, InternalException {
-        APITrace.begin(this, "Cloud.setTags");
-        try {
-            for (String resourceId : resourceIds) {
-                Collection<Tag> collectionForDelete = getTagsForDelete(getTags(resourceId), tags);
-
-                if (collectionForDelete != null) {
-                    removeTags(resourceId, collectionForDelete.toArray(new Tag[collectionForDelete.size()]));
-                }
-
-                //todo change to sync
-                createTags(resourceId, tags);
-            }
-        } finally {
-            APITrace.end();
-        }
-    }
-
+    @Override
     public Collection<Tag> getTags(@Nullable String resourceId) throws CloudException, InternalException {
         APITrace.begin(this, "Cloud.getTags");
         try {
@@ -428,28 +407,6 @@ public class AWSCloud extends AbstractCloud {
         } finally {
             APITrace.end();
         }
-    }
-
-    private Collection<Tag> getTagsForDelete(Collection<? extends Tag> all, Tag[] tags) {
-        Collection<Tag> result = null;
-        if (all != null) {
-            result = new ArrayList<Tag>();
-            for (Tag tag : all) {
-                if (!isTagInTags(tag, tags)) {
-                    result.add(tag);
-                }
-            }
-        }
-        return result;
-    }
-
-    private boolean isTagInTags(Tag tag, Tag[] tags) {
-        for (Tag t : tags) {
-            if (t.getKey().equals(tag.getKey())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public Map<String, String> getTagsFromTagSet( Node attr ) {

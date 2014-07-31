@@ -1684,22 +1684,6 @@ public class AMI extends AbstractImageSupport {
         }
     }
 
-    @Override
-    public void setTags(@Nonnull String imageId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        setTags(new String[]{imageId}, tags);
-    }
-
-    @Override
-    public void setTags(@Nonnull String[] imageIds, @Nonnull Tag... tags) throws CloudException, InternalException {
-        APITrace.begin(getProvider(), "Image.setTags");
-        try {
-            provider.setTags(imageIds, tags);
-        }
-        finally {
-            APITrace.end();
-        }
-    }
-
     private void waitForBundle(@Nonnull String bundleId, @Nonnull String manifest, @Nonnull Platform platform, @Nonnull String name, @Nonnull String description, AsynchronousTask<MachineImage> task) {
         APITrace.begin(getProvider(), "Image.waitForBundle");
         try {
