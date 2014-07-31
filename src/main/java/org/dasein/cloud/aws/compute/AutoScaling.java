@@ -1033,23 +1033,6 @@ public class AutoScaling extends AbstractAutoScalingSupport {
      }
    }
 
-    @Override
-    public Collection<AutoScalingTag> getTags(@Nullable String resourceId) throws CloudException, InternalException {
-        /*
-        have to get full scaling group because DescribeTags for asg is not working for me
-        with the parameters below i get exception form aws: "Unexpected list element termination"
-        parameters.put("Filters.member.1.Name","auto-scaling-group");
-        parameters.put("Filters.member.1.Values.1", providerScalingGroupId);
-        */
-        APITrace.begin(provider, "AutoScaling.getTags");
-        try {
-            AutoScalingTag[] tags = getScalingGroup(resourceId).getTags();
-            return tags != null ? Arrays.asList(tags) : null;
-        } finally {
-            APITrace.end();
-        }
-    }
-
     private Collection<AutoScalingTag> getTagsForDelete(@Nullable Collection<AutoScalingTag> all, @Nonnull AutoScalingTag[] tags) {
         Collection<AutoScalingTag> result = null;
         if (all != null) {

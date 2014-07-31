@@ -365,50 +365,6 @@ public class AWSCloud extends AbstractCloud {
         }
     }
 
-    @Override
-    public Collection<Tag> getTags(@Nullable String resourceId) throws CloudException, InternalException {
-        APITrace.begin(this, "Cloud.getTags");
-        try {
-            Map<String, String> parameters = getStandardParameters( getContext(), EC2Method.DESCRIBE_TAGS);
-            addFilterParameter(parameters, 0, "resource-id", Arrays.asList(resourceId));
-
-            EC2Method method = new EC2Method( this, getEc2Url(), parameters );
-            Collection<Tag> result = new ArrayList<Tag>();
-            Document doc;
-
-            try {
-                doc = method.invoke();
-            }
-            catch ( EC2Exception e ) {
-                logger.error( e.getSummary() );
-                throw new CloudException( e );
-            }
-            Node describeTagsResult = doc.getElementsByTagName("DescribeTagsResponse").item(0);
-            if (describeTagsResult == null) {
-                return null;
-            }
-            NodeList describe = describeTagsResult.getChildNodes();
-            for (int i = 0; i < describe.getLength(); i++) {
-                Node item = describe.item(i);
-
-                if(item.getNodeName().equalsIgnoreCase("tagSet")) {
-                    NodeList tagSet = item.getChildNodes();
-
-                    for (int j = 0; j < tagSet.getLength(); j++) {
-                        Node tag = tagSet.item(j);
-
-                        if (tag.getNodeName().equalsIgnoreCase("item")) {
-                            result.add(toTag(tag));
-                        }
-                    }
-                }
-            }
-            return result;
-        } finally {
-            APITrace.end();
-        }
-    }
-
     public Map<String, String> getTagsFromTagSet( Node attr ) {
         if( attr == null || !attr.hasChildNodes() ) {
             return null;
