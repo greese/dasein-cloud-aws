@@ -638,6 +638,9 @@ public class EC2Method {
 
             attempts++;
             post.addHeader("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
+            if ( provider.isDebug() ) {
+                post.addHeader("Connection", "close");
+            }
 
             List<NameValuePair> params = new ArrayList<NameValuePair>();
 
