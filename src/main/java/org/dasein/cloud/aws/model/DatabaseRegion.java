@@ -16,27 +16,35 @@
  * limitations under the License.
  * ====================================================================
  */
+package org.dasein.cloud.aws.model;
 
-package org.dasein.cloud.aws.compute;
-
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 
 /**
- * Interface to be used for stream parser implementations.
- * <p>Created by Stas Maksimov: 11/04/2014 19:13</p>
+ * Description
+ * <p>Created by Stas Maksimov: 14/07/2014 17:02</p>
  *
  * @author Stas Maksimov
  * @version 2014.03 initial version
  * @since 2014.03
- * @see org.dasein.cloud.aws.compute.EC2Method#invoke(XmlStreamParser)
  */
-public interface XmlStreamParser<T> {
+public class DatabaseRegion {
+    String                name;
+    List<DatabaseProduct> products;
 
-    List<T> parse(InputStream stream) throws IOException, CloudException, InternalException;
+    public String getName() {
+        return name;
+    }
 
+    public void setName( String name ) {
+        this.name = name;
+    }
+
+    public List<DatabaseProduct> getProducts() {
+        return products;
+    }
+
+    public void setProducts( List<DatabaseProduct> products ) {
+        this.products = products;
+    }
 }

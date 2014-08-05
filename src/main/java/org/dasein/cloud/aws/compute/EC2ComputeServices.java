@@ -21,6 +21,7 @@ package org.dasein.cloud.aws.compute;
 
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.AbstractComputeServices;
+import org.dasein.cloud.compute.AffinityGroupSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -29,7 +30,11 @@ public class EC2ComputeServices extends AbstractComputeServices {
     private AWSCloud cloud;
     
     public EC2ComputeServices(@Nonnull AWSCloud cloud) { this.cloud = cloud; }
-    
+
+    @Nullable @Override public AffinityGroupSupport getAffinityGroupSupport() {
+        return null;
+    }
+
     @Override
     public @Nullable AutoScaling getAutoScalingSupport() {
         if( !cloud.getEC2Provider().isAWS() && !cloud.getEC2Provider().isEnStratus() ) {
@@ -56,5 +61,9 @@ public class EC2ComputeServices extends AbstractComputeServices {
     @Override
     public @Nonnull EBSVolume getVolumeSupport() {
         return new EBSVolume(cloud);
+    }
+
+    @Override public boolean hasAffinityGroupSupport() {
+        return false;
     }
 }

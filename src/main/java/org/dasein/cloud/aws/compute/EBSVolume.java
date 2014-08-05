@@ -410,7 +410,7 @@ public class EBSVolume extends AbstractVolumeSupport {
             Document doc;
 
             if ( options != null ) {
-                provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+                AWSCloud.addExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
             }
 
             method = new EC2Method( provider, provider.getEc2Url(), parameters );

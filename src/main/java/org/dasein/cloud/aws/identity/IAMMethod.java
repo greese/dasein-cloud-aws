@@ -25,6 +25,7 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.identity.IdentityAndAccessSupport;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.network.LoadBalancerSupport;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -61,6 +62,10 @@ public class IAMMethod extends EC2Method {
     static public final String REMOVE_USER_FROM_GROUP = "RemoveUserFromGroup";
     static public final String UPDATE_GROUP           = "UpdateGroup";
     static public final String UPDATE_USER            = "UpdateUser";
+    static public final String LIST_SSL_CERTIFICATES  = "ListServerCertificates";
+    static public final String GET_SSL_CERTIFICATE    = "GetServerCertificate";
+    static public final String CREATE_SSL_CERTIFICATE = "UploadServerCertificate";
+    static public final String DELETE_SSL_CERTIFICATE = "DeleteServerCertificate";
 
     static public @Nonnull ServiceAction[] asIAMServiceAction(@Nonnull String action) {
         if( action.equals(ADD_USER_TO_GROUP) ) {
@@ -145,6 +150,22 @@ public class IAMMethod extends EC2Method {
         else if( action.equals(UPDATE_USER) ) {
             return new ServiceAction[] { IdentityAndAccessSupport.UPDATE_USER };
         }
+
+        /* SSL certificates were explicitly requested to be included into LoadBalancingSupport
+         * by the upstream author */
+        else if ( action.equals(LIST_SSL_CERTIFICATES) ) {
+            return new ServiceAction[] { LoadBalancerSupport.LIST_SSL_CERTIFICATES };
+        }
+        else if ( action.equals(GET_SSL_CERTIFICATE) ) {
+            return new ServiceAction[] { LoadBalancerSupport.GET_SSL_CERTIFICATE };
+        }
+        else if ( action.equals(CREATE_SSL_CERTIFICATE) ) {
+            return new ServiceAction[] { LoadBalancerSupport.CREATE_SSL_CERTIFICATE };
+        }
+        else if ( action.equals(DELETE_SSL_CERTIFICATE) ) {
+            return new ServiceAction[] { LoadBalancerSupport.DELETE_SSL_CERTIFICATE };
+        }
+
         return new ServiceAction[0];
     }
 

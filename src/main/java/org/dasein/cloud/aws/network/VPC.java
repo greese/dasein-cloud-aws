@@ -2089,7 +2089,7 @@ public class VPC extends AbstractVLANSupport {
             } catch( EC2Exception e ) {
                 logger.error(e.getSummary());
                 if( logger.isDebugEnabled() ) {
-                    e.printStackTrace();
+                  e.printStackTrace();
                 }
                 throw new CloudException(e);
             }
@@ -2114,6 +2114,26 @@ public class VPC extends AbstractVLANSupport {
                 e.printStackTrace();
             }
             throw new CloudException(e);
+        }
+    }
+
+    @Override
+    public void removeInternetGatewayTags(@Nonnull String internetGatewayId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "InternetGateway.removeTags");
+        try {
+            provider.removeTags(internetGatewayId, tags);
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void updateInternetGatewayTags(@Nonnull String internetGatewayId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "InternetGateway.createTags");
+        try {
+            provider.createTags(internetGatewayId, tags);
+        } finally {
+            APITrace.end();
         }
     }
 
@@ -2182,6 +2202,26 @@ public class VPC extends AbstractVLANSupport {
                 }
                 throw new CloudException(e);
             }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void removeRoutingTableTags(@Nonnull String routingTableId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "RoutingTable.removeTags");
+        try {
+            provider.removeTags(routingTableId, tags);
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void updateRoutingTableTags(@Nonnull String routingTableId, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "RoutingTable.createTags");
+        try {
+            provider.createTags(routingTableId, tags);
         } finally {
             APITrace.end();
         }
@@ -2660,7 +2700,7 @@ public class VPC extends AbstractVLANSupport {
                 subnet.setAvailableIpAddresses(Integer.parseInt(child.getFirstChild().getNodeValue().trim()));
             } else if( nodeName.equalsIgnoreCase("availabilityZone") ) {
                 subnet.setProviderDataCenterId(child.getFirstChild().getNodeValue().trim());
-            } else if( nodeName.equalsIgnoreCase("tagSet") ) {
+            } else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
                 provider.setTags(child, subnet);
             }
         }
@@ -2792,6 +2832,7 @@ public class VPC extends AbstractVLANSupport {
 
         ig.setProviderOwnerId(ctx.getAccountNumber());
         ig.setProviderRegionId(ctx.getRegionId());
+        ig.setTags(new HashMap<String, String>());
 
         if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
             NodeList childNodes = item.getChildNodes();
@@ -2842,6 +2883,8 @@ public class VPC extends AbstractVLANSupport {
                             }
                         }
                     }
+                } else if( child.getNodeName().equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
+                    provider.setTags(child, ig);
                 }
             }
         }

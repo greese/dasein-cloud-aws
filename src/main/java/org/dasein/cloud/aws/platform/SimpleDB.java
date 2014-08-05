@@ -38,6 +38,7 @@ import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.KeyValueDatabase;
+import org.dasein.cloud.platform.KeyValueDatabaseCapabilities;
 import org.dasein.cloud.platform.KeyValueDatabaseSupport;
 import org.dasein.cloud.platform.KeyValuePair;
 import org.dasein.cloud.util.APITrace;
@@ -47,7 +48,7 @@ import org.w3c.dom.NodeList;
 
 public class SimpleDB implements KeyValueDatabaseSupport {
     static private final Logger logger = AWSCloud.getLogger(SimpleDB.class);
-    
+
     static public final String CREATE_DOMAIN     = "CreateDomain";
     static public final String DELETE_ATTRIBUTES = "DeleteAttributes";
     static public final String DELETE_DOMAIN     = "DeleteDomain";
@@ -56,35 +57,36 @@ public class SimpleDB implements KeyValueDatabaseSupport {
     static public final String LIST_DOMAINS      = "ListDomains";
     static public final String PUT_ATTRIBUTES    = "PutAttributes";
     static public final String SELECT            = "Select";
+    private volatile transient SimpleDBCapabilities capabilities;
 
-    static public @Nonnull ServiceAction[] asSimpleDBServiceAction(@Nonnull String action) {
+    static public @Nonnull ServiceAction[] asSimpleDBServiceAction( @Nonnull String action ) {
         if( action.equals(CREATE_DOMAIN) ) {
-            return new ServiceAction[] { KeyValueDatabaseSupport.CREATE_KVDB };
+            return new ServiceAction[]{KeyValueDatabaseSupport.CREATE_KVDB};
         }
         else if( action.equals(DELETE_DOMAIN) ) {
-            return new ServiceAction[] { KeyValueDatabaseSupport.REMOVE_KVDB };
+            return new ServiceAction[]{KeyValueDatabaseSupport.REMOVE_KVDB};
         }
         else if( action.equals(LIST_DOMAINS) ) {
-            return new ServiceAction[] { KeyValueDatabaseSupport.LIST_KVDB, KeyValueDatabaseSupport.GET_KVDB };
+            return new ServiceAction[]{KeyValueDatabaseSupport.LIST_KVDB, KeyValueDatabaseSupport.GET_KVDB};
         }
         else if( action.equals(SELECT) ) {
-            return new ServiceAction[] { KeyValueDatabaseSupport.SELECT };
+            return new ServiceAction[]{KeyValueDatabaseSupport.SELECT};
         }
         return new ServiceAction[0];
     }
-    
+
     private AWSCloud provider;
-    
-    SimpleDB(AWSCloud cloud) {
+
+    SimpleDB( AWSCloud cloud ) {
         provider = cloud;
     }
-    
+
     @Override
-    public void addKeyValuePairs(String inDomainId, String itemId, KeyValuePair ... pairs) throws CloudException, InternalException {
+    public void addKeyValuePairs( String inDomainId, String itemId, KeyValuePair... pairs ) throws CloudException, InternalException {
         APITrace.begin(provider, "KVDB.addKeyValuePairs");
         try {
             if( pairs != null && pairs.length > 0 ) {
-                Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), PUT_ATTRIBUTES);
+                Map<String, String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), PUT_ATTRIBUTES);
                 EC2Method method;
                 int i = 0;
 
@@ -98,8 +100,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
                 method = new EC2Method(provider, getSimpleDBUrl(), parameters);
                 try {
                     method.invoke();
-                }
-                catch( EC2Exception e ) {
+                } catch( EC2Exception e ) {
                     throw new CloudException(e);
                 }
             }
@@ -130,6 +131,14 @@ public class SimpleDB implements KeyValueDatabaseSupport {
         finally {
             APITrace.end();
         }
+    }
+
+    @Override
+    public @Nonnull KeyValueDatabaseCapabilities getCapabilities() throws InternalException, CloudException {
+        if(capabilities == null) {
+            capabilities = new SimpleDBCapabilities(provider);
+        }
+        return capabilities;
     }
 
     @Override
@@ -269,8 +278,14 @@ public class SimpleDB implements KeyValueDatabaseSupport {
     }
 
     @Override
+    @Deprecated
     public String getProviderTermForDatabase(Locale locale) {
-        return "domain";
+        try {
+            return getCapabilities().getProviderTermForDatabase(locale);
+        } catch( InternalException e ) {
+        } catch( CloudException e ) {
+        }
+        return "domain"; // legacy
     }
 
     private String getSimpleDBUrl() throws InternalException, CloudException {
@@ -314,8 +329,9 @@ public class SimpleDB implements KeyValueDatabaseSupport {
     }
     
     @Override
+    @Deprecated
     public boolean isSupportsKeyValueDatabases() throws CloudException, InternalException {
-        return true;
+        return getCapabilities().isSupportsKeyValueDatabases();
     }
     
     @Override

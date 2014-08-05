@@ -1,5 +1,5 @@
-/**
- * Copyright (C) 2009-2013 Dell, Inc.
+/*
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -16,7 +16,6 @@
  * limitations under the License.
  * ====================================================================
  */
-
 package org.dasein.cloud.aws.compute;
 
 import org.dasein.cloud.compute.ImageClass;
@@ -93,6 +92,10 @@ public class DescribeImagesResponseParserTest {
                     "                    <key>Description</key>\n" +
                     "                    <value>image-description</value>\n" +
                     "                </item>\n" +
+                    "                <item>\n" +
+                    "                    <key>Empty</key>\n" +
+                    "                    <value></value>\n" +
+                    "                </item>\n" +
                     "            </tagSet>\n" +
                     "        </item>\n";
 
@@ -156,7 +159,15 @@ public class DescribeImagesResponseParserTest {
     public void testParseTags() throws Exception {
         assertEquals("Incorrect number of images parsed", 1, singleImageResults.size());
         MachineImage image1 = singleImageResults.get(0);
-        assertEquals("Tag image-name is not found or is not parsed correctly", "image-name", image1.getTag("Name"));
-        assertEquals("Tag image-description is not found or is not parsed correctly", "image-description", image1.getTag("Description"));
+        assertEquals("Tag 'image-name' is not found or is not parsed correctly", "image-name", image1.getTag("Name"));
+        assertEquals("Tag 'image-description' is not found or is not parsed correctly", "image-description", image1.getTag("Description"));
     }
+
+    @Test
+    public void testParseTagWithEmptyValue() throws Exception {
+        assertEquals("Incorrect number of images parsed", 1, singleImageResults.size());
+        MachineImage image1 = singleImageResults.get(0);
+        assertEquals("Tag 'Empty' is not found or is not parsed correctly", "", image1.getTag("Empty"));
+    }
+
 }

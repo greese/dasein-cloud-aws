@@ -38,15 +38,20 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.platform.EndpointType;
-import org.dasein.cloud.platform.PushNotificationSupport;
-import org.dasein.cloud.platform.Subscription;
-import org.dasein.cloud.platform.Topic;
+import org.dasein.cloud.platform.*;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+/**
+ * AWS SNS Support
+ *
+ * @author George Reese
+ * @author Stas Maksimov
+ * @version 2014.08 deprecated methods moved to capabilities
+ * @since ?
+ */
 public class SNS implements PushNotificationSupport {
     static private final Logger logger = AWSCloud.getLogger(SNS.class);
     
@@ -61,6 +66,8 @@ public class SNS implements PushNotificationSupport {
     static public final String SET_TOPIC_ATTRIBUTES        = "SetTopicAttributes";
     static public final String SUBSCRIBE                   = "Subscribe";
     static public final String UNSUBSCRIBE                 = "Unsubscribe";
+
+    private volatile transient SNSCapabilities capabilities;
 
     static public @Nonnull ServiceAction[] asSNSServiceAction(@Nonnull String action) {
         if( action.equals(CREATE_TOPIC) ) {
@@ -169,15 +176,35 @@ public class SNS implements PushNotificationSupport {
     }
 
     @Override
+    @Deprecated
     public String getProviderTermForSubscription(Locale locale) {
-        return "subscription";
+        try {
+            return getCapabilities().getProviderTermForSubscription(locale);
+        } catch( InternalException e ) {
+        } catch( CloudException e ) {
+        }
+        return "subscription"; // legacy
     }
     
-    @Override 
+    @Override
+    @Deprecated
     public String getProviderTermForTopic(Locale locale) {
-        return "topic";
+        try {
+            return getCapabilities().getProviderTermForTopic(locale);
+        } catch( InternalException e ) {
+        } catch( CloudException e ) {
+        }
+        return "topic"; // legacy
     }
-    
+
+    @Override
+    public @Nonnull PushNotificationCapabilities getCapabilities() throws InternalException, CloudException {
+        if( capabilities == null ) {
+            capabilities = new SNSCapabilities(provider);
+        }
+        return capabilities;
+    }
+
     public String getSNSUrl() throws InternalException, CloudException {
         return ("https://sns." + provider.getContext().getRegionId() + ".amazonaws.com");
     }

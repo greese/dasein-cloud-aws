@@ -28,6 +28,7 @@ import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.compute.VolumeCapabilities;
 import org.dasein.cloud.compute.VolumeFormat;
+import org.dasein.cloud.util.NamingConstraints;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
 
@@ -67,6 +68,26 @@ public class EBSVolumeCapabilities extends AbstractCapabilities<AWSCloud> implem
         return -2;
     }
 
+    @Override
+    public int getMaximumVolumeProductIOPS() throws InternalException, CloudException {
+        return 0;
+    }
+
+    @Override
+    public int getMinimumVolumeProductIOPS() throws InternalException, CloudException {
+        return 0;
+    }
+
+    @Override
+    public int getMaximumVolumeSizeIOPS() throws InternalException, CloudException {
+        return 0;
+    }
+
+    @Override
+    public int getMinimumVolumeSizeIOPS() throws InternalException, CloudException {
+        return 0;
+    }
+
     static private final Storage<Gigabyte> maxVolSize = new Storage<Gigabyte>(1024, Storage.GIGABYTE);
 
     @Nullable
@@ -81,6 +102,12 @@ public class EBSVolumeCapabilities extends AbstractCapabilities<AWSCloud> implem
     @Override
     public Storage<Gigabyte> getMinimumVolumeSize() throws InternalException, CloudException {
         return minVolSize;
+    }
+
+    @Nonnull
+    @Override
+    public NamingConstraints getVolumeNamingConstraints() throws CloudException, InternalException {
+        return null;
     }
 
     @Nonnull

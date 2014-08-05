@@ -157,18 +157,20 @@ public class EC2Method {
     static public final String RELEASE_ADDRESS      = "ReleaseAddress";
 
     // Instance operations
-    static public final String DESCRIBE_INSTANCES    = "DescribeInstances";
-    static public final String GET_CONSOLE_OUTPUT    = "GetConsoleOutput";
-    static public final String GET_METRIC_STATISTICS = "GetMetricStatistics";
-    static public final String GET_PASSWORD_DATA     = "GetPasswordData";
-    static public final String MONITOR_INSTANCES     = "MonitorInstances";
-    static public final String REBOOT_INSTANCES      = "RebootInstances";
-    static public final String RUN_INSTANCES         = "RunInstances";
-    static public final String START_INSTANCES       = "StartInstances";
-    static public final String STOP_INSTANCES        = "StopInstances";
-    static public final String TERMINATE_INSTANCES   = "TerminateInstances";
-    static public final String UNMONITOR_INSTANCES   = "UnmonitorInstances";
-    static public final String MODIFY_INSTANCE_ATTRIBUTE     = "ModifyInstanceAttribute";
+    static public final String DESCRIBE_INSTANCES          = "DescribeInstances";
+    static public final String GET_CONSOLE_OUTPUT          = "GetConsoleOutput";
+    static public final String GET_METRIC_STATISTICS       = "GetMetricStatistics";
+    static public final String GET_PASSWORD_DATA           = "GetPasswordData";
+    static public final String MONITOR_INSTANCES           = "MonitorInstances";
+    static public final String REBOOT_INSTANCES            = "RebootInstances";
+    static public final String RUN_INSTANCES               = "RunInstances";
+    static public final String START_INSTANCES             = "StartInstances";
+    static public final String STOP_INSTANCES              = "StopInstances";
+    static public final String TERMINATE_INSTANCES         = "TerminateInstances";
+    static public final String UNMONITOR_INSTANCES         = "UnmonitorInstances";
+    static public final String MODIFY_INSTANCE_ATTRIBUTE   = "ModifyInstanceAttribute";
+	static public final String DESCRIBE_INSTANCE_ATTRIBUTE = "DescribeInstanceAttribute";
+    static public final String DESCRIBE_INSTANCE_STATUS    = "DescribeInstanceStatus";
 
     // Keypair operations
     static public final String CREATE_KEY_PAIR    = "CreateKeyPair";
@@ -261,6 +263,16 @@ public class EC2Method {
 
     // Account operations
     static public final String DESCRIBE_ACCOUNT_ATTRIBUTES      = "DescribeAccountAttributes";
+
+    // Spot instances
+    static public final String CREATE_SPOT_DATAFEED_SUBSCRIPTION    = "CreateSpotDatafeedSubscription";
+    static public final String DESCRIBE_SPOT_DATAFEED_SUBSCRIPTION  = "DescribeSpotDatafeedSubscription";
+    static public final String DELETE_SPOT_DATAFEED_SUBSCRIPTION    = "DeleteSpotDatafeedSubscription";
+    static public final String REQUEST_SPOT_INSTANCES               = "RequestSpotInstances";
+    static public final String DESCRIBE_SPOT_INSTANCE_REQUESTS      = "DescribeSpotInstanceRequests";
+    static public final String CANCEL_SPOT_INSTANCE_REQUESTS        = "CancelSpotInstanceRequests";
+    static public final String DESCRIBE_SPOT_PRICE_HISTORY          = "DescribeSpotPriceHistory";
+
 
 
     static public @Nonnull ServiceAction[] asEC2ServiceAction(@Nonnull String action) {
@@ -626,7 +638,7 @@ public class EC2Method {
     		}
 
             HttpPost post = new HttpPost(url);
-            client = provider.getClient(url);
+            client = provider.getClient();
 
             HttpResponse response;
 
@@ -673,7 +685,7 @@ public class EC2Method {
                     HttpEntity entity = response.getEntity();
 
                     if( entity == null ) {
-                        throw new EC2Exception(status, null, "NoResponse", "No response body was specified");
+                        throw EC2Exception.create(status);
                     }
                     InputStream input = entity.getContent();
 
@@ -705,7 +717,7 @@ public class EC2Method {
                     HttpEntity entity = response.getEntity();
 
                     if( entity == null ) {
-                        throw new EC2Exception(status, null, "NoResponse", "No response body was specified");
+                        throw EC2Exception.create(status);
                     }
                     InputStream input = entity.getContent();
 
@@ -750,12 +762,12 @@ public class EC2Method {
                                     requestId = id.getFirstChild().getNodeValue().trim();
                                 }
                                 if( message == null && code == null ) {
-                                    throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
+                                    throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/null");
                                 }
                                 else if( message == null ) {
                                     message = code;
                                 }
-                                throw new EC2Exception(status, requestId, code, message);
+                                throw EC2Exception.create(status, requestId, code, message);
                             }
                         }
                         catch( RuntimeException ignore  ) {
@@ -798,7 +810,7 @@ public class EC2Method {
                                 HttpEntity entity = response.getEntity();
 
                                 if( entity == null ) {
-                                    throw new EC2Exception(status, null, "NoResponse", "No response body was specified");
+                                    throw EC2Exception.create(status);
                                 }
                                 msg = msg + "Response from server was:\n" + EntityUtils.toString(entity);
                             }
@@ -825,7 +837,7 @@ public class EC2Method {
                     HttpEntity entity = response.getEntity();
 
                     if( entity == null ) {
-                        throw new EC2Exception(status, null, "NoResponse", "No response body was specified");
+                        throw EC2Exception.create(status);
                     }
                     InputStream input = entity.getContent();
                     Document doc;
@@ -866,7 +878,7 @@ public class EC2Method {
                         if( message == null ) {
                             throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
                         }
-                        throw new EC2Exception(status, requestId, code, message);
+                        throw EC2Exception.create(status, requestId, code, message);
                     }
                     throw new CloudException("Unable to parse error.");
                 }

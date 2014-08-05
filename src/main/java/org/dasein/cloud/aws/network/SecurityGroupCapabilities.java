@@ -19,14 +19,12 @@
 
 package org.dasein.cloud.aws.network;
 
-import org.dasein.cloud.AbstractCapabilities;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.Requirement;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.network.*;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.*;
 
 /**
@@ -50,6 +48,12 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
     @Override
     public String getProviderTermForFirewall(@Nonnull Locale locale) {
         return "security group";
+    }
+
+    @Nullable
+    @Override
+    public VisibleScope getFirewallVisibleScope() {
+        return null;
     }
 
     @Nonnull

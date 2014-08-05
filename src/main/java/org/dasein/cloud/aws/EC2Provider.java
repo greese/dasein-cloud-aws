@@ -101,7 +101,7 @@ public class EC2Provider implements Comparable<EC2Provider> {
     }
 
     @Override
-    public boolean equals(@Nullable Object ob) {
+    public boolean equals(Object ob) {
         return ob != null && (ob == this || getClass().getName().equals(ob.getClass().getName()) && providerName.equals(((EC2Provider) ob).providerName));
     }
 

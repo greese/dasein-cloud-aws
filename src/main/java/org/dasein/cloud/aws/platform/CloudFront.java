@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 
+import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
@@ -36,6 +37,7 @@ import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.platform.CloudFrontMethod.CloudFrontResponse;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.platform.CDNCapabilities;
 import org.dasein.cloud.platform.CDNSupport;
 import org.dasein.cloud.platform.Distribution;
 import org.dasein.cloud.storage.Blob;
@@ -45,7 +47,7 @@ import org.w3c.dom.NodeList;
 
 public class CloudFront implements CDNSupport {
 	static private final Logger logger = AWSCloud.getLogger(CloudFront.class);
-	
+    private volatile transient CloudFrontCapabilities capabilities;
 	private AWSCloud provider = null;
 	
 	CloudFront(AWSCloud provider) {
@@ -53,7 +55,7 @@ public class CloudFront implements CDNSupport {
 	}
 	
 	@Override
-	public @Nonnull String create(@Nonnull String bucket, @Nonnull String name, boolean active, @Nullable String ... cnames) throws InternalException, CloudException {
+	public @Nonnull String create(@Nonnull String bucket, @Nonnull String name, boolean active, @CheckForNull String ... cnames) throws InternalException, CloudException {
         APITrace.begin(provider, "CDN.create");
         try {
             ProviderContext ctx = provider.getContext();
@@ -154,7 +156,15 @@ public class CloudFront implements CDNSupport {
         }
 	}
 
-	@Override
+    @Override
+    public @Nonnull CDNCapabilities getCapabilities() throws InternalException, CloudException {
+        if( capabilities == null ) {
+            capabilities = new CloudFrontCapabilities(provider);
+        }
+        return capabilities;
+    }
+
+    @Override
 	public @Nullable Distribution getDistribution(@Nonnull String distributionId) throws InternalException, CloudException {
         APITrace.begin(provider, "CDN.getDistribution");
         try {
@@ -216,9 +226,15 @@ public class CloudFront implements CDNSupport {
 	}
 
 	@Override
+    @Deprecated
 	public @Nonnull String getProviderTermForDistribution(@Nonnull Locale locale) {
-		return "distribution";
-	}
+        try {
+            return getCapabilities().getProviderTermForDistribution(locale);
+        } catch( InternalException e ) {
+        } catch( CloudException e ) {
+        }
+        return "distribution"; // legacy
+    }
 
 	@Override
 	public boolean isSubscribed() throws InternalException, CloudException {
@@ -334,11 +350,11 @@ public class CloudFront implements CDNSupport {
     }
 
 	@Override
-	public void update(@Nonnull String distributionId, @Nonnull String name, boolean active, @Nullable String ... cnames) throws InternalException, CloudException {
+	public void update(@Nonnull String distributionId, @Nonnull String name, boolean active, @CheckForNull String ... cnames) throws InternalException, CloudException {
 		updateWithReturn(distributionId, name, active, cnames);
 	}
 
-	private String updateWithReturn(@Nonnull String distributionId, @Nonnull String name, boolean active, @Nullable String ... cnames) throws InternalException, CloudException {
+	private String updateWithReturn(@Nonnull String distributionId, @Nonnull String name, boolean active, @CheckForNull String ... cnames) throws InternalException, CloudException {
         APITrace.begin(provider, "CDN.update");
         try {
             ProviderContext ctx = provider.getContext();
@@ -383,7 +399,7 @@ public class CloudFront implements CDNSupport {
         }
 	}
 	
-	private @Nonnull String toConfigXml(@Nonnull String bucket, @Nonnull String name, @Nullable String callerReference, @Nullable String logDirectory, @Nullable String logName, boolean active, @Nullable String ... cnames) {
+	private @Nonnull String toConfigXml(@Nonnull String bucket, @Nonnull String name, @Nullable String callerReference, @Nullable String logDirectory, @Nullable String logName, boolean active, @CheckForNull String ... cnames) {
 		StringBuilder xml = new StringBuilder();
 	
 		xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");

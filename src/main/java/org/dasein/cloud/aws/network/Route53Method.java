@@ -168,7 +168,7 @@ public class Route53Method {
 		}
         HttpClient client = null;
 		try {
-            client = provider.getClient(url);
+            client = provider.getClient();
             HttpResponse response;
     		int status;
     
@@ -268,7 +268,7 @@ public class Route53Method {
                             if( message == null ) {
                                 throw new CloudException("Unable to identify error condition: " + status + "/" + requestId + "/" + code);
                             }
-                            throw new EC2Exception(status, requestId, code, message);
+                            throw EC2Exception.create(status, requestId, code, message);
                         }
                     }
                     catch( RuntimeException ignore  ) {
@@ -344,7 +344,7 @@ public class Route53Method {
                     if( message == null ) {
                         throw new CloudException("Unable to identify error condition: " + status + "/" + requestId + "/" + code);
                     }
-                    throw new EC2Exception(status, requestId, code, message);
+                    throw EC2Exception.create(status, requestId, code, message);
                 }
                 throw new CloudException("Unable to parse error.");
     		}
@@ -360,7 +360,7 @@ public class Route53Method {
 	private Document parseResponse(String responseBody, boolean debug) throws CloudException, InternalException {
 	    try {
 	        if( debug ) { System.out.println(responseBody); }
-            return XMLParser.parse(new ByteArrayInputStream(responseBody.getBytes()));
+            return XMLParser.parse(new ByteArrayInputStream(responseBody.getBytes("UTF-8")));
 	    }
 	    catch( IOException e ) {
 	        throw new CloudException(e);

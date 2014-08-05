@@ -19,13 +19,7 @@
 
 package org.dasein.cloud.aws.platform;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,16 +34,11 @@ import org.dasein.cloud.TimeWindow;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
+import org.dasein.cloud.aws.model.DatabaseProductDefinition;
+import org.dasein.cloud.aws.model.DatabaseProvider;
+import org.dasein.cloud.aws.model.DatabaseRegion;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.platform.ConfigurationParameter;
-import org.dasein.cloud.platform.Database;
-import org.dasein.cloud.platform.DatabaseConfiguration;
-import org.dasein.cloud.platform.DatabaseEngine;
-import org.dasein.cloud.platform.DatabaseProduct;
-import org.dasein.cloud.platform.DatabaseSnapshot;
-import org.dasein.cloud.platform.DatabaseSnapshotState;
-import org.dasein.cloud.platform.DatabaseState;
-import org.dasein.cloud.platform.RelationalDatabaseSupport;
+import org.dasein.cloud.platform.*;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.CalendarWrapper;
 import org.dasein.util.Jiterator;
@@ -59,6 +48,16 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import static org.dasein.cloud.platform.DatabaseLicenseModel.*;
+
+/**
+ * AWS RDS Support
+ *
+ * @author George Reese
+ * @author Stas Maksimov
+ * @version 2014.08 deprecated methods moved to capabilities
+ * @since ?
+ */
 public class RDS implements RelationalDatabaseSupport {
     static private final Logger logger = AWSCloud.getLogger(RDS.class);
     
@@ -88,9 +87,21 @@ public class RDS implements RelationalDatabaseSupport {
     static public final String RESTORE_DB_INSTANCE_TO_TIME         = "RestoreDBInstanceToPointInTime";
     static public final String REVOKE_DB_SECURITY_GROUP_INGRESS    = "RevokeDBSecurityGroupIngress";
 
+    static private final String AWS_ENGINE_MYSQL = "MySQL";
+    static private final String AWS_ENGINE_POSTGRES = "postgres";
+    static private final String AWS_ENGINE_ORACLE_SE1 = "oracle-se1";
+    static private final String AWS_ENGINE_ORACLE_SE = "oracle-se";
+    static private final String AWS_ENGINE_ORACLE_EE = "oracle-ee";
+    static private final String AWS_ENGINE_SQLSERVER_EE = "sqlserver-ee";
+    static private final String AWS_ENGINE_SQLSERVER_SE = "sqlserver-se";
+    static private final String AWS_ENGINE_SQLSERVER_EX = "sqlserver-ex";
+    static private final String AWS_ENGINE_SQLSERVER_WEB = "sqlserver-web";
+
     static public @Nonnull ServiceAction[] asRDSServiceAction(@Nonnull String action) {
         return null; // TODO: implement me
     }
+
+    private volatile transient RDSCapabilities capabilities;
 
     private AWSCloud provider;
     
@@ -254,7 +265,7 @@ public class RDS implements RelationalDatabaseSupport {
             if( size < 5 ) {
                 size = 5;
             }
-
+            
             parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_INSTANCE);
             parameters.put("DBInstanceIdentifier", id);
             parameters.put("AllocatedStorage", String.valueOf(size));
@@ -270,20 +281,27 @@ public class RDS implements RelationalDatabaseSupport {
                 String securityGroupId = createSecurityGroup(id);
                 parameters.put("DBSecurityGroups.member.1", securityGroupId);
             }
-            
-            if( product.getEngine().isMySQL() ) {
-                parameters.put("LicenseModel", "general-public-license");
+
+            // TODO: refactor into a toLicense() method
+            String license = "general-public-license";
+            switch (product.getLicenseModel()) {
+                case BRING_YOUR_OWN_LICENSE:
+                    license = "bring-your-own-license";
+                    break;
+                case LICENSE_INCLUDED:
+                    license = "license-included";
+                    break;
+                case POSTGRESQL_LICENSE:
+                    license = "postgresql-license";
+                    break;
             }
-            else if( product.getEngine().equals(DatabaseEngine.ORACLE11G) ) {
-                parameters.put("LicenseModel", "license-included");
-            }
-            else {
-                parameters.put("LicenseModel", "bring-your-own-license");
-            }
-            if( product.isHighAvailability() || product.getProviderDataCenterId() == null ) {
+            parameters.put("LicenseModel", license);
+
+            if( product.isHighAvailability() ) {
                 parameters.put("MultiAZ", "true");
             }
-            else {
+            else if( product.getProviderDataCenterId() != null ) {
+                // set az if not empty, otherwise the region's default is used
                 parameters.put("AvailabilityZone", product.getProviderDataCenterId());
             }
             method = new EC2Method(provider, getRDSUrl(), parameters);
@@ -423,6 +441,14 @@ public class RDS implements RelationalDatabaseSupport {
         }
     }
 
+    @Override
+    public @Nonnull RelationalDatabaseCapabilities getCapabilities() throws InternalException, CloudException {
+        if( capabilities == null ) {
+            capabilities = new RDSCapabilities(provider);
+        }
+        return capabilities;
+    }
+
     public DatabaseConfiguration getConfiguration(String providerConfigurationId) throws CloudException, InternalException {
         if( providerConfigurationId == null ) {
             return null;
@@ -468,25 +494,28 @@ public class RDS implements RelationalDatabaseSupport {
         }
     }
 
-    static private volatile ArrayList<DatabaseEngine> engines = null;
+    static private volatile List<DatabaseEngine> engines = null;
     
     @Override
     public Iterable<DatabaseEngine> getDatabaseEngines() {
-        ArrayList<DatabaseEngine> tmp = engines;
-        
-        if( tmp == null ) {
-            tmp = new ArrayList<DatabaseEngine>(); 
-            tmp.add(DatabaseEngine.MYSQL);
-            tmp.add(DatabaseEngine.ORACLE11G);
-            tmp.add(DatabaseEngine.ORACLE11GX);
-            tmp.add(DatabaseEngine.ORACLE11GEX);
-            engines = tmp;
+        if( engines == null ) {
+            engines = Arrays.asList(
+                    DatabaseEngine.MYSQL,
+                    DatabaseEngine.ORACLE_EE,
+                    DatabaseEngine.ORACLE_SE,
+                    DatabaseEngine.ORACLE_SE1,
+                    DatabaseEngine.POSTGRES,
+                    DatabaseEngine.SQLSERVER_EE,
+                    DatabaseEngine.SQLSERVER_EX,
+                    DatabaseEngine.SQLSERVER_SE,
+                    DatabaseEngine.SQLSERVER_WEB
+            );
         }
         return engines;
     }
     
-    static private volatile HashMap<DatabaseEngine,String> defaultVersions = new HashMap<DatabaseEngine,String>();
-    static private volatile HashMap<DatabaseEngine,Collection<String>> engineVersions = new HashMap<DatabaseEngine,Collection<String>>();
+    static private volatile Map<DatabaseEngine,String> defaultVersions = new HashMap<DatabaseEngine,String>();
+    static private volatile Map<DatabaseEngine,Collection<String>> engineVersions = new HashMap<DatabaseEngine,Collection<String>>();
     
     @Override
     public String getDefaultVersion(DatabaseEngine forEngine) throws CloudException, InternalException {
@@ -615,227 +644,59 @@ public class RDS implements RelationalDatabaseSupport {
         }
     }
     
-    private volatile ArrayList<DatabaseProduct> databaseProducts = null;
-    
-    @Override
-    public Iterable<DatabaseProduct> getDatabaseProducts(DatabaseEngine engine) {
-        ArrayList<DatabaseProduct> products = databaseProducts;
-        
-        if( products == null ) {
-            @SuppressWarnings("ConstantConditions") boolean us = provider.getContext().getRegionId().equals("us-east-1");
-            
-            products = new ArrayList<DatabaseProduct>();
-            if( engine.equals(DatabaseEngine.MYSQL) || engine.equals(DatabaseEngine.MYSQL51) || engine.equals(DatabaseEngine.MYSQL55) ) {
-                DatabaseProduct product;
-                
-                product = new DatabaseProduct("db.m1.small", "64-bit, 1.7GB RAM, 1x1.0 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 0.11f : 0.12f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m1.small", "Multi-AZ 64-bit, 1.7GB RAM, 1x1.0 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(true);
-                product.setStandardHourlyRate(us ? 0.22f : 0.24f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m1.large", "64-bit, 7.5GB RAM, 2x2.0 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 0.44f : 0.48f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m1.large", "Multi-AZ 64-bit, 7.5GB RAM, 2x2.0 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(true);
-                product.setStandardHourlyRate(us ? 0.88f : 0.96f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m1.xlarge", "64-bit, 15.0GB RAM, 4x2.0 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 0.88f : 0.97f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m1.xlarge", "Multi-AZ 64-bit, 15.0GB RAM, 4x2.0 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(true);
-                product.setStandardHourlyRate(us ? 1.66f : 1.94f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m2.xlarge", "64-bit, 17.1GB RAM, 2x3.25 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 0.65f : 0.74f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m2.xlarge", "Multi-AZ 64-bit, 17.1GB RAM, 2x3.25 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(true);
-                product.setStandardHourlyRate(us ? 1.30f : 1.48f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m2.2xlarge", "64-bit, 34GB RAM, 4x3.25 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 1.30f : 1.48f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m2.2xlarge", "64-bit, 34GB RAM, 4x3.25 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(true);
-                product.setStandardHourlyRate(us ? 2.60f : 2.96f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m2.4xlarge", "64-bit, 68GB RAM, 8x3.25 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 2.60f : 2.96f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
+    private volatile List<DatabaseProduct> databaseProducts = null;
 
-                product = new DatabaseProduct("db.m2.4xlarge", "Multi-AZ 64-bit, 68GB RAM, 8x3.25 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(true);
-                product.setStandardHourlyRate(us ? 5.20f : 5.92f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
+    @Override
+    public Iterable<DatabaseProduct> listDatabaseProducts( DatabaseEngine engine ) throws CloudException, InternalException {
+        List<DatabaseProduct> products = databaseProducts;
+
+        if( products == null ) {
+            products = new ArrayList<DatabaseProduct>();
+            DatabaseProvider databaseProvider = DatabaseProvider.fromFile("/org/dasein/cloud/aws/dbproducts.json", "AWS");
+
+            org.dasein.cloud.aws.model.DatabaseEngine databaseEngine = databaseProvider.findEngine(getEngineString(engine));
+
+            if( databaseEngine != null ) {
+                for ( DatabaseRegion region : databaseEngine.getRegions() ) {
+                    if( region.getName().equalsIgnoreCase( provider.getContext().getRegionId()) ) {
+                        for( org.dasein.cloud.aws.model.DatabaseProduct databaseProduct : region.getProducts() ) {
+                            DatabaseProduct product = new DatabaseProduct(databaseProduct.getName());
+                            product.setEngine(engine);
+                            product.setHighAvailability(databaseProduct.isHighAvailability());
+                            product.setStandardHourlyRate(databaseProduct.getHourlyRate());
+                            product.setStandardIoRate(databaseProduct.getIoRate());
+                            product.setStandardStorageRate(databaseProduct.getStorageRate());
+                            DatabaseLicenseModel lic = GENERAL_PUBLIC_LICENSE;
+                            if( "included".equalsIgnoreCase(databaseProduct.getLicense())) {
+                                lic = LICENSE_INCLUDED;
+                            } else if( "byol".equalsIgnoreCase(databaseProduct.getLicense())) {
+                                lic = BRING_YOUR_OWN_LICENSE;
+                            } else if( "postgres".equalsIgnoreCase(databaseProduct.getLicense())) {
+                                lic = POSTGRESQL_LICENSE;
+                            }
+                            product.setLicenseModel(lic);
+                            product.setCurrency(databaseProduct.getCurrency());
+                            DatabaseProductDefinition def = databaseProvider.findProductDefinition(databaseProduct.getName());
+                            if( def != null) {
+                                product.setName(String.format("%.2fGB RAM, %d CPU, %s Network Performance", def.getMemory(), def.getvCpus(), def.getNetworkPerformance()));
+                            }
+                            product.setStorageInGigabytes(databaseProduct.getMinStorage());
+                            products.add(product);
+                        }
+                    }
+                }
             }
-            else if( engine.equals(DatabaseEngine.ORACLE11G) ) {
-                DatabaseProduct product;
-                
-                product = new DatabaseProduct("db.m1.small", "64-bit, 1.7GB RAM, 1x1.0 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 0.16f : 0.17f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m1.large", "64-bit, 7.5GB RAM, 2x2.0 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 0.64f : 0.68f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m2.xlarge", "64-bit, 15GB RAM, 4x2.0 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 0.85f : 0.94f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m2.2xlarge", "64-bit, 34GB RAM, 4x3.25 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 1.70f : 1.88f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m2.4xlarge", "64-bit, 68GB RAM, 8x3.25 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 3.40f : 3.76f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-            }
-            else if( engine.equals(DatabaseEngine.ORACLE11GX) || engine.equals(DatabaseEngine.ORACLE11GEX) ) {
-                DatabaseProduct product;
-                
-                product = new DatabaseProduct("db.m1.small", "64-bit, 1.7GB RAM, 1x1.0 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 0.11f : 0.12f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m1.large", "64-bit, 7.5GB RAM, 2x2.0 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 0.44f : 0.48f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m2.xlarge", "64-bit, 15GB RAM, 4x2.0 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 0.65f : 0.74f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m2.2xlarge", "64-bit, 34GB RAM, 4x3.25 GHz CPU Core");
-                product.setEngine(engine);
-                product.setHighAvailability(false);
-                product.setStandardHourlyRate(us ? 1.30f : 1.48f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-                
-                product = new DatabaseProduct("db.m2.4xlarge", "64-bit, 68GB RAM, 8x3.25 GHz CPU Core");
-                product.setEngine(engine);
-                product.setStandardHourlyRate(us ? 2.60f : 2.96f);
-                product.setStandardIoRate(us ? 0.10f : 0.11f);
-                product.setStandardStorageRate(us ? 0.10f : 0.11f);
-                product.setStorageInGigabytes(0);        
-                products.add(product);
-            }
-            databaseProducts = products;
         }
-        return databaseProducts;
+        return databaseProducts = products;
     }
-    
+
+
+    @Override
+    @Deprecated
+    public Iterable<DatabaseProduct> getDatabaseProducts(DatabaseEngine engine) throws CloudException, InternalException {
+        return listDatabaseProducts(engine);
+    }
+
     private DayOfWeek getDay(String str) {
         if( str.equalsIgnoreCase("Sun") ) {
             return DayOfWeek.SUNDAY;
@@ -959,20 +820,37 @@ public class RDS implements RelationalDatabaseSupport {
     
     private String getEngineString(DatabaseEngine engine) {
         switch( engine ) {
-            case MYSQL: return "MySQL";
-            case ORACLE11G: return "oracle-se1";
-            case ORACLE11GX: return "oracle-se";
-            case ORACLE11GEX: return "oracle-ee";
-            default: return "MySQL";
+            case ORACLE_SE1: return AWS_ENGINE_ORACLE_SE1;
+            case ORACLE_SE: return AWS_ENGINE_ORACLE_SE;
+            case ORACLE_EE: return AWS_ENGINE_ORACLE_EE;
+            case SQLSERVER_SE: return AWS_ENGINE_SQLSERVER_SE;
+            case SQLSERVER_EE: return AWS_ENGINE_SQLSERVER_EE;
+            case SQLSERVER_EX: return AWS_ENGINE_SQLSERVER_EX;
+            case SQLSERVER_WEB: return AWS_ENGINE_SQLSERVER_WEB;
+            case POSTGRES: return AWS_ENGINE_POSTGRES;
+            case MYSQL:
+            default: return AWS_ENGINE_MYSQL;
         }
     }
-    
+
+    @Deprecated
     public String getProviderTermForDatabase(Locale locale) {
-        return "database";
+        try {
+            return getCapabilities().getProviderTermForDatabase(locale);
+        } catch( InternalException e ) {
+        } catch( CloudException e ) {
+        }
+        return "database"; // legacy
     }
     
+    @Deprecated
     public String getProviderTermForSnapshot(Locale locale) {
-        return "snapshot";
+        try {
+            return getCapabilities().getProviderTermForSnapshot(locale);
+        } catch( InternalException e ) {
+        } catch( CloudException e ) {
+        }
+        return "snapshot"; // legacy
     }
     
     
@@ -1057,25 +935,45 @@ public class RDS implements RelationalDatabaseSupport {
             APITrace.end();
         }
     }
-    
+
+    @Deprecated
     public boolean isSupportsFirewallRules() {
-        return true;
-    }
-    
-    public boolean isSupportsHighAvailability() {
+        try {
+            return capabilities.isSupportsFirewallRules();
+        } catch( CloudException e ) {
+        } catch( InternalException e ) {
+        }
         return true;
     }
 
-    public boolean isSupportsLowAvailability() {
-        return true;
+    @Deprecated
+    public boolean isSupportsHighAvailability() throws CloudException, InternalException {
+        return getCapabilities().isSupportsHighAvailability();
+    }
+
+    @Deprecated
+    public boolean isSupportsLowAvailability() throws CloudException, InternalException {
+        return getCapabilities().isSupportsLowAvailability();
     }
     
+    @Deprecated
     public boolean isSupportsMaintenanceWindows() {
-        return true;
+        try {
+            return getCapabilities().isSupportsMaintenanceWindows();
+        } catch( CloudException e ) {
+        } catch( InternalException e ) {
+        }
+        return true; // legacy
     }
-    
+
+    @Deprecated
     public boolean isSupportsSnapshots() {
-        return true;
+        try {
+            return getCapabilities().isSupportsSnapshots();
+        } catch( CloudException e ) {
+        } catch( InternalException e ) {
+        }
+        return true; // legacy
     }
     
     public Iterable<String> listAccess(String toProviderDatabaseId) throws CloudException, InternalException {
@@ -1947,7 +1845,7 @@ public class RDS implements RelationalDatabaseSupport {
     
     private DatabaseConfiguration toConfiguration(Node cfgNode) throws CloudException {
         String id = null, cfgName = null, description = null;
-        DatabaseEngine engine = DatabaseEngine.MYSQL51;
+        DatabaseEngine engine = DatabaseEngine.MYSQL; //default
         NodeList attrs = cfgNode.getChildNodes();
 
         for( int i=0; i<attrs.getLength(); i++ ) {
@@ -1963,26 +1861,8 @@ public class RDS implements RelationalDatabaseSupport {
                 description = attr.getFirstChild().getNodeValue().trim();                
             }
             else if( name.equals("Engine") ) {
-                String val = attr.getFirstChild().getNodeValue().trim().toLowerCase();
-                
-                if( val == null ) {
-                    engine = DatabaseEngine.MYSQL51;
-                }
-                else if( val.equalsIgnoreCase("mysql5.1") ) {
-                    engine = DatabaseEngine.MYSQL51;
-                }
-                else if( val.equalsIgnoreCase("mysql5.5") ) {
-                    engine = DatabaseEngine.MYSQL55;
-                }
-                else if( val.equalsIgnoreCase("oracle-se1") ) {
-                    engine = DatabaseEngine.ORACLE11G;
-                }
-                else if( val.equalsIgnoreCase("oracle-se") ) {
-                    engine = DatabaseEngine.ORACLE11GX;
-                }
-                else if( val.equalsIgnoreCase("oracle-ee") ) {
-                    engine = DatabaseEngine.ORACLE11GEX;
-                }
+                String awsEngineString = attr.getFirstChild().getNodeValue().trim().toLowerCase();
+                engine = toDatabaseEngine(awsEngineString);
             }
         }
         if( id == null || cfgName == null ) {
@@ -1993,7 +1873,36 @@ public class RDS implements RelationalDatabaseSupport {
         }
         return new DatabaseConfiguration(this, engine, id, cfgName, description);
     }
-    
+
+    private DatabaseEngine toDatabaseEngine(String awsEngineString) {
+        DatabaseEngine engine = DatabaseEngine.MYSQL;
+        if( awsEngineString.equalsIgnoreCase(AWS_ENGINE_ORACLE_SE1) ) {
+            engine = DatabaseEngine.ORACLE_SE1;
+        }
+        else if( awsEngineString.equalsIgnoreCase(AWS_ENGINE_ORACLE_SE) ) {
+            engine = DatabaseEngine.ORACLE_SE;
+        }
+        else if( awsEngineString.equalsIgnoreCase(AWS_ENGINE_ORACLE_EE) ) {
+            engine = DatabaseEngine.ORACLE_EE;
+        }
+        else if( awsEngineString.equalsIgnoreCase(AWS_ENGINE_POSTGRES) ) {
+            engine = DatabaseEngine.POSTGRES;
+        }
+        else if( awsEngineString.equalsIgnoreCase(AWS_ENGINE_SQLSERVER_EE)) {
+            engine = DatabaseEngine.SQLSERVER_EE;
+        }
+        else if ( awsEngineString.equalsIgnoreCase(AWS_ENGINE_SQLSERVER_EX)) {
+            engine = DatabaseEngine.SQLSERVER_EX;
+        }
+        else if ( awsEngineString.equalsIgnoreCase(AWS_ENGINE_SQLSERVER_SE)) {
+            engine = DatabaseEngine.SQLSERVER_SE;
+        }
+        else if ( awsEngineString.equalsIgnoreCase(AWS_ENGINE_SQLSERVER_WEB)) {
+            engine = DatabaseEngine.SQLSERVER_WEB;
+        }
+        return engine;
+    }
+
     private Database toDatabase(Node dbNode) throws CloudException {
         NodeList attrs = dbNode.getChildNodes();
         Database db = new Database();
@@ -2016,29 +1925,8 @@ public class RDS implements RelationalDatabaseSupport {
             }
             else if( name.equalsIgnoreCase("Engine") ) {
                 String val = attr.getFirstChild().getNodeValue().trim();
-
-                val = (val == null ? "mysql5.1" : val.toLowerCase());
-                if( val.startsWith("mysql") ) {
-                   db.setEngine(DatabaseEngine.MYSQL51);
-                }
-                else if( val.startsWith("mysql5.1") ) {
-                    db.setEngine(DatabaseEngine.MYSQL51);
-                }
-                else if( val.startsWith("mysql5.5") ) {
-                    db.setEngine(DatabaseEngine.MYSQL55);
-                }
-                else if( val.startsWith("oracle-se1") ) {
-                    db.setEngine(DatabaseEngine.ORACLE11G);
-                }
-                else if( val.startsWith("oracle-se") ) {
-                    db.setEngine(DatabaseEngine.ORACLE11GX);
-                }
-                else if( val.startsWith("oracle-ee") ) {
-                    db.setEngine(DatabaseEngine.ORACLE11GEX);
-                }
-                else {
-                    logger.warn("Unknown database engine: " + val);
-                }
+                DatabaseEngine engine = toDatabaseEngine(val);
+                db.setEngine(engine);
             }
             else if(name.equalsIgnoreCase("DBInstanceIdentifier") ) {
                 db.setProviderDatabaseId(attr.getFirstChild().getNodeValue().trim());
@@ -2167,17 +2055,20 @@ public class RDS implements RelationalDatabaseSupport {
                 return null;
             }
         }
-        if( engineVersion != null ) {
-            if( db.getEngine().isMySQL() ) {
-                if( engineVersion.startsWith("5.5") ) {
-                    db.setEngine(DatabaseEngine.MYSQL55);
-                }
-            }
-        }
+//        if( engineVersion != null ) {
+//            if( db.getEngine().isMySQL() ) {
+//                if( engineVersion.startsWith("5.5") ) {
+//                    db.setEngine(DatabaseEngine.MYSQL55);
+//                }
+//            }
+//        }
         return db;
     }
 
     private @Nullable ResourceStatus toDatabaseStatus(@Nullable Node dbNode) throws CloudException {
+        if( dbNode == null ) {
+            return null;
+        }
         NodeList attrs = dbNode.getChildNodes();
         DatabaseState state = DatabaseState.PENDING;
         String dbId = null;

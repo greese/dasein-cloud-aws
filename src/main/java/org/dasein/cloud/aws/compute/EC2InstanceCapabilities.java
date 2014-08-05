@@ -19,11 +19,7 @@
 
 package org.dasein.cloud.aws.compute;
 
-import org.dasein.cloud.AbstractCapabilities;
-import org.dasein.cloud.Capabilities;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.Requirement;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.Architecture;
 import org.dasein.cloud.compute.ImageClass;
@@ -118,6 +114,18 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
         return NamingConstraints.getAlphaNumeric(1, 100);
     }
 
+    @Nullable
+    @Override
+    public VisibleScope getVirtualMachineVisibleScope() {
+        return null;
+    }
+
+    @Nullable
+    @Override
+    public VisibleScope getVirtualMachineProductVisibleScope() {
+        return null;
+    }
+
     @Override
     public @Nullable VMScalingCapabilities getVerticalScalingCapabilities() throws CloudException, InternalException {
         return null;
@@ -146,7 +154,7 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
 
     @Override
     public @Nonnull Requirement identifyShellKeyRequirement(Platform platform) throws CloudException, InternalException {
-        return Requirement.OPTIONAL;
+        return platform.isWindows()? Requirement.REQUIRED : Requirement.OPTIONAL;
     }
 
     @Override
@@ -195,5 +203,49 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
             architectures = Arrays.asList(Architecture.I32, Architecture.I64);
         }
         return architectures;
+    }
+
+    @Override public boolean supportsSpotVirtualMachines() throws InternalException, CloudException {
+        return (getProvider().getEC2Provider().isAWS());
+    }
+
+    @Override public boolean supportsAlterVM() {
+        return true;
+    }
+
+    @Override public boolean supportsClone() {
+        return true;
+    }
+
+    @Override public boolean supportsPause() {
+        return false;
+    }
+
+    @Override public boolean supportsReboot() {
+        return true;
+    }
+
+    @Override public boolean supportsResume() {
+        return false;
+    }
+
+    @Override public boolean supportsStart() {
+        return true;
+    }
+
+    @Override public boolean supportsStop() {
+        return true;
+    }
+
+    @Override public boolean supportsSuspend() {
+        return false;
+    }
+
+    @Override public boolean supportsTerminate() {
+        return true;
+    }
+
+    @Override public boolean supportsUnPause() {
+        return false;
     }
 }

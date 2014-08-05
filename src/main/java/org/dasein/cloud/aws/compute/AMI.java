@@ -694,7 +694,7 @@ public class AMI extends AbstractImageSupport {
 
         Map<String, String> extraParameters = new HashMap<String, String>();
 
-        provider.putExtraParameters( extraParameters, provider.getTagFilterParams( options.getTags(), filter ) );
+        AWSCloud.addExtraParameters( extraParameters, provider.getTagFilterParams( options.getTags(), filter ) );
         parameters.putAll(extraParameters);
         String regex = options.getRegex();
 
@@ -1298,7 +1298,6 @@ public class AMI extends AbstractImageSupport {
         public double progress;
         public String message;
         public String state;
-
     }
 
     private BundleTask toBundleTask(Node node) throws CloudException, InternalException {
@@ -1492,7 +1491,7 @@ public class AMI extends AbstractImageSupport {
                 if( attribute.getChildNodes().getLength() > 0 ) {
                     value = attribute.getFirstChild().getNodeValue();
                 }
-                image.setProviderOwnerId(value == null ? value : value.trim());
+                image.setProviderOwnerId(value == null ? null : value.trim());
             }
             else if( name.equals("isPublic") ) {
                 String value = null;
