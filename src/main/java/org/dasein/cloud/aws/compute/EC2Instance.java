@@ -1139,17 +1139,52 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull Iterable<VirtualMachineProduct> listProducts( @Nonnull Architecture architecture ) throws InternalException, CloudException {
-        ProviderContext ctx = getProvider().getContext();
+    public Iterable<VirtualMachineProduct> listProducts( VirtualMachineProductFilterOptions options ) throws InternalException, CloudException {
+        List<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
+        for( Architecture arch : Architecture.values() ) {
+            mergeProductLists(products, listProducts(options, arch));
+        }
+        return products;
+    }
 
+    // Merges product iterable to the list, using providerProductId as a unique key
+    private void mergeProductLists(List<VirtualMachineProduct> to, Iterable<VirtualMachineProduct> from) {
+        List<VirtualMachineProduct> copy = new ArrayList<VirtualMachineProduct>(to);
+        for( VirtualMachineProduct productFrom : from ) {
+            boolean found = false;
+            for( VirtualMachineProduct productTo : copy ) {
+                if( productTo.getProviderProductId().equalsIgnoreCase(productFrom.getProviderProductId()) ) {
+                    found = true;
+                    break;
+                }
+            }
+            if( !found ) {
+                to.add(productFrom);
+            }
+        }
+    }
+
+    @Override
+    public @Nonnull Iterable<VirtualMachineProduct> listProducts( @Nonnull Architecture architecture ) throws InternalException, CloudException {
+        return listProducts(null, architecture);
+    }
+
+    @Override
+    public Iterable<VirtualMachineProduct> listProducts( VirtualMachineProductFilterOptions options, Architecture architecture ) throws InternalException, CloudException {
+        ProviderContext ctx = getProvider().getContext();
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
         }
-        Cache<VirtualMachineProduct> cache = Cache.getInstance(getProvider(), "products" + architecture.name(), VirtualMachineProduct.class, CacheLevel.REGION, new TimePeriod<Day>(1, TimePeriod.DAY));
+        // FIXME: until core fixes the annotation for architecture let's assume it's nullable
+        String cacheName = "productsALL";
+        if( architecture != null ) {
+            cacheName = "products" + architecture.name();
+        }
+        Cache<VirtualMachineProduct> cache = Cache.getInstance(getProvider(), cacheName, VirtualMachineProduct.class, CacheLevel.REGION, new TimePeriod<Day>(1, TimePeriod.DAY));
         Iterable<VirtualMachineProduct> products = cache.get(ctx);
 
         if( products == null ) {
-            ArrayList<VirtualMachineProduct> list = new ArrayList<VirtualMachineProduct>();
+            List<VirtualMachineProduct> list = new ArrayList<VirtualMachineProduct>();
 
             try {
                 InputStream input = EC2Instance.class.getResourceAsStream("/org/dasein/cloud/aws/vmproducts.json");
@@ -1203,20 +1238,22 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         JSONObject product = plist.getJSONObject(i);
                         boolean supported = false;
 
-                        if( product.has("architectures") ) {
-                            JSONArray architectures = product.getJSONArray("architectures");
+                        if( architecture != null ) {
+                            if( product.has("architectures") ) {
+                                JSONArray architectures = product.getJSONArray("architectures");
 
-                            for( int j = 0; j < architectures.length(); j++ ) {
-                                String a = architectures.getString(j);
+                                for( int j = 0; j < architectures.length(); j++ ) {
+                                    String a = architectures.getString(j);
 
-                                if( architecture.name().equals(a) ) {
-                                    supported = true;
-                                    break;
+                                    if( architecture.name().equals(a) ) {
+                                        supported = true;
+                                        break;
+                                    }
                                 }
                             }
-                        }
-                        if( !supported ) {
-                            continue;
+                            if( !supported ) {
+                                continue;
+                            }
                         }
                         if( product.has("excludesRegions") ) {
                             JSONArray regions = product.getJSONArray("excludesRegions");
@@ -1236,8 +1273,16 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         VirtualMachineProduct prd = toProduct(product);
 
                         if( prd != null ) {
-                            list.add(prd);
+                            if( options != null) {
+                                if( options.matches(prd) ) {
+                                    list.add(prd);
+                                }
+                            }
+                            else {
+                                list.add(prd);
+                            }
                         }
+
                     }
 
                 }
@@ -1308,21 +1353,23 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                             for( int i = 0; i < plist.length(); i++ ) {
                                 JSONObject product = plist.getJSONObject(i);
                                 boolean supported = false;
+                                if( architecture != null ) {
 
-                                if( product.has("architectures") ) {
-                                    JSONArray architectures = product.getJSONArray("architectures");
+                                    if( product.has("architectures") ) {
+                                        JSONArray architectures = product.getJSONArray("architectures");
 
-                                    for( int j = 0; j < architectures.length(); j++ ) {
-                                        String a = architectures.getString(j);
+                                        for( int j = 0; j < architectures.length(); j++ ) {
+                                            String a = architectures.getString(j);
 
-                                        if( architecture.name().equals(a) ) {
-                                            supported = true;
-                                            break;
+                                            if( architecture.name().equals(a) ) {
+                                                supported = true;
+                                                break;
+                                            }
                                         }
                                     }
-                                }
-                                if( !supported ) {
-                                    continue;
+                                    if( !supported ) {
+                                        continue;
+                                    }
                                 }
                                 if( product.has("excludesRegions") ) {
                                     JSONArray regions = product.getJSONArray("excludesRegions");
@@ -1367,6 +1414,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
         return products;
     }
+
+
 
     private String guess( String privateDnsAddress ) {
         String dnsAddress = privateDnsAddress;
