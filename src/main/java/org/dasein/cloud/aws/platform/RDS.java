@@ -50,6 +50,14 @@ import org.w3c.dom.NodeList;
 
 import static org.dasein.cloud.platform.DatabaseLicenseModel.*;
 
+/**
+ * AWS RDS Support
+ *
+ * @author George Reese
+ * @author Stas Maksimov
+ * @version 2014.08 deprecated methods moved to capabilities
+ * @since ?
+ */
 public class RDS implements RelationalDatabaseSupport {
     static private final Logger logger = AWSCloud.getLogger(RDS.class);
     
@@ -91,6 +99,8 @@ public class RDS implements RelationalDatabaseSupport {
     static public @Nonnull ServiceAction[] asRDSServiceAction(@Nonnull String action) {
         return null; // TODO: implement me
     }
+
+    private volatile transient RDSCapabilities capabilities;
 
     private AWSCloud provider;
     
@@ -428,6 +438,14 @@ public class RDS implements RelationalDatabaseSupport {
         finally {
             APITrace.end();
         }
+    }
+
+    @Override
+    public @Nonnull RelationalDatabaseCapabilities getCapabilities() throws InternalException, CloudException {
+        if( capabilities == null ) {
+            capabilities = new RDSCapabilities(provider);
+        }
+        return capabilities;
     }
 
     public DatabaseConfiguration getConfiguration(String providerConfigurationId) throws CloudException, InternalException {
@@ -813,13 +831,25 @@ public class RDS implements RelationalDatabaseSupport {
             default: return AWS_ENGINE_MYSQL;
         }
     }
-    
+
+    @Deprecated
     public String getProviderTermForDatabase(Locale locale) {
-        return "database";
+        try {
+            return getCapabilities().getProviderTermForDatabase(locale);
+        } catch( InternalException e ) {
+        } catch( CloudException e ) {
+        }
+        return "database"; // legacy
     }
     
+    @Deprecated
     public String getProviderTermForSnapshot(Locale locale) {
-        return "snapshot";
+        try {
+            return getCapabilities().getProviderTermForSnapshot(locale);
+        } catch( InternalException e ) {
+        } catch( CloudException e ) {
+        }
+        return "snapshot"; // legacy
     }
     
     
@@ -904,25 +934,45 @@ public class RDS implements RelationalDatabaseSupport {
             APITrace.end();
         }
     }
-    
+
+    @Deprecated
     public boolean isSupportsFirewallRules() {
-        return true;
-    }
-    
-    public boolean isSupportsHighAvailability() {
+        try {
+            return capabilities.isSupportsFirewallRules();
+        } catch( CloudException e ) {
+        } catch( InternalException e ) {
+        }
         return true;
     }
 
-    public boolean isSupportsLowAvailability() {
-        return true;
+    @Deprecated
+    public boolean isSupportsHighAvailability() throws CloudException, InternalException {
+        return getCapabilities().isSupportsHighAvailability();
+    }
+
+    @Deprecated
+    public boolean isSupportsLowAvailability() throws CloudException, InternalException {
+        return getCapabilities().isSupportsLowAvailability();
     }
     
+    @Deprecated
     public boolean isSupportsMaintenanceWindows() {
-        return true;
+        try {
+            return getCapabilities().isSupportsMaintenanceWindows();
+        } catch( CloudException e ) {
+        } catch( InternalException e ) {
+        }
+        return true; // legacy
     }
-    
+
+    @Deprecated
     public boolean isSupportsSnapshots() {
-        return true;
+        try {
+            return getCapabilities().isSupportsSnapshots();
+        } catch( CloudException e ) {
+        } catch( InternalException e ) {
+        }
+        return true; // legacy
     }
     
     public Iterable<String> listAccess(String toProviderDatabaseId) throws CloudException, InternalException {

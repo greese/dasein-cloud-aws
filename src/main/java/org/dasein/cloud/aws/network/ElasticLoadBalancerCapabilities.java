@@ -69,6 +69,11 @@ public class ElasticLoadBalancerCapabilities extends AbstractCapabilities<AWSClo
         return true;
     }
 
+    @Override
+    public Requirement healthCheckRequiresName() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
+
     @Nonnull
     @Override
     public Requirement identifyEndpointsOnCreateRequirement() throws CloudException, InternalException {
