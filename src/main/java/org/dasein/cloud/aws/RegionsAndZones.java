@@ -25,11 +25,7 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
-import org.dasein.cloud.dc.DataCenter;
-import org.dasein.cloud.dc.DataCenterCapabilities;
-import org.dasein.cloud.dc.DataCenterServices;
-import org.dasein.cloud.dc.Region;
-import org.dasein.cloud.dc.ResourcePool;
+import org.dasein.cloud.dc.*;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
@@ -155,13 +151,25 @@ public class RegionsAndZones implements DataCenterServices {
 	}
 
 	@Override
+    @Deprecated
 	public String getProviderTermForDataCenter(Locale locale) {
-		return "availability zone";
+        try {
+            return getCapabilities().getProviderTermForDataCenter(locale);
+        } catch( InternalException e ) {
+        } catch( CloudException e ) {
+        }
+        return "availability zone"; // legacy
 	}
 
 	@Override
+    @Deprecated
 	public String getProviderTermForRegion(Locale locale) {
-		return "region";
+        try {
+            return getCapabilities().getProviderTermForRegion(locale);
+        } catch( InternalException e ) {
+        } catch( CloudException e ) {
+        }
+        return "region"; // legacy
 	}
 
     private @Nonnull Region getRegion() {
@@ -557,9 +565,9 @@ public class RegionsAndZones implements DataCenterServices {
 	public ResourcePool getResourcePool(String providerResourcePoolId) throws InternalException, CloudException {
 		return null;
 	}
-	
-	@Override
-        public Collection<StoragePool> listStoragePools() throws InternalException, CloudException {
-            return Collections.emptyList();
-        }
+
+    @Override
+    public @Nonnull Collection<StoragePool> listStoragePools() throws InternalException, CloudException {
+        return Collections.emptyList();
+    }
 }
