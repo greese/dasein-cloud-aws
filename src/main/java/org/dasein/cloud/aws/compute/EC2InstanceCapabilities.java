@@ -208,4 +208,44 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
     @Override public boolean supportsSpotVirtualMachines() throws InternalException, CloudException {
         return (getProvider().getEC2Provider().isAWS());
     }
+
+    @Override public boolean supportsAlterVM() {
+        return true;
+    }
+
+    @Override public boolean supportsClone() {
+        return true;
+    }
+
+    @Override public boolean supportsPause() {
+        return false;
+    }
+
+    @Override public boolean supportsReboot() {
+        return true;
+    }
+
+    @Override public boolean supportsResume() {
+        return false;
+    }
+
+    @Override public boolean supportsStart() {
+        return true;
+    }
+
+    @Override public boolean supportsStop() {
+        return true;
+    }
+
+    @Override public boolean supportsSuspend() {
+        return false;
+    }
+
+    @Override public boolean supportsTerminate() {
+        return true;
+    }
+
+    @Override public boolean supportsUnPause() {
+        return false;
+    }
 }
