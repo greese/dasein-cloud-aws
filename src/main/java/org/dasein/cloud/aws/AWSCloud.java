@@ -286,29 +286,15 @@ public class AWSCloud extends AbstractCloud {
         try {
             try {
                 Map<String, String> parameters = getStandardParameters(getContext(), "CreateTags");
-                EC2Method method;
+                putIndexedParameters(parameters, "ResourceId.", resourceIds);
 
-                for( int i = 0; i < resourceIds.length; i++ ) {
-                    parameters.put("ResourceId." + ( i + 1 ), resourceIds[i]);
-                }
-
-                Map<String, String> tagParameters = new HashMap<String, String>();
-                for( int i = 0; i < keyValuePairs.length; i++ ) {
-                    String key = keyValuePairs[i].getKey();
-                    String value = keyValuePairs[i].getValue();
-
-                    if (value != null) {
-                        tagParameters.put("Tag." + (i + 1) + ".Key", key);
-                        if (value != null && value.length() > 0) {
-                            tagParameters.put("Tag." + (i + 1) + ".Value", value);
-                        }
-                    }
-                }
+                Map<String, String> tagParameters = getTagsFromKeyValuePairs(keyValuePairs);
                 if( tagParameters.size() == 0 ) {
                     return;
                 }
                 putExtraParameters(parameters, tagParameters);
-                method = new EC2Method(this, getEc2Url(), parameters);
+
+                EC2Method method = new EC2Method(this, getEc2Url(), parameters);
                 try {
                     method.invoke();
                 } catch( EC2Exception e ) {
@@ -325,6 +311,45 @@ public class AWSCloud extends AbstractCloud {
             } catch( Throwable ignore ) {
                 logger.error("Error while creating tags for " + Arrays.toString(resourceIds) + ".", ignore);
             }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    private Map<String, String> getTagsFromKeyValuePairs(Tag... keyValuePairs) {
+        Map<String, String> tagParameters = new HashMap<String, String>();
+        for (int i = 0; i < keyValuePairs.length; i++) {
+            String key = keyValuePairs[i].getKey();
+            String value = keyValuePairs[i].getValue();
+
+            if (value != null) {
+                tagParameters.put("Tag." + (i + 1) + ".Key", key);
+                if (value.length() > 0) {
+                    tagParameters.put("Tag." + (i + 1) + ".Value", value);
+                }
+            }
+        }
+        return tagParameters;
+    }
+
+    public void createTagsSynchronously(final String resourceId, final Tag... keyValuePairs) throws CloudException, InternalException {
+        createTagsSynchronously(new String[]{resourceId}, keyValuePairs);
+    }
+
+    public void createTagsSynchronously(final String[] resourceIds, final Tag... keyValuePairs) throws CloudException, InternalException {
+        APITrace.begin(this, "Cloud.createTagsSynchronously");
+        try {
+            Map<String, String> parameters = getStandardParameters(getContext(), "CreateTags");
+            putIndexedParameters(parameters, "ResourceId.", resourceIds);
+
+            Map<String, String> tagParameters = getTagsFromKeyValuePairs(keyValuePairs);
+            if (tagParameters.size() == 0) {
+                return;
+            }
+            putExtraParameters(parameters, tagParameters);
+
+            new EC2Method(this, getEc2Url(), parameters).invoke();
+
         } finally {
             APITrace.end();
         }

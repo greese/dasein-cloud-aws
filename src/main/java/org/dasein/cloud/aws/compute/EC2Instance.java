@@ -2541,6 +2541,24 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
+    public void updateTags(@Nonnull String[] vmIds, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
+        if(asynchronous) {
+            getProvider().createTags(vmIds, tags);
+        } else {
+            getProvider().createTagsSynchronously(vmIds, tags);
+        }
+    }
+
+    @Override
+    public void updateTags(@Nonnull String vmId, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
+        if(asynchronous) {
+            getProvider().createTags(vmId, tags);
+        } else {
+            getProvider().createTagsSynchronously(vmId, tags);
+        }
+    }
+
+    @Override
     public void removeTags(@Nonnull String vmId, @Nonnull Tag... tags) throws CloudException, InternalException {
         getProvider().removeTags(vmId, tags);
     }
