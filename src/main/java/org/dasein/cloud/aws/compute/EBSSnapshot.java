@@ -971,4 +971,23 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
         }
     }
 
+    @Override
+    public void updateTags(@Nonnull String[] snapshotIds, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Snapshot.updateTags");
+        try {
+            if (asynchronous) {
+                ((AWSCloud) getProvider()).createTags(snapshotIds, tags);
+            } else {
+                ((AWSCloud) getProvider()).createTagsSynchronously(snapshotIds, tags);
+            }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void updateTags(@Nonnull String snapshotId, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
+        updateTags(new String[] {snapshotId}, asynchronous, tags);
+    }
+
 }

@@ -26,7 +26,10 @@ import org.dasein.cloud.aws.storage.S3Method;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
-import org.dasein.util.*;
+import org.dasein.util.CalendarWrapper;
+import org.dasein.util.Jiterator;
+import org.dasein.util.JiteratorPopulator;
+import org.dasein.util.PopulatorThread;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -1480,6 +1483,7 @@ public class AMI extends AbstractImageSupport {
         }
         NodeList attributes = node.getChildNodes();
         MachineImage image = new MachineImage();
+        Collection<MachineImageVolume> volumes = null;
         String location = null;
 
         image.setSoftware(""); // TODO: guess software
@@ -1611,6 +1615,50 @@ public class AMI extends AbstractImageSupport {
             else if ( name.equals("tagSet")) {
                 provider.setTags( attribute, image );
             }
+            else if (name.equalsIgnoreCase("blockDeviceMapping")) {
+
+                if (attribute.hasChildNodes()) {
+                    NodeList devices = attribute.getChildNodes();
+                    volumes = new ArrayList<MachineImageVolume>();
+
+                    for (int z = 0; z < devices.getLength(); z++) {
+                        NodeList param = devices.item(z).getChildNodes();
+                        MachineImageVolume volume = new MachineImageVolume();
+
+                        if (devices.item(z).getNodeName().equalsIgnoreCase("item")) {
+                            for (int j = 0; j < param.getLength(); j++) {
+                                String nodeName = param.item(j).getNodeName();
+
+                                if (nodeName.equalsIgnoreCase("deviceName")) {
+                                    volume.setDeviceName(param.item(j).getFirstChild().getNodeValue().trim());
+                                } else if (nodeName.equalsIgnoreCase("ebs")) {
+                                    NodeList ebs = param.item(j).getChildNodes();
+
+                                    for (int k = 0; k < ebs.getLength(); k++) {
+                                        String ebsName = ebs.item(k).getNodeName();
+
+                                        if (ebsName.equalsIgnoreCase("snapshotId")) {
+                                            volume.setSnapshotId(ebs.item(k).getFirstChild().getNodeValue().trim());
+                                        } else if (ebsName.equalsIgnoreCase("volumeSize")) {
+                                            volume.setVolumeSize(Integer.valueOf(ebs.item(k).getFirstChild().getNodeValue().trim()));
+                                        } else if (ebsName.equalsIgnoreCase("volumeType")) {
+                                            volume.setVolumeType(ebs.item(k).getFirstChild().getNodeValue().trim());
+                                        } else if (ebsName.equalsIgnoreCase("iops")) {
+                                            volume.setIops(Integer.valueOf(ebs.item(k).getFirstChild().getNodeValue().trim()));
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (volume.getDeviceName() != null || volume.getIops() != null
+                                    || volume.getDeviceName() != null || volume.getVolumeSize() != null
+                                    || volume.getVolumeType() != null) {
+                                volumes.add(volume);
+                            }
+                        }
+                    }
+                }
+            }
 		}
 		if( image.getPlatform() == null ) {
 		    if( location != null ) {
@@ -1649,6 +1697,9 @@ public class AMI extends AbstractImageSupport {
         if( !provider.getEC2Provider().isAWS() ) {
             image.setProviderOwnerId(ctx.getAccountNumber());
         }
+        if (volumes != null) {
+            image.setVolumes(volumes);
+        }
         return image;
     }
 
@@ -1662,6 +1713,26 @@ public class AMI extends AbstractImageSupport {
         APITrace.begin(getProvider(), "Image.updateTags");
         try {
             provider.createTags(imageIds, tags);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void updateTags(@Nonnull String imageId, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
+        updateTags(new String[]{imageId}, asynchronous, tags);
+    }
+
+    @Override
+    public void updateTags(@Nonnull String[] imageIds, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Image.updateTags");
+        try {
+            if(asynchronous) {
+                provider.createTags(imageIds, tags);
+            } else {
+                provider.createTagsSynchronously(imageIds, tags);
+            }
         }
         finally {
             APITrace.end();
