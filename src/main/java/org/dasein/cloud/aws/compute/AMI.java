@@ -1755,7 +1755,6 @@ public class AMI extends AbstractImageSupport {
         }
     }
 
-
     private void waitForBundle(@Nonnull String bundleId, @Nonnull String manifest, @Nonnull Platform platform, @Nonnull String name, @Nonnull String description, AsynchronousTask<MachineImage> task) {
         APITrace.begin(getProvider(), "Image.waitForBundle");
         try {

@@ -20,10 +20,7 @@
 package org.dasein.cloud.aws.compute;
 
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
@@ -45,12 +42,13 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-public class AutoScaling implements AutoScalingSupport {
+public class AutoScaling extends AbstractAutoScalingSupport {
     static private final Logger logger = Logger.getLogger(AutoScaling.class);
 
     private AWSCloud provider = null;
 
     AutoScaling(AWSCloud provider) {
+        super(provider);
         this.provider = provider;
     }
 
@@ -1038,6 +1036,48 @@ public class AutoScaling implements AutoScalingSupport {
      }
    }
 
+    private Collection<AutoScalingTag> getTagsForDelete(@Nullable Collection<AutoScalingTag> all, @Nonnull AutoScalingTag[] tags) {
+        Collection<AutoScalingTag> result = null;
+        if (all != null) {
+            result = new ArrayList<AutoScalingTag>();
+            for (AutoScalingTag tag : all) {
+                if (!isTagInTags(tag, tags)) {
+                    result.add(tag);
+                }
+            }
+        }
+        return result;
+    }
+
+    private boolean isTagInTags(@Nonnull AutoScalingTag tag, @Nonnull AutoScalingTag[] tags) {
+        for (AutoScalingTag t : tags) {
+            if (t.getKey().equals(tag.getKey())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void handleTagRequest( @Nonnull String methodName, @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
+        Map<String, String> parameters = getAutoScalingParameters( provider.getContext(), methodName );
+        EC2Method method;
+
+        addAutoScalingTagParameters( parameters, providerScalingGroupIds, tags );
+
+        if ( parameters.size() == 0 ) {
+            return;
+        }
+
+        method = new EC2Method( provider, getAutoScalingUrl(), parameters );
+        try {
+            method.invoke();
+        }
+        catch ( EC2Exception e ) {
+            logger.error( e.getSummary() );
+            throw new CloudException( e );
+        }
+    }
+
     @Override
     public void setNotificationConfig(@Nonnull String scalingGroupId, @Nonnull String topicARN, @Nonnull String[] notificationTypes) throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.setNotificationConfig");
@@ -1132,26 +1172,6 @@ public class AutoScaling implements AutoScalingSupport {
         }
         return null;
     }
-
-    private void handleTagRequest( @Nonnull String methodName, @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) throws CloudException, InternalException {
-    Map<String, String> parameters = getAutoScalingParameters( provider.getContext(), methodName );
-    EC2Method method;
-
-    addAutoScalingTagParameters( parameters, providerScalingGroupIds, tags );
-
-    if ( parameters.size() == 0 ) {
-      return;
-    }
-
-    method = new EC2Method( provider, getAutoScalingUrl(), parameters );
-    try {
-      method.invoke();
-    }
-    catch ( EC2Exception e ) {
-      logger.error( e.getSummary() );
-      throw new CloudException( e );
-    }
-  }
 
   static private void addAutoScalingTagParameters( @Nonnull Map<String, String> parameters, @Nonnull String[] providerScalingGroupIds, @Nonnull AutoScalingTag... tags ) {
     /**

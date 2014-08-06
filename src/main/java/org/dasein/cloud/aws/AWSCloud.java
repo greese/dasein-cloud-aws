@@ -30,7 +30,6 @@ import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpParams;
 import org.apache.http.params.HttpProtocolParams;
-import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
@@ -398,32 +397,38 @@ public class AWSCloud extends AbstractCloud {
         Map<String, String> tags = new HashMap<String, String>();
         NodeList tagNodes = attr.getChildNodes();
         for( int j = 0; j < tagNodes.getLength(); j++ ) {
-            Node tag = tagNodes.item(j);
 
-            if( tag.getNodeName().equals("item") && tag.hasChildNodes() ) {
-                NodeList parts = tag.getChildNodes();
-                String key = null, value = null;
-
-                for( int k = 0; k < parts.getLength(); k++ ) {
-                    Node part = parts.item(k);
-
-                    if( part.getNodeName().equalsIgnoreCase("key") ) {
-                        if( part.hasChildNodes() ) {
-                            key = part.getFirstChild().getNodeValue().trim();
-                        }
-                    }
-                    else if( part.getNodeName().equalsIgnoreCase("value") ) {
-                        if( part.hasChildNodes() ) {
-                            value = part.getFirstChild().getNodeValue().trim();
-                        }
-                    }
-                    if( key != null && value != null ) {
-                        tags.put(key, value);
-                    }
-                }
+            Tag t = toTag(tagNodes.item(j));
+            if (t != null) {
+                tags.put(t.getKey(), t.getValue());
             }
         }
         return tags;
+    }
+
+    public Tag toTag(@Nonnull Node tag) {
+        if (tag.getNodeName().equals("item") && tag.hasChildNodes()) {
+            NodeList parts = tag.getChildNodes();
+            String key = null, value = null;
+
+            for (int k = 0; k < parts.getLength(); k++) {
+                Node part = parts.item(k);
+
+                if (part.getNodeName().equalsIgnoreCase("key")) {
+                    if (part.hasChildNodes()) {
+                        key = part.getFirstChild().getNodeValue().trim();
+                    }
+                } else if (part.getNodeName().equalsIgnoreCase("value")) {
+                    if (part.hasChildNodes()) {
+                        value = part.getFirstChild().getNodeValue().trim();
+                    }
+                }
+            }
+            if (key != null && value != null) {
+                return new Tag(key, value);
+            }
+        }
+        return null;
     }
 
     @Override
@@ -1220,29 +1225,10 @@ public class AWSCloud extends AbstractCloud {
             NodeList tags = attr.getChildNodes();
 
             for( int j = 0; j < tags.getLength(); j++ ) {
-                Node tag = tags.item(j);
+                Tag t = toTag(tags.item(j));
 
-                if( tag.getNodeName().equals("item") && tag.hasChildNodes() ) {
-                    NodeList parts = tag.getChildNodes();
-                    String key = null, value = null;
-
-                    for( int k = 0; k < parts.getLength(); k++ ) {
-                        Node part = parts.item(k);
-
-                        if( part.getNodeName().equalsIgnoreCase("key") ) {
-                            if( part.hasChildNodes() ) {
-                                key = part.getFirstChild().getNodeValue().trim();
-                            }
-                        }
-                        else if( part.getNodeName().equalsIgnoreCase("value") ) {
-                            if( part.hasChildNodes() ) {
-                                value = part.getFirstChild().getNodeValue().trim();
-                            }
-                        }
-                    }
-                    if( key != null && value != null ) {
-                        item.setTag(key, value);
-                    }
+                if (t != null && t.getValue() != null) {
+                    item.setTag(t.getKey(), t.getValue());
                 }
             }
         }

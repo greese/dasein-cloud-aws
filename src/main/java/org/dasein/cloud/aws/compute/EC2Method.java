@@ -78,6 +78,7 @@ public class EC2Method {
     static public final String UPDATE_AUTO_SCALING_GROUP        = "UpdateAutoScalingGroup";
     static public final String UPDATE_AUTO_SCALING_GROUP_TAGS   = "CreateOrUpdateTags";
     static public final String DELETE_AUTO_SCALING_GROUP_TAGS   = "DeleteTags";
+    static public final String DESCRIBE_TAGS = "DescribeTags";
     static public final String PUT_NOTIFICATION_CONFIGURATION     = "PutNotificationConfiguration";
     static public final String DESCRIBE_NOTIFICATION_CONFIGURATIONS = "DescribeNotificationConfigurations";
 

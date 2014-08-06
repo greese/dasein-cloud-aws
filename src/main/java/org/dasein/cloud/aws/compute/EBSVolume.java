@@ -61,7 +61,7 @@ public class EBSVolume extends AbstractVolumeSupport {
         super(provider);
 		this.provider = provider;
 	}
-	
+
 	@Override
 	public void attach(@Nonnull String volumeId, @Nonnull String toServer, @Nonnull String device) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "Volume.attach");
@@ -523,14 +523,14 @@ public class EBSVolume extends AbstractVolumeSupport {
 
     @Override
     public void removeTags(@Nonnull String volumeId, @Nonnull Tag ... tags) throws CloudException, InternalException {
-        removeTags(new String[] { volumeId }, tags);
+        removeTags(new String[]{volumeId}, tags);
     }
 
     @Override
     public void removeTags(@Nonnull String[] volumeIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Volume.removeTags");
         try {
-            provider.removeTags( volumeIds, tags );
+            provider.removeTags(volumeIds, tags);
         }
         finally {
             APITrace.end();
