@@ -1141,7 +1141,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     @Override
     public Iterable<VirtualMachineProduct> listProducts( VirtualMachineProductFilterOptions options ) throws InternalException, CloudException {
         List<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
-        for( Architecture arch : Architecture.values() ) {
+        for( Architecture arch : getCapabilities().listSupportedArchitectures() ) {
             mergeProductLists(products, listProducts(options, arch));
         }
         return products;
