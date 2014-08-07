@@ -285,13 +285,13 @@ public class AWSCloud extends AbstractCloud {
         try {
             try {
                 Map<String, String> parameters = getStandardParameters(getContext(), "CreateTags");
-                putIndexedParameters(parameters, "ResourceId.", resourceIds);
+                addIndexedParameters(parameters, "ResourceId.", resourceIds);
 
                 Map<String, String> tagParameters = getTagsFromKeyValuePairs(keyValuePairs);
                 if( tagParameters.size() == 0 ) {
                     return;
                 }
-                putExtraParameters(parameters, tagParameters);
+                addExtraParameters(parameters, tagParameters);
 
                 EC2Method method = new EC2Method(this, getEc2Url(), parameters);
                 try {
@@ -339,13 +339,13 @@ public class AWSCloud extends AbstractCloud {
         APITrace.begin(this, "Cloud.createTagsSynchronously");
         try {
             Map<String, String> parameters = getStandardParameters(getContext(), "CreateTags");
-            putIndexedParameters(parameters, "ResourceId.", resourceIds);
+            addIndexedParameters(parameters, "ResourceId.", resourceIds);
 
             Map<String, String> tagParameters = getTagsFromKeyValuePairs(keyValuePairs);
             if (tagParameters.size() == 0) {
                 return;
             }
-            putExtraParameters(parameters, tagParameters);
+            addExtraParameters(parameters, tagParameters);
 
             new EC2Method(this, getEc2Url(), parameters).invoke();
 

@@ -351,11 +351,11 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
             Map<String, String> parameters = provider.getStandardParameters(getContext(),
                     IAMMethod.CREATE_SSL_CERTIFICATE, IAMMethod.VERSION);
-            provider.putValueIfNotNull(parameters, "CertificateBody", options.getCertificateBody());
-            provider.putValueIfNotNull(parameters, "CertificateChain", options.getCertificateChain());
-            provider.putValueIfNotNull(parameters, "Path", options.getPath());
-            provider.putValueIfNotNull(parameters, "PrivateKey", options.getPrivateKey());
-            provider.putValueIfNotNull(parameters, "ServerCertificateName", options.getCertificateName());
+            AWSCloud.addValueIfNotNull(parameters, "CertificateBody", options.getCertificateBody());
+            AWSCloud.addValueIfNotNull(parameters, "CertificateChain", options.getCertificateChain());
+            AWSCloud.addValueIfNotNull(parameters, "Path", options.getPath());
+            AWSCloud.addValueIfNotNull(parameters, "PrivateKey", options.getPrivateKey());
+            AWSCloud.addValueIfNotNull(parameters, "ServerCertificateName", options.getCertificateName());
 
             Document doc;
             IAMMethod method = new IAMMethod(provider, parameters);
