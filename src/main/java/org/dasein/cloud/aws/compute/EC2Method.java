@@ -265,6 +265,16 @@ public class EC2Method {
     // Account operations
     static public final String DESCRIBE_ACCOUNT_ATTRIBUTES      = "DescribeAccountAttributes";
 
+    // Spot instances
+    static public final String CREATE_SPOT_DATAFEED_SUBSCRIPTION    = "CreateSpotDatafeedSubscription";
+    static public final String DESCRIBE_SPOT_DATAFEED_SUBSCRIPTION  = "DescribeSpotDatafeedSubscription";
+    static public final String DELETE_SPOT_DATAFEED_SUBSCRIPTION    = "DeleteSpotDatafeedSubscription";
+    static public final String REQUEST_SPOT_INSTANCES               = "RequestSpotInstances";
+    static public final String DESCRIBE_SPOT_INSTANCE_REQUESTS      = "DescribeSpotInstanceRequests";
+    static public final String CANCEL_SPOT_INSTANCE_REQUESTS        = "CancelSpotInstanceRequests";
+    static public final String DESCRIBE_SPOT_PRICE_HISTORY          = "DescribeSpotPriceHistory";
+
+
 
     static public @Nonnull ServiceAction[] asEC2ServiceAction(@Nonnull String action) {
         // TODO: implement me

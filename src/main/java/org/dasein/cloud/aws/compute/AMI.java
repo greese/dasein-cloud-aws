@@ -754,7 +754,7 @@ public class AMI extends AbstractImageSupport {
 
         Map<String, String> extraParameters = new HashMap<String, String>();
 
-        provider.putExtraParameters( extraParameters, provider.getTagFilterParams( options.getTags(), filter ) );
+        AWSCloud.addExtraParameters( extraParameters, provider.getTagFilterParams( options.getTags(), filter ) );
         parameters.putAll(extraParameters);
         String regex = options.getRegex();
 

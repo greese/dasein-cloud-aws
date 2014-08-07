@@ -307,7 +307,7 @@ public class AWSCloud extends AbstractCloud {
                 if( tagParameters.size() == 0 ) {
                     return;
                 }
-                putExtraParameters(parameters, tagParameters);
+                addExtraParameters(parameters, tagParameters);
                 method = new EC2Method(this, getEc2Url(), parameters);
                 try {
                     method.invoke();
@@ -487,7 +487,7 @@ public class AWSCloud extends AbstractCloud {
         return provider;
     }
 
-    public @Nullable String getEc2Url() throws InternalException, CloudException {
+    public @Nullable String getEc2Url() {
         ProviderContext ctx = getContext();
         String url = getEc2Url(ctx == null ? null : ctx.getRegionId());
 
@@ -499,7 +499,7 @@ public class AWSCloud extends AbstractCloud {
         }
     }
 
-    public @Nullable String getEc2Url( @Nullable String regionId ) throws InternalException, CloudException {
+    public @Nullable String getEc2Url( @Nullable String regionId ) {
         ProviderContext ctx = getContext();
         String url;
 
@@ -564,7 +564,7 @@ public class AWSCloud extends AbstractCloud {
 
     public String getEc2Version() {
         if (getEC2Provider().isAWS()) {
-            return "2014-02-01";
+            return "2014-05-01";
         }
         else if (getEC2Provider().isEucalyptus()) {
             return "2010-11-15";
@@ -727,7 +727,7 @@ public class AWSCloud extends AbstractCloud {
         return parameters;
     }
 
-    public void putExtraParameters( Map<String, String> parameters, Map<String, String> extraParameters ) {
+    public static void addExtraParameters( Map<String, String> parameters, Map<String, String> extraParameters ) {
         if( extraParameters == null || extraParameters.size() == 0 ) {
             return;
         }
@@ -737,11 +737,11 @@ public class AWSCloud extends AbstractCloud {
         parameters.putAll(extraParameters);
     }
 
-    public @Nullable Map<String, String> getTagFilterParams( @Nullable Map<String, String> tags ) {
+    public static @Nullable Map<String, String> getTagFilterParams( @Nullable Map<String, String> tags ) {
         return getTagFilterParams(tags, 1);
     }
 
-    public @Nullable Map<String, String> getTagFilterParams( @Nullable Map<String, String> tags, int startingFilterIndex ) {
+    public static @Nullable Map<String, String> getTagFilterParams( @Nullable Map<String, String> tags, int startingFilterIndex ) {
         if( tags == null || tags.size() == 0 ) {
             return null;
         }
@@ -750,14 +750,27 @@ public class AWSCloud extends AbstractCloud {
         int i = startingFilterIndex;
 
         for (Map.Entry<String, String> parameter : tags.entrySet()) {
-            addFilterParameter(filterParameters, i, "tag:" + parameter.getKey(), Collections.singletonList(parameter.getValue()));
+            addFilterParameters(filterParameters, i, "tag:" + parameter.getKey(), Collections.singletonList(parameter.getValue()));
             i++;
         }
         return filterParameters;
     }
 
-    public void addFilterParameter(Map<String, String> filterParameters, int index, String filterName, Collection<?> filterValues) {
+    public static void addFilterParameters(Map<String, String> filterParameters, int index, String filterName, Collection<?> filterValues) {
         if (filterValues == null || filterValues.isEmpty()) {
+            return;
+        }
+
+        filterParameters.put("Filter." + index + ".Name", filterName);
+        int valueIndex = 0;
+        for (Object filterValue : filterValues) {
+            // filter values must be in lower case
+            filterParameters.put("Filter." + index + ".Value." + valueIndex++, filterValue.toString().toLowerCase());
+        }
+    }
+
+    public static void addFilterParameters(Map<String, String> filterParameters, int index, String filterName, Object ... filterValues) {
+        if (filterValues == null || filterValues.length == 0) {
             return;
         }
 
@@ -1230,8 +1243,9 @@ public class AWSCloud extends AbstractCloud {
      * @return the epoch time
      * @throws CloudException
      */
-    public long getTimestampValue( Node node ) throws CloudException {
+    public static long getTimestampValue( Node node ) throws CloudException {
         SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+        fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
         String value = getTextValue(node);
 
         try {
@@ -1272,7 +1286,7 @@ public class AWSCloud extends AbstractCloud {
      * @param node the node to extract the value from
      * @return the int value of the given node
      */
-    public int getIntValue( Node node ) {
+    public static int getIntValue( Node node ) {
         return Integer.valueOf(getTextValue(node));
     }
 
@@ -1282,8 +1296,18 @@ public class AWSCloud extends AbstractCloud {
      * @param node the node to extract the value from
      * @return the double value of the given node
      */
-    public double getDoubleValue( Node node ) {
+    public static double getDoubleValue( Node node ) {
         return Double.valueOf(getTextValue(node));
+    }
+
+    /**
+     * Returns the float value of the given node.
+     *
+     * @param node the node to extract the value from
+     * @return the float value of the given node
+     */
+    public static float getFloatValue( Node node ) {
+        return Float.valueOf(getTextValue(node));
     }
 
     /**
@@ -1294,11 +1318,14 @@ public class AWSCloud extends AbstractCloud {
      * @param prefix     the prefix value for each parameter key
      * @param values     the values to add
      */
-    public void putIndexedParameters( @Nonnull Map<String, String> parameters, @Nonnull String prefix, String[] values ) {
+    public static void addIndexedParameters( @Nonnull Map<String, String> parameters, @Nonnull String prefix, String ... values ) {
         if( values == null || values.length == 0 ) {
             return;
         }
         int i = 1;
+        if( !prefix.endsWith(".") ) {
+            prefix += ".";
+        }
         for( String value : values ) {
             parameters.put(String.format("%s%d", prefix, i), value);
             i++;
@@ -1313,7 +1340,7 @@ public class AWSCloud extends AbstractCloud {
      * @param prefix          the prefix value for each parameter key
      * @param extraParameters the values to add
      */
-    public void putIndexedMapParameters( @Nonnull Map<String, String> parameters, @Nonnull String prefix, Map<String, String> extraParameters ) {
+    public static void addIndexedParameters( @Nonnull Map<String, String> parameters, @Nonnull String prefix, Map<String, String> extraParameters ) {
         if( extraParameters == null || extraParameters.size() == 0 ) {
             return;
         }
@@ -1334,7 +1361,7 @@ public class AWSCloud extends AbstractCloud {
      * @param key        the key of the value
      * @param value      the value to add if not null
      */
-    public void putValueIfNotNull( @Nonnull Map<String, String> parameters, @Nonnull String key, String value ) {
+    public static void addValueIfNotNull( @Nonnull Map<String, String> parameters, @Nonnull String key, String value ) {
         if( value == null ) {
             return;
         }
