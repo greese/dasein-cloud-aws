@@ -37,6 +37,7 @@ import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.platform.CloudFrontMethod.CloudFrontResponse;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.platform.CDNCapabilities;
 import org.dasein.cloud.platform.CDNSupport;
 import org.dasein.cloud.platform.Distribution;
 import org.dasein.cloud.storage.Blob;
@@ -46,7 +47,7 @@ import org.w3c.dom.NodeList;
 
 public class CloudFront implements CDNSupport {
 	static private final Logger logger = AWSCloud.getLogger(CloudFront.class);
-	
+    private volatile transient CloudFrontCapabilities capabilities;
 	private AWSCloud provider = null;
 	
 	CloudFront(AWSCloud provider) {
@@ -155,7 +156,15 @@ public class CloudFront implements CDNSupport {
         }
 	}
 
-	@Override
+    @Override
+    public @Nonnull CDNCapabilities getCapabilities() throws InternalException, CloudException {
+        if( capabilities == null ) {
+            capabilities = new CloudFrontCapabilities(provider);
+        }
+        return capabilities;
+    }
+
+    @Override
 	public @Nullable Distribution getDistribution(@Nonnull String distributionId) throws InternalException, CloudException {
         APITrace.begin(provider, "CDN.getDistribution");
         try {
@@ -217,9 +226,15 @@ public class CloudFront implements CDNSupport {
 	}
 
 	@Override
+    @Deprecated
 	public @Nonnull String getProviderTermForDistribution(@Nonnull Locale locale) {
-		return "distribution";
-	}
+        try {
+            return getCapabilities().getProviderTermForDistribution(locale);
+        } catch( InternalException e ) {
+        } catch( CloudException e ) {
+        }
+        return "distribution"; // legacy
+    }
 
 	@Override
 	public boolean isSubscribed() throws InternalException, CloudException {

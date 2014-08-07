@@ -1065,7 +1065,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     //TODO: Get instance health
 
     @Override
-    public LoadBalancerHealthCheck getLoadBalancerHealthCheck( @Nullable String providerLBHealthCheckId, @Nullable String providerLoadBalancerId ) throws CloudException, InternalException {
+    public LoadBalancerHealthCheck getLoadBalancerHealthCheck( @Nonnull String providerLBHealthCheckId, @Nullable String providerLoadBalancerId ) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.getLoadBalancerHealthCheck");
         try {
             Map<String, String> parameters = getELBParameters(getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
@@ -1073,7 +1073,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             NodeList blocks;
             Document doc;
 
-            if( providerLoadBalancerId.length() > 32 ) {
+            if( providerLoadBalancerId != null && providerLoadBalancerId.length() > 32 ) {
                 return null;
             }
             parameters.put("LoadBalancerNames.member.1", providerLoadBalancerId);
@@ -1409,6 +1409,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
         LoadBalancerHealthCheck lbhc = LoadBalancerHealthCheck.getInstance(lbId, protocol, port, path, interval, timeout, healthyCount, unHealthyCount);
         if( lbId != null ) {
+            lbhc.addProviderLoadBalancerId(lbId);
             lbhc.setName(toHCName(lbId));
         }
         return lbhc;
