@@ -1139,37 +1139,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public Iterable<VirtualMachineProduct> listProducts( VirtualMachineProductFilterOptions options ) throws InternalException, CloudException {
-        List<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
-        for( Architecture arch : getCapabilities().listSupportedArchitectures() ) {
-            mergeProductLists(products, listProducts(options, arch));
-        }
-        return products;
-    }
-
-    // Merges product iterable to the list, using providerProductId as a unique key
-    private void mergeProductLists(List<VirtualMachineProduct> to, Iterable<VirtualMachineProduct> from) {
-        List<VirtualMachineProduct> copy = new ArrayList<VirtualMachineProduct>(to);
-        for( VirtualMachineProduct productFrom : from ) {
-            boolean found = false;
-            for( VirtualMachineProduct productTo : copy ) {
-                if( productTo.getProviderProductId().equalsIgnoreCase(productFrom.getProviderProductId()) ) {
-                    found = true;
-                    break;
-                }
-            }
-            if( !found ) {
-                to.add(productFrom);
-            }
-        }
-    }
-
-    @Override
-    public @Nonnull Iterable<VirtualMachineProduct> listProducts( @Nonnull Architecture architecture ) throws InternalException, CloudException {
-        return listProducts(null, architecture);
-    }
-
-    @Override
     public Iterable<VirtualMachineProduct> listProducts( VirtualMachineProductFilterOptions options, Architecture architecture ) throws InternalException, CloudException {
         ProviderContext ctx = getProvider().getContext();
         if( ctx == null ) {
