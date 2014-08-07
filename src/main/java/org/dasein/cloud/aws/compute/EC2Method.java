@@ -78,6 +78,9 @@ public class EC2Method {
     static public final String UPDATE_AUTO_SCALING_GROUP        = "UpdateAutoScalingGroup";
     static public final String UPDATE_AUTO_SCALING_GROUP_TAGS   = "CreateOrUpdateTags";
     static public final String DELETE_AUTO_SCALING_GROUP_TAGS   = "DeleteTags";
+    static public final String DESCRIBE_TAGS = "DescribeTags";
+    static public final String PUT_NOTIFICATION_CONFIGURATION     = "PutNotificationConfiguration";
+    static public final String DESCRIBE_NOTIFICATION_CONFIGURATIONS = "DescribeNotificationConfigurations";
 
     static public @Nonnull ServiceAction[] asAutoScalingServiceAction(@Nonnull String action) {
         if( action.equals(CREATE_AUTO_SCALING_GROUP) ) {
@@ -648,6 +651,9 @@ public class EC2Method {
 
             attempts++;
             post.addHeader("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
+            if ( provider.isDebug() ) {
+                post.addHeader("Connection", "close");
+            }
 
             List<NameValuePair> params = new ArrayList<NameValuePair>();
 
