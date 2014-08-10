@@ -124,7 +124,7 @@ public class VPC extends AbstractVLANSupport {
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ROUTE_TABLES);
             EC2Method method;
             NodeList blocks;
             Document doc;
