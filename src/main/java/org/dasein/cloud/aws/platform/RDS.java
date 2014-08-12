@@ -1919,6 +1919,7 @@ public class RDS implements RelationalDatabaseSupport {
                 String val = attr.getFirstChild().getNodeValue().trim();
                 
                 if( val != null ) {
+                    // TODO: do we need engine version in Database?
                     engineVersion = val.toLowerCase().trim();
                 }
             }
@@ -1929,7 +1930,9 @@ public class RDS implements RelationalDatabaseSupport {
             }
             else if(name.equalsIgnoreCase("DBInstanceIdentifier") ) {
                 db.setProviderDatabaseId(attr.getFirstChild().getNodeValue().trim());
-                db.setName(db.getProviderDatabaseId());
+            }
+            else if(name.equalsIgnoreCase("DBName")) {
+                db.setName(AWSCloud.getTextValue(attr));
             }
             else if( name.equalsIgnoreCase("MultiAZ") ) {
                 db.setHighAvailability(attr.getFirstChild().getNodeValue().equalsIgnoreCase("true"));
@@ -2054,13 +2057,9 @@ public class RDS implements RelationalDatabaseSupport {
                 return null;
             }
         }
-//        if( engineVersion != null ) {
-//            if( db.getEngine().isMySQL() ) {
-//                if( engineVersion.startsWith("5.5") ) {
-//                    db.setEngine(DatabaseEngine.MYSQL55);
-//                }
-//            }
-//        }
+        if( db.getName() == null ) {
+            db.setName(db.getProviderDatabaseId());
+        }
         return db;
     }
 
