@@ -59,11 +59,7 @@ import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.IPVersion;
-import org.dasein.cloud.network.IpAddress;
-import org.dasein.cloud.network.IpAddressSupport;
-import org.dasein.cloud.network.NetworkServices;
-import org.dasein.cloud.network.RawAddress;
+import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
@@ -1214,8 +1210,21 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             if( cfg.getBootstrapKey() != null ) {
                 parameters.put("KeyName", cfg.getBootstrapKey());
             }
-            if( cfg.getVlanId() != null ) {
-                parameters.put("VpcId", cfg.getVlanId());
+            if( cfg.getVlanId() != null && !cfg.getVlanId().startsWith("vpc-")) {
+                parameters.put("SubnetId", cfg.getVlanId());
+            }
+            else if ( cfg.getVlanId() != null ) {
+                // this is vpcId, find a subnet
+                if( getProvider().getNetworkServices() != null && getProvider().getNetworkServices().hasVlanSupport() ) {
+                    VLANSupport support = getProvider().getNetworkServices().getVlanSupport();
+                    Iterable<Subnet> subnets = support.listSubnets(cfg.getVlanId());
+                    if( subnets != null ) {
+                        Subnet firstSubnet = subnets.iterator().next();
+                        if( firstSubnet != null ) {
+                            parameters.put("SubnetId", firstSubnet.getProviderSubnetId());
+                        }
+                    }
+                }
             }
             if( getProvider().getEC2Provider().isAWS() ) {
                 parameters.put("Monitoring.Enabled", String.valueOf(cfg.isExtendedAnalytics()));
