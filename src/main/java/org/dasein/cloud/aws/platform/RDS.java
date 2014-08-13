@@ -816,8 +816,16 @@ public class RDS implements RelationalDatabaseSupport {
         window.setEndMinute(endMinute);
         return window;
     }
-    
-    private String getEngineString(DatabaseEngine engine) {
+
+    /**
+     * Get Amazon-specific engine name
+     * @param engine database engine
+     * @return Amazon-spefic engine name, returns 'MySQL' if engine was null.
+     */
+    private String getEngineString(@Nullable DatabaseEngine engine) {
+        if( engine == null ) {
+            return AWS_ENGINE_MYSQL;
+        }
         switch( engine ) {
             case ORACLE_SE1: return AWS_ENGINE_ORACLE_SE1;
             case ORACLE_SE: return AWS_ENGINE_ORACLE_SE;
