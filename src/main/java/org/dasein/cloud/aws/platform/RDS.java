@@ -817,8 +817,16 @@ public class RDS implements RelationalDatabaseSupport {
         window.setEndMinute(endMinute);
         return window;
     }
-    
-    private String getEngineString(DatabaseEngine engine) {
+
+    /**
+     * Get Amazon-specific engine name
+     * @param engine database engine
+     * @return Amazon-spefic engine name, returns 'MySQL' if engine was null.
+     */
+    private String getEngineString(@Nullable DatabaseEngine engine) {
+        if( engine == null ) {
+            return AWS_ENGINE_MYSQL;
+        }
         switch( engine ) {
             case ORACLE_SE1: return AWS_ENGINE_ORACLE_SE1;
             case ORACLE_SE: return AWS_ENGINE_ORACLE_SE;
@@ -1920,6 +1928,7 @@ public class RDS implements RelationalDatabaseSupport {
                 String val = attr.getFirstChild().getNodeValue().trim();
                 
                 if( val != null ) {
+                    // TODO: do we need engine version in Database?
                     engineVersion = val.toLowerCase().trim();
                 }
             }
@@ -1930,7 +1939,9 @@ public class RDS implements RelationalDatabaseSupport {
             }
             else if(name.equalsIgnoreCase("DBInstanceIdentifier") ) {
                 db.setProviderDatabaseId(attr.getFirstChild().getNodeValue().trim());
-                db.setName(db.getProviderDatabaseId());
+            }
+            else if(name.equalsIgnoreCase("DBName")) {
+                db.setName(AWSCloud.getTextValue(attr));
             }
             else if( name.equalsIgnoreCase("MultiAZ") ) {
                 db.setHighAvailability(attr.getFirstChild().getNodeValue().equalsIgnoreCase("true"));
@@ -2055,13 +2066,9 @@ public class RDS implements RelationalDatabaseSupport {
                 return null;
             }
         }
-//        if( engineVersion != null ) {
-//            if( db.getEngine().isMySQL() ) {
-//                if( engineVersion.startsWith("5.5") ) {
-//                    db.setEngine(DatabaseEngine.MYSQL55);
-//                }
-//            }
-//        }
+        if( db.getName() == null ) {
+            db.setName(db.getProviderDatabaseId());
+        }
         return db;
     }
 
