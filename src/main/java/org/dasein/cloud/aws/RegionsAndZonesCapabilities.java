@@ -38,4 +38,9 @@ public class RegionsAndZonesCapabilities extends AbstractCapabilities<AWSCloud> 
     public boolean supportsStoragePools() {
         return false;
     }
+
+    @Override
+    public boolean supportsFolders() {
+        return false;
+    }
 }
