@@ -1630,7 +1630,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             if( entry.getKey().equalsIgnoreCase("name") || entry.getKey().equalsIgnoreCase("description") ) {
                 continue;
             }
-            tags.add(new Tag(entry.getKey(), entry.getValue().toString()));
+            // Tag value can be null, make sure we are careful
+            tags.add(new Tag(entry.getKey(), entry.getValue() == null ? "" : entry.getValue().toString()));
         }
         tags.add(new Tag("Name", cfg.getFriendlyName()));
         tags.add(new Tag("Description", cfg.getDescription()));
