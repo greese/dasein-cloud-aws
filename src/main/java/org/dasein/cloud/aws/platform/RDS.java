@@ -39,6 +39,7 @@ import org.dasein.cloud.aws.model.DatabaseProvider;
 import org.dasein.cloud.aws.model.DatabaseRegion;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.*;
+import static org.dasein.cloud.platform.DatabaseEngine.*;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.CalendarWrapper;
 import org.dasein.util.Jiterator;
@@ -274,6 +275,10 @@ public class RDS implements RelationalDatabaseSupport {
             parameters.put("MasterUsername", withAdminUser);
             parameters.put("MasterUserPassword", withAdminPassword);
             parameters.put("Port", String.valueOf(hostPort));
+            if( !isSQLServer(product.getEngine()) ) {
+                String instanceName = toInstanceName(databaseName, product.getEngine());
+                parameters.put("DBName", instanceName);
+            }
 
             String ec2Type = provider.getDataCenterServices().isRegionEC2VPC(provider.getContext().getRegionId());
             if(ec2Type.equals(AWSCloud.PLATFORM_EC2)){
@@ -2138,7 +2143,51 @@ public class RDS implements RelationalDatabaseSupport {
             return DatabaseState.PENDING;
         }
     }
-    
+
+    private String toInstanceName(String rawName, DatabaseEngine forEngine) {
+        StringBuilder str = new StringBuilder();
+
+        if( rawName.length() < 1 ) {
+            return "x";
+        }
+        if(isMySQL(forEngine) || isOracle(forEngine)) {
+            if( !Character.isLetter(rawName.charAt(0)) ) {
+                rawName = "db" + rawName;
+            }
+        }
+        else {
+            if( !Character.isLetter(rawName.charAt(0)) && rawName.charAt(0) != '_' ) {
+                rawName = "db" + rawName;
+            }
+        }
+        char last = '\0';
+        for( int i=0; i<rawName.length(); i++ ) {
+            char c = rawName.charAt(i);
+            if( Character.isLetterOrDigit(c) ) {
+                str.append(c);
+            }
+            else if( isPostgres(forEngine) && c == '_') {
+                str.append(c);
+            }
+            last = c;
+        }
+        rawName = str.toString();
+        int maxLength = 64;
+        if( isOracle(forEngine) ) {
+            maxLength = 8;
+        }
+        else if( isPostgres(forEngine) ) {
+            maxLength = 63;
+        }
+        if( rawName.length() > maxLength ) {
+            rawName = rawName.substring(0, maxLength);
+        }
+        if( rawName.length() < 1 ) {
+            return "x";
+        }
+        return rawName;
+    }
+
     private String toIdentifier(String rawName) {
         StringBuilder str = new StringBuilder();
         
@@ -2256,4 +2305,23 @@ public class RDS implements RelationalDatabaseSupport {
         }
         return snapshot;
     }
+
+    // TODO: to avoid having to have helpers like the ones below, introduce a notion of 'family'
+    // in database engines in core. at the very least, move them to core
+    private boolean isMySQL(DatabaseEngine engine) {
+        return( engine == DatabaseEngine.MYSQL );
+    }
+
+    private boolean isOracle(DatabaseEngine engine) {
+        return Arrays.asList(ORACLE_EE, ORACLE_SE, ORACLE_SE1).contains(engine);
+    }
+
+    private boolean isSQLServer(DatabaseEngine engine) {
+        return Arrays.asList(SQLSERVER_WEB, SQLSERVER_SE, SQLSERVER_EX, SQLSERVER_EE).contains(engine);
+    }
+
+    private boolean isPostgres(DatabaseEngine engine) {
+        return(engine == POSTGRES);
+    }
+
 }
