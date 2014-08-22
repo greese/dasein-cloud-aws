@@ -901,11 +901,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
-    public LoadBalancerHealthCheck createLoadBalancerHealthCheck(@Nullable String name, @Nullable String description, @Nullable String host, @Nullable LoadBalancerHealthCheck.HCProtocol protocol, int port, @Nullable String path, int interval, int timeout, int healthyCount, int unhealthyCount) throws CloudException, InternalException{
-        return createLoadBalancerHealthCheck(HealthCheckOptions.getInstance(name, description, null, host, protocol, port, path, interval, timeout, healthyCount, unhealthyCount));
-    }
-
-    @Override
     public LoadBalancerHealthCheck createLoadBalancerHealthCheck(@Nonnull HealthCheckOptions options)throws CloudException, InternalException{
         APITrace.begin(provider, "LB.configureHealthCheck");
         try {
