@@ -423,7 +423,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
                             Map<String,String> tags = options.getTags();
 
                             if( tags != null && !tags.isEmpty() ) {
-                                provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+                                AWSCloud.addExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
                             }
                         }
 
@@ -613,7 +613,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
                             Map<String,String> tags = options.getTags();
 
                             if( tags != null && !tags.isEmpty() ) {
-                                provider.putExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+                                AWSCloud.addExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
                                 SnapshotFilterOptions sfo = SnapshotFilterOptions.getInstance();
 
                                 if( options.getAccountNumber() != null ) {

@@ -1124,9 +1124,9 @@ public class AutoScaling extends AbstractAutoScalingSupport {
         try {
 
             Map<String, String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_NOTIFICATION_CONFIGURATIONS);
-            provider.putValueIfNotNull(parameters, "NextToken", token);
+            AWSCloud.addValueIfNotNull(parameters, "NextToken", token);
             for (int i = 0; i < scalingGroupIds.length; i++) {
-                provider.putValueIfNotNull(parameters, "AutoScalingGroupNames.member." + (i + 1), scalingGroupIds[i]);
+              AWSCloud.addValueIfNotNull(parameters, "AutoScalingGroupNames.member." + (i + 1), scalingGroupIds[i]);
             }
 
             EC2Method method = new EC2Method(provider, getAutoScalingUrl(), parameters);

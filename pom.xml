@@ -20,7 +20,7 @@
 
     <groupId>org.dasein</groupId>
     <artifactId>dasein-cloud-aws</artifactId>
-    <version>2014.07.1-SNAPSHOT</version>
+    <version>2015.01.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>dasein-cloud-aws</name>
@@ -63,7 +63,7 @@
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-core</artifactId>
-            <version>2014.07.1-SNAPSHOT</version>
+            <version>2015.01.1-SNAPSHOT</version>
             <scope>compile</scope>
             <optional>false</optional>
         </dependency>
@@ -78,6 +78,11 @@
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
             <version>4.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.1</version>
         </dependency>
         <dependency>
             <groupId>log4j</groupId>
@@ -98,11 +103,17 @@
             <version>20090211</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.4.1.1</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-test</artifactId>
-            <version>2014.07.1-SNAPSHOT</version>
+            <version>2015.01.1-SNAPSHOT</version>
             <scope>test</scope>
             <optional>false</optional>
         </dependency>
@@ -250,9 +261,9 @@
                             <value>${proxyPort}</value>
                         </property>			
                     </systemProperties>
-                    <includes>
-                        <include>**/TestSuite.java</include>
-                    </includes>
+                    <excludes>
+                        <exclude>**/TestSuite.java</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
             <plugin>

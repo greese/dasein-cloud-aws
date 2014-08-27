@@ -25,9 +25,7 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
-import org.dasein.cloud.dc.DataCenter;
-import org.dasein.cloud.dc.DataCenterServices;
-import org.dasein.cloud.dc.Region;
+import org.dasein.cloud.dc.*;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
@@ -62,6 +60,16 @@ public class RegionsAndZones implements DataCenterServices {
         }
 	}
 
+    private transient volatile RegionsAndZonesCapabilities capabilities;
+    @Nonnull
+    @Override
+    public DataCenterCapabilities getCapabilities() throws InternalException, CloudException {
+        if( capabilities == null ) {
+            capabilities = new RegionsAndZonesCapabilities(provider);
+        }
+        return capabilities;
+    }
+    
     private @Nonnull DataCenter getZone() {
         DataCenter dc = new DataCenter() ;
 
@@ -143,13 +151,25 @@ public class RegionsAndZones implements DataCenterServices {
 	}
 
 	@Override
+    @Deprecated
 	public String getProviderTermForDataCenter(Locale locale) {
-		return "availability zone";
+        try {
+            return getCapabilities().getProviderTermForDataCenter(locale);
+        } catch( InternalException e ) {
+        } catch( CloudException e ) {
+        }
+        return "availability zone"; // legacy
 	}
 
 	@Override
+    @Deprecated
 	public String getProviderTermForRegion(Locale locale) {
-		return "region";
+        try {
+            return getCapabilities().getProviderTermForRegion(locale);
+        } catch( InternalException e ) {
+        } catch( CloudException e ) {
+        }
+        return "region"; // legacy
 	}
 
     private @Nonnull Region getRegion() {
@@ -535,4 +555,37 @@ public class RegionsAndZones implements DataCenterServices {
 		}
 		return r;
 	}
+	
+	@Override
+	public Collection<ResourcePool> listResourcePools(String providerDataCenterId) throws InternalException, CloudException {
+		return Collections.emptyList();
+	}
+	
+	@Override
+	public ResourcePool getResourcePool(String providerResourcePoolId) throws InternalException, CloudException {
+		return null;
+	}
+
+    @Override
+    public @Nonnull Collection<StoragePool> listStoragePools() throws InternalException, CloudException {
+        return Collections.emptyList();
+    }
+
+    @Nonnull
+    @Override
+    public StoragePool getStoragePool(String providerStoragePoolId) throws InternalException, CloudException {
+        return null;
+    }
+
+    @Nonnull
+    @Override
+    public Collection<Folder> listVMFolders() throws InternalException, CloudException {
+        return Collections.emptyList();
+    }
+
+    @Nonnull
+    @Override
+    public Folder getVMFolder(String providerVMFolderId) throws InternalException, CloudException {
+        return null;
+    }
 }
