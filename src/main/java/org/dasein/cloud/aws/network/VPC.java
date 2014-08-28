@@ -124,7 +124,7 @@ public class VPC extends AbstractVLANSupport {
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ROUTE_TABLES);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -156,12 +156,28 @@ public class VPC extends AbstractVLANSupport {
                     if( item.getNodeName().equalsIgnoreCase("item") && item.hasChildNodes() ) {
                         NodeList attrs = item.getChildNodes();
 
+                        /**
+                         * AWS returns all route table associations in this response. This means other subnet
+                         * associations will be returned. We have to find the right association based on the
+                         * subnetId and use that one.
+                         */
+
+                        String foundSubnetId = null;
+                        String routeTableAssociationId = null;
+
                         for( int j = 0; j < attrs.getLength(); j++ ) {
                             Node attr = attrs.item(j);
 
-                            if( attr.getNodeName().equalsIgnoreCase("routeTableAssociationId") && attr.hasChildNodes() ) {
-                                return attr.getFirstChild().getNodeValue().trim();
+                            if ( attr.getNodeName().equalsIgnoreCase( "routeTableAssociationId" ) && attr.hasChildNodes() ) {
+                                routeTableAssociationId = AWSCloud.getTextValue( attr );
                             }
+                            else if ( attr.getNodeName().equalsIgnoreCase( "subnetId" ) && attr.hasChildNodes() ) {
+                                foundSubnetId = AWSCloud.getTextValue( attr );
+                            }
+                        }
+
+                        if ( subnetId.equalsIgnoreCase( foundSubnetId ) ) {
+                            return routeTableAssociationId;
                         }
                     }
                 }
@@ -2138,6 +2154,20 @@ public class VPC extends AbstractVLANSupport {
     }
 
     @Override
+    public void updateInternetGatewayTags(@Nonnull String[] internetGatewayIds, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
+        if (asynchronous) {
+            provider.createTags(internetGatewayIds, tags);
+        } else {
+            provider.createTagsSynchronously(internetGatewayIds, tags);
+        }
+    }
+
+    @Override
+    public void updateInternetGatewayTags(@Nonnull String internetGatewayId, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
+        updateInternetGatewayTags(new String[]{internetGatewayId}, asynchronous, tags);
+    }
+
+    @Override
     public void removeNetworkInterface(@Nonnull String nicId) throws CloudException, InternalException {
         APITrace.begin(provider, "VLAN.removeNetworkInterface");
         try {
@@ -2224,6 +2254,15 @@ public class VPC extends AbstractVLANSupport {
             provider.createTags(routingTableId, tags);
         } finally {
             APITrace.end();
+        }
+    }
+
+    @Override
+    public void updateRoutingTableTags(@Nonnull String routingTableId, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
+        if (asynchronous) {
+            provider.createTags(routingTableId, tags);
+        } else {
+            provider.createTagsSynchronously(routingTableId, tags);
         }
     }
 
@@ -2587,6 +2626,7 @@ public class VPC extends AbstractVLANSupport {
                 table.setRoutes(routes.toArray(new Route[routes.size()]));
             } else if( nodeName.equalsIgnoreCase("associationSet") && child.hasChildNodes() ) {
                 ArrayList<String> associations = new ArrayList<String>();
+                boolean main = false;   //default
                 NodeList set = child.getChildNodes();
                 for( int j = 0; j < set.getLength(); j++ ) {
                     Node item = set.item(j);
@@ -2597,6 +2637,8 @@ public class VPC extends AbstractVLANSupport {
                             Node attr = attrs.item(k);
                             if( attr.getNodeName().equalsIgnoreCase("subnetId") && attr.hasChildNodes() ) {
                                 subnet = attr.getFirstChild().getNodeValue().trim();
+                            } else if(attr.getNodeName().equalsIgnoreCase("main") && attr.hasChildNodes() ) {
+                                main = main || Boolean.valueOf(attr.getFirstChild().getNodeValue().trim());
                             }
                         }
                         if( subnet != null ) {
@@ -2604,6 +2646,7 @@ public class VPC extends AbstractVLANSupport {
                         }
                     }
                 }
+                table.setMain(main);
                 table.setProviderSubnetIds(associations.toArray(new String[associations.size()]));
             } else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
                 provider.setTags(child, table);
@@ -2870,6 +2913,20 @@ public class VPC extends AbstractVLANSupport {
     @Override
     public void updateSubnetTags(@Nonnull String[] subnetIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         ( (AWSCloud) getProvider() ).createTags(subnetIds, tags);
+    }
+
+    @Override
+    public void updateSubnetTags(@Nonnull String subnetId, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "Subnet.updateSubnetTags");
+        try {
+            if (asynchronous) {
+                ((AWSCloud) getProvider()).createTags(subnetId, tags);
+            } else {
+                ((AWSCloud) getProvider()).createTagsSynchronously(subnetId, tags);
+            }
+        } finally {
+            APITrace.end();
+        }
     }
 
     @Override

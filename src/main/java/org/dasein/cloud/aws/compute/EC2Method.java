@@ -78,6 +78,9 @@ public class EC2Method {
     static public final String UPDATE_AUTO_SCALING_GROUP        = "UpdateAutoScalingGroup";
     static public final String UPDATE_AUTO_SCALING_GROUP_TAGS   = "CreateOrUpdateTags";
     static public final String DELETE_AUTO_SCALING_GROUP_TAGS   = "DeleteTags";
+    static public final String DESCRIBE_TAGS = "DescribeTags";
+    static public final String PUT_NOTIFICATION_CONFIGURATION     = "PutNotificationConfiguration";
+    static public final String DESCRIBE_NOTIFICATION_CONFIGURATIONS = "DescribeNotificationConfigurations";
 
     static public @Nonnull ServiceAction[] asAutoScalingServiceAction(@Nonnull String action) {
         if( action.equals(CREATE_AUTO_SCALING_GROUP) ) {
@@ -135,6 +138,7 @@ public class EC2Method {
     // AMI operations
     static public final String BUNDLE_INSTANCE          = "BundleInstance";
     static public final String CREATE_IMAGE             = "CreateImage";
+    static public final String COPY_IMAGE               = "CopyImage";
     static public final String DESCRIBE_BUNDLE_TASKS    = "DescribeBundleTasks";
     static public final String DEREGISTER_IMAGE         = "DeregisterImage";
     static public final String DESCRIBE_IMAGE_ATTRIBUTE = "DescribeImageAttribute";
@@ -283,6 +287,9 @@ public class EC2Method {
         }
         else if( action.equals(CREATE_IMAGE) || action.equals(REGISTER_IMAGE) ) {
             return new ServiceAction[] { MachineImageSupport.REGISTER_IMAGE };
+        }
+        else if( action.equals(COPY_IMAGE) ) {
+            return new ServiceAction[] { MachineImageSupport.COPY_IMAGE };
         }
         else if( action.equals(DESCRIBE_BUNDLE_TASKS) ) {
             return new ServiceAction[0];
@@ -644,6 +651,9 @@ public class EC2Method {
 
             attempts++;
             post.addHeader("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
+            if ( provider.isDebug() ) {
+                post.addHeader("Connection", "close");
+            }
 
             List<NameValuePair> params = new ArrayList<NameValuePair>();
 
