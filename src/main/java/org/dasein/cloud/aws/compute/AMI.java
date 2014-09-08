@@ -1483,7 +1483,7 @@ public class AMI extends AbstractImageSupport {
         }
         NodeList attributes = node.getChildNodes();
         MachineImage image = new MachineImage();
-        Collection<MachineImageVolume> volumes = null;
+        Collection<MachineImageVolume> volumes = new ArrayList<MachineImageVolume>();
         String location = null;
 
         image.setSoftware(""); // TODO: guess software
@@ -1615,45 +1615,50 @@ public class AMI extends AbstractImageSupport {
             else if ( name.equals("tagSet")) {
                 provider.setTags( attribute, image );
             }
-            else if (name.equalsIgnoreCase("blockDeviceMapping")) {
+            else if( name.equalsIgnoreCase("blockDeviceMapping") ) {
 
-                if (attribute.hasChildNodes()) {
+                if( attribute.hasChildNodes() ) {
                     NodeList devices = attribute.getChildNodes();
-                    volumes = new ArrayList<MachineImageVolume>();
 
-                    for (int z = 0; z < devices.getLength(); z++) {
+                    for( int z = 0; z < devices.getLength(); z++ ) {
                         NodeList param = devices.item(z).getChildNodes();
-                        MachineImageVolume volume = new MachineImageVolume();
+                        String deviceName = null;
+                        String snapshotId = null;
+                        Integer volumeSize = null;
+                        String volumeType = null;
+                        Integer iops = null;
 
-                        if (devices.item(z).getNodeName().equalsIgnoreCase("item")) {
-                            for (int j = 0; j < param.getLength(); j++) {
+                        if( devices.item(z).getNodeName().equalsIgnoreCase("item") ) {
+                            for( int j = 0; j < param.getLength(); j++ ) {
                                 String nodeName = param.item(j).getNodeName();
 
-                                if (nodeName.equalsIgnoreCase("deviceName")) {
-                                    volume.setDeviceName(param.item(j).getFirstChild().getNodeValue().trim());
-                                } else if (nodeName.equalsIgnoreCase("ebs")) {
+                                if( nodeName.equalsIgnoreCase("deviceName") ) {
+                                    deviceName = param.item(j).getFirstChild().getNodeValue().trim();
+                                }
+                                else if( nodeName.equalsIgnoreCase("ebs") ) {
                                     NodeList ebs = param.item(j).getChildNodes();
 
-                                    for (int k = 0; k < ebs.getLength(); k++) {
+                                    for( int k = 0; k < ebs.getLength(); k++ ) {
                                         String ebsName = ebs.item(k).getNodeName();
 
-                                        if (ebsName.equalsIgnoreCase("snapshotId")) {
-                                            volume.setSnapshotId(ebs.item(k).getFirstChild().getNodeValue().trim());
-                                        } else if (ebsName.equalsIgnoreCase("volumeSize")) {
-                                            volume.setVolumeSize(Integer.valueOf(ebs.item(k).getFirstChild().getNodeValue().trim()));
-                                        } else if (ebsName.equalsIgnoreCase("volumeType")) {
-                                            volume.setVolumeType(ebs.item(k).getFirstChild().getNodeValue().trim());
-                                        } else if (ebsName.equalsIgnoreCase("iops")) {
-                                            volume.setIops(Integer.valueOf(ebs.item(k).getFirstChild().getNodeValue().trim()));
+                                        if( ebsName.equalsIgnoreCase("snapshotId") ) {
+                                            snapshotId = ebs.item(k).getFirstChild().getNodeValue().trim();
+                                        }
+                                        else if( ebsName.equalsIgnoreCase("volumeSize") ) {
+                                            volumeSize = Integer.valueOf(ebs.item(k).getFirstChild().getNodeValue().trim());
+                                        }
+                                        else if( ebsName.equalsIgnoreCase("volumeType") ) {
+                                            volumeType = ebs.item(k).getFirstChild().getNodeValue().trim();
+                                        }
+                                        else if( ebsName.equalsIgnoreCase("iops") ) {
+                                            iops = Integer.valueOf(ebs.item(k).getFirstChild().getNodeValue().trim());
                                         }
                                     }
                                 }
                             }
 
-                            if (volume.getDeviceName() != null || volume.getIops() != null
-                                    || volume.getDeviceName() != null || volume.getVolumeSize() != null
-                                    || volume.getVolumeType() != null) {
-                                volumes.add(volume);
+                            if( deviceName != null || snapshotId != null || volumeSize != null || volumeType != null || iops != null ) {
+                                volumes.add(MachineImageVolume.getInstance(deviceName, snapshotId, volumeSize, volumeType, iops));
                             }
                         }
                     }
@@ -1697,9 +1702,8 @@ public class AMI extends AbstractImageSupport {
         if( !provider.getEC2Provider().isAWS() ) {
             image.setProviderOwnerId(ctx.getAccountNumber());
         }
-        if (volumes != null) {
-            image.setVolumes(volumes);
-        }
+
+        image.setVolumes(volumes);
         return image;
     }
 
