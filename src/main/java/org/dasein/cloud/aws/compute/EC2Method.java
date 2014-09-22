@@ -29,10 +29,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudErrorType;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.*;
 import org.dasein.cloud.admin.PrepaymentSupport;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.*;
@@ -644,6 +641,10 @@ public class EC2Method {
 
             attempts++;
             post.addHeader("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
+            RequestTrackingStrategy strategy = provider.getContext().getRequestTrackingStrategy();
+            if(strategy != null && strategy.getSendAsHeader()){
+                post.addHeader(strategy.getHeaderName(), strategy.getRequestID());
+            }
 
             List<NameValuePair> params = new ArrayList<NameValuePair>();
 
