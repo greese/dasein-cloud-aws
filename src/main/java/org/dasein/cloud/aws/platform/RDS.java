@@ -26,11 +26,7 @@ import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.DayOfWeek;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ResourceStatus;
-import org.dasein.cloud.TimeWindow;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
@@ -1854,7 +1850,27 @@ public class RDS implements RelationalDatabaseSupport {
             APITrace.end();
         }
     }
-    
+
+    @Override
+    public DatabaseBackup getBackup( String providerDbBackupId ) throws CloudException, InternalException {
+        throw new OperationNotSupportedException(provider.getCloudName() + " does not support database backups.");
+    }
+
+    @Override
+    public Iterable<DatabaseBackup> listBackups( String forOptionalProviderDatabaseId ) throws CloudException, InternalException {
+        throw new OperationNotSupportedException(provider.getCloudName() + " does not support database backups.");
+    }
+
+    @Override
+    public String createFromBackup( String dataSourceName, String providerDatabaseId, String providerDbBackupId, String productSize, String providerDataCenterId, int hostPort ) throws CloudException, InternalException {
+        throw new OperationNotSupportedException(provider.getCloudName() + " does not support database backups.");
+    }
+
+    @Override
+    public boolean removeBackup( String providerBackupId ) throws CloudException, InternalException {
+        throw new OperationNotSupportedException(provider.getCloudName() + " does not support database backups.");
+    }
+
     private DatabaseConfiguration toConfiguration(Node cfgNode) throws CloudException {
         String id = null, cfgName = null, description = null;
         DatabaseEngine engine = DatabaseEngine.MYSQL; //default

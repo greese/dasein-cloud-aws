@@ -82,4 +82,34 @@ public class RDSCapabilities extends AbstractCapabilities<AWSCloud> implements R
     public boolean isSupportsSnapshots() throws CloudException, InternalException {
         return true;
     }
+
+    @Override
+    public String getProviderTermForBackup( Locale locale ) {
+        return "Backup";
+    }
+
+    @Override
+    public boolean isSuppotsDatabaseBackups() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean isSuppotsScheduledDatabaseBackups() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean isSuppotsDemandBackups() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean isSupportsRestoreBackup() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean isSupportsDeleteBackup() throws CloudException, InternalException {
+        return false;
+    }
 }
