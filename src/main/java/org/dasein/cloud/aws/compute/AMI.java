@@ -40,7 +40,7 @@ import java.util.*;
 /**
  * @version 2013.01.1 Fixed a data consistency issue with AWS (issue #21)
  */
-public class AMI extends AbstractImageSupport {
+public class AMI extends AbstractImageSupport<AWSCloud> {
 	static private final Logger logger = Logger.getLogger(AMI.class);
 	
 	private AWSCloud provider = null;

@@ -642,8 +642,8 @@ public class EC2Method {
             attempts++;
             post.addHeader("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
             RequestTrackingStrategy strategy = provider.getContext().getRequestTrackingStrategy();
-            if(strategy != null && strategy.getSendAsHeader()){
-                post.addHeader(strategy.getHeaderName(), strategy.getRequestID());
+            if( strategy != null && strategy.getSendAsHeader() ){
+                post.addHeader(strategy.getHeaderName(), strategy.getRequestId());
             }
 
             List<NameValuePair> params = new ArrayList<NameValuePair>();
