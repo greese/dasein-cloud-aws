@@ -506,7 +506,7 @@ public class EBSVolume extends AbstractVolumeSupport {
     public void updateTags(@Nonnull String[] volumeIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Volume.updateTags");
         try {
-            provider.createTags( volumeIds, tags );
+            provider.createTags(volumeIds, tags);
         }
         finally {
             APITrace.end();

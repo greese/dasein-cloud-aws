@@ -89,17 +89,17 @@ public class RDSCapabilities extends AbstractCapabilities<AWSCloud> implements R
     }
 
     @Override
-    public boolean isSuppotsDatabaseBackups() throws CloudException, InternalException {
+    public boolean isSupportsDatabaseBackups() throws CloudException, InternalException {
         return false;
     }
 
     @Override
-    public boolean isSuppotsScheduledDatabaseBackups() throws CloudException, InternalException {
+    public boolean isSupportsScheduledDatabaseBackups() throws CloudException, InternalException {
         return false;
     }
 
     @Override
-    public boolean isSuppotsDemandBackups() throws CloudException, InternalException {
+    public boolean isSupportsDemandBackups() throws CloudException, InternalException {
         return false;
     }
 

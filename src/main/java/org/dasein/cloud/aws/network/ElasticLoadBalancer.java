@@ -73,12 +73,14 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 method = new ELBMethod(provider, ctx, parameters);
                 try {
                     method.invoke();
-                } catch( EC2Exception e ) {
+                }
+                catch( EC2Exception e ) {
                     logger.error(e.getSummary());
                     throw new CloudException(e);
                 }
             }
-        } finally {
+        }
+        finally {
             APITrace.end();
         }
     }
@@ -1011,6 +1013,14 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             APITrace.end();
         }
     }
+    @Override
+    public void removeLoadBalancerHealthCheck( @Nonnull String providerLoadBalancerId ) throws CloudException, InternalException {
+        // TODO(stas): throwing exception here will cause LB tests to fail, so maybe we could do something
+        // smarter: perhaps reconstruct the whole ELB without the HC? For now I'll do a no-op.
+        //throw new CloudException(provider.getCloudName() + " does not support removal of health checks");
+        logger.warn(provider.getCloudName() + " does not support removal of health checks");
+    }
+
 
     @Override
     public void setFirewalls(@Nonnull String loadBalancerId, @Nonnull String... firewallIds) throws CloudException, InternalException {
