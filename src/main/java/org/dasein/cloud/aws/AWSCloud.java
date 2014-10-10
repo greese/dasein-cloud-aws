@@ -262,21 +262,28 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public boolean createTags( final String[] resourceIds, final Tag... keyValuePairs ) {
-        hold();
+        // TODO(stas): de-async experiment
+        boolean async = false;
+        if( async ) {
+            hold();
 
-        Thread t = new Thread() {
-            public void run() {
-                try {
-                    createTags(1, resourceIds, keyValuePairs);
-                } finally {
-                    release();
+            Thread t = new Thread() {
+                public void run() {
+                    try {
+                        createTags(1, resourceIds, keyValuePairs);
+                    }
+                    finally {
+                        release();
+                    }
                 }
-            }
-        };
+            };
 
-        t.setName("Tag Setter");
-        t.setDaemon(true);
-        t.start();
+            t.setName("Tag Setter");
+            t.setDaemon(true);
+            t.start();
+        } else {
+            createTags(1, resourceIds, keyValuePairs);
+        }
         return true;
     }
 
@@ -318,6 +325,7 @@ public class AWSCloud extends AbstractCloud {
                         Thread.sleep(5000L);
                     } catch( InterruptedException ignore ) {
                     }
+                    logger.warn("Retry attempt "+ (attempt + 1) + " to create tags for ["+resourceIds+"]");
                     createTags(attempt + 1, resourceIds, keyValuePairs);
                 }
             } catch( Throwable ignore ) {

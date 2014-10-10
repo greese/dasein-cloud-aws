@@ -37,7 +37,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -50,7 +49,7 @@ import java.util.TreeSet;
  * @since 2013.04
  * @version 2013.04 initial version (issue #8)
  */
-public class NetworkACL extends AbstractNetworkFirewallSupport {
+public class NetworkACL extends AbstractNetworkFirewallSupport<AWSCloud> {
     static private final Logger logger = AWSCloud.getLogger(NetworkACL.class);
 
     private NetworkACLCapabilities capabilities;
@@ -68,14 +67,14 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
             if( currentAssociation == null ) {
                 throw new CloudException("Unable to identify subnet association for " + withSubnetId);
             }
-            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.REPLACE_NETWORK_ACL_ASSOC);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), EC2Method.REPLACE_NETWORK_ACL_ASSOC);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("AssociationId", currentAssociation);
             parameters.put("NetworkAclId", firewallId);
-            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -111,7 +110,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
                 }
             }
 
-            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), currentRule == null ? EC2Method.CREATE_NETWORK_ACL_ENTRY : EC2Method.REPLACE_NETWORK_ACL_ENTRY);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), currentRule == null ? EC2Method.CREATE_NETWORK_ACL_ENTRY : EC2Method.REPLACE_NETWORK_ACL_ENTRY);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -141,7 +140,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
                 parameters.put("Icmp.Code", "-1");
                 parameters.put("Icmp.Type", "-1");
             }
-            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -166,7 +165,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
     public @Nonnull String createFirewall(@Nonnull FirewallCreateOptions options) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "NetworkFirewall.createFirewall");
         try {
-            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.CREATE_NETWORK_ACL);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), EC2Method.CREATE_NETWORK_ACL);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -179,7 +178,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
             else {
                 throw new CloudException("You must specify a VLAN with which to associate your network ACL");
             }
-            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -207,7 +206,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
                         tags.add(new Tag(key, value));
                     }
                 }
-                ((AWSCloud)getProvider()).createTags(id, tags.toArray(new Tag[tags.size()]));
+                getProvider().createTags(id, tags.toArray(new Tag[tags.size()]));
                 firewallId = id;
             }
             else {
@@ -236,7 +235,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
     @Override
     public NetworkFirewallCapabilities getCapabilities() {
         if( capabilities == null ) {
-            capabilities = new NetworkACLCapabilities((AWSCloud) getProvider());
+            capabilities = new NetworkACLCapabilities( getProvider());
         }
         return capabilities;
     }
@@ -244,14 +243,14 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
     private @Nullable String getCurrentAssociation(@Nonnull String subnetId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "NetworkFirewall.getCurrentACLAssociation");
         try {
-            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("Filter.1.Name", "association.subnet-id");
             parameters.put("Filter.1.Value.1", subnetId);
-            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -300,13 +299,13 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
     public @Nullable Firewall getFirewall(@Nonnull String firewallId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "NetworkFirewall.getFirewall");
         try {
-            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("NetworkAclId.1", firewallId);
-            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -371,13 +370,13 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
     public @Nonnull Collection<Firewall> listFirewalls() throws InternalException, CloudException {
         APITrace.begin(getProvider(), "NetworkFirewall.listFirewalls");
         try {
-            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
             ArrayList<Firewall> list = new ArrayList<Firewall>();
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -412,13 +411,13 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
     public @Nonnull Iterable<FirewallRule> listRules(@Nonnull String firewallId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "NetworkFirewall.listRules");
         try {
-            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), EC2Method.DESCRIBE_NETWORK_ACLS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("NetworkAclId.1", firewallId);
-            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -543,13 +542,13 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
                         }
                     }
 
-                    Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DELETE_NETWORK_ACL);
+                    Map<String,String> parameters = getProvider().getStandardParameters(getContext(), EC2Method.DELETE_NETWORK_ACL);
                     EC2Method method;
                     NodeList blocks;
                     Document doc;
 
                     parameters.put("NetworkAclId", id);
-                    method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+                    method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
                     try {
                         doc = method.invoke();
                     }
@@ -580,7 +579,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
     public void removeTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "NetworkFirewall.removeTags");
         try {
-            ((AWSCloud)getProvider()).removeTags(firewallIds, tags);
+            getProvider().removeTags(firewallIds, tags);
         }
         finally {
             APITrace.end();
@@ -591,7 +590,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
     public void revoke(@Nonnull String providerFirewallRuleId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "NetworkFirewall.revoke");
         try {
-            Map<String,String> parameters = ((AWSCloud)getProvider()).getStandardParameters(getContext(), EC2Method.DELETE_NETWORK_ACL_ENTRY);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), EC2Method.DELETE_NETWORK_ACL_ENTRY);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -603,7 +602,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
             parameters.put("NetworkAclId", parts[0]);
             parameters.put("Egress", String.valueOf(parts[1].equalsIgnoreCase(Direction.EGRESS.name())));
             parameters.put("RuleNumber", parts[2]);
-            method = new EC2Method((AWSCloud)getProvider(), ((AWSCloud)getProvider()).getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -632,7 +631,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
     public void updateTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "NetworkFirewall.updateTags");
         try {
-            ((AWSCloud)getProvider()).createTags(firewallIds, tags);
+            getProvider().createTags(firewallIds, tags);
         }
         finally {
             APITrace.end();
@@ -688,7 +687,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport {
                 firewall.setSubnetAssociations(subnets.toArray(new String[subnets.size()]));
             }
             else if ( attribute.getNodeName().equalsIgnoreCase("tagSet")) {
-                ((AWSCloud)getProvider()).setTags( attribute, firewall );
+                getProvider().setTags( attribute, firewall );
             }
         }
 
