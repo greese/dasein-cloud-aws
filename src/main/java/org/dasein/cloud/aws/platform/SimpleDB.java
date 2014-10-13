@@ -20,6 +20,8 @@
 package org.dasein.cloud.aws.platform;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +44,8 @@ import org.dasein.cloud.platform.KeyValueDatabaseCapabilities;
 import org.dasein.cloud.platform.KeyValueDatabaseSupport;
 import org.dasein.cloud.platform.KeyValuePair;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -299,21 +303,30 @@ public class SimpleDB implements KeyValueDatabaseSupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "KVDB.isSubscribed");
         try {
+            Cache<Map> cache = Cache.getInstance(provider, "KVDB.isSubscribed", Map.class, CacheLevel.REGION_ACCOUNT);
+            Collection<Map> subscribed = (Collection<Map>)cache.get(provider.getContext());
+            if (subscribed != null) {
+                return ((Boolean)subscribed.iterator().next().get(AWSCloud.TRUTHMAP_KEY)).booleanValue();
+            }
+
             Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), LIST_DOMAINS);
             EC2Method method;
 
             method = new EC2Method(provider, getSimpleDBUrl(), parameters);
             try {
                 method.invoke();
+                cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
                 return true;
             }
             catch( EC2Exception e ) {
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
                     return false;
                 }
                 String code = e.getCode();
 
                 if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
+                    cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
                     return false;
                 }
                 logger.warn(e.getSummary());

@@ -1115,19 +1115,28 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     public boolean isSubscribed() throws InternalException, CloudException {
         APITrace.begin(getProvider(), "isSubscribedVirtualMachine");
         try {
+            Cache<Map> cache = Cache.getInstance(getProvider(), "isSubscribedVirtualMachine", Map.class, CacheLevel.REGION_ACCOUNT);
+            Collection<Map> subscribed = (Collection<Map>)cache.get(getContext());
+            if (subscribed != null) {
+                return ((Boolean)subscribed.iterator().next().get(AWSCloud.TRUTHMAP_KEY)).booleanValue();
+            }
+
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCES);
             EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
 
             try {
                 method.invoke();
+                cache.put(getContext(), Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
                 return true;
             } catch( EC2Exception e ) {
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    cache.put(getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
                     return false;
                 }
                 String code = e.getCode();
 
                 if( code != null && code.equals("SignatureDoesNotMatch") ) {
+                    cache.put(getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
                     return false;
                 }
                 logger.warn(e.getSummary());

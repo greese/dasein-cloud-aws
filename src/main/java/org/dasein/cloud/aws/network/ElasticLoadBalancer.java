@@ -30,6 +30,8 @@ import org.dasein.cloud.aws.identity.SSLCertificateResourceName;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -469,20 +471,30 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 if( !provider.getEC2Provider().isAWS() ) {
                     return false;
                 }
+
+                Cache<Map> cache = Cache.getInstance(getProvider(), "LB.isSubscribed", Map.class, CacheLevel.REGION_ACCOUNT);
+                Collection<Map> subscribed = (Collection<Map>)cache.get(getContext());
+                if (subscribed != null) {
+                    return ((Boolean)subscribed.iterator().next().get(AWSCloud.TRUTHMAP_KEY)).booleanValue();
+                }
+
                 Map<String, String> parameters = getELBParameters(provider.getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
                 ELBMethod method;
 
                 method = new ELBMethod(provider, ctx, parameters);
                 try {
                     method.invoke();
+                    cache.put(ctx, Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
                     return true;
                 } catch( EC2Exception e ) {
                     if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                        cache.put(ctx, Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
                         return false;
                     }
                     String code = e.getCode();
 
                     if( code != null && ( code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired") ) ) {
+                        cache.put(ctx, Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
                         return false;
                     }
                     throw new CloudException(e);

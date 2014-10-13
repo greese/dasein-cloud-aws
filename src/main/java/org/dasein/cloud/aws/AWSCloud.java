@@ -122,6 +122,10 @@ public class AWSCloud extends AbstractCloud {
     static public final String PLATFORM_EC2                     = "EC2";
     static public final String PLATFORM_VPC                     = "VPC";
 
+    static public final String TRUTHMAP_KEY = "TruthMapKey";
+    static public final Map TRUTHMAP_TRUE = Collections.singletonMap(TRUTHMAP_KEY, Boolean.TRUE);
+    static public final Map TRUTHMAP_FALSE = Collections.singletonMap(TRUTHMAP_KEY, Boolean.FALSE);
+
 
     static public @Nonnull String encode( @Nonnull String value, boolean encodePath ) throws InternalException {
         String encoded;

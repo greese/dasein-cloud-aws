@@ -28,6 +28,8 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
 import org.w3c.dom.Document;
@@ -42,6 +44,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -517,18 +520,26 @@ public class AutoScaling implements AutoScalingSupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.isSubscribed");
         try {
+            Cache<Map> cache = Cache.getInstance(provider, "AutoScaling.isSubscribed", Map.class, CacheLevel.REGION_ACCOUNT);
+            Collection<Map> subscribed = (Collection<Map>)cache.get(provider.getContext());
+            if (subscribed != null) {
+                return ((Boolean)subscribed.iterator().next().get(AWSCloud.TRUTHMAP_KEY)).booleanValue();
+            }
+
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_AUTO_SCALING_GROUPS);
             EC2Method method;
 
             method = new EC2Method(provider, getAutoScalingUrl(), parameters);
             try {
                 method.invoke();
+                cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
                 return true;
             }
             catch( EC2Exception e ) {
                 String msg = e.getSummary();
 
                 if( msg != null && msg.contains("not able to validate the provided access credentials") ) {
+                    cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
                     return false;
                 }
                 logger.error("AWS Error checking subscription: " + e.getCode() + "/" + e.getSummary());

@@ -30,6 +30,8 @@ import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
 import org.dasein.util.PopulatorThread;
@@ -1295,20 +1297,29 @@ public class VPC extends AbstractVLANSupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "VLAN.isSubscribed");
         try {
+            Cache<Map> cache = Cache.getInstance(getProvider(), "VLAN.isSubscribed", Map.class, CacheLevel.REGION_ACCOUNT);
+            Collection<Map> subscribed = (Collection<Map>)cache.get(getContext());
+            if (subscribed != null) {
+                return ((Boolean)subscribed.iterator().next().get(AWSCloud.TRUTHMAP_KEY)).booleanValue();
+            }
+
             Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
             EC2Method method;
 
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 method.invoke();
+                cache.put(getContext(), Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
                 return true;
             } catch( EC2Exception e ) {
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    cache.put(getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
                     return false;
                 }
                 String code = e.getCode();
 
                 if( code != null && ( code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("UnsupportedOperation") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired") ) ) {
+                    cache.put(getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
                     return false;
                 }
                 logger.error(e.getSummary());

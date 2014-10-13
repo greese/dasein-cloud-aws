@@ -25,6 +25,8 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.storage.*;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.dasein.cloud.util.NamingConstraints;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
@@ -233,11 +235,20 @@ public class Glacier implements OfflineStoreSupport {
             if( regionId == null ) {
                 throw new CloudException("No region ID was specified");
             }
+
+            Cache<Map> cache = Cache.getInstance(provider, "Glacier.isSubscribed", Map.class, CacheLevel.REGION_ACCOUNT);
+            Collection<Map> subscribed = (Collection<Map>)cache.get(provider.getContext());
+            if (subscribed != null) {
+                return ((Boolean)subscribed.iterator().next().get(AWSCloud.TRUTHMAP_KEY)).booleanValue();
+            }
+
             try {
                 GlacierMethod method = GlacierMethod.build(provider, GlacierAction.LIST_VAULTS).toMethod();
                 method.invoke();
+                cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
                 return true;
             } catch (CloudException e) {
+                cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
                 return false;
             }
         }
