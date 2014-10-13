@@ -55,7 +55,7 @@ import static org.dasein.cloud.platform.DatabaseLicenseModel.*;
  * @version 2014.08 deprecated methods moved to capabilities
  * @since ?
  */
-public class RDS implements RelationalDatabaseSupport {
+public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
     static private final Logger logger = AWSCloud.getLogger(RDS.class);
     
     static public final String AUTHORIZE_DB_SECURITY_GROUP_INGRESS = "AuthorizeDBSecurityGroupIngress";
@@ -99,14 +99,12 @@ public class RDS implements RelationalDatabaseSupport {
 
     private volatile transient RDSCapabilities capabilities;
 
-    private AWSCloud provider;
-    
     RDS(AWSCloud provider) {
-        this.provider = provider;
+        super(provider);
     }
     
     public void addAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.addAccess");
+        APITrace.begin(getProvider(), "RDBMS.addAccess");
         try {
             Iterator<String> securityGroups = getSecurityGroups(providerDatabaseId).iterator();
             String id;
@@ -119,12 +117,12 @@ public class RDS implements RelationalDatabaseSupport {
                 id = securityGroups.next();
             }
 
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), AUTHORIZE_DB_SECURITY_GROUP_INGRESS);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), AUTHORIZE_DB_SECURITY_GROUP_INGRESS);
             EC2Method method;
 
             parameters.put("DBSecurityGroupName", id);
             parameters.put("CIDRIP", sourceCidr);
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 method.invoke();
             }
@@ -171,9 +169,9 @@ public class RDS implements RelationalDatabaseSupport {
     
     @Override
     public void alterDatabase(String providerDatabaseId, boolean applyImmediately, String productSize, int storageInGigabytes, String configurationId, String newAdminUser, String newAdminPassword, int newPort, int snapshotRetentionInDays, TimeWindow preferredMaintenanceWindow, TimeWindow preferredBackupWindow) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.alterDatabase");
+        APITrace.begin(getProvider(), "RDBMS.alterDatabase");
         try {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), MODIFY_DB_INSTANCE);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), MODIFY_DB_INSTANCE);
             EC2Method method;
 
             parameters.put("DBInstanceIdentifier", providerDatabaseId);
@@ -203,7 +201,7 @@ public class RDS implements RelationalDatabaseSupport {
             if( snapshotRetentionInDays > -1 ) {
                 parameters.put("BackupRetentionPeriod", String.valueOf(snapshotRetentionInDays));
             }
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 method.invoke();
             }
@@ -217,14 +215,14 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private String createSecurityGroup(String id) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.createSecurityGroup");
+        APITrace.begin(getProvider(), "RDBMS.createSecurityGroup");
         try {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_SECURITY_GROUP);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), CREATE_DB_SECURITY_GROUP);
             EC2Method method;
 
             parameters.put("DBSecurityGroupName", id);
             parameters.put("DBSecurityGroupDescription", "Auto-generated DB security group for " + id);
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 method.invoke();
             }
@@ -245,7 +243,7 @@ public class RDS implements RelationalDatabaseSupport {
     
     @Override
     public String createFromScratch(String databaseName, DatabaseProduct product, String engineVersion, String withAdminUser, String withAdminPassword, int hostPort) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.createFromScratch");
+        APITrace.begin(getProvider(), "RDBMS.createFromScratch");
         try {
             Map<String,String> parameters;
             String id = toIdentifier(databaseName);
@@ -262,7 +260,7 @@ public class RDS implements RelationalDatabaseSupport {
                 size = 5;
             }
             
-            parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_INSTANCE);
+            parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), CREATE_DB_INSTANCE);
             parameters.put("DBInstanceIdentifier", id);
             parameters.put("AllocatedStorage", String.valueOf(size));
             parameters.put("DBInstanceClass", product.getProductSize());
@@ -276,7 +274,7 @@ public class RDS implements RelationalDatabaseSupport {
                 parameters.put("DBName", instanceName);
             }
 
-            String ec2Type = provider.getDataCenterServices().isRegionEC2VPC(provider.getContext().getRegionId());
+            String ec2Type = getProvider().getDataCenterServices().isRegionEC2VPC(getProvider().getContext().getRegionId());
             if(ec2Type.equals(AWSCloud.PLATFORM_EC2)){
                 String securityGroupId = createSecurityGroup(id);
                 parameters.put("DBSecurityGroups.member.1", securityGroupId);
@@ -304,7 +302,7 @@ public class RDS implements RelationalDatabaseSupport {
                 // set az if not empty, otherwise the region's default is used
                 parameters.put("AvailabilityZone", product.getProviderDataCenterId());
             }
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -323,7 +321,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public String createFromLatest(String databaseName, String providerDatabaseId, String productSize, String providerDataCenterId, int hostPort) throws InternalException, CloudException {
-        APITrace.begin(provider, "RDBMS.createFromLatest");
+        APITrace.begin(getProvider(), "RDBMS.createFromLatest");
         try {
             Map<String,String> parameters;
             String id = toIdentifier(databaseName);
@@ -331,7 +329,7 @@ public class RDS implements RelationalDatabaseSupport {
             NodeList blocks;
             Document doc;
 
-            parameters = provider.getStandardRdsParameters(provider.getContext(), RESTORE_DB_INSTANCE_TO_TIME);
+            parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), RESTORE_DB_INSTANCE_TO_TIME);
             parameters.put("SourceDBInstanceIdentifier", providerDatabaseId);
             parameters.put("UseLatestRestorableTime", "True");
             parameters.put("TargetDBInstanceIdentifier", id);
@@ -344,7 +342,7 @@ public class RDS implements RelationalDatabaseSupport {
                 parameters.put("AvailabilityZone", providerDataCenterId);
                 parameters.put("MultiAZ", "false");
             }
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -363,7 +361,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     public String createFromSnapshot(String databaseName, String providerDatabaseId, String providerDbSnapshotId, String productSize, String providerDataCenterId, int hostPort) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.createFromSnapshot");
+        APITrace.begin(getProvider(), "RDBMS.createFromSnapshot");
         try {
             Map<String,String> parameters;
             String id = toIdentifier(databaseName);
@@ -371,7 +369,7 @@ public class RDS implements RelationalDatabaseSupport {
             NodeList blocks;
             Document doc;
 
-            parameters = provider.getStandardRdsParameters(provider.getContext(), RESTORE_DB_INSTANCE_FROM_SNAPSHOT);
+            parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), RESTORE_DB_INSTANCE_FROM_SNAPSHOT);
             parameters.put("DBSnapshotIdentifier", providerDbSnapshotId);
             parameters.put("DBInstanceIdentifier", id);
             parameters.put("DBInstanceClass", productSize);
@@ -383,7 +381,7 @@ public class RDS implements RelationalDatabaseSupport {
                 parameters.put("AvailabilityZone", providerDataCenterId);
                 parameters.put("MultiAZ", "false");
             }
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -402,7 +400,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     public String createFromTimestamp(String databaseName, String providerDatabaseId, long beforeTimestamp, String productSize, String providerDataCenterId, int hostPort) throws InternalException, CloudException {
-        APITrace.begin(provider, "RDBMS.createFromTimestamp");
+        APITrace.begin(getProvider(), "RDBMS.createFromTimestamp");
         try {
             Map<String,String> parameters;
             String id = toIdentifier(databaseName);
@@ -410,9 +408,9 @@ public class RDS implements RelationalDatabaseSupport {
             NodeList blocks;
             Document doc;
 
-            parameters = provider.getStandardRdsParameters(provider.getContext(), RESTORE_DB_INSTANCE_TO_TIME);
+            parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), RESTORE_DB_INSTANCE_TO_TIME);
             parameters.put("SourceDBInstanceIdentifier", providerDatabaseId);
-            parameters.put("RestoreTime", provider.getTimestamp(beforeTimestamp, false));
+            parameters.put("RestoreTime", getProvider().getTimestamp(beforeTimestamp, false));
             parameters.put("TargetDBInstanceIdentifier", id);
             parameters.put("DBInstanceClass", productSize);
             parameters.put("Port", String.valueOf(hostPort));
@@ -423,7 +421,7 @@ public class RDS implements RelationalDatabaseSupport {
                 parameters.put("AvailabilityZone", providerDataCenterId);
                 parameters.put("MultiAZ", "false");
             }
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -444,7 +442,7 @@ public class RDS implements RelationalDatabaseSupport {
     @Override
     public @Nonnull RelationalDatabaseCapabilities getCapabilities() throws InternalException, CloudException {
         if( capabilities == null ) {
-            capabilities = new RDSCapabilities(provider);
+            capabilities = new RDSCapabilities(getProvider());
         }
         return capabilities;
     }
@@ -456,14 +454,14 @@ public class RDS implements RelationalDatabaseSupport {
         PopulatorThread<DatabaseConfiguration> populator;
         final String id = providerConfigurationId;
 
-        provider.hold();
+        getProvider().hold();
         populator = new PopulatorThread<DatabaseConfiguration>(new JiteratorPopulator<DatabaseConfiguration>() {
             public void populate(Jiterator<DatabaseConfiguration> iterator) throws CloudException, InternalException {
                 try {
                     populateConfigurationList(id, iterator);
                 }
                 finally {
-                    provider.release();
+                    getProvider().release();
                 }
             }
         });
@@ -477,7 +475,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     public Database getDatabase(String providerDatabaseId) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.getDatabase");
+        APITrace.begin(getProvider(), "RDBMS.getDatabase");
         try {
             if( providerDatabaseId == null ) {
                 return null;
@@ -519,18 +517,18 @@ public class RDS implements RelationalDatabaseSupport {
     
     @Override
     public String getDefaultVersion(DatabaseEngine forEngine) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.getDefaultVersion");
+        APITrace.begin(getProvider(), "RDBMS.getDefaultVersion");
         try {
             String version = defaultVersions.get(forEngine);
 
             if( version == null ) {
-                Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_ENGINE_VERSIONS);
+                Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DESCRIBE_DB_ENGINE_VERSIONS);
                 EC2Method method;
                 Document doc;
 
                 parameters.put("Engine", getEngineString(forEngine));
                 parameters.put("DefaultOnly", "true");
-                method = new EC2Method(provider, getRDSUrl(), parameters);
+                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -574,7 +572,7 @@ public class RDS implements RelationalDatabaseSupport {
     
     @Override
     public Iterable<String> getSupportedVersions(DatabaseEngine forEngine) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.getSupportedVersions");
+        APITrace.begin(getProvider(), "RDBMS.getSupportedVersions");
         try {
             Collection<String> versions = engineVersions.get(forEngine);
 
@@ -583,12 +581,12 @@ public class RDS implements RelationalDatabaseSupport {
                 String marker = null;
 
                 do {
-                    Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_ENGINE_VERSIONS);
+                    Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DESCRIBE_DB_ENGINE_VERSIONS);
                     EC2Method method;
                     Document doc;
 
                     parameters.put("Engine", getEngineString(forEngine));
-                    method = new EC2Method(provider, getRDSUrl(), parameters);
+                    method = new EC2Method(getProvider(), getRDSUrl(), parameters);
                     try {
                         doc = method.invoke();
                     }
@@ -658,7 +656,7 @@ public class RDS implements RelationalDatabaseSupport {
 
             if( databaseEngine != null ) {
                 for ( DatabaseRegion region : databaseEngine.getRegions() ) {
-                    if( region.getName().equalsIgnoreCase( provider.getContext().getRegionId()) ) {
+                    if( region.getName().equalsIgnoreCase( getProvider().getContext().getRegionId()) ) {
                         for( org.dasein.cloud.aws.model.DatabaseProduct databaseProduct : region.getProducts() ) {
                             DatabaseProduct product = new DatabaseProduct(databaseProduct.getName());
                             product.setEngine(engine);
@@ -864,21 +862,21 @@ public class RDS implements RelationalDatabaseSupport {
     
     private String getRDSUrl() throws InternalException, CloudException {
         //noinspection ConstantConditions
-        return ("https://rds." + provider.getContext().getRegionId() + ".amazonaws.com");
+        return ("https://rds." + getProvider().getContext().getRegionId() + ".amazonaws.com");
     }
     
     private Iterable<String> getSecurityGroups(String databaseId) throws CloudException, InternalException {
         PopulatorThread<String> populator;
         final String dbId = databaseId;
 
-        provider.hold();
+        getProvider().hold();
         populator = new PopulatorThread<String>(new JiteratorPopulator<String>() {
             public void populate(Jiterator<String> iterator) throws CloudException, InternalException {
                 try {
                     populateSecurityGroupIds(dbId, iterator);
                 }
                 finally {
-                    provider.release();
+                    getProvider().release();
                 }
             }
         });
@@ -893,14 +891,14 @@ public class RDS implements RelationalDatabaseSupport {
         PopulatorThread<DatabaseSnapshot> populator;
         final String id = providerDbSnapshotId;
 
-        provider.hold();
+        getProvider().hold();
         populator = new PopulatorThread<DatabaseSnapshot>(new JiteratorPopulator<DatabaseSnapshot>() {
             public void populate(Jiterator<DatabaseSnapshot> iterator) throws CloudException, InternalException {
                 try {
                     populateSnapshotList(id, null, iterator);
                 }
                 finally {
-                    provider.release();
+                    getProvider().release();
                 }
             }
         });
@@ -914,10 +912,10 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.isSubscribed");
+        APITrace.begin(getProvider(), "RDBMS.isSubscribed");
         try {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
-            EC2Method method = new EC2Method(provider, getRDSUrl(), parameters);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DESCRIBE_DB_INSTANCES);
+            EC2Method method = new EC2Method(getProvider(), getRDSUrl(), parameters);
 
             try {
                 method.invoke();
@@ -988,21 +986,21 @@ public class RDS implements RelationalDatabaseSupport {
         PopulatorThread<String> idPopulator, accessPopulator;
         final String dbId = toProviderDatabaseId;
 
-        provider.hold();
+        getProvider().hold();
         idPopulator = new PopulatorThread<String>(new JiteratorPopulator<String>() {
             public void populate(Jiterator<String> iterator) throws CloudException, InternalException {
                 try {
                     populateSecurityGroupIds(dbId, iterator);
                 }
                 finally {
-                    provider.release();
+                    getProvider().release();
                 }
             }
         });
         idPopulator.populate();
         
         final Iterable<String> ids = idPopulator.getResult();
-        provider.hold();
+        getProvider().hold();
         accessPopulator = new PopulatorThread<String>(new JiteratorPopulator<String>() {
             public void populate(Jiterator<String> iterator) throws CloudException, InternalException {
                 try {
@@ -1011,7 +1009,7 @@ public class RDS implements RelationalDatabaseSupport {
                     }
                 }
                 finally {
-                    provider.release();
+                    getProvider().release();
                 }
             }
         });
@@ -1033,13 +1031,13 @@ public class RDS implements RelationalDatabaseSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listDatabaseStatus() throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.listDatabaseStatus");
+        APITrace.begin(getProvider(), "RDBMS.listDatabaseStatus");
         try {
             ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
             String marker = null;
 
             do {
-                Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
+                Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DESCRIBE_DB_INSTANCES);
                 EC2Method method;
                 NodeList blocks;
                 Document doc;
@@ -1047,7 +1045,7 @@ public class RDS implements RelationalDatabaseSupport {
                 if( marker != null ) {
                     parameters.put("Marker", marker);
                 }
-                method = new EC2Method(provider, getRDSUrl(), parameters);
+                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -1097,13 +1095,13 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private Iterable<Database> listDatabases(String targetId) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.listDatabases");
+        APITrace.begin(getProvider(), "RDBMS.listDatabases");
         try {
             ArrayList<Database> list = new ArrayList<Database>();
             String marker = null;
 
             do {
-                Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
+                Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DESCRIBE_DB_INSTANCES);
                 EC2Method method;
                 NodeList blocks;
                 Document doc;
@@ -1114,7 +1112,7 @@ public class RDS implements RelationalDatabaseSupport {
                 if( targetId != null ) {
                     parameters.put("DBInstanceIdentifier", targetId);
                 }
-                method = new EC2Method(provider, getRDSUrl(), parameters);
+                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -1170,14 +1168,14 @@ public class RDS implements RelationalDatabaseSupport {
         PopulatorThread<ConfigurationParameter> populator;
         final String id = forProviderConfigurationId;
         
-        provider.hold();
+        getProvider().hold();
         populator = new PopulatorThread<ConfigurationParameter>(new JiteratorPopulator<ConfigurationParameter>() {
             public void populate(Jiterator<ConfigurationParameter> iterator) throws CloudException, InternalException {
                 try {
                     populateParameterList(id, null, iterator);
                 }
                 finally {
-                    provider.release();
+                    getProvider().release();
                 }
             }
         });
@@ -1189,14 +1187,14 @@ public class RDS implements RelationalDatabaseSupport {
         PopulatorThread<ConfigurationParameter> populator;
         final DatabaseEngine dbEngine = engine;
         
-        provider.hold();
+        getProvider().hold();
         populator = new PopulatorThread<ConfigurationParameter>(new JiteratorPopulator<ConfigurationParameter>() {
             public void populate(Jiterator<ConfigurationParameter> iterator) throws CloudException, InternalException {
                 try {
                     populateParameterList(null, dbEngine, iterator);
                 }
                 finally {
-                    provider.release();
+                    getProvider().release();
                 }
             }
         });
@@ -1207,7 +1205,7 @@ public class RDS implements RelationalDatabaseSupport {
     public Iterable<DatabaseSnapshot> listSnapshots(String forOptionalProviderDatabaseId) throws CloudException, InternalException {
         PopulatorThread<DatabaseSnapshot> populator;
         
-        provider.hold();
+        getProvider().hold();
         final String id = (forOptionalProviderDatabaseId == null ? null : forOptionalProviderDatabaseId);
         populator = new PopulatorThread<DatabaseSnapshot>(new JiteratorPopulator<DatabaseSnapshot>() {
             public void populate(Jiterator<DatabaseSnapshot> iterator) throws CloudException, InternalException {
@@ -1215,7 +1213,7 @@ public class RDS implements RelationalDatabaseSupport {
                     populateSnapshotList(null, id, iterator);
                 }
                 finally {
-                    provider.release();
+                    getProvider().release();
                 }
             }
         });
@@ -1229,15 +1227,15 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     private void populateAccess(String securityGroupId, Jiterator<String> iterator) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.populateDBSGAccess");
+        APITrace.begin(getProvider(), "RDBMS.populateDBSGAccess");
         try {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_SECURITY_GROUPS);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DESCRIBE_DB_SECURITY_GROUPS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("DBSecurityGroupName", securityGroupId);
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -1299,12 +1297,12 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private void populateConfigurationList(String targetId, Jiterator<DatabaseConfiguration> iterator) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.populateConfigurationList");
+        APITrace.begin(getProvider(), "RDBMS.populateConfigurationList");
         try {
             String marker = null;
 
             do {
-                Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_PARAMETER_GROUPS);
+                Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DESCRIBE_DB_PARAMETER_GROUPS);
                 EC2Method method;
                 NodeList blocks;
                 Document doc;
@@ -1315,7 +1313,7 @@ public class RDS implements RelationalDatabaseSupport {
                 if( targetId != null ) {
                     parameters.put("DBParameterGroupName", targetId);
                 }
-                method = new EC2Method(provider, getRDSUrl(), parameters);
+                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -1360,7 +1358,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private void populateParameterList(String cfgId, DatabaseEngine engine, Jiterator<ConfigurationParameter> iterator) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.populateParameterList");
+        APITrace.begin(getProvider(), "RDBMS.populateParameterList");
         try {
             String marker = null;
 
@@ -1371,17 +1369,17 @@ public class RDS implements RelationalDatabaseSupport {
                 Document doc;
 
                 if( cfgId != null ) {
-                    parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_PARAMETERS);
+                    parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DESCRIBE_DB_PARAMETERS);
                     parameters.put("DBParameterGroupName", cfgId);
                 }
                 else {
-                    parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_ENGINE_DEFAULT_PARAMETERS);
+                    parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DESCRIBE_ENGINE_DEFAULT_PARAMETERS);
                     parameters.put("Engine", getEngineString(engine));
                 }
                 if( marker != null ) {
                     parameters.put("Marker", marker);
                 }
-                method = new EC2Method(provider, getRDSUrl(), parameters);
+                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -1426,15 +1424,15 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private void populateSecurityGroupIds(String providerDatabaseId, Jiterator<String> iterator) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.populateDBSecurityGroups");
+        APITrace.begin(getProvider(), "RDBMS.populateDBSecurityGroups");
         try {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DESCRIBE_DB_INSTANCES);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("DBInstanceIdentifier", providerDatabaseId);
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -1496,12 +1494,12 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private void populateSnapshotList(String snapshotId, String databaseId, Jiterator<DatabaseSnapshot> iterator) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.populateDBSnapshotList");
+        APITrace.begin(getProvider(), "RDBMS.populateDBSnapshotList");
         try {
             String marker = null;
 
             do {
-                Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_SNAPSHOTS);
+                Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DESCRIBE_DB_SNAPSHOTS);
                 EC2Method method;
                 NodeList blocks;
                 Document doc;
@@ -1515,7 +1513,7 @@ public class RDS implements RelationalDatabaseSupport {
                 if( databaseId != null ) {
                     parameters.put("DBInstanceIdentifier", databaseId);
                 }
-                method = new EC2Method(provider, getRDSUrl(), parameters);
+                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -1565,13 +1563,13 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void removeConfiguration(String providerConfigurationId) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.removeConfiguration");
+        APITrace.begin(getProvider(), "RDBMS.removeConfiguration");
         try {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_PARAMETER_GROUP);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DELETE_DB_PARAMETER_GROUP);
             EC2Method method;
 
             parameters.put("DBParameterGroupName", providerConfigurationId);
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 method.invoke();
             }
@@ -1585,13 +1583,13 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private void removeSecurityGroup(String securityGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.removeSecurityGroup");
+        APITrace.begin(getProvider(), "RDBMS.removeSecurityGroup");
         try {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_SECURITY_GROUP);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DELETE_DB_SECURITY_GROUP);
             EC2Method method;
 
             parameters.put("DBSecurityGroupName", securityGroupId);
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 method.invoke();
             }
@@ -1605,7 +1603,7 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void removeDatabase(String providerDatabaseId) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.removeDatabase");
+        APITrace.begin(getProvider(), "RDBMS.removeDatabase");
         try {
             long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE*10L);
             Database db = getDatabase(providerDatabaseId);
@@ -1624,20 +1622,20 @@ public class RDS implements RelationalDatabaseSupport {
             }
             Iterable<String> securityGroups = getSecurityGroups(providerDatabaseId);
 
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_INSTANCE);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DELETE_DB_INSTANCE);
             EC2Method method;
 
             parameters.put("DBInstanceIdentifier", providerDatabaseId);
             parameters.put("FinalDBSnapshotIdentifier", providerDatabaseId + "-FINAL-" + System.currentTimeMillis());
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 method.invoke();
             }
             catch( EC2Exception e ) {
-                parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_INSTANCE);
+                parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DELETE_DB_INSTANCE);
                 parameters.put("DBInstanceIdentifier", providerDatabaseId);
                 parameters.put("SkipFinalSnapshot", "true");
-                method = new EC2Method(provider, getRDSUrl(), parameters);
+                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
                 try {
                     method.invoke();
                 }
@@ -1667,13 +1665,13 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void removeSnapshot(String providerSnapshotId) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.removeSnapshot");
+        APITrace.begin(getProvider(), "RDBMS.removeSnapshot");
         try {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DELETE_DB_SNAPSHOT);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DELETE_DB_SNAPSHOT);
             EC2Method method;
 
             parameters.put("DBSnapshotIdentifier", providerSnapshotId);
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 method.invoke();
             }
@@ -1687,9 +1685,9 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void resetConfiguration(String providerConfigurationId, String ... params) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.resetConfiguration");
+        APITrace.begin(getProvider(), "RDBMS.resetConfiguration");
         try {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), RESET_DB_PARAMETER_GROUP);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), RESET_DB_PARAMETER_GROUP);
             EC2Method method;
 
             parameters.put("DBParameterGroupName", providerConfigurationId);
@@ -1706,7 +1704,7 @@ public class RDS implements RelationalDatabaseSupport {
                     parameters.put("Parameters.member." + i + ".ApplyMethod", "pending-reboot");
                 }
             }
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 method.invoke();
             }
@@ -1720,13 +1718,13 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void restart(String providerDatabaseId, boolean blockUntilDone) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.restart");
+        APITrace.begin(getProvider(), "RDBMS.restart");
         try {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), REBOOT_DB_INSTANCE);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), REBOOT_DB_INSTANCE);
             EC2Method method;
 
             parameters.put("DBInstanceIdentifier", providerDatabaseId);
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 method.invoke();
             }
@@ -1740,17 +1738,17 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void revokeAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.revokeAccess");
+        APITrace.begin(getProvider(), "RDBMS.revokeAccess");
         try {
             EC2Exception error = null;
 
             for( String securityGroupId : getSecurityGroups(providerDatabaseId) ) {
-                Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), REVOKE_DB_SECURITY_GROUP_INGRESS);
+                Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), REVOKE_DB_SECURITY_GROUP_INGRESS);
                 EC2Method method;
 
                 parameters.put("DBSecurityGroupName", securityGroupId);
                 parameters.put("CIDRIP", sourceCidr);
-                method = new EC2Method(provider, getRDSUrl(), parameters);
+                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
                 try {
                     method.invoke();
                 }
@@ -1768,9 +1766,9 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public void updateConfiguration(String providerConfigurationId, ConfigurationParameter ... params) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.updateConfiguration");
+        APITrace.begin(getProvider(), "RDBMS.updateConfiguration");
         try {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), MODIFY_DB_PARAMETER_GROUP);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), MODIFY_DB_PARAMETER_GROUP);
             EC2Method method;
 
             parameters.put("DBParameterGroupName", providerConfigurationId);
@@ -1784,7 +1782,7 @@ public class RDS implements RelationalDatabaseSupport {
                     break;
                 }
             }
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 method.invoke();
             }
@@ -1807,15 +1805,15 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private void setSecurityGroup(String id, String securityGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.setSecurityGroup");
+        APITrace.begin(getProvider(), "RDBMS.setSecurityGroup");
         try {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), MODIFY_DB_INSTANCE);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), MODIFY_DB_INSTANCE);
             EC2Method method;
 
             parameters.put("DBInstanceIdentifier", id);
             parameters.put("ApplyImmediately", "true");
             parameters.put("DBSecurityGroups.member.1", securityGroupId);
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 method.invoke();
             }
@@ -1829,15 +1827,15 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     public DatabaseSnapshot snapshot(String providerDatabaseId, String name) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.snapshot");
+        APITrace.begin(getProvider(), "RDBMS.snapshot");
         try {
-            Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), CREATE_DB_SNAPSHOT);
+            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), CREATE_DB_SNAPSHOT);
             String id = toIdentifier(name);
             EC2Method method;
 
             parameters.put("DBSnapshotIdentifier", id);
             parameters.put("DBInstanceIdentifier", providerDatabaseId);
-            method = new EC2Method(provider, getRDSUrl(), parameters);
+            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
             try {
                 method.invoke();
             }
@@ -1849,26 +1847,6 @@ public class RDS implements RelationalDatabaseSupport {
         finally {
             APITrace.end();
         }
-    }
-
-    @Override
-    public DatabaseBackup getBackup( String providerDbBackupId ) throws CloudException, InternalException {
-        throw new OperationNotSupportedException(provider.getCloudName() + " does not support database backups.");
-    }
-
-    @Override
-    public Iterable<DatabaseBackup> listBackups( String forOptionalProviderDatabaseId ) throws CloudException, InternalException {
-        throw new OperationNotSupportedException(provider.getCloudName() + " does not support database backups.");
-    }
-
-    @Override
-    public String createFromBackup( String dataSourceName, String providerDatabaseId, String providerDbBackupId, String productSize, String providerDataCenterId, int hostPort ) throws CloudException, InternalException {
-        throw new OperationNotSupportedException(provider.getCloudName() + " does not support database backups.");
-    }
-
-    @Override
-    public boolean removeBackup( String providerBackupId ) throws CloudException, InternalException {
-        throw new OperationNotSupportedException(provider.getCloudName() + " does not support database backups.");
     }
 
     private DatabaseConfiguration toConfiguration(Node cfgNode) throws CloudException {
@@ -1937,8 +1915,8 @@ public class RDS implements RelationalDatabaseSupport {
         String engineVersion = null;
         
         db.setCreationTimestamp(0L);
-        db.setProviderRegionId(provider.getContext().getRegionId());
-        db.setProviderOwnerId(provider.getContext().getAccountNumber());
+        db.setProviderRegionId(getProvider().getContext().getRegionId());
+        db.setProviderOwnerId(getProvider().getContext().getAccountNumber());
         for( int i=0; i<attrs.getLength(); i++ ) {
             Node attr = attrs.item(i);
             String name;
@@ -2042,10 +2020,10 @@ public class RDS implements RelationalDatabaseSupport {
             else if( name.equalsIgnoreCase("InstanceCreateTime") ) {
                 String tstr = attr.getFirstChild().getNodeValue().trim();
                 
-                db.setCreationTimestamp(provider.parseTime(tstr));
+                db.setCreationTimestamp(getProvider().parseTime(tstr));
             }
             else if( name.equalsIgnoreCase("LatestRestorableTime") ) {               
-                db.setRecoveryPointTimestamp(provider.parseTime(attr.getFirstChild().getNodeValue().trim()));
+                db.setRecoveryPointTimestamp(getProvider().parseTime(attr.getFirstChild().getNodeValue().trim()));
             }
             else if( name.equalsIgnoreCase("BackupRetentionPeriod") ) {
                 try {
@@ -2278,15 +2256,15 @@ public class RDS implements RelationalDatabaseSupport {
         DatabaseSnapshot snapshot = new DatabaseSnapshot();
         NodeList attrs = snapshotNode.getChildNodes();
         
-        snapshot.setProviderRegionId(provider.getContext().getRegionId());
-        snapshot.setProviderOwnerId(provider.getContext().getAccountNumber());
+        snapshot.setProviderRegionId(getProvider().getContext().getRegionId());
+        snapshot.setProviderOwnerId(getProvider().getContext().getAccountNumber());
         for( int i=0; i<attrs.getLength(); i++ ) {
             Node attr = attrs.item(i);
             String name;
             
             name = attr.getNodeName();
             if( name.equalsIgnoreCase("SnapshotCreateTime") ) {
-                snapshot.setSnapshotTimestamp(provider.parseTime(attr.getFirstChild().getNodeValue().trim()));
+                snapshot.setSnapshotTimestamp(getProvider().parseTime(attr.getFirstChild().getNodeValue().trim()));
             }
             else if( name.equalsIgnoreCase("Status") ) {
                 String value = attr.getFirstChild().getNodeValue().trim();
