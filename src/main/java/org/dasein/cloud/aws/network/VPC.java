@@ -2154,20 +2154,6 @@ public class VPC extends AbstractVLANSupport {
     }
 
     @Override
-    public void updateInternetGatewayTags(@Nonnull String[] internetGatewayIds, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
-        if (asynchronous) {
-            provider.createTags(internetGatewayIds, tags);
-        } else {
-            provider.createTagsSynchronously(internetGatewayIds, tags);
-        }
-    }
-
-    @Override
-    public void updateInternetGatewayTags(@Nonnull String internetGatewayId, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
-        updateInternetGatewayTags(new String[]{internetGatewayId}, asynchronous, tags);
-    }
-
-    @Override
     public void removeNetworkInterface(@Nonnull String nicId) throws CloudException, InternalException {
         APITrace.begin(provider, "VLAN.removeNetworkInterface");
         try {
@@ -2254,15 +2240,6 @@ public class VPC extends AbstractVLANSupport {
             provider.createTags(routingTableId, tags);
         } finally {
             APITrace.end();
-        }
-    }
-
-    @Override
-    public void updateRoutingTableTags(@Nonnull String routingTableId, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
-        if (asynchronous) {
-            provider.createTags(routingTableId, tags);
-        } else {
-            provider.createTagsSynchronously(routingTableId, tags);
         }
     }
 
@@ -2913,20 +2890,6 @@ public class VPC extends AbstractVLANSupport {
     @Override
     public void updateSubnetTags(@Nonnull String[] subnetIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         ( (AWSCloud) getProvider() ).createTags(subnetIds, tags);
-    }
-
-    @Override
-    public void updateSubnetTags(@Nonnull String subnetId, boolean asynchronous, @Nonnull Tag... tags) throws CloudException, InternalException {
-        APITrace.begin(getProvider(), "Subnet.updateSubnetTags");
-        try {
-            if (asynchronous) {
-                ((AWSCloud) getProvider()).createTags(subnetId, tags);
-            } else {
-                ((AWSCloud) getProvider()).createTagsSynchronously(subnetId, tags);
-            }
-        } finally {
-            APITrace.end();
-        }
     }
 
     @Override
