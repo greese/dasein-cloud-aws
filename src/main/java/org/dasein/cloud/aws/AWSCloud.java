@@ -37,6 +37,7 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.aws.admin.AWSAdminServices;
 import org.dasein.cloud.aws.compute.EC2ComputeServices;
 import org.dasein.cloud.aws.compute.EC2Exception;
+import org.dasein.cloud.aws.compute.EC2Instance;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.aws.identity.AWSIdentityServices;
 import org.dasein.cloud.aws.network.EC2NetworkServices;
@@ -1120,9 +1121,9 @@ public class AWSCloud extends AbstractCloud {
                 ComputeServices compute = getComputeServices();
 
                 if( compute != null ) {
-                    VirtualMachineSupport support = compute.getVirtualMachineSupport();
+                    EC2Instance support = (EC2Instance) compute.getVirtualMachineSupport();
 
-                    if( support == null || !support.isSubscribed() ) {
+                    if( support == null || !support.uncachedIsSubscribed() ) {
                         logger.warn("Not subscribed to virtual machine support");
                         return null;
                     }

@@ -1121,22 +1121,35 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 return ((Boolean)subscribed.iterator().next().get(AWSCloud.TRUTHMAP_KEY)).booleanValue();
             }
 
+            boolean isSubscribed = uncachedIsSubscribed();
+            if (isSubscribed) {
+                cache.put(getContext(), Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
+            } else {
+                cache.put(getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
+            }
+            return isSubscribed;
+
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    public boolean uncachedIsSubscribed() throws InternalException, CloudException {
+        APITrace.begin(getProvider(), "uncachedIsSubscribedVirtualMachine");
+        try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCES);
             EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
 
             try {
                 method.invoke();
-                cache.put(getContext(), Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
                 return true;
             } catch( EC2Exception e ) {
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
-                    cache.put(getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
                     return false;
                 }
                 String code = e.getCode();
 
                 if( code != null && code.equals("SignatureDoesNotMatch") ) {
-                    cache.put(getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
                     return false;
                 }
                 logger.warn(e.getSummary());
