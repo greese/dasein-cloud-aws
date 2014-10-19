@@ -860,21 +860,24 @@ public class S3 extends AbstractBlobStoreSupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "Blob.isSubscribed");
         try {
-            Cache<Map> cache = Cache.getInstance(provider, "S3.isSubscribed", Map.class, CacheLevel.REGION_ACCOUNT);
-            Collection<Map> subscribed = (Collection<Map>)cache.get(provider.getContext());
-            if (subscribed != null) {
-                return ((Boolean)subscribed.iterator().next().get(AWSCloud.TRUTHMAP_KEY)).booleanValue();
+            Cache<Boolean> cache = Cache.getInstance(provider, "S3.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
+            final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
+            if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+                final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+                if (isSubscribed != null) {
+                    return isSubscribed;
+                }
             }
 
             S3Method method = new S3Method(provider, S3Action.LIST_BUCKETS);
 
             try {
                 method.invoke(null, null);
-                cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
+                cache.put(provider.getContext(), Collections.singleton(true));
                 return true;
             }
             catch( S3Exception e ) {
-                cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
+                cache.put(provider.getContext(), Collections.singleton(false));
                 return false;
             }
         }

@@ -484,10 +484,13 @@ public class AMI extends AbstractImageSupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Image.isSubscribed");
         try {
-            org.dasein.cloud.util.Cache<Map> cache = org.dasein.cloud.util.Cache.getInstance(getProvider(), "Image.isSubscribed", Map.class, CacheLevel.REGION_ACCOUNT);
-            Collection<Map> subscribed = (Collection<Map>)cache.get(getContext());
-            if (subscribed != null) {
-                return ((Boolean)subscribed.iterator().next().get(AWSCloud.TRUTHMAP_KEY)).booleanValue();
+            org.dasein.cloud.util.Cache<Boolean> cache = org.dasein.cloud.util.Cache.getInstance(getProvider(), "Image.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
+            final Iterable<Boolean> cachedIsSubscribed = cache.get(getContext());
+            if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+                final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+                if (isSubscribed != null) {
+                    return isSubscribed;
+                }
             }
 
             Map<String,String> parameters = provider.getStandardParameters(getContext(), EC2Method.DESCRIBE_IMAGES);
@@ -499,14 +502,14 @@ public class AMI extends AbstractImageSupport {
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 method.invoke();
-                cache.put(getContext(), Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
+                cache.put(getContext(), Collections.singleton(true));
                 return true;
             }
             catch( EC2Exception e ) {
                 String msg = e.getSummary();
 
                 if( msg != null && msg.contains("not able to validate the provided access credentials") ) {
-                    cache.put(getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
+                    cache.put(getContext(), Collections.singleton(false));
                     return false;
                 }
                 logger.error("AWS Error checking subscription: " + e.getCode() + "/" + e.getSummary());

@@ -244,28 +244,31 @@ public class CloudFront implements CDNSupport {
 	public boolean isSubscribed() throws InternalException, CloudException {
         APITrace.begin(provider, "CDN.isSubscribed");
         try {
-            Cache<Map> cache = Cache.getInstance(provider, "CDN.isSubscribed", Map.class, CacheLevel.REGION_ACCOUNT);
-            Collection<Map> subscribed = (Collection<Map>)cache.get(provider.getContext());
-            if (subscribed != null) {
-                return ((Boolean)subscribed.iterator().next().get(AWSCloud.TRUTHMAP_KEY)).booleanValue();
+            Cache<Boolean> cache = Cache.getInstance(provider, "CDN.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
+            final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
+            if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+                final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+                if (isSubscribed != null) {
+                    return isSubscribed;
+                }
             }
 
             CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null);
 
             try {
                 method.invoke();
-                cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
+                cache.put(provider.getContext(), Collections.singleton(true));
                 return true;
             }
             catch( CloudFrontException e ) {
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
-                    cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
+                    cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
                 }
                 String code = e.getCode();
 
                 if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
-                    cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
+                    cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
                 }
                 logger.warn(e.getSummary());

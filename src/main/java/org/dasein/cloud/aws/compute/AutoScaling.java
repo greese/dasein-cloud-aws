@@ -520,10 +520,13 @@ public class AutoScaling implements AutoScalingSupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.isSubscribed");
         try {
-            Cache<Map> cache = Cache.getInstance(provider, "AutoScaling.isSubscribed", Map.class, CacheLevel.REGION_ACCOUNT);
-            Collection<Map> subscribed = (Collection<Map>)cache.get(provider.getContext());
-            if (subscribed != null) {
-                return ((Boolean)subscribed.iterator().next().get(AWSCloud.TRUTHMAP_KEY)).booleanValue();
+            Cache<Boolean> cache = Cache.getInstance(provider, "AutoScaling.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
+            final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
+            if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+                final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+                if (isSubscribed != null) {
+                    return isSubscribed;
+                }
             }
 
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_AUTO_SCALING_GROUPS);
@@ -532,14 +535,14 @@ public class AutoScaling implements AutoScalingSupport {
             method = new EC2Method(provider, getAutoScalingUrl(), parameters);
             try {
                 method.invoke();
-                cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
+                cache.put(provider.getContext(), Collections.singleton(true));
                 return true;
             }
             catch( EC2Exception e ) {
                 String msg = e.getSummary();
 
                 if( msg != null && msg.contains("not able to validate the provided access credentials") ) {
-                    cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
+                    cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
                 }
                 logger.error("AWS Error checking subscription: " + e.getCode() + "/" + e.getSummary());
