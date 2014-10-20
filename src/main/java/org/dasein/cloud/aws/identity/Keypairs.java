@@ -38,6 +38,7 @@ import org.dasein.cloud.identity.SSHKeypair;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.identity.ShellKeySupport;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.CacheLevel;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -350,8 +351,23 @@ public class Keypairs implements ShellKeySupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "Keypair.isSubscribed");
         try {
-            provider.testContext();
-            return true;
+            org.dasein.cloud.util.Cache<Boolean> cache = org.dasein.cloud.util.Cache.getInstance(provider, "Keypair.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
+            final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
+            if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+                final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+                if (isSubscribed != null) {
+                    return isSubscribed;
+                }
+            }
+
+            String result = provider.testContext();
+            if (result == null) {
+                cache.put(provider.getContext(), Collections.singleton(false));
+                return false;
+            } else {
+                cache.put(provider.getContext(), Collections.singleton(true));
+                return true;
+            }
         }
         finally {
             APITrace.end();
