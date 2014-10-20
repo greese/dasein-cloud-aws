@@ -604,10 +604,13 @@ public class Route53 implements DNSSupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "DNS.isSubscribed");
         try {
-            Cache<Map> cache = Cache.getInstance(provider, "DNS.isSubscribed", Map.class, CacheLevel.REGION_ACCOUNT);
-            Collection<Map> subscribed = (Collection<Map>)cache.get(provider.getContext());
-            if (subscribed != null) {
-                return ((Boolean)subscribed.iterator().next().get(AWSCloud.TRUTHMAP_KEY)).booleanValue();
+            Cache<Boolean> cache = Cache.getInstance(provider, "DNS.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
+            final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
+            if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+                final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+                if (isSubscribed != null) {
+                    return isSubscribed;
+                }
             }
 
             Route53Method method;
@@ -618,18 +621,18 @@ public class Route53 implements DNSSupport {
             }
             catch( EC2Exception e ) {
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
-                    cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
+                    cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
                 }
                 String code = e.getCode();
 
                 if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
-                    cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
+                    cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
                 }
                 throw new CloudException(e);
             }
-            cache.put(provider.getContext(), Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
+            cache.put(provider.getContext(), Collections.singleton(true));
             return true;
         }
         finally {

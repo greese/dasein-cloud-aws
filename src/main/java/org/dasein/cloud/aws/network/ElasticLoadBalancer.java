@@ -472,10 +472,13 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     return false;
                 }
 
-                Cache<Map> cache = Cache.getInstance(getProvider(), "LB.isSubscribed", Map.class, CacheLevel.REGION_ACCOUNT);
-                Collection<Map> subscribed = (Collection<Map>)cache.get(getContext());
-                if (subscribed != null) {
-                    return ((Boolean)subscribed.iterator().next().get(AWSCloud.TRUTHMAP_KEY)).booleanValue();
+                Cache<Boolean> cache = Cache.getInstance(getProvider(), "LB.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
+                final Iterable<Boolean> cachedIsSubscribed = cache.get(getContext());
+                if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+                    final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+                    if (isSubscribed != null) {
+                        return isSubscribed;
+                    }
                 }
 
                 Map<String, String> parameters = getELBParameters(provider.getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
@@ -484,17 +487,17 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 method = new ELBMethod(provider, ctx, parameters);
                 try {
                     method.invoke();
-                    cache.put(ctx, Collections.singleton(AWSCloud.TRUTHMAP_TRUE));
+                    cache.put(ctx, Collections.singleton(true));
                     return true;
                 } catch( EC2Exception e ) {
                     if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
-                        cache.put(ctx, Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
+                        cache.put(ctx, Collections.singleton(false));
                         return false;
                     }
                     String code = e.getCode();
 
                     if( code != null && ( code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired") ) ) {
-                        cache.put(ctx, Collections.singleton(AWSCloud.TRUTHMAP_FALSE));
+                        cache.put(ctx, Collections.singleton(false));
                         return false;
                     }
                     throw new CloudException(e);
