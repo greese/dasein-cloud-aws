@@ -70,6 +70,9 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class AWSCloud extends AbstractCloud {
+
+    private static final int MAX_RETRIES = 0;
+
     static private String getLastItem( String name ) {
         int idx = name.lastIndexOf('.');
 
@@ -317,8 +320,8 @@ public class AWSCloud extends AbstractCloud {
                 try {
                     method.invoke();
                 } catch( EC2Exception e ) {
-                    if( attempt > 20 ) {
-                        logger.error("EC2 error settings tags for " + Arrays.toString(resourceIds) + ": " + e.getSummary());
+                    if( attempt > MAX_RETRIES ) {
+                        logger.error("EC2 error setting tags for " + Arrays.toString(resourceIds) + ": " + e.getSummary());
                         return;
                     }
                     try {
