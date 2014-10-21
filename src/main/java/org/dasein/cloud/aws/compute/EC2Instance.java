@@ -1153,7 +1153,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     public boolean uncachedIsSubscribed() throws InternalException, CloudException {
         APITrace.begin(getProvider(), "uncachedIsSubscribedVirtualMachine");
         try {
-            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCES);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_ACCOUNT_ATTRIBUTES);
+            parameters.put("AttributeName.1", "supported-platforms");
             EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
 
             try {
