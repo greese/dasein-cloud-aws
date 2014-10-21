@@ -659,7 +659,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    private @Nonnull List<VirtualMachine> describeInstances(@Nonnull String ... instanceIds) throws InternalException, CloudException {
+    private @Nonnull List<VirtualMachine> describeInstances(boolean resolveIpAssociations, @Nullable Map<String, String> extraParameters, @Nullable VMFilterOptions options,  @Nonnull String ... instanceIds) throws InternalException, CloudException {
         List<VirtualMachine> results = new ArrayList<VirtualMachine>();
         ProviderContext ctx = getProvider().getContext();
 
@@ -668,8 +668,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
 
         Future<Iterable<IpAddress>> ipPoolFuture = null;
-        Iterable<IpAddress> addresses;
-        if( getProvider().hasNetworkServices() ) {
+        Iterable<IpAddress> addresses = Collections.emptyList();
+
+        // only resolve elastic IPs if requested
+        if( getProvider().hasNetworkServices() && resolveIpAssociations ) {
             NetworkServices services = getProvider().getNetworkServices();
 
             if( services != null ) {
@@ -688,7 +690,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         EC2Method method;
         NodeList blocks;
         Document doc;
-
+        if( extraParameters != null ) {
+            AWSCloud.addExtraParameters(parameters, extraParameters);
+        }
         AWSCloud.addIndexedParameters(parameters, "InstanceId", instanceIds);
 
         method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
@@ -715,22 +719,31 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         if( ipPoolFuture != null ) {
                             addresses = ipPoolFuture.get(30, TimeUnit.SECONDS);
                         }
-                        else {
-                            addresses = Collections.emptyList();
-                        }
                     } catch( InterruptedException e ) {
                         logger.error(e.getMessage());
-                        addresses = Collections.emptyList();
                     } catch( ExecutionException e ) {
                         logger.error(e.getMessage());
-                        addresses = Collections.emptyList();
                     } catch( TimeoutException e ) {
                         logger.error(e.getMessage());
-                        addresses = Collections.emptyList();
                     }
                     VirtualMachine server = toVirtualMachine(ctx, instance, addresses);
-                    if( server != null && Arrays.binarySearch(instanceIds, server.getProviderVirtualMachineId()) >= 0) {
-                        results.add(server);
+                    boolean addThisServer = false;
+                    if( server != null ) {
+                        // if instance array is set, only add the instances matching the initial array
+                        if( instanceIds.length > 0 ) {
+                            if( Arrays.asList(instanceIds).contains(server.getProviderVirtualMachineId()) ) {
+                                addThisServer = true;
+                            }
+                        }
+                        // otherwise add every server
+                        else {
+                            addThisServer = true;
+                        }
+                        // now apply the filter if any
+                        if( addThisServer && (options == null || options.matches(server)) ) {
+                            results.add(server);
+                        }
+
                     }
                 }
             }
@@ -742,7 +755,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     public @Nullable VirtualMachine getVirtualMachine( @Nonnull String instanceId ) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "getVirtualMachine");
         try {
-            List<VirtualMachine> instances = describeInstances(instanceId);
+            List<VirtualMachine> instances = describeInstances(true, null, null, instanceId);
             if( instances.size() == 1 ) {
                 return instances.get(0);
             }
@@ -1664,7 +1677,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
 
         // Wait for EC2 to figure out the server exists
-        List<VirtualMachine> serversCopy = describeInstances(instanceIds.toArray(new String[instanceIds.size()]));
+        List<VirtualMachine> serversCopy = describeInstances(cfg.isAssociatePublicIpAddress(), null, null,
+                instanceIds.toArray(new String[instanceIds.size()]));
         long timeout = System.currentTimeMillis() + CalendarWrapper.MINUTE;
         while( timeout > System.currentTimeMillis() && serversCopy.size() < servers.size()) {
             try {
@@ -1672,7 +1686,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             } catch( InterruptedException ignore ) {
             }
             try {
-                serversCopy = describeInstances(instanceIds.toArray(new String[instanceIds.size()]));
+                serversCopy = describeInstances(cfg.isAssociatePublicIpAddress(), null, null,
+                        instanceIds.toArray(new String[instanceIds.size()]));
             } catch( Throwable ignore ) {
             }
         }
@@ -1847,7 +1862,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
     @Override
     public @Nonnull Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
-        return listVirtualMachinesWithParams(null, null);
+        return listVirtualMachines(null);
     }
 
     @Override
@@ -1861,8 +1876,8 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             // nothing else to match on
             options = null;
         }
-
-        return listVirtualMachinesWithParams(filterParameters, options);
+        // FIXME(labisso): first parameter is where you switch the elastic IP look-ups off (false)
+        return describeInstances(false, filterParameters, options, new String[0]);
     }
 
     private Map<String, String> createFilterParametersFrom( @Nullable VMFilterOptions options ) {
@@ -1890,87 +1905,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             AWSCloud.addFilterParameters(extraParameters, filterIndex++, "spot-instance-request-id", Arrays.asList(options.getSpotRequestId()));
         }
         return extraParameters;
-    }
-
-    private @Nonnull Iterable<VirtualMachine> listVirtualMachinesWithParams( Map<String, String> extraParameters, @Nullable VMFilterOptions options ) throws InternalException, CloudException {
-        APITrace.begin(getProvider(), "listVirtualMachines");
-        try {
-            ProviderContext ctx = getProvider().getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was established for this request");
-            }
-
-            Future<Iterable<IpAddress>> ipPoolFuture = null;
-            Iterable<IpAddress> addresses;
-            if( getProvider().hasNetworkServices() ) {
-                NetworkServices services = getProvider().getNetworkServices();
-
-                if( services != null ) {
-                    if( services.hasIpAddressSupport() ) {
-                        IpAddressSupport support = services.getIpAddressSupport();
-
-                        if( support != null ) {
-                            ipPoolFuture = support.listIpPoolConcurrently(IPVersion.IPV4, false);
-                        }
-                    }
-                }
-            }
-
-            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCES);
-
-            AWSCloud.addExtraParameters(parameters, extraParameters);
-
-            EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
-            ArrayList<VirtualMachine> list = new ArrayList<VirtualMachine>();
-            NodeList blocks;
-            Document doc;
-
-            try {
-                doc = method.invoke();
-            } catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("instancesSet");
-            for( int i = 0; i < blocks.getLength(); i++ ) {
-                NodeList instances = blocks.item(i).getChildNodes();
-
-                for( int j = 0; j < instances.getLength(); j++ ) {
-                    Node instance = instances.item(j);
-
-                    if( instance.getNodeName().equals("item") ) {
-
-                        try {
-                            if( ipPoolFuture != null ) {
-                                addresses = ipPoolFuture.get(30, TimeUnit.SECONDS);
-                            }
-                            else {
-                                addresses = Collections.emptyList();
-                            }
-                        } catch( InterruptedException e ) {
-                            logger.error(e.getMessage());
-                            addresses = Collections.emptyList();
-                        } catch( ExecutionException e ) {
-                            logger.error(e.getMessage());
-                            addresses = Collections.emptyList();
-                        } catch( TimeoutException e ) {
-                            logger.error(e.getMessage());
-                            addresses = Collections.emptyList();
-                        }
-
-                        VirtualMachine vm = toVirtualMachine(ctx, instance, addresses);
-
-                        if( options == null || options.matches(vm) ) {
-                            list.add(vm);
-                        }
-                    }
-                }
-            }
-            return list;
-        } finally {
-            APITrace.end();
-        }
     }
 
     @Override
