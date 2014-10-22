@@ -483,7 +483,8 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
                 Map<String, String> parameters = getELBParameters(provider.getContext(), ELBMethod.DESCRIBE_LOAD_BALANCERS);
                 ELBMethod method;
-
+                // limit number of returned loadbalancers to 1 to save bandwidth
+                parameters.put("PageSize", "1");
                 method = new ELBMethod(provider, ctx, parameters);
                 try {
                     method.invoke();

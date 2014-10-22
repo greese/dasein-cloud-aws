@@ -243,8 +243,8 @@ public class CloudFront implements CDNSupport {
 	@Override
 	public boolean isSubscribed() throws InternalException, CloudException {
         APITrace.begin(provider, "CDN.isSubscribed");
+        Cache<Boolean> cache = Cache.getInstance(provider, "CDN.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
         try {
-            Cache<Boolean> cache = Cache.getInstance(provider, "CDN.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
             final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
             if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
                 final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
@@ -253,14 +253,20 @@ public class CloudFront implements CDNSupport {
                 }
             }
 
-            CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.LIST_DISTRIBUTIONS, null, null);
+            CloudFrontMethod method = new CloudFrontMethod(provider, CloudFrontAction.GET_DISTRIBUTION, null, null);
 
             try {
-                method.invoke();
+                // pass a dummy distributionId to save on traffic coming back
+                method.invoke("he-Or-U-Gryp-goyn");
                 cache.put(provider.getContext(), Collections.singleton(true));
                 return true;
             }
             catch( CloudFrontException e ) {
+                if( e.getStatus() == HttpServletResponse.SC_NOT_FOUND ) {
+                    // 404 is good
+                    cache.put(provider.getContext(), Collections.singleton(true));
+                    return true;
+                }
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
                     cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
@@ -270,10 +276,6 @@ public class CloudFront implements CDNSupport {
                 if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
                     cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
-                }
-                logger.warn(e.getSummary());
-                if( logger.isDebugEnabled() ) {
-                    e.printStackTrace();
                 }
                 throw new CloudException(e);
             }

@@ -916,8 +916,8 @@ public class RDS implements RelationalDatabaseSupport {
     
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "RDBMS.isSubscribed");
+        Cache<Boolean> cache = Cache.getInstance(provider, "RDBMS.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
         try {
-            Cache<Boolean> cache = Cache.getInstance(provider, "RDBMS.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
             final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
             if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
                 final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
@@ -927,6 +927,8 @@ public class RDS implements RelationalDatabaseSupport {
             }
 
             Map<String,String> parameters = provider.getStandardRdsParameters(provider.getContext(), DESCRIBE_DB_INSTANCES);
+            // Give it a random dbid, we don't care, but it'll be less traffic
+            parameters.put("DBInstanceIdentifier", "cie4hitH");
             EC2Method method = new EC2Method(provider, getRDSUrl(), parameters);
 
             try {
@@ -935,6 +937,11 @@ public class RDS implements RelationalDatabaseSupport {
                 return true;
             }
             catch( EC2Exception e ) {
+                if( e.getStatus() == HttpServletResponse.SC_NOT_FOUND ) {
+                    // 404 is good
+                    cache.put(provider.getContext(), Collections.singleton(true));
+                    return true;
+                }
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
                     cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
@@ -944,10 +951,6 @@ public class RDS implements RelationalDatabaseSupport {
                 if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
                     cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
-                }
-                logger.warn(e.getSummary());
-                if( logger.isDebugEnabled() ) {
-                    e.printStackTrace();
                 }
                 throw new CloudException(e);
             }

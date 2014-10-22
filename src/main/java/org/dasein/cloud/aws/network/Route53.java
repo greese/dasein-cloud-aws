@@ -613,9 +613,9 @@ public class Route53 implements DNSSupport {
                 }
             }
 
-            Route53Method method;
-
-            method = new Route53Method(Route53Method.LIST_HOSTED_ZONES, provider, getHostedZoneUrl(null));
+            // Limit returned number of zones to 1 to save traffic
+            Route53Method method = new Route53Method(Route53Method.LIST_HOSTED_ZONES,
+                    provider, getHostedZoneUrl(null) + "?maxitems=1");
             try {
                 method.invoke();
             }

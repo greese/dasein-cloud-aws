@@ -1308,7 +1308,9 @@ public class VPC extends AbstractVLANSupport {
 
             Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
             EC2Method method;
-
+            // Filter by a random dummy tag
+            parameters.put("Filter.1.Name", "tag:ISTbvqa");
+            parameters.put("Filter.1.Value.1", "he-Or-U-Gryp-goyn");
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 method.invoke();

@@ -215,8 +215,8 @@ public class SNS implements PushNotificationSupport {
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "Notifications.isSubscribed");
+        Cache<Boolean> cache = Cache.getInstance(provider, "Notifications.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
         try {
-            Cache<Boolean> cache = Cache.getInstance(provider, "Notifications.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
             final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
             if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
                 final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
@@ -225,29 +225,30 @@ public class SNS implements PushNotificationSupport {
                 }
             }
 
-            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), LIST_TOPICS);
-            EC2Method method;
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), GET_TOPIC_ATTRIBUTES);
+            // add a bogus arn to avoid getting any meaningful response. we're ok with 404.
+            parameters.put("TopicArn", "eEv-fur-yon-w");
 
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            EC2Method method = new EC2Method(provider, getSNSUrl(), parameters);
             try {
                 method.invoke();
                 cache.put(provider.getContext(), Collections.singleton(true));
                 return true;
             }
             catch( EC2Exception e ) {
+                if( e.getHttpCode() == HttpServletResponse.SC_NOT_FOUND ) {
+                    // 404 is good
+                    cache.put(provider.getContext(), Collections.singleton(true));
+                    return true;
+                }
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
                     cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
                 }
                 String code = e.getCode();
-
                 if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
                     cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
-                }
-                logger.warn(e.getSummary());
-                if( logger.isDebugEnabled() ) {
-                    e.printStackTrace();
                 }
                 throw new CloudException(e);
             }

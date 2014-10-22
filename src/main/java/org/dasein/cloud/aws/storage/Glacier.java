@@ -40,6 +40,7 @@ import org.json.JSONObject;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -224,36 +225,47 @@ public class Glacier implements OfflineStoreSupport {
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "Blob.isSubscribed");
+        final ProviderContext ctx = provider.getContext();
+
+        if( ctx == null ) {
+            throw new CloudException("No context was specified for this request");
+        }
+        final String regionId = ctx.getRegionId();
+
+        if( regionId == null ) {
+            throw new CloudException("No region ID was specified");
+        }
+
+        Cache<Boolean> cache = Cache.getInstance(provider, "Glacier.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
+        final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
+        if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+            final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+            if (isSubscribed != null) {
+                return isSubscribed;
+            }
+        }
+
+        // ask for a dummy vault to avoid getting a big response
+        GlacierMethod method = GlacierMethod.build(provider, GlacierAction.DESCRIBE_VAULT).vaultId("he-Or-U-Gryp-goyn").toMethod();
         try {
-            final ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was specified for this request");
-            }
-            final String regionId = ctx.getRegionId();
-
-            if( regionId == null ) {
-                throw new CloudException("No region ID was specified");
-            }
-
-            Cache<Boolean> cache = Cache.getInstance(provider, "Glacier.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
-            final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
-            if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
-                final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
-                if (isSubscribed != null) {
-                    return isSubscribed;
-                }
-            }
-
-            try {
-                GlacierMethod method = GlacierMethod.build(provider, GlacierAction.LIST_VAULTS).toMethod();
-                method.invoke();
+            method.invoke();
+            cache.put(provider.getContext(), Collections.singleton(true));
+            return true;
+        } catch (GlacierException e) {
+            if( e.getHttpCode() == HttpServletResponse.SC_NOT_FOUND ) {
                 cache.put(provider.getContext(), Collections.singleton(true));
                 return true;
-            } catch (CloudException e) {
+            }
+            if( e.getHttpCode() == HttpServletResponse.SC_UNAUTHORIZED || e.getHttpCode() == HttpServletResponse.SC_FORBIDDEN ) {
                 cache.put(provider.getContext(), Collections.singleton(false));
                 return false;
             }
+            String code = e.getProviderCode();
+            if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
+                cache.put(provider.getContext(), Collections.singleton(false));
+                return false;
+            }
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();

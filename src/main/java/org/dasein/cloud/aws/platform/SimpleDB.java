@@ -313,9 +313,10 @@ public class SimpleDB implements KeyValueDatabaseSupport {
             }
 
             Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), LIST_DOMAINS);
-            EC2Method method;
+            // return just one to save traffic
+            parameters.put("MaxNumberOfDomains", "1");
 
-            method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+            EC2Method method = new EC2Method(provider, getSimpleDBUrl(), parameters);
             try {
                 method.invoke();
                 cache.put(provider.getContext(), Collections.singleton(true));
