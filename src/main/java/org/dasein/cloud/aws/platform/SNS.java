@@ -227,7 +227,7 @@ public class SNS implements PushNotificationSupport {
 
             Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), GET_TOPIC_ATTRIBUTES);
             // add a bogus arn to avoid getting any meaningful response. we're ok with 404.
-            parameters.put("TopicArn", "eEv-fur-yon-w");
+            parameters.put("TopicArn", "arn:aws:sns:" + provider.getContext().getRegionId() + ":" + provider.getContext().getAccountNumber() + ":" + "eE-vfu-ryo-nw");
 
             EC2Method method = new EC2Method(provider, getSNSUrl(), parameters);
             try {
