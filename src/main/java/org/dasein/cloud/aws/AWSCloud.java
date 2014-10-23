@@ -49,6 +49,8 @@ import org.dasein.cloud.platform.KeyValuePair;
 import org.dasein.cloud.storage.BlobStoreSupport;
 import org.dasein.cloud.storage.StorageServices;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -57,6 +59,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import javax.servlet.http.HttpServletResponse;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -1519,4 +1522,46 @@ public class AWSCloud extends AbstractCloud {
         return client;
     }
 
+    public boolean isEC2ActionAuthorised(String action) throws InternalException, CloudException {
+        APITrace.begin(this, "isEC2ActionAuthorised");
+        try {
+            Cache<Boolean> cache = Cache.getInstance(this, "EC2.auth." + action, Boolean.class, CacheLevel.REGION_ACCOUNT);
+            final Iterable<Boolean> cachedAuth = cache.get(getContext());
+            if (cachedAuth != null && cachedAuth.iterator().hasNext()) {
+                final Boolean authenticated = cachedAuth.iterator().next();
+                if (authenticated != null) {
+                    return authenticated;
+                }
+            }
+
+            Map<String, String> parameters = getStandardParameters(getContext(), action);
+            parameters.put("DryRun", "true");
+
+            EC2Method method = new EC2Method(this, getEc2Url(), parameters);
+
+            try {
+                method.invoke();
+            } catch( EC2Exception e ) {
+                if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    cache.put(getContext(), Collections.singleton(false));
+                    return false;
+                }
+                String code = e.getCode();
+                if( "DryRunOperation".equals(code) ) {
+                    // authorisation is successful
+                    cache.put(getContext(), Collections.singleton(true));
+                    return true;
+                }
+                else if( "SignatureDoesNotMatch".equals(code) ) {
+                    cache.put(getContext(), Collections.singleton(false));
+                    return false;
+                }
+                logger.warn(e.getSummary());
+                throw new CloudException(e);
+            }
+        } finally {
+            APITrace.end();
+        }
+        return false; // this will never get reached with dryrun=true
+    }
 }

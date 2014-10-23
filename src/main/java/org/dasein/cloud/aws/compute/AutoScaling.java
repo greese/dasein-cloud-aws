@@ -519,6 +519,8 @@ public class AutoScaling implements AutoScalingSupport {
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.isSubscribed");
+        boolean test = provider.isEC2ActionAuthorised(EC2Method.DESCRIBE_AUTO_SCALING_GROUPS);
+
         try {
             Cache<Boolean> cache = Cache.getInstance(provider, "AutoScaling.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
             final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());

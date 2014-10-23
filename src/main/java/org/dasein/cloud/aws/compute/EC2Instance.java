@@ -25,12 +25,14 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AWSResourceNotFoundException;
+import org.dasein.cloud.aws.network.ElasticIP;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
+import org.dasein.cloud.util.SingletonCache;
 import org.dasein.util.CalendarWrapper;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Megabyte;
@@ -685,7 +687,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             }
         }
 
-
         Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCES);
         EC2Method method;
         NodeList blocks;
@@ -726,7 +727,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     } catch( TimeoutException e ) {
                         logger.error(e.getMessage());
                     }
-                    VirtualMachine server = toVirtualMachine(ctx, instance, addresses);
+                    VirtualMachine server = toVirtualMachine(ctx, instance);
                     boolean addThisServer = false;
                     if( server != null ) {
                         // if instance array is set, only add the instances matching the initial array
@@ -1153,25 +1154,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     public boolean uncachedIsSubscribed() throws InternalException, CloudException {
         APITrace.begin(getProvider(), "uncachedIsSubscribedVirtualMachine");
         try {
-            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_ACCOUNT_ATTRIBUTES);
-            parameters.put("AttributeName.1", "supported-platforms");
-            EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
-
-            try {
-                method.invoke();
-                return true;
-            } catch( EC2Exception e ) {
-                if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
-                    return false;
-                }
-                String code = e.getCode();
-
-                if( code != null && code.equals("SignatureDoesNotMatch") ) {
-                    return false;
-                }
-                logger.warn(e.getSummary());
-                throw new CloudException(e);
-            }
+            return getProvider().isEC2ActionAuthorised(EC2Method.DESCRIBE_INSTANCES);
         } finally {
             APITrace.end();
         }
@@ -1668,7 +1651,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 Node instance = instances.item(j);
 
                 if( instance.getNodeName().equals("item") ) {
-                    VirtualMachine server = toVirtualMachine(ctx, instance, new ArrayList<IpAddress>() /* can't be an elastic IP */);
+                    VirtualMachine server = toVirtualMachine(ctx, instance);
                     if( server != null ) {
                         servers.add(server);
                         instanceIds.add(server.getProviderVirtualMachineId());
@@ -2091,7 +2074,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
     }
 
-    private @Nullable VirtualMachine toVirtualMachine( @Nonnull ProviderContext ctx, @Nullable Node instance, @Nonnull Iterable<IpAddress> addresses ) throws CloudException {
+    private @Nullable VirtualMachine toVirtualMachine( @Nonnull ProviderContext ctx, @Nullable Node instance ) throws CloudException {
         if( instance == null ) {
             return null;
         }
@@ -2194,12 +2177,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     String value = attr.getFirstChild().getNodeValue();
 
                     server.setPublicAddresses(new RawAddress(value));
-                    for( IpAddress addr : addresses ) {
-                        if( value.equals(addr.getRawAddress().getIpAddress()) ) {
-                            server.setProviderAssignedIpAddressId(addr.getProviderIpAddressId());
-                            break;
-                        }
-                    }
                 }
             }
             else if( name.equals("rootDeviceType") ) {

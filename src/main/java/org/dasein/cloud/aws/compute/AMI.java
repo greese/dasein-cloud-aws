@@ -492,35 +492,9 @@ public class AMI extends AbstractImageSupport {
                     return isSubscribed;
                 }
             }
-
-            Map<String,String> parameters = provider.getStandardParameters(getContext(), EC2Method.DESCRIBE_IMAGES);
-            EC2Method method;
-
-            if( provider.getEC2Provider().isAWS() ) {
-                parameters.put("Owner", getContext().getAccountNumber());
-            }
-            // Add a fake random name, so that the empty image set is returned if authorization is success
-            parameters.put("Filter.1.Name", "name");
-            parameters.put("Filter.1.Value.1", "oWd-Em-rewD-yo-hY");
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                method.invoke();
-                cache.put(getContext(), Collections.singleton(true));
-                return true;
-            }
-            catch( EC2Exception e ) {
-                String msg = e.getSummary();
-
-                if( msg != null && msg.contains("not able to validate the provided access credentials") ) {
-                    cache.put(getContext(), Collections.singleton(false));
-                    return false;
-                }
-                logger.error("AWS Error checking subscription: " + e.getCode() + "/" + e.getSummary());
-                if( logger.isDebugEnabled() ) {
-                    e.printStackTrace();
-                }
-                throw new CloudException(e);
-            }
+            boolean isSubscribed = provider.isEC2ActionAuthorised(EC2Method.DESCRIBE_IMAGES);
+            cache.put(getContext(), Collections.singleton(isSubscribed));
+            return isSubscribed;
         }
         finally {
             APITrace.end();

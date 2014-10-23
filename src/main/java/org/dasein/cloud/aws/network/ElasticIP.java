@@ -52,11 +52,11 @@ public class ElasticIP implements IpAddressSupport {
     static private final ExecutorService threadPool = Executors.newCachedThreadPool();
     private transient volatile ElasticIPAddressCapabilities capabilities;
 
-    ElasticIP(AWSCloud provider) {
+    ElasticIP( AWSCloud provider ) {
         this.provider = provider;
     }
 
-    private @Nullable VirtualMachine getInstance(@Nonnull String instanceId) throws InternalException, CloudException {
+    private @Nullable VirtualMachine getInstance( @Nonnull String instanceId ) throws InternalException, CloudException {
         ComputeServices services = provider.getComputeServices();
 
         if( services != null ) {
@@ -69,11 +69,11 @@ public class ElasticIP implements IpAddressSupport {
         throw new CloudException("Instances are not supported in " + provider.getCloudName());
     }
 
-      @Override
-      public void assign(@Nonnull String addressId, @Nonnull String instanceId) throws InternalException,	CloudException {
+    @Override
+    public void assign( @Nonnull String addressId, @Nonnull String instanceId ) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.assignAddressToServer");
         try {
-            long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
+            long timeout = System.currentTimeMillis() + ( CalendarWrapper.MINUTE * 20L );
             VirtualMachine vm = getInstance(instanceId);
 
             while( System.currentTimeMillis() < timeout ) {
@@ -85,12 +85,18 @@ public class ElasticIP implements IpAddressSupport {
                 if( VmState.RUNNING.equals(s) || VmState.STOPPED.equals(s) || VmState.PAUSED.equals(s) || VmState.SUSPENDED.equals(s) ) {
                     break;
                 }
-                try { Thread.sleep(20000L); }
-                catch( InterruptedException ignore ) { }
-                try { vm = getInstance(instanceId); }
-                catch( Throwable ignore ) { }
+                try {
+                    Thread.sleep(20000L);
+                }
+                catch( InterruptedException ignore ) {
+                }
+                try {
+                    vm = getInstance(instanceId);
+                }
+                catch( Throwable ignore ) {
+                }
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ASSOCIATE_ADDRESS);
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ASSOCIATE_ADDRESS);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -115,13 +121,13 @@ public class ElasticIP implements IpAddressSupport {
         finally {
             APITrace.end();
         }
-      }
+    }
 
     @Override
-    public void assignToNetworkInterface(@Nonnull String addressId, @Nonnull String nicId) throws InternalException, CloudException {
+    public void assignToNetworkInterface( @Nonnull String addressId, @Nonnull String nicId ) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.assignAddressToNetworkInterface");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ASSOCIATE_ADDRESS);
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ASSOCIATE_ADDRESS);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -149,21 +155,20 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     @Override
-    public @Nonnull String forward(@Nonnull String addressId, int publicPort, @Nonnull Protocol protocol, int privatePort, @Nonnull String serverId) throws InternalException, CloudException {
+    public @Nonnull String forward( @Nonnull String addressId, int publicPort, @Nonnull Protocol protocol, int privatePort, @Nonnull String serverId ) throws InternalException, CloudException {
         throw new OperationNotSupportedException();
     }
 
-    @Nonnull
-    @Override
+    @Nonnull @Override
     public IPAddressCapabilities getCapabilities() throws CloudException, InternalException {
-        if( capabilities == null) {
+        if( capabilities == null ) {
             capabilities = new ElasticIPAddressCapabilities(provider);
         }
         return capabilities;
     }
 
     @Override
-    public @Nullable IpAddress getIpAddress(@Nonnull String addressId) throws InternalException, CloudException {
+    public @Nullable IpAddress getIpAddress( @Nonnull String addressId ) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.getIpAddress");
         try {
             if( isIPAddress(addressId) ) {
@@ -176,8 +181,8 @@ public class ElasticIP implements IpAddressSupport {
             APITrace.end();
         }
     }
-    
-    private @Nullable IpAddress getEC2Address(@Nonnull String addressId) throws InternalException, CloudException {
+
+    private @Nullable IpAddress getEC2Address( @Nonnull String addressId ) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.getEC2Address");
         try {
             ProviderContext ctx = provider.getContext();
@@ -185,7 +190,7 @@ public class ElasticIP implements IpAddressSupport {
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ADDRESSES);
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ADDRESSES);
             IpAddress address = null;
             EC2Method method;
             NodeList blocks;
@@ -199,26 +204,24 @@ public class ElasticIP implements IpAddressSupport {
             catch( EC2Exception e ) {
                 String code = e.getCode();
 
-                if( code != null && ( code.equals("InvalidAllocationID.NotFound")
-                        || code.equals("InvalidAddress.NotFound")
-                        || e.getMessage().contains("Invalid value") ) ) {
+                if( code != null && ( code.equals("InvalidAllocationID.NotFound") || code.equals("InvalidAddress.NotFound") || e.getMessage().contains("Invalid value") ) ) {
                     return null;
                 }
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
             blocks = doc.getElementsByTagName("addressesSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
+            for( int i = 0; i < blocks.getLength(); i++ ) {
                 NodeList items = blocks.item(i).getChildNodes();
 
-                for( int j=0; j<items.getLength(); j++ ) {
+                for( int j = 0; j < items.getLength(); j++ ) {
                     Node item = items.item(j);
 
                     if( item.getNodeName().equals("item") ) {
                         address = toAddress(ctx, item);
                         // In case of EC2 the addressId should be the actual "x.x.x.x" address,
                         // and not the "eipalloc-XXXX" since latter simply not available.
-                        if( address != null && addressId.equals(address.getRawAddress().getIpAddress())) {
+                        if( address != null && addressId.equals(address.getRawAddress().getIpAddress()) ) {
                             return address;
                         }
                     }
@@ -229,9 +232,9 @@ public class ElasticIP implements IpAddressSupport {
         finally {
             APITrace.end();
         }
-	}
+    }
 
-    private @Nullable IpAddress getVPCAddress(@Nonnull String addressId) throws InternalException, CloudException {
+    private @Nullable IpAddress getVPCAddress( @Nonnull String addressId ) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.getVPCAddress");
         try {
             ProviderContext ctx = provider.getContext();
@@ -239,7 +242,7 @@ public class ElasticIP implements IpAddressSupport {
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ADDRESSES);
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ADDRESSES);
             IpAddress address = null;
             EC2Method method;
             NodeList blocks;
@@ -253,22 +256,22 @@ public class ElasticIP implements IpAddressSupport {
             catch( EC2Exception e ) {
                 String code = e.getCode();
 
-                if( code != null && (code.equals("InvalidAllocationID.NotFound") || code.equals("InvalidAddress.NotFound") || e.getMessage().contains("Invalid value") || e.getMessage().startsWith("InvalidAllocation")) ) {
+                if( code != null && ( code.equals("InvalidAllocationID.NotFound") || code.equals("InvalidAddress.NotFound") || e.getMessage().contains("Invalid value") || e.getMessage().startsWith("InvalidAllocation") ) ) {
                     return null;
                 }
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
             blocks = doc.getElementsByTagName("addressesSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
+            for( int i = 0; i < blocks.getLength(); i++ ) {
                 NodeList items = blocks.item(i).getChildNodes();
 
-                for( int j=0; j<items.getLength(); j++ ) {
+                for( int j = 0; j < items.getLength(); j++ ) {
                     Node item = items.item(j);
 
                     if( item.getNodeName().equals("item") ) {
                         address = toAddress(ctx, item);
-                        if( address != null && addressId.equals(address.getProviderIpAddressId())) {
+                        if( address != null && addressId.equals(address.getProviderIpAddressId()) ) {
                             return address;
                         }
                     }
@@ -281,163 +284,174 @@ public class ElasticIP implements IpAddressSupport {
         }
     }
 
-    @Override
-    @Deprecated
-	public @Nonnull String getProviderTermForIpAddress(@Nonnull Locale locale) {
+    @Override @Deprecated
+    public @Nonnull String getProviderTermForIpAddress( @Nonnull Locale locale ) {
         try {
             return getCapabilities().getProviderTermForIpAddress(locale);
-        } catch( CloudException e ) {
+        }
+        catch( CloudException e ) {
             throw new RuntimeException(e);
-        } catch( InternalException e ) {
+        }
+        catch( InternalException e ) {
             throw new RuntimeException(e);
         }
     }
 
-    @Override
-    @Deprecated
+    @Override @Deprecated
     public @Nonnull Requirement identifyVlanForVlanIPRequirement() {
         try {
             return getCapabilities().identifyVlanForVlanIPRequirement();
-        } catch( CloudException e ) {
+        }
+        catch( CloudException e ) {
             throw new RuntimeException(e);
-        } catch( InternalException e ) {
+        }
+        catch( InternalException e ) {
             throw new RuntimeException(e);
         }
     }
 
     @Override
-    public boolean isAssigned(@Nonnull AddressType type) {
-		return type.equals(AddressType.PUBLIC);
-	}
+    public boolean isAssigned( @Nonnull AddressType type ) {
+        return type.equals(AddressType.PUBLIC);
+    }
 
-    @Override
-    @Deprecated
-    public boolean isAssigned(@Nonnull IPVersion version) throws CloudException, InternalException {
+    @Override @Deprecated
+    public boolean isAssigned( @Nonnull IPVersion version ) throws CloudException, InternalException {
         return version.equals(IPVersion.IPV4);
     }
 
-    @Override
-    @Deprecated
-    public boolean isAssignablePostLaunch(@Nonnull IPVersion version) throws CloudException, InternalException {
+    @Override @Deprecated
+    public boolean isAssignablePostLaunch( @Nonnull IPVersion version ) throws CloudException, InternalException {
         return getCapabilities().isAssignablePostLaunch(version);
     }
 
     @Override
     public boolean isForwarding() {
-		return false;
-	}
+        return false;
+    }
 
-    @Override
-    @Deprecated
-    public boolean isForwarding(IPVersion version) throws CloudException, InternalException {
+    @Override @Deprecated
+    public boolean isForwarding( IPVersion version ) throws CloudException, InternalException {
         return false;
     }
 
     @Override
-    public boolean isRequestable(@Nonnull AddressType type) {
+    public boolean isRequestable( @Nonnull AddressType type ) {
         return type.equals(AddressType.PUBLIC);
     }
 
-    @Override
-    @Deprecated
-    public boolean isRequestable(@Nonnull IPVersion version) throws CloudException, InternalException {
+    @Override @Deprecated
+    public boolean isRequestable( @Nonnull IPVersion version ) throws CloudException, InternalException {
         return getCapabilities().isRequestable(version);
     }
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        return true;
+        return provider.isEC2ActionAuthorised(EC2Method.DESCRIBE_ADDRESSES);
     }
-    
-	@Override
-	public @Nonnull Iterable<IpAddress> listPrivateIpPool(boolean unassignedOnly) throws InternalException, CloudException {
-	    return Collections.emptyList();
-	}
 
     @Override
-    public @Nonnull Iterable<IpAddress> listPublicIpPool(boolean unassignedOnly) throws InternalException, CloudException {
+    public @Nonnull Iterable<IpAddress> listPrivateIpPool( boolean unassignedOnly ) throws InternalException, CloudException {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public @Nonnull Iterable<IpAddress> listPublicIpPool( boolean unassignedOnly ) throws InternalException, CloudException {
         return listIpPool(IPVersion.IPV4, unassignedOnly);
     }
 
     @Override
-    public @Nonnull Iterable<IpAddress> listIpPool(@Nonnull IPVersion version, boolean unassignedOnly) throws InternalException, CloudException {
+    public @Nonnull Iterable<IpAddress> listIpPool( @Nonnull IPVersion version, boolean unassignedOnly ) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.listIpPool");
         try {
-          Future<Iterable<IpAddress>> ipPoolFuture = listIpPoolConcurrently(version, unassignedOnly);
-          return ipPoolFuture.get();
-        } catch (CloudException ce) {
-          throw ce;
-        } catch (Exception e) {
-          throw new InternalException(e);
+            Future<Iterable<IpAddress>> ipPoolFuture = listIpPoolConcurrently(version, unassignedOnly);
+            return ipPoolFuture.get();
+        }
+        catch( CloudException ce ) {
+            throw ce;
+        }
+        catch( Exception e ) {
+            throw new InternalException(e);
         }
         finally {
             APITrace.end();
         }
     }
 
-    public Future<Iterable<IpAddress>> listIpPoolConcurrently(IPVersion version, boolean unassignedOnly) throws CloudException, InternalException {
-      return threadPool.submit(
-        new ListIpPoolCallable(
-          version,
-          unassignedOnly
-        )
-      );
+    public Future<Iterable<IpAddress>> listIpPoolConcurrently( IPVersion version, List<RawAddress> ipAddresses ) throws CloudException, InternalException {
+        return threadPool.submit(new ListIpPoolCallable(version, false, ipAddresses));
+    }
+
+    public Future<Iterable<IpAddress>> listIpPoolConcurrently( IPVersion version, boolean unassignedOnly ) throws CloudException, InternalException {
+        return threadPool.submit(new ListIpPoolCallable(version, unassignedOnly, null));
     }
 
     public class ListIpPoolCallable implements Callable {
-      IPVersion version;
-      boolean unassignedOnly;
+        IPVersion        version;
+        boolean          unassignedOnly;
+        List<RawAddress> rawAddresses;
 
-      public ListIpPoolCallable( IPVersion version, boolean unassignedOnly ) {
-        this.version = version;
-        this.unassignedOnly = unassignedOnly;
-      }
-
-      public Iterable<IpAddress> call() throws CloudException, InternalException {
-        if( !version.equals(IPVersion.IPV4) ) {
-          return Collections.emptyList();
-        }
-        ProviderContext ctx = provider.getContext();
-        if( ctx == null ) {
-          throw new CloudException("No context was set for this request");
-        }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ADDRESSES);
-        ArrayList<IpAddress> list = new ArrayList<IpAddress>();
-        EC2Method method;
-        NodeList blocks;
-        Document doc;
-
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
-        try {
-          doc = method.invoke();
-        }
-        catch( EC2Exception e ) {
-          logger.error(e.getSummary());
-          throw new CloudException(e);
-        }
-        blocks = doc.getElementsByTagName("addressesSet");
-        for( int i=0; i<blocks.getLength(); i++ ) {
-          NodeList items = blocks.item(i).getChildNodes();
-
-          for( int j=0; j<items.getLength(); j++ ) {
-            Node item = items.item(j);
-
-            if( item.getNodeName().equals("item") ) {
-              IpAddress address = toAddress(ctx, item);
-
-              if( address != null && address.getVersion().equals(version) &&
-                      (!unassignedOnly || (address.getServerId() == null && address.getProviderLoadBalancerId() == null)) ) {
-                list.add(address);
-              }
+        public ListIpPoolCallable( IPVersion version, boolean unassignedOnly, List<RawAddress> rawAddresses) {
+            this.version = version;
+            this.unassignedOnly = unassignedOnly;
+            if( !unassignedOnly ) {
+                // instances only can be used when looking for assigned addresses
+                this.rawAddresses = rawAddresses;
             }
-          }
         }
-        return list;
-      }
+
+        public Iterable<IpAddress> call() throws CloudException, InternalException {
+            if( !version.equals(IPVersion.IPV4) ) {
+                return Collections.emptyList();
+            }
+            ProviderContext ctx = provider.getContext();
+            if( ctx == null ) {
+                throw new CloudException("No context was set for this request");
+            }
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ADDRESSES);
+            ArrayList<IpAddress> list = new ArrayList<IpAddress>();
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
+            List<String> ipAddresses = new ArrayList<String>();
+            if( rawAddresses != null ) {
+                for( RawAddress raw : rawAddresses ) {
+                    ipAddresses.add(raw.getIpAddress());
+                }
+                AWSCloud.addIndexedParameters(parameters, "PublicIp",
+                        ipAddresses.toArray(new String[ipAddresses.size()]));
+            }
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("addressesSet");
+            for( int i = 0; i < blocks.getLength(); i++ ) {
+                NodeList items = blocks.item(i).getChildNodes();
+
+                for( int j = 0; j < items.getLength(); j++ ) {
+                    Node item = items.item(j);
+
+                    if( item.getNodeName().equals("item") ) {
+                        IpAddress address = toAddress(ctx, item);
+
+                        if( address != null && address.getVersion().equals(version) &&
+                                ( !unassignedOnly || ( address.getServerId() == null && address.getProviderLoadBalancerId() == null ) ) ) {
+                            list.add(address);
+                        }
+                    }
+                }
+            }
+            return list;
+        }
     }
 
     @Override
-    public @Nonnull Iterable<ResourceStatus> listIpPoolStatus(@Nonnull IPVersion version) throws InternalException, CloudException {
+    public @Nonnull Iterable<ResourceStatus> listIpPoolStatus( @Nonnull IPVersion version ) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.listIpPoolStatus");
         try {
             if( !version.equals(IPVersion.IPV4) ) {
@@ -448,7 +462,7 @@ public class ElasticIP implements IpAddressSupport {
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ADDRESSES);
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ADDRESSES);
             ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
             EC2Method method;
             NodeList blocks;
@@ -463,10 +477,10 @@ public class ElasticIP implements IpAddressSupport {
                 throw new CloudException(e);
             }
             blocks = doc.getElementsByTagName("addressesSet");
-            for( int i=0; i<blocks.getLength(); i++ ) {
+            for( int i = 0; i < blocks.getLength(); i++ ) {
                 NodeList items = blocks.item(i).getChildNodes();
 
-                for( int j=0; j<items.getLength(); j++ ) {
+                for( int j = 0; j < items.getLength(); j++ ) {
                     Node item = items.item(j);
 
                     if( item.getNodeName().equals("item") ) {
@@ -486,43 +500,42 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     @Override
-    public @Nonnull Collection<IpForwardingRule> listRules(@Nonnull String addressId)	throws InternalException, CloudException {
+    public @Nonnull Collection<IpForwardingRule> listRules( @Nonnull String addressId ) throws InternalException, CloudException {
         return Collections.emptyList();
-	}
+    }
 
-    @Override
-    @Deprecated
+    @Override @Deprecated
     public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
         return getCapabilities().listSupportedIPVersions();
     }
 
     @Override
-    public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
+    public @Nonnull String[] mapServiceAction( @Nonnull ServiceAction action ) {
         if( action.equals(IpAddressSupport.ANY) ) {
-            return new String[] { EC2Method.EC2_PREFIX + "*" };
+            return new String[]{EC2Method.EC2_PREFIX + "*"};
         }
         else if( action.equals(IpAddressSupport.ASSIGN) ) {
-            return new String[] { EC2Method.EC2_PREFIX + EC2Method.ASSOCIATE_ADDRESS };
+            return new String[]{EC2Method.EC2_PREFIX + EC2Method.ASSOCIATE_ADDRESS};
         }
         else if( action.equals(IpAddressSupport.CREATE_IP_ADDRESS) ) {
-            return new String[] { EC2Method.EC2_PREFIX + EC2Method.ALLOCATE_ADDRESS };
+            return new String[]{EC2Method.EC2_PREFIX + EC2Method.ALLOCATE_ADDRESS};
         }
         else if( action.equals(IpAddressSupport.FORWARD) ) {
             return new String[0];
         }
         else if( action.equals(IpAddressSupport.GET_IP_ADDRESS) ) {
 
-            return new String[] { EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_ADDRESSES };
+            return new String[]{EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_ADDRESSES};
         }
         else if( action.equals(IpAddressSupport.LIST_IP_ADDRESS) ) {
 
-            return new String[] { EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_ADDRESSES };            
+            return new String[]{EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_ADDRESSES};
         }
         else if( action.equals(IpAddressSupport.RELEASE) ) {
-            return new String[] { EC2Method.EC2_PREFIX + EC2Method.DISASSOCIATE_ADDRESS };
+            return new String[]{EC2Method.EC2_PREFIX + EC2Method.DISASSOCIATE_ADDRESS};
         }
         else if( action.equals(IpAddressSupport.REMOVE_IP_ADDRESS) ) {
-            return new String[] { EC2Method.EC2_PREFIX + EC2Method.RELEASE_ADDRESS };
+            return new String[]{EC2Method.EC2_PREFIX + EC2Method.RELEASE_ADDRESS};
         }
         else if( action.equals(IpAddressSupport.STOP_FORWARD) ) {
             return new String[0];
@@ -531,10 +544,10 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     @Override
-    public void releaseFromServer(@Nonnull String addressId) throws InternalException, CloudException {
+    public void releaseFromServer( @Nonnull String addressId ) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.releaseFromServer");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DISASSOCIATE_ADDRESS);
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DISASSOCIATE_ADDRESS);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -568,73 +581,74 @@ public class ElasticIP implements IpAddressSupport {
 
     /**
      * Identify if the string is an IP address, e.g. x.x.x.x or x:x:x:x:x:x:x:x
+     *
      * @param address IP address to test
      * @return true if parameter is a normal IPv4 or IPv6 address
      */
-    private boolean isIPAddress(@Nonnull String address) {
+    private boolean isIPAddress( @Nonnull String address ) {
         return ( InetAddressUtils.isIPv4Address(address) || InetAddressUtils.isIPv6Address(address) );
     }
 
-    private void setId(@Nonnull String postfix, @Nonnull Map<String,String> parameters, @Nonnull String addressId,
-                       @Nullable Boolean disassociate) throws CloudException, InternalException {
+    private void setId( @Nonnull String postfix, @Nonnull Map<String, String> parameters, @Nonnull String addressId, @Nullable Boolean disassociate ) throws CloudException, InternalException {
         if( isIPAddress(addressId) ) {
             parameters.put("PublicIp" + postfix, addressId);
         }
         else {
             if( disassociate != null && disassociate ) {
                 parameters.put("AssociationId" + postfix, addressId);
-            } else {
+            }
+            else {
                 parameters.put("AllocationId" + postfix, addressId);
             }
         }
     }
 
     @Override
-    public void releaseFromPool(@Nonnull String addressId) throws InternalException, CloudException {
-       APITrace.begin(provider, "IpAddress.releaseFromPool");
-       try {
-           Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.RELEASE_ADDRESS);
-           EC2Method method;
-           NodeList blocks;
-           Document doc;
+    public void releaseFromPool( @Nonnull String addressId ) throws InternalException, CloudException {
+        APITrace.begin(provider, "IpAddress.releaseFromPool");
+        try {
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.RELEASE_ADDRESS);
+            EC2Method method;
+            NodeList blocks;
+            Document doc;
 
-           setId("", parameters, addressId, false);
-           method = new EC2Method(provider, provider.getEc2Url(), parameters);
-           try {
-               doc = method.invoke();
-           }
-           catch( EC2Exception e ) {
-               logger.error(e.getSummary());
-               throw new CloudException(e);
-           }
-           blocks = doc.getElementsByTagName("return");
-           if( blocks.getLength() > 0 ) {
-               if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
-                   throw new CloudException("Deletion of address denied.");
-               }
-           }
-       }
-       finally {
-           APITrace.end();
-       }
-   }
-
-    @Override
-    public @Nonnull String request(@Nonnull AddressType betterBePublic) throws InternalException, CloudException {
-        if( !betterBePublic.equals(AddressType.PUBLIC) ) {
-            throw new OperationNotSupportedException("AWS supports only public IP address requests.");
+            setId("", parameters, addressId, false);
+            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            try {
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            blocks = doc.getElementsByTagName("return");
+            if( blocks.getLength() > 0 ) {
+                if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
+                    throw new CloudException("Deletion of address denied.");
+                }
+            }
         }
-       return request(IPVersion.IPV4);
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
-    public @Nonnull String request(@Nonnull IPVersion version) throws InternalException, CloudException {
+    public @Nonnull String request( @Nonnull AddressType betterBePublic ) throws InternalException, CloudException {
+        if( !betterBePublic.equals(AddressType.PUBLIC) ) {
+            throw new OperationNotSupportedException("AWS supports only public IP address requests.");
+        }
+        return request(IPVersion.IPV4);
+    }
+
+    @Override
+    public @Nonnull String request( @Nonnull IPVersion version ) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.request");
         try {
             if( !version.equals(IPVersion.IPV4) ) {
                 throw new OperationNotSupportedException(provider.getCloudName() + " does not support " + version);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ALLOCATE_ADDRESS);
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ALLOCATE_ADDRESS);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -668,18 +682,18 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     @Override
-    public @Nonnull String requestForVLAN(@Nonnull IPVersion forVersion) throws InternalException, CloudException {
+    public @Nonnull String requestForVLAN( @Nonnull IPVersion forVersion ) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.requestForVLAN");
         try {
             if( !forVersion.equals(IPVersion.IPV4) ) {
                 throw new OperationNotSupportedException(provider.getCloudName() + " does not support " + forVersion + ".");
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ALLOCATE_ADDRESS);
+            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ALLOCATE_ADDRESS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            parameters.put("Domain","vpc");
+            parameters.put("Domain", "vpc");
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 doc = method.invoke();
@@ -700,146 +714,146 @@ public class ElasticIP implements IpAddressSupport {
     }
 
     @Override
-    public @Nonnull String requestForVLAN(@Nonnull IPVersion version, @Nonnull String vlanId) throws CloudException, InternalException {
+    public @Nonnull String requestForVLAN( @Nonnull IPVersion version, @Nonnull String vlanId ) throws CloudException, InternalException {
         throw new OperationNotSupportedException("AWS IP addresses may not be assigned to a specific VLAN");
     }
 
     @Override
-    public void stopForward(@Nonnull String ruleId) throws InternalException, CloudException {
+    public void stopForward( @Nonnull String ruleId ) throws InternalException, CloudException {
         throw new OperationNotSupportedException();
     }
 
-    @Override
-    @Deprecated
-    public boolean supportsVLANAddresses(@Nonnull IPVersion version) throws InternalException, CloudException {
+    @Override @Deprecated
+    public boolean supportsVLANAddresses( @Nonnull IPVersion version ) throws InternalException, CloudException {
         return getCapabilities().supportsVLANAddresses(version);
     }
 
-    private @Nullable IpAddress toAddress(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException {
-      if( node == null ) {
-        return null;
-      }
-      String regionId = ctx.getRegionId();
-
-      if( regionId == null ) {
-        throw new CloudException("No regionID was set in context");
-      }
-      NodeList attrs = node.getChildNodes();
-      IpAddress address = new IpAddress();
-      String instanceId = null,ip = null;
-      String ipAddressId = null, nicId = null,associationId = null;
-      boolean forVlan = false;
-
-      for( int i=0; i<attrs.getLength(); i++ ) {
-        Node attr = attrs.item(i);
-        String name;
-
-        name = attr.getNodeName();
-        if( name.equals("publicIp") ) {
-          ip = attr.getFirstChild().getNodeValue().trim();
-        }
-        else if( name.equals("instanceId") ) {
-          if( attr.getChildNodes().getLength() > 0 ) {
-            Node id = attr.getFirstChild();
-
-            if( id != null ) {
-              String value = id.getNodeValue();
-
-              if( value != null ) {
-                value = value.trim();
-                if( value.length() > 0 ) {
-                  instanceId = value;
-                }
-              }
-            }
-          }
-        }
-        else if( name.equals("allocationId") && attr.hasChildNodes() ) {
-          ipAddressId = attr.getFirstChild().getNodeValue().trim();
-        }
-        else if( name.equals("associationId") && attr.hasChildNodes() ) {
-          associationId = attr.getFirstChild().getNodeValue().trim();
-        }
-        else if( name.equals("domain") && attr.hasChildNodes() ) {
-          forVlan = attr.getFirstChild().getNodeValue().trim().equalsIgnoreCase("vpc");
-          if( !forVlan ) {
-            address.setAddressType(AddressType.PUBLIC);
-          } else {
-            address.setAddressType(AddressType.PRIVATE);
-          }
-        }
-        else if( name.equals("networkInterfaceId") && attr.hasChildNodes() ) {
-          nicId = attr.getFirstChild().getNodeValue().trim();
-        }
-      }
-      if( ip == null ) {
-        throw new CloudException("Invalid address data, no IP.");
-      }
-      if( ipAddressId == null ) {
-        ipAddressId = ip;
-      }
-      address.setVersion(IPVersion.IPV4);
-      address.setAddressType(AddressType.PUBLIC);
-      address.setAddress(ip);
-      address.setIpAddressId(ipAddressId);
-      address.setRegionId(regionId);
-      address.setForVlan(forVlan);
-      address.setProviderAssociationId(associationId);
-      address.setProviderNetworkInterfaceId(nicId);
-      if( instanceId != null && provider.getEC2Provider().isEucalyptus() ) {
-        if( instanceId.startsWith("available") ) {
-          instanceId = null;
-        }
-        else {
-          int idx = instanceId.indexOf(' ');
-          if( idx > 0 ) {
-            instanceId = instanceId.substring(0,idx);
-          }
-        }
-      }
-      address.setServerId(instanceId);
-      return address;
-	  }
-
-    private @Nullable ResourceStatus toStatus(@Nullable Node node) throws CloudException {
+    private @Nullable IpAddress toAddress( @Nonnull ProviderContext ctx, @Nullable Node node ) throws CloudException {
         if( node == null ) {
-          return null;
+            return null;
+        }
+        String regionId = ctx.getRegionId();
+
+        if( regionId == null ) {
+            throw new CloudException("No regionID was set in context");
+        }
+        NodeList attrs = node.getChildNodes();
+        IpAddress address = new IpAddress();
+        String instanceId = null, ip = null;
+        String ipAddressId = null, nicId = null, associationId = null;
+        boolean forVlan = false;
+
+        for( int i = 0; i < attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String name;
+
+            name = attr.getNodeName();
+            if( name.equals("publicIp") ) {
+                ip = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if( name.equals("instanceId") ) {
+                if( attr.getChildNodes().getLength() > 0 ) {
+                    Node id = attr.getFirstChild();
+
+                    if( id != null ) {
+                        String value = id.getNodeValue();
+
+                        if( value != null ) {
+                            value = value.trim();
+                            if( value.length() > 0 ) {
+                                instanceId = value;
+                            }
+                        }
+                    }
+                }
+            }
+            else if( name.equals("allocationId") && attr.hasChildNodes() ) {
+                ipAddressId = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if( name.equals("associationId") && attr.hasChildNodes() ) {
+                associationId = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if( name.equals("domain") && attr.hasChildNodes() ) {
+                forVlan = attr.getFirstChild().getNodeValue().trim().equalsIgnoreCase("vpc");
+                if( !forVlan ) {
+                    address.setAddressType(AddressType.PUBLIC);
+                }
+                else {
+                    address.setAddressType(AddressType.PRIVATE);
+                }
+            }
+            else if( name.equals("networkInterfaceId") && attr.hasChildNodes() ) {
+                nicId = attr.getFirstChild().getNodeValue().trim();
+            }
+        }
+        if( ip == null ) {
+            throw new CloudException("Invalid address data, no IP.");
+        }
+        if( ipAddressId == null ) {
+            ipAddressId = ip;
+        }
+        address.setVersion(IPVersion.IPV4);
+        address.setAddressType(AddressType.PUBLIC);
+        address.setAddress(ip);
+        address.setIpAddressId(ipAddressId);
+        address.setRegionId(regionId);
+        address.setForVlan(forVlan);
+        address.setProviderAssociationId(associationId);
+        address.setProviderNetworkInterfaceId(nicId);
+        if( instanceId != null && provider.getEC2Provider().isEucalyptus() ) {
+            if( instanceId.startsWith("available") ) {
+                instanceId = null;
+            }
+            else {
+                int idx = instanceId.indexOf(' ');
+                if( idx > 0 ) {
+                    instanceId = instanceId.substring(0, idx);
+                }
+            }
+        }
+        address.setServerId(instanceId);
+        return address;
+    }
+
+    private @Nullable ResourceStatus toStatus( @Nullable Node node ) throws CloudException {
+        if( node == null ) {
+            return null;
         }
         NodeList attrs = node.getChildNodes();
         String instanceId = null, ipAddressId = null, nicId = null, ip = null;
-        for( int i=0; i<attrs.getLength(); i++ ) {
-          Node attr = attrs.item(i);
-          String name;
-          name = attr.getNodeName();
-          if( name.equals("publicIp") ) {
-            ip = attr.getFirstChild().getNodeValue().trim();
-          }
-          else if( name.equals("instanceId") ) {
-            if( attr.getChildNodes().getLength() > 0 ) {
-              Node id = attr.getFirstChild();
-              if( id != null ) {
-                String value = id.getNodeValue();
-                if( value != null ) {
-                  value = value.trim();
-                  if( value.length() > 0 ) {
-                    instanceId = value;
-                  }
-                }
-              }
+        for( int i = 0; i < attrs.getLength(); i++ ) {
+            Node attr = attrs.item(i);
+            String name;
+            name = attr.getNodeName();
+            if( name.equals("publicIp") ) {
+                ip = attr.getFirstChild().getNodeValue().trim();
             }
-          }
-          else if( name.equals("allocationId") && attr.hasChildNodes() ) {
-            ipAddressId = attr.getFirstChild().getNodeValue().trim();
-          }
-          else if( name.equals("networkInterfaceId") && attr.hasChildNodes() ) {
-            nicId = attr.getFirstChild().getNodeValue().trim();
-          }
+            else if( name.equals("instanceId") ) {
+                if( attr.getChildNodes().getLength() > 0 ) {
+                    Node id = attr.getFirstChild();
+                    if( id != null ) {
+                        String value = id.getNodeValue();
+                        if( value != null ) {
+                            value = value.trim();
+                            if( value.length() > 0 ) {
+                                instanceId = value;
+                            }
+                        }
+                    }
+                }
+            }
+            else if( name.equals("allocationId") && attr.hasChildNodes() ) {
+                ipAddressId = attr.getFirstChild().getNodeValue().trim();
+            }
+            else if( name.equals("networkInterfaceId") && attr.hasChildNodes() ) {
+                nicId = attr.getFirstChild().getNodeValue().trim();
+            }
         }
         if( ipAddressId == null ) {
-          ipAddressId = ip;
+            ipAddressId = ip;
         }
         if( ipAddressId == null ) {
-          return null;
+            return null;
         }
         return new ResourceStatus(ipAddressId, instanceId == null && nicId == null);
     }
