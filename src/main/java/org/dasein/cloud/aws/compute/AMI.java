@@ -481,35 +481,7 @@ public class AMI extends AbstractImageSupport {
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(getProvider(), "Image.isSubscribed");
-        try {
-            Map<String,String> parameters = provider.getStandardParameters(getContext(), EC2Method.DESCRIBE_IMAGES);
-            EC2Method method;
-
-            if( provider.getEC2Provider().isAWS() ) {
-                parameters.put("Owner", getContext().getAccountNumber());
-            }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                method.invoke();
-                return true;
-            }
-            catch( EC2Exception e ) {
-                String msg = e.getSummary();
-
-                if( msg != null && msg.contains("not able to validate the provided access credentials") ) {
-                    return false;
-                }
-                logger.error("AWS Error checking subscription: " + e.getCode() + "/" + e.getSummary());
-                if( logger.isDebugEnabled() ) {
-                    e.printStackTrace();
-                }
-                throw new CloudException(e);
-            }
-        }
-        finally {
-            APITrace.end();
-        }
+        return provider.isEC2ActionAuthorised(EC2Method.DESCRIBE_IMAGES);
     }
 
     public @Nonnull Iterable<ResourceStatus> listImageStatus(final @Nonnull ImageClass cls) throws CloudException, InternalException {

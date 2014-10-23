@@ -516,6 +516,8 @@ public class AutoScaling implements AutoScalingSupport {
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "AutoScaling.isSubscribed");
+        boolean test = provider.isEC2ActionAuthorised(EC2Method.DESCRIBE_AUTO_SCALING_GROUPS);
+
         try {
             Map<String,String> parameters = getAutoScalingParameters(provider.getContext(), EC2Method.DESCRIBE_AUTO_SCALING_GROUPS);
             EC2Method method;
