@@ -320,7 +320,10 @@ public class RegionsAndZones implements DataCenterServices {
 
                     if( region.getNodeName().equals("item") ) {
                         Region r = toRegion(nodes.item(j));
-
+                        if( r.getName().startsWith("eu-central") ) {
+                            // FIXME(stas): ignore new central european regions until we transitioned to v4 signatures
+                            continue;
+                        }
                         if( provider.getEC2Provider().isEucalyptus() ) {
                             if( r.getProviderRegionId().equalsIgnoreCase("eucalyptus") ) {
                                 regions.add(r);
