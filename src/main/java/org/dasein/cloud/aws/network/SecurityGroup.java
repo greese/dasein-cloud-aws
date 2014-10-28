@@ -41,6 +41,7 @@ import java.util.*;
 
 public class SecurityGroup extends AbstractFirewallSupport {
     static private final Logger logger = AWSCloud.getLogger(SecurityGroup.class);
+    public static final int NEW_SECURITY_GROUP_AUTHZ_RETRY_COUNT = 5;
 
     private AWSCloud provider = null;
     private transient volatile SecurityGroupCapabilities capabilities;
@@ -92,7 +93,7 @@ public class SecurityGroup extends AbstractFirewallSupport {
             Firewall fw = getFirewall(firewallId);
 
             if( fw == null ) {
-                throw new CloudException("No such firewall: " + firewallId);
+                throw new AWSResourceNotFoundException("No such firewall: " + firewallId);
             }
             if( direction.equals(Direction.EGRESS) && isAwsEc2Classic(fw) ) {
                 throw new OperationNotSupportedException("AWS does not support EGRESS rules for non-VPC security groups");
@@ -241,13 +242,36 @@ public class SecurityGroup extends AbstractFirewallSupport {
 
             if( ruleOptions != null && ruleOptions.length > 0 ) {
                 for( FirewallRuleCreateOptions option : ruleOptions ) {
-                    authorize(firewallId, option);
+                    authorizeWithRetry(firewallId, option);
                 }
             }
             return firewallId;
         } finally {
             APITrace.end();
         }
+    }
+
+    /**
+     * Authorize a rule on a security group, retrying if AWS reports that the security group is unknown.
+     * This is to work around fundamental eventual consistency in the EC2 API. Created resources may not be
+     * immediately accessible in future API calls.
+     */
+    private void authorizeWithRetry(String firewallId, FirewallRuleCreateOptions option) throws CloudException, InternalException {
+        for (int i=0; i<NEW_SECURITY_GROUP_AUTHZ_RETRY_COUNT - 1; i++) {
+            try {
+                authorize(firewallId, option);
+                return;
+            } catch (AWSResourceNotFoundException e) {
+                try {
+                    // retry backoff is somewhat arbitrary. Anecdotally, this condition in AWS seems very short-lived
+                    // and a second request will succeed.
+                    Thread.sleep(100L * i+1);
+                } catch (InterruptedException ignored) {}
+            }
+        }
+
+        // one last, unguarded retry.
+        authorize(firewallId, option);
     }
 
     @Override
