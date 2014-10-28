@@ -53,11 +53,11 @@ public class SNSCapabilities extends AbstractCapabilities<AWSCloud> implements P
 
     @Override
     public @Nonnull String getProviderTermForSubscription( Locale locale ) {
-        return null;
+        return "subscription";
     }
 
     @Override
     public @Nonnull String getProviderTermForTopic( Locale locale ) {
-        return null;
+        return "topic";
     }
 }

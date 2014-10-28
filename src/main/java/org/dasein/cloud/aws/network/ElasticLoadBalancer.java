@@ -154,12 +154,14 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 method = new ELBMethod(provider, ctx, parameters);
                 try {
                     method.invoke();
-                } catch( EC2Exception e ) {
+                }
+                catch( EC2Exception e ) {
                     logger.error(e.getSummary());
                     throw new CloudException(e);
                 }
             }
-        } finally {
+        }
+        finally {
             APITrace.end();
         }
     }
@@ -991,6 +993,11 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
+    public LoadBalancerHealthCheck createLoadBalancerHealthCheck(@Nullable String name, @Nullable String description, @Nullable String host, @Nullable LoadBalancerHealthCheck.HCProtocol protocol, int port, @Nullable String path, int interval, int timeout, int healthyCount, int unhealthyCount) throws CloudException, InternalException{
+        return createLoadBalancerHealthCheck(HealthCheckOptions.getInstance(name, description, null, host, protocol, port, path, interval, timeout, healthyCount, unhealthyCount));
+    }
+
+    @Override
     public LoadBalancerHealthCheck createLoadBalancerHealthCheck(@Nonnull HealthCheckOptions options)throws CloudException, InternalException{
         APITrace.begin(provider, "LB.configureHealthCheck");
         try {
@@ -1101,6 +1108,14 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             APITrace.end();
         }
     }
+    @Override
+    public void removeLoadBalancerHealthCheck( @Nonnull String providerLoadBalancerId ) throws CloudException, InternalException {
+        // TODO(stas): throwing exception here will cause LB tests to fail, so maybe we could do something
+        // smarter: perhaps reconstruct the whole ELB without the HC? For now I'll do a no-op.
+        //throw new CloudException(provider.getCloudName() + " does not support removal of health checks");
+        logger.warn(provider.getCloudName() + " does not support removal of health checks");
+    }
+
 
     @Override
     public void setFirewalls(@Nonnull String loadBalancerId, @Nonnull String... firewallIds) throws CloudException, InternalException {

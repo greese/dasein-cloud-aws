@@ -46,15 +46,18 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
         super(cloud);
     }
 
-    @Nonnull
     @Override
-    public String getProviderTermForIpAddress(@Nonnull Locale locale) {
+    public @Nonnull String getProviderTermForIpAddress(@Nonnull Locale locale) {
         return "elastic IP";
     }
 
-    @Nonnull
     @Override
-    public Requirement identifyVlanForVlanIPRequirement() throws CloudException, InternalException {
+    public @Nonnull Requirement identifyVlanForVlanIPRequirement() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
+
+    @Override
+    public @Nonnull Requirement identifyVlanForIPRequirement() throws CloudException, InternalException {
         return Requirement.NONE;
     }
 
@@ -83,9 +86,8 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
         return IPVersion.IPV4.equals(version);
     }
 
-    @Nonnull
     @Override
-    public Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
+    public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
         return Collections.singletonList(IPVersion.IPV4);
     }
 
