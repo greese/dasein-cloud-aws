@@ -316,7 +316,10 @@ public class RegionsAndZones extends AbstractDataCenterServices<AWSCloud> {
 
                     if( region.getNodeName().equals("item") ) {
                         Region r = toRegion(nodes.item(j));
-
+                        if( r.getName().startsWith("eu-central") ) {
+                            // FIXME(stas): ignore new central european regions until we transitioned to v4 signatures
+                            continue;
+                        }
                         if( getProvider().getEC2Provider().isEucalyptus() ) {
                             if( r.getProviderRegionId().equalsIgnoreCase("eucalyptus") ) {
                                 regions.add(r);
