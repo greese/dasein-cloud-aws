@@ -1658,7 +1658,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                             }
 
                             if( deviceName != null || snapshotId != null || volumeSize != null || volumeType != null || iops != null ) {
-                                volumes.add(MachineImageVolume.getInstance(deviceName, snapshotId, volumeSize, volumeType, iops));
+                                volumes.add(MachineImageVolume.getMachineImageVolumeInstance(deviceName, snapshotId, volumeSize, volumeType, iops));
                             }
                         }
                     }

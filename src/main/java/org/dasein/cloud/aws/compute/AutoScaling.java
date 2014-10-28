@@ -1100,7 +1100,7 @@ public class AutoScaling extends AbstractAutoScalingSupport {
     }
 
     @Override
-    public Iterable<AutoScalingGroupNotificationConfig> listNotificationConfigs(final String[] scalingGroupIds) throws CloudException, InternalException {
+    public Collection<AutoScalingGroupNotificationConfig> listNotificationConfigs( final String[] scalingGroupIds ) throws CloudException, InternalException {
         PopulatorThread<AutoScalingGroupNotificationConfig> populatorThread;
 
         provider.hold();
