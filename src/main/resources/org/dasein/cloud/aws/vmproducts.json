@@ -6,7 +6,7 @@
             {
                 "architectures":["I64"],
                 "id":"t2.micro",
-                "name":"T2 Micro Instance (t2.mircro)",
+                "name":"T2 Micro Instance (t2.micro)",
                 "description":"T2 General Purpose Burstable performance Instance (t2.micro)",
                 "cpuCount":1,
                 "rootVolumeSizeInGb":1,
