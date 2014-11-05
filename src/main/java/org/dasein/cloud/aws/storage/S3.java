@@ -859,16 +859,39 @@ public class S3 extends AbstractBlobStoreSupport {
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "Blob.isSubscribed");
-        try {
-            S3Method method = new S3Method(provider, S3Action.LIST_BUCKETS);
+        Cache<Boolean> cache = Cache.getInstance(provider, "S3.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
+        final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
+        if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+            final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+            if (isSubscribed != null) {
+                return isSubscribed;
+            }
+        }
 
-            try {
-                method.invoke(null, null);
+        S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
+
+        try {
+            // ask for a dummy bucket to avoid getting a big response
+            method.invoke("he-Or-U-Gryp-goyn", null);
+            cache.put(provider.getContext(), Collections.singleton(true));
+            return true;
+        }
+        catch( S3Exception e ) {
+            if( e.getHttpCode() == HttpServletResponse.SC_NOT_FOUND ) {
+                // 404 is good
+                cache.put(provider.getContext(), Collections.singleton(true));
                 return true;
             }
-            catch( S3Exception e ) {
+            if( e.getHttpCode() == HttpServletResponse.SC_UNAUTHORIZED || e.getHttpCode() == HttpServletResponse.SC_FORBIDDEN ) {
+                cache.put(provider.getContext(), Collections.singleton(false));
                 return false;
             }
+            String code = e.getProviderCode();
+            if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
+                cache.put(provider.getContext(), Collections.singleton(false));
+                return false;
+            }
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();

@@ -20,6 +20,8 @@
 package org.dasein.cloud.aws.platform;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +44,8 @@ import org.dasein.cloud.platform.KeyValueDatabaseCapabilities;
 import org.dasein.cloud.platform.KeyValueDatabaseSupport;
 import org.dasein.cloud.platform.KeyValuePair;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -299,21 +303,34 @@ public class SimpleDB implements KeyValueDatabaseSupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "KVDB.isSubscribed");
         try {
-            Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), LIST_DOMAINS);
-            EC2Method method;
+            Cache<Boolean> cache = Cache.getInstance(provider, "KVDB.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
+            final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
+            if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+                final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+                if (isSubscribed != null) {
+                    return isSubscribed;
+                }
+            }
 
-            method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+            Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), LIST_DOMAINS);
+            // return just one to save traffic
+            parameters.put("MaxNumberOfDomains", "1");
+
+            EC2Method method = new EC2Method(provider, getSimpleDBUrl(), parameters);
             try {
                 method.invoke();
+                cache.put(provider.getContext(), Collections.singleton(true));
                 return true;
             }
             catch( EC2Exception e ) {
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
                 }
                 String code = e.getCode();
 
                 if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
+                    cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
                 }
                 logger.warn(e.getSummary());

@@ -25,8 +25,9 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.storage.S3Method;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.*;
 import org.dasein.util.*;
+import org.dasein.util.Cache;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -483,29 +484,17 @@ public class AMI extends AbstractImageSupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Image.isSubscribed");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(getContext(), EC2Method.DESCRIBE_IMAGES);
-            EC2Method method;
-
-            if( provider.getEC2Provider().isAWS() ) {
-                parameters.put("Owner", getContext().getAccountNumber());
-            }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
-            try {
-                method.invoke();
-                return true;
-            }
-            catch( EC2Exception e ) {
-                String msg = e.getSummary();
-
-                if( msg != null && msg.contains("not able to validate the provided access credentials") ) {
-                    return false;
+            org.dasein.cloud.util.Cache<Boolean> cache = org.dasein.cloud.util.Cache.getInstance(getProvider(), "Image.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
+            final Iterable<Boolean> cachedIsSubscribed = cache.get(getContext());
+            if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+                final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+                if (isSubscribed != null) {
+                    return isSubscribed;
                 }
-                logger.error("AWS Error checking subscription: " + e.getCode() + "/" + e.getSummary());
-                if( logger.isDebugEnabled() ) {
-                    e.printStackTrace();
-                }
-                throw new CloudException(e);
             }
+            boolean isSubscribed = provider.isEC2ActionAuthorised(EC2Method.DESCRIBE_IMAGES);
+            cache.put(getContext(), Collections.singleton(isSubscribed));
+            return isSubscribed;
         }
         finally {
             APITrace.end();

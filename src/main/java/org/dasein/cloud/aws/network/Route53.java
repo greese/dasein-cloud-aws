@@ -31,6 +31,8 @@ import org.dasein.cloud.network.DNSRecordType;
 import org.dasein.cloud.network.DNSSupport;
 import org.dasein.cloud.network.DNSZone;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
 import org.dasein.util.PopulatorThread;
@@ -43,7 +45,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.TreeSet;
 import java.util.UUID;
 
@@ -599,23 +604,35 @@ public class Route53 implements DNSSupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "DNS.isSubscribed");
         try {
-            Route53Method method;
+            Cache<Boolean> cache = Cache.getInstance(provider, "DNS.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
+            final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
+            if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+                final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+                if (isSubscribed != null) {
+                    return isSubscribed;
+                }
+            }
 
-            method = new Route53Method(Route53Method.LIST_HOSTED_ZONES, provider, getHostedZoneUrl(null));
+            // Limit returned number of zones to 1 to save traffic
+            Route53Method method = new Route53Method(Route53Method.LIST_HOSTED_ZONES,
+                    provider, getHostedZoneUrl(null) + "?maxitems=1");
             try {
                 method.invoke();
             }
             catch( EC2Exception e ) {
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
                 }
                 String code = e.getCode();
 
                 if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
+                    cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
                 }
                 throw new CloudException(e);
             }
+            cache.put(provider.getContext(), Collections.singleton(true));
             return true;
         }
         finally {

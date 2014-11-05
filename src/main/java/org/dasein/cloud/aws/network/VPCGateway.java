@@ -31,6 +31,8 @@ import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -39,6 +41,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -386,21 +389,35 @@ public class VPCGateway implements VPNSupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "isSubscribedVPCGateway");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_CUSTOMER_GATEWAYS);
-            EC2Method method;
+            Cache<Boolean> cache = Cache.getInstance(provider, "isSubscribedVPCGateway", Boolean.class, CacheLevel.REGION_ACCOUNT);
+            final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
+            if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+                final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+                if (isSubscribed != null) {
+                    return isSubscribed;
+                }
+            }
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_CUSTOMER_GATEWAYS);
+            // Filter by a random dummy tag
+            parameters.put("Filter.1.Name", "tag:ISTbvqa");
+            parameters.put("Filter.1.Value.1", "he-Or-U-Gryp-goyn");
+
+            EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 method.invoke();
+                cache.put(provider.getContext(), Collections.singleton(true));
                 return true;
             }
             catch( EC2Exception e ) {
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
                 }
                 String code = e.getCode();
 
                 if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("UnsupportedOperation") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
+                    cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
                 }
                 logger.error(e.getSummary());

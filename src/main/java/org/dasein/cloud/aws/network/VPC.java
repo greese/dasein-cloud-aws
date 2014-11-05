@@ -30,6 +30,8 @@ import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorPopulator;
 import org.dasein.util.PopulatorThread;
@@ -1295,20 +1297,34 @@ public class VPC extends AbstractVLANSupport {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "VLAN.isSubscribed");
         try {
+            Cache<Boolean> cache = Cache.getInstance(getProvider(), "VLAN.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
+            final Iterable<Boolean> cachedIsSubscribed = cache.get(getContext());
+            if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+                final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+                if (isSubscribed != null) {
+                    return isSubscribed;
+                }
+            }
+
             Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
             EC2Method method;
-
+            // Filter by a random dummy tag
+            parameters.put("Filter.1.Name", "tag:ISTbvqa");
+            parameters.put("Filter.1.Value.1", "he-Or-U-Gryp-goyn");
             method = new EC2Method(provider, provider.getEc2Url(), parameters);
             try {
                 method.invoke();
+                cache.put(getContext(), Collections.singleton(true));
                 return true;
             } catch( EC2Exception e ) {
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    cache.put(getContext(), Collections.singleton(false));
                     return false;
                 }
                 String code = e.getCode();
 
                 if( code != null && ( code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("UnsupportedOperation") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired") ) ) {
+                    cache.put(getContext(), Collections.singleton(false));
                     return false;
                 }
                 logger.error(e.getSummary());
@@ -2750,7 +2766,7 @@ public class VPC extends AbstractVLANSupport {
         if( vlan.getDescription() == null ) {
             vlan.setDescription(vlan.getName());
         }
-        if( dhcp != null ) {
+        if( dhcp != null && !dhcp.equals("default")) {
             loadDHCPOptions(dhcp, vlan);
         }
         return vlan;

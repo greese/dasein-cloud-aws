@@ -21,6 +21,7 @@ package org.dasein.cloud.aws.platform;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 
@@ -40,6 +41,8 @@ import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.*;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -212,27 +215,40 @@ public class SNS implements PushNotificationSupport {
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(provider, "Notifications.isSubscribed");
+        Cache<Boolean> cache = Cache.getInstance(provider, "Notifications.isSubscribed", Boolean.class, CacheLevel.REGION_ACCOUNT);
         try {
-            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), LIST_TOPICS);
-            EC2Method method;
+            final Iterable<Boolean> cachedIsSubscribed = cache.get(provider.getContext());
+            if (cachedIsSubscribed != null && cachedIsSubscribed.iterator().hasNext()) {
+                final Boolean isSubscribed = cachedIsSubscribed.iterator().next();
+                if (isSubscribed != null) {
+                    return isSubscribed;
+                }
+            }
 
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), GET_TOPIC_ATTRIBUTES);
+            // add a bogus arn to avoid getting any meaningful response. we're ok with 404.
+            parameters.put("TopicArn", "arn:aws:sns:" + provider.getContext().getRegionId() + ":" + provider.getContext().getAccountNumber() + ":" + "eE-vfu-ryo-nw");
+
+            EC2Method method = new EC2Method(provider, getSNSUrl(), parameters);
             try {
                 method.invoke();
+                cache.put(provider.getContext(), Collections.singleton(true));
                 return true;
             }
             catch( EC2Exception e ) {
+                if( e.getHttpCode() == HttpServletResponse.SC_NOT_FOUND ) {
+                    // 404 is good
+                    cache.put(provider.getContext(), Collections.singleton(true));
+                    return true;
+                }
                 if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
                 }
                 String code = e.getCode();
-
                 if( code != null && (code.equals("SubscriptionCheckFailed") || code.equals("AuthFailure") || code.equals("SignatureDoesNotMatch") || code.equals("InvalidClientTokenId") || code.equals("OptInRequired")) ) {
+                    cache.put(provider.getContext(), Collections.singleton(false));
                     return false;
-                }
-                logger.warn(e.getSummary());
-                if( logger.isDebugEnabled() ) {
-                    e.printStackTrace();
                 }
                 throw new CloudException(e);
             }
