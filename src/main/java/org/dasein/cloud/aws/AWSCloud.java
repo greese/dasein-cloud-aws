@@ -1120,8 +1120,7 @@ public class AWSCloud extends AbstractCloud {
 
                 if( compute != null ) {
                     EC2Instance support = (EC2Instance) compute.getVirtualMachineSupport();
-
-                    if( support == null || !support.uncachedIsSubscribed() ) {
+                    if( support == null || !isEC2ActionAuthorised(EC2Method.DESCRIBE_INSTANCES) ) {
                         logger.warn("Not subscribed to virtual machine support");
                         return null;
                     }

@@ -744,7 +744,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         if( addThisServer && (options == null || options.matches(server)) ) {
                             results.add(server);
                         }
-
                     }
                 }
             }
@@ -1138,23 +1137,10 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 }
             }
 
-            boolean isSubscribed = uncachedIsSubscribed();
-            if (isSubscribed) {
-                cache.put(getContext(), Collections.singleton(true));
-            } else {
-                cache.put(getContext(), Collections.singleton(false));
-            }
+            boolean isSubscribed = getProvider().isEC2ActionAuthorised(EC2Method.DESCRIBE_INSTANCES);
+            cache.put(getContext(), Collections.singleton(isSubscribed));
             return isSubscribed;
 
-        } finally {
-            APITrace.end();
-        }
-    }
-
-    public boolean uncachedIsSubscribed() throws InternalException, CloudException {
-        APITrace.begin(getProvider(), "uncachedIsSubscribedVirtualMachine");
-        try {
-            return getProvider().isEC2ActionAuthorised(EC2Method.DESCRIBE_INSTANCES);
         } finally {
             APITrace.end();
         }

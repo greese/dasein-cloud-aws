@@ -48,8 +48,8 @@ import java.util.concurrent.Future;
 public class ElasticIP implements IpAddressSupport {
     static private final Logger logger = AWSCloud.getLogger(ElasticIP.class);
 
-    private AWSCloud provider = null;
-    static private final ExecutorService threadPool = Executors.newCachedThreadPool();
+    private              AWSCloud        provider   = null;
+    static private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
     private transient volatile ElasticIPAddressCapabilities capabilities;
 
     ElasticIP( AWSCloud provider ) {
