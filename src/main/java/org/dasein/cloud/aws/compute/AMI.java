@@ -1703,7 +1703,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             image.setProviderOwnerId(ctx.getAccountNumber());
         }
 
-        image.setVolumes(volumes);
+        image.withVolumes(volumes);
         return image;
     }
 
