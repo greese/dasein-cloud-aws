@@ -1482,7 +1482,7 @@ public class AutoScaling extends AbstractAutoScalingSupport {
               Node subnetChild = attr.getFirstChild();
               if( subnetChild != null ) {
                 String subnets = subnetChild.getNodeValue();
-                group.setSubnets( subnets.contains(",") ? subnets.split("\\s*,\\s*") : new String[]{subnets} );
+                group.setProviderSubnetIds( subnets.contains(",") ? subnets.split("\\s*,\\s*") : new String[]{subnets} );
               }
             }
             else if( name.equalsIgnoreCase("AutoScalingGroupName") ) {
