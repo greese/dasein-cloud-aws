@@ -281,12 +281,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
                 modifyLoadBalancerAttributes(
                         name,
-                        LbAttributesOptions.getInstance(
-                                options.getCrossDataCenter(),
-                                options.getConnectionDraining(),
-                                options.getConnectionDrainingTimeout(),
-                                options.getIdleConnectionTimeout()
-                        )
+                        options.getLbAttributesOptions()
                 );
 
                 for( LoadBalancerEndpoint endpoint : options.getEndpoints() ) {
@@ -1149,7 +1144,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
-    public void modifyLoadBalancerAttributes(@Nonnull String id, @Nonnull LbAttributesOptions options) throws CloudException, InternalException {
+    public void modifyLoadBalancerAttributes(@Nonnull String id, @Nullable LbAttributesOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.modifyLoadBalancerAttributes");
         try {
             ProviderContext ctx = provider.getContext();
@@ -1161,20 +1156,22 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
             parameters.put("LoadBalancerName", id);
 
-            if (options.getCrossDataCenter() != null) {
-                parameters.put("LoadBalancerAttributes.CrossZoneLoadBalancing.Enabled", options.getCrossDataCenter().toString());
-            }
+            if( options != null ) {
+                if( options.getCrossDataCenter() != null ) {
+                    parameters.put("LoadBalancerAttributes.CrossZoneLoadBalancing.Enabled", options.getCrossDataCenter().toString());
+                }
 
-            if (options.getConnectionDraining() != null) {
-                parameters.put("LoadBalancerAttributes.ConnectionDraining.Enabled", options.getConnectionDraining().toString());
-            }
+                if( options.getConnectionDraining() != null ) {
+                    parameters.put("LoadBalancerAttributes.ConnectionDraining.Enabled", options.getConnectionDraining().toString());
+                }
 
-            if (options.getConnectionDrainingTimeout() != null) {
-                parameters.put("LoadBalancerAttributes.ConnectionDraining.Timeout", options.getConnectionDrainingTimeout().toString());
-            }
+                if( options.getConnectionDrainingTimeout() != null ) {
+                    parameters.put("LoadBalancerAttributes.ConnectionDraining.Timeout", options.getConnectionDrainingTimeout().toString());
+                }
 
-            if (options.getIdleConnectionTimeout() != null) {
-                parameters.put("LoadBalancerAttributes.ConnectionSettings.IdleTimeout", options.getIdleConnectionTimeout().toString());
+                if( options.getIdleConnectionTimeout() != null ) {
+                    parameters.put("LoadBalancerAttributes.ConnectionSettings.IdleTimeout", options.getIdleConnectionTimeout().toString());
+                }
             }
 
             ELBMethod method = new ELBMethod(provider, ctx, parameters);
