@@ -1144,7 +1144,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
     }
 
     @Override
-    public void modifyLoadBalancerAttributes(@Nonnull String id, @Nullable LbAttributesOptions options) throws CloudException, InternalException {
+    public void modifyLoadBalancerAttributes(@Nonnull String id, @Nonnull LbAttributesOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.modifyLoadBalancerAttributes");
         try {
             ProviderContext ctx = provider.getContext();
@@ -1155,13 +1155,10 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             Map<String, String> parameters = getELBParameters(ctx, ELBMethod.MODIFY_LOADBALANCER_ATTRIBUTES);
 
             parameters.put("LoadBalancerName", id);
-
-            if( options != null ) {
-                parameters.put("LoadBalancerAttributes.CrossZoneLoadBalancing.Enabled", String.valueOf(options.isCrossDataCenter()));
-                parameters.put("LoadBalancerAttributes.ConnectionDraining.Enabled", String.valueOf(options.isConnectionDraining()));
-                parameters.put("LoadBalancerAttributes.ConnectionDraining.Timeout", String.valueOf(options.getConnectionDrainingTimeout()));
-                parameters.put("LoadBalancerAttributes.ConnectionSettings.IdleTimeout", String.valueOf(options.getIdleConnectionTimeout()));
-            }
+            parameters.put("LoadBalancerAttributes.CrossZoneLoadBalancing.Enabled", String.valueOf(options.isCrossDataCenter()));
+            parameters.put("LoadBalancerAttributes.ConnectionDraining.Enabled", String.valueOf(options.isConnectionDraining()));
+            parameters.put("LoadBalancerAttributes.ConnectionDraining.Timeout", String.valueOf(options.getConnectionDrainingTimeout()));
+            parameters.put("LoadBalancerAttributes.ConnectionSettings.IdleTimeout", String.valueOf(options.getIdleConnectionTimeout()));
 
             ELBMethod method = new ELBMethod(provider, ctx, parameters);
             try {
