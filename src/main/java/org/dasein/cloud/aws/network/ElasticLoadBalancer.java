@@ -279,10 +279,9 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             blocks = doc.getElementsByTagName("DNSName");
             if( blocks.getLength() > 0 ) {
 
-                modifyLoadBalancerAttributes(
-                        name,
-                        options.getLbAttributesOptions()
-                );
+                if( options.getLbAttributesOptions() != null && !options.getLbAttributesOptions().isEmptyOptions() ) {
+                    modifyLoadBalancerAttributes(name, options.getLbAttributesOptions());
+                }
 
                 for( LoadBalancerEndpoint endpoint : options.getEndpoints() ) {
                     if( endpoint.getEndpointType().equals(LbEndpointType.VM) ) {
@@ -1155,10 +1154,16 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             Map<String, String> parameters = getELBParameters(ctx, ELBMethod.MODIFY_LOADBALANCER_ATTRIBUTES);
 
             parameters.put("LoadBalancerName", id);
-            parameters.put("LoadBalancerAttributes.CrossZoneLoadBalancing.Enabled", String.valueOf(options.isCrossDataCenter()));
-            parameters.put("LoadBalancerAttributes.ConnectionDraining.Enabled", String.valueOf(options.isConnectionDraining()));
-            parameters.put("LoadBalancerAttributes.ConnectionDraining.Timeout", String.valueOf(options.getConnectionDrainingTimeout()));
-            parameters.put("LoadBalancerAttributes.ConnectionSettings.IdleTimeout", String.valueOf(options.getIdleConnectionTimeout()));
+            if ( options.isModifyCrossDataCenter() ) {
+                parameters.put("LoadBalancerAttributes.CrossZoneLoadBalancing.Enabled", String.valueOf(options.isCrossDataCenter()));
+            }
+            if( options.isModifyConnectionDraining() ) {
+                parameters.put("LoadBalancerAttributes.ConnectionDraining.Enabled", String.valueOf(options.isConnectionDraining()));
+                parameters.put("LoadBalancerAttributes.ConnectionDraining.Timeout", String.valueOf(options.getConnectionDrainingTimeout()));
+            }
+            if ( options.isModifyConnectionTimeout() ) {
+                parameters.put("LoadBalancerAttributes.ConnectionSettings.IdleTimeout", String.valueOf(options.getIdleConnectionTimeout()));
+            }
 
             ELBMethod method = new ELBMethod(provider, ctx, parameters);
             try {
