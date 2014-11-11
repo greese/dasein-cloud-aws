@@ -26,7 +26,10 @@ import org.dasein.cloud.aws.storage.S3Method;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
-import org.dasein.util.*;
+import org.dasein.util.CalendarWrapper;
+import org.dasein.util.Jiterator;
+import org.dasein.util.JiteratorPopulator;
+import org.dasein.util.PopulatorThread;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -297,6 +300,66 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             return img;
         }
         finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public @Nonnull String copyImage(@Nonnull ImageCopyOptions options) throws CloudException, InternalException {
+        APITrace.begin(provider, "copyImage");
+        AWSCloud targetProvider = null;
+        try {
+            /* Steps overview:
+             * 1. Connect to target region using the same account
+             * 2. Invoke EC2 'copyImage' method in the context of target region
+             */
+            final ProviderContext ctx = provider.getContext();
+            if( ctx == null ) {
+                throw new CloudException( "Provider context is necessary for this request" );
+            }
+            final String sourceRegionId = ctx.getRegionId();
+            final String targetRegionId = options.getTargetRegionId();
+
+            final ProviderContext targetContext = ctx.copy( targetRegionId );
+            targetProvider = ( AWSCloud ) targetContext.connect();
+            if ( targetProvider.testContext() == null ) {
+                throw new CloudException( "Could not connect with the same account to the copy target region: " +
+                                                  targetRegionId );
+            }
+
+            // Invoke the EC2 method
+            Map<String,String> parameters = targetProvider.getStandardParameters(
+                    targetProvider.getContext(), EC2Method.COPY_IMAGE );
+
+            parameters.put( "SourceRegion", sourceRegionId );
+            parameters.put( "SourceImageId", options.getProviderImageId() );
+            if (options.getName() != null) {
+                parameters.put( "Name", options.getName() );
+            }
+            if (options.getDescription() != null) {
+                parameters.put( "Description", options.getDescription() );
+            }
+
+            Document doc;
+            try {
+                EC2Method method = new EC2Method( targetProvider, targetProvider.getEc2Url(), parameters );
+                doc = method.invoke();
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+            NodeList blocks = doc.getElementsByTagName( "imageId" );
+            if( blocks.getLength() > 0 ) {
+                Node imageIdNode = blocks.item(0);
+                return imageIdNode.getFirstChild().getNodeValue().trim();
+            }
+            throw new CloudException( "No error occurred during imaging, but no machine image was specified" );
+        }
+        finally {
+            if ( targetProvider != null ) {
+                targetProvider.close();
+            }
             APITrace.end();
         }
     }
@@ -748,6 +811,9 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         }
         else if( action.equals(MachineImageSupport.IMAGE_VM) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.CREATE_IMAGE, EC2Method.EC2_PREFIX + EC2Method.REGISTER_IMAGE };
+        }
+        else if( action.equals(MachineImageSupport.COPY_IMAGE) ) {
+            return new String[] { EC2Method.EC2_PREFIX + EC2Method.COPY_IMAGE };
         }
         else if( action.equals(MachineImageSupport.LIST_IMAGE) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_IMAGES };
@@ -1417,6 +1483,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         }
         NodeList attributes = node.getChildNodes();
         MachineImage image = new MachineImage();
+        Collection<MachineImageVolume> volumes = new ArrayList<MachineImageVolume>();
         String location = null;
 
         image.setSoftware(""); // TODO: guess software
@@ -1548,6 +1615,55 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             else if ( name.equals("tagSet")) {
                 provider.setTags( attribute, image );
             }
+            else if( name.equalsIgnoreCase("blockDeviceMapping") ) {
+
+                if( attribute.hasChildNodes() ) {
+                    NodeList devices = attribute.getChildNodes();
+
+                    for( int z = 0; z < devices.getLength(); z++ ) {
+                        NodeList param = devices.item(z).getChildNodes();
+                        String deviceName = null;
+                        String snapshotId = null;
+                        Integer volumeSize = null;
+                        String volumeType = null;
+                        Integer iops = null;
+
+                        if( devices.item(z).getNodeName().equalsIgnoreCase("item") ) {
+                            for( int j = 0; j < param.getLength(); j++ ) {
+                                String nodeName = param.item(j).getNodeName();
+
+                                if( nodeName.equalsIgnoreCase("deviceName") ) {
+                                    deviceName = param.item(j).getFirstChild().getNodeValue().trim();
+                                }
+                                else if( nodeName.equalsIgnoreCase("ebs") ) {
+                                    NodeList ebs = param.item(j).getChildNodes();
+
+                                    for( int k = 0; k < ebs.getLength(); k++ ) {
+                                        String ebsName = ebs.item(k).getNodeName();
+
+                                        if( ebsName.equalsIgnoreCase("snapshotId") ) {
+                                            snapshotId = ebs.item(k).getFirstChild().getNodeValue().trim();
+                                        }
+                                        else if( ebsName.equalsIgnoreCase("volumeSize") ) {
+                                            volumeSize = Integer.valueOf(ebs.item(k).getFirstChild().getNodeValue().trim());
+                                        }
+                                        else if( ebsName.equalsIgnoreCase("volumeType") ) {
+                                            volumeType = ebs.item(k).getFirstChild().getNodeValue().trim();
+                                        }
+                                        else if( ebsName.equalsIgnoreCase("iops") ) {
+                                            iops = Integer.valueOf(ebs.item(k).getFirstChild().getNodeValue().trim());
+                                        }
+                                    }
+                                }
+                            }
+
+                            if( deviceName != null || snapshotId != null || volumeSize != null || volumeType != null || iops != null ) {
+                                volumes.add(MachineImageVolume.getInstance(deviceName, snapshotId, volumeSize, volumeType, iops));
+                            }
+                        }
+                    }
+                }
+            }
 		}
 		if( image.getPlatform() == null ) {
 		    if( location != null ) {
@@ -1586,6 +1702,8 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         if( !provider.getEC2Provider().isAWS() ) {
             image.setProviderOwnerId(ctx.getAccountNumber());
         }
+
+        image.withVolumes(volumes);
         return image;
     }
 
@@ -1620,7 +1738,6 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             APITrace.end();
         }
     }
-
 
     private void waitForBundle(@Nonnull String bundleId, @Nonnull String manifest, @Nonnull Platform platform, @Nonnull String name, @Nonnull String description, AsynchronousTask<MachineImage> task) {
         APITrace.begin(getProvider(), "Image.waitForBundle");
