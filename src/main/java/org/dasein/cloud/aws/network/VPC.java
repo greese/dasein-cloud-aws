@@ -2770,7 +2770,7 @@ public class VPC extends AbstractVLANSupport {
         if( vlan.getDescription() == null ) {
             vlan.setDescription(vlan.getName());
         }
-        if( dhcp != null ) {
+        if( dhcp != null && !dhcp.equals("default")) {
             loadDHCPOptions(dhcp, vlan);
         }
         return vlan;
