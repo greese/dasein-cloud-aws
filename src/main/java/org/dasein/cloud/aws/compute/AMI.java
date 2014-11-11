@@ -1658,7 +1658,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                             }
 
                             if( deviceName != null || snapshotId != null || volumeSize != null || volumeType != null || iops != null ) {
-                                volumes.add(MachineImageVolume.getMachineImageVolumeInstance(deviceName, snapshotId, volumeSize, volumeType, iops));
+                                volumes.add(MachineImageVolume.getInstance(deviceName, snapshotId, volumeSize, volumeType, iops));
                             }
                         }
                     }
@@ -1703,7 +1703,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             image.setProviderOwnerId(ctx.getAccountNumber());
         }
 
-        image.setVolumes(volumes);
+        image.withVolumes(volumes);
         return image;
     }
 
