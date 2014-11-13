@@ -22,6 +22,7 @@ import org.dasein.cloud.AbstractCapabilities;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.platform.AbstractRelationalDatabaseCapabilities;
 import org.dasein.cloud.platform.RelationalDatabaseCapabilities;
 
 import javax.annotation.Nonnull;
@@ -35,81 +36,85 @@ import java.util.Locale;
  * @version 2014.08 initial version
  * @since 2014.08
  */
-public class RDSCapabilities extends AbstractCapabilities<AWSCloud> implements RelationalDatabaseCapabilities {
+public class RDSCapabilities extends AbstractRelationalDatabaseCapabilities<AWSCloud> {
 
     public RDSCapabilities( @Nonnull AWSCloud provider ) {
         super(provider);
     }
 
-    @Nonnull
     @Override
-    public String getProviderTermForDatabase( Locale locale ) {
-        return "database";
-    }
-
-    @Nonnull
-    @Override
-    public String getProviderTermForSnapshot( Locale locale ) {
-        return "snapshot";
-    }
-
-    @Override
-    public boolean isSupportsFirewallRules() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public boolean isSupportsHighAvailability() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public boolean isSupportsLowAvailability() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public boolean isSupportsMaintenanceWindows() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public boolean isSupportsAlterDatabase() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public boolean isSupportsSnapshots() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public String getProviderTermForBackup( Locale locale ) {
+    public @Nonnull String getProviderTermForBackup( Locale locale ) {
         return "Backup";
     }
 
     @Override
-    public boolean isSupportsDatabaseBackups() throws CloudException, InternalException {
+    public @Nonnull String getProviderTermForDatabase( Locale locale ) {
+        return "database";
+    }
+
+    @Override
+    public @Nonnull String getProviderTermForSnapshot( Locale locale ) {
+        return "snapshot";
+    }
+
+    @Override
+    public boolean supportsFirewallRules() throws CloudException, InternalException {
+        return true;
+    }
+
+    @Override
+    public boolean supportsHighAvailability() throws CloudException, InternalException {
+        return true;
+    }
+
+    @Override
+    public boolean supportsLowAvailability() throws CloudException, InternalException {
+        return true;
+    }
+
+    @Override
+    public boolean supportsMaintenanceWindows() throws CloudException, InternalException {
+        return true;
+    }
+
+    @Override
+    public boolean supportsAlterDatabase() throws CloudException, InternalException {
+        return true;
+    }
+
+    @Override
+    public boolean supportsSnapshots() throws CloudException, InternalException {
+        return true;
+    }
+
+    @Override
+    public boolean supportsDatabaseBackups() throws CloudException, InternalException {
         return false;
     }
 
     @Override
-    public boolean isSupportsScheduledDatabaseBackups() throws CloudException, InternalException {
+    public boolean supportsScheduledDatabaseBackups() throws CloudException, InternalException {
         return false;
     }
 
     @Override
-    public boolean isSupportsDemandBackups() throws CloudException, InternalException {
+    public boolean supportsDemandBackups() throws CloudException, InternalException {
         return false;
     }
 
     @Override
-    public boolean isSupportsRestoreBackup() throws CloudException, InternalException {
+    public boolean supportsRestoreBackup() throws CloudException, InternalException {
         return false;
     }
 
     @Override
-    public boolean isSupportsDeleteBackup() throws CloudException, InternalException {
+    public boolean supportsDeleteBackup() throws CloudException, InternalException {
         return false;
     }
+
+    @Override
+    public boolean supportsBackupConfigurations() throws CloudException, InternalException {
+        return false;
+    }
+
 }

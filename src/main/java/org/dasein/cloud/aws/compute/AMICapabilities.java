@@ -139,6 +139,11 @@ public class AMICapabilities extends AbstractCapabilities<AWSCloud> implements I
     }
 
     @Override
+    public boolean supportsListingAllRegions() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
     public boolean supportsPublicLibrary(@Nonnull ImageClass imageClass) {
         return getProvider().getEC2Provider().isAWS();
     }
