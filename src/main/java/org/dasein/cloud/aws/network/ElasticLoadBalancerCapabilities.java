@@ -87,6 +87,9 @@ public class ElasticLoadBalancerCapabilities extends AbstractCapabilities<AWSClo
     }
 
     @Override
+    public Requirement identifyVlanOnCreateRequirement() { return Requirement.NONE; }
+
+    @Override
     public boolean isAddressAssignedByProvider() throws CloudException, InternalException {
         return true;
     }
