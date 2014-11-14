@@ -36,6 +36,7 @@ import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.identity.SSHKeypair;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.identity.ShellKeyCapabilities;
 import org.dasein.cloud.identity.ShellKeySupport;
 import org.dasein.cloud.util.APITrace;
 import org.w3c.dom.Document;
@@ -49,7 +50,8 @@ public class Keypairs implements ShellKeySupport {
 	static private final Logger logger = AWSCloud.getLogger(Keypairs.class);
 	
 	private AWSCloud provider = null;
-	
+    private volatile transient KeypairsCapabilities capabilities;
+
 	public Keypairs(@Nonnull AWSCloud provider) {
 		this.provider =  provider;
 	}
@@ -277,6 +279,14 @@ public class Keypairs implements ShellKeySupport {
 	public @Nonnull String getProviderTermForKeypair(@Nonnull Locale locale) {
 		return "keypair";
 	}
+
+    @Override
+    public @Nonnull ShellKeyCapabilities getCapabilities() throws CloudException, InternalException {
+        if( capabilities == null ) {
+            capabilities = new KeypairsCapabilities(provider);
+        }
+        return capabilities;
+    }
 
     @Override
     public @Nonnull SSHKeypair importKeypair(@Nonnull String name, @Nonnull String material) throws InternalException, CloudException {
