@@ -48,8 +48,4 @@ public class KeypairsCapabilities extends AbstractCapabilities<AWSCloud> impleme
         return "keypair";
     }
 
-    @Override
-    public boolean supportsKeypairGeneration() throws CloudException, InternalException {
-        return true;
-    }
 }
