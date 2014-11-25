@@ -1542,4 +1542,9 @@ public class AWSCloud extends AbstractCloud {
         return client;
     }
 
+    //Temporary @maksimov to push proper version
+    public boolean isDebug(){
+        return false;
+    }
+
 }
