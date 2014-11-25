@@ -22,6 +22,7 @@ import org.dasein.cloud.AbstractCapabilities;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.platform.AbstractRelationalDatabaseCapabilities;
 import org.dasein.cloud.platform.RelationalDatabaseCapabilities;
 
 import javax.annotation.Nonnull;
@@ -35,51 +36,85 @@ import java.util.Locale;
  * @version 2014.08 initial version
  * @since 2014.08
  */
-public class RDSCapabilities extends AbstractCapabilities<AWSCloud> implements RelationalDatabaseCapabilities {
+public class RDSCapabilities extends AbstractRelationalDatabaseCapabilities<AWSCloud> {
 
     public RDSCapabilities( @Nonnull AWSCloud provider ) {
         super(provider);
     }
 
-    @Nonnull
     @Override
-    public String getProviderTermForDatabase( Locale locale ) {
+    public @Nonnull String getProviderTermForBackup( Locale locale ) {
+        return "Backup";
+    }
+
+    @Override
+    public @Nonnull String getProviderTermForDatabase( Locale locale ) {
         return "database";
     }
 
-    @Nonnull
     @Override
-    public String getProviderTermForSnapshot( Locale locale ) {
+    public @Nonnull String getProviderTermForSnapshot( Locale locale ) {
         return "snapshot";
     }
 
     @Override
-    public boolean isSupportsFirewallRules() throws CloudException, InternalException {
+    public boolean supportsFirewallRules() throws CloudException, InternalException {
         return true;
     }
 
     @Override
-    public boolean isSupportsHighAvailability() throws CloudException, InternalException {
+    public boolean supportsHighAvailability() throws CloudException, InternalException {
         return true;
     }
 
     @Override
-    public boolean isSupportsLowAvailability() throws CloudException, InternalException {
+    public boolean supportsLowAvailability() throws CloudException, InternalException {
         return true;
     }
 
     @Override
-    public boolean isSupportsMaintenanceWindows() throws CloudException, InternalException {
+    public boolean supportsMaintenanceWindows() throws CloudException, InternalException {
         return true;
     }
 
     @Override
-    public boolean isSupportsAlterDatabase() throws CloudException, InternalException {
+    public boolean supportsAlterDatabase() throws CloudException, InternalException {
         return true;
     }
 
     @Override
-    public boolean isSupportsSnapshots() throws CloudException, InternalException {
+    public boolean supportsSnapshots() throws CloudException, InternalException {
         return true;
     }
+
+    @Override
+    public boolean supportsDatabaseBackups() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean supportsScheduledDatabaseBackups() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean supportsDemandBackups() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean supportsRestoreBackup() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean supportsDeleteBackup() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean supportsBackupConfigurations() throws CloudException, InternalException {
+        return false;
+    }
+
 }

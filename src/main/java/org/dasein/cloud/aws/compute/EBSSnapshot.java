@@ -21,10 +21,7 @@ package org.dasein.cloud.aws.compute;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
@@ -973,4 +970,5 @@ public class EBSSnapshot extends AbstractSnapshotSupport {
             APITrace.end();
         }
     }
+
 }

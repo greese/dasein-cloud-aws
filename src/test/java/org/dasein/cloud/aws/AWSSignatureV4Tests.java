@@ -307,7 +307,7 @@ for f in sorted(basenames):
         headers.put("Date", "Mon, 09 Sep 2011 23:36:00 GMT");
         headers.put("Host", "host.foo.com");
         String authz = awsCloud.getV4Authorization("AKIDEXAMPLE", "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY",
-                "GET", "https://host.foo.com/?ሴ=bar", "host", headers, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+                "GET", "https://host.foo.com/?foo=bar", "host", headers, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
         assertEquals("AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20110909/us-east-1/host/aws4_request, SignedHeaders=date;host, Signature=6fb359e9a05394cc7074e0feb42573a2601abc0c869a953e8c5c12e4e01f1a8c", authz);
     }
 

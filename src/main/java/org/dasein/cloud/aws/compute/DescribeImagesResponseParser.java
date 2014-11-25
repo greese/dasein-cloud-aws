@@ -136,6 +136,7 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
         Platform platform = Platform.UNKNOWN;
         String imageName = null;
         String description = null;
+        boolean isPublic = false;
         boolean itemEnd = false;
 
         String value = null;
@@ -204,6 +205,9 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
                         providerOwnerId = value;
                     }
                     else if( "isPublic".equals(name) ) {
+                        if( value != null && value.trim().equalsIgnoreCase("true")) {
+                            isPublic = true;
+                        }
                         tags.put("public", value);
                     }
                     else if( "architecture".equals(name) ) {
@@ -265,7 +269,7 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
                 platform = Platform.guess(imageName);
             }
             if( description == null || description.isEmpty() ) {
-                description = location + " (" + architecture.toString() + " " + platform.toString() + ")";
+                description = AMI.createDescription(location, architecture, platform);
             }
         }
 
@@ -276,7 +280,7 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
             platform = Platform.guess(imageName);
         }
         if( description == null || description.isEmpty() ) {
-            description = imageName + " (" + architecture.toString() + " " + platform.toString() + ")";
+            description = AMI.createDescription(imageName, architecture, platform);
         }
         if( platform == null || platform.equals(Platform.UNKNOWN) ) {
             platform = Platform.guess(description);
@@ -286,10 +290,16 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
             providerOwnerId = this.providerOwnerId;
         }
 
-        MachineImage image = MachineImage.getImageInstance(providerOwnerId, regionId, providerMachineImageId, imageClass, imageState, imageName, description, architecture, platform, imageFormat);
+        MachineImage image = MachineImage.getInstance(providerOwnerId, regionId, providerMachineImageId, imageClass, imageState, imageName, description, architecture, platform);
 
         if( imageType != null ) {
-            image.setType(imageType);
+            image.withType(imageType);
+        }
+        if( imageFormat != null ) {
+            image.withStorageFormat(imageFormat);
+        }
+        if( isPublic ) {
+            image.sharedWithPublic();
         }
         image.setTags(tags);
         return image;

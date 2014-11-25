@@ -195,6 +195,11 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
         return true;
     }
 
+    @Override
+    public boolean isUserDefinedPrivateIPSupported() throws CloudException, InternalException {
+        return false;
+    }
+
     static private volatile Collection<Architecture> architectures;
 
     @Override

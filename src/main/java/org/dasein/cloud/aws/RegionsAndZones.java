@@ -37,20 +37,18 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.*;
 
-public class RegionsAndZones implements DataCenterServices {
+public class RegionsAndZones extends AbstractDataCenterServices<AWSCloud> {
 	static private final Logger logger = Logger.getLogger(RegionsAndZones.class);
 
 	static public final String DESCRIBE_AVAILABILITY_ZONES = "DescribeAvailabilityZones";
 	static public final String DESCRIBE_REGIONS            = "DescribeRegions";
 	
-	private AWSCloud provider = null;
-
     private String oneRegionId;
     private String oneZoneId;
 
 	RegionsAndZones(AWSCloud provider) {
-		this.provider = provider;
-        if( (provider.getEC2Provider().isStorage() && "google".equalsIgnoreCase(provider.getProviderName())) ) {
+		super(provider);
+        if( (getProvider().getEC2Provider().isStorage() && "google".equalsIgnoreCase(getProvider().getProviderName())) ) {
             oneRegionId = "us";
             oneZoneId = "us1";
         }
@@ -65,7 +63,7 @@ public class RegionsAndZones implements DataCenterServices {
     @Override
     public DataCenterCapabilities getCapabilities() throws InternalException, CloudException {
         if( capabilities == null ) {
-            capabilities = new RegionsAndZonesCapabilities(provider);
+            capabilities = new RegionsAndZonesCapabilities(getProvider());
         }
         return capabilities;
     }
@@ -83,18 +81,18 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public @Nullable DataCenter getDataCenter(@Nonnull String zoneId) throws InternalException, CloudException {
-        APITrace.begin(provider, "DC.getDataCenter");
+        APITrace.begin(getProvider(), "DC.getDataCenter");
         try {
-            if( provider.getEC2Provider().isStorage() ) {
+            if( getProvider().getEC2Provider().isStorage() ) {
                 return (zoneId.equals(oneZoneId) ? getZone() : null);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
+            Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), DESCRIBE_AVAILABILITY_ZONES);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("ZoneName", zoneId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -150,28 +148,6 @@ public class RegionsAndZones implements DataCenterServices {
         }
 	}
 
-	@Override
-    @Deprecated
-	public String getProviderTermForDataCenter(Locale locale) {
-        try {
-            return getCapabilities().getProviderTermForDataCenter(locale);
-        } catch( InternalException e ) {
-        } catch( CloudException e ) {
-        }
-        return "availability zone"; // legacy
-	}
-
-	@Override
-    @Deprecated
-	public String getProviderTermForRegion(Locale locale) {
-        try {
-            return getCapabilities().getProviderTermForRegion(locale);
-        } catch( InternalException e ) {
-        } catch( CloudException e ) {
-        }
-        return "region"; // legacy
-	}
-
     private @Nonnull Region getRegion() {
         Region region = new Region();
 
@@ -185,18 +161,18 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Region getRegion(String regionId) throws InternalException, CloudException {
-        APITrace.begin(provider, "DC.getRegion");
+        APITrace.begin(getProvider(), "DC.getRegion");
         try {
-            if( provider.getEC2Provider().isStorage() ) {
+            if( getProvider().getEC2Provider().isStorage() ) {
                 return (regionId.equals(oneRegionId) ? getRegion() : null);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
+            Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), DESCRIBE_REGIONS);
             NodeList blocks, regions;
             EC2Method method;
             Document doc;
 
             parameters.put("RegionName.1", regionId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -240,9 +216,9 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Collection<DataCenter> listDataCenters(String regionId) throws InternalException, CloudException {
-        APITrace.begin(provider, "DC.listDataCenters");
+        APITrace.begin(getProvider(), "DC.listDataCenters");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
@@ -252,20 +228,20 @@ public class RegionsAndZones implements DataCenterServices {
             String originalRegionId = ctx.getRegionId();
 
             if( regionId.equals(originalRegionId) ) {
-                cache = Cache.getInstance(provider, "dataCenters", DataCenter.class, CacheLevel.REGION_ACCOUNT);
+                cache = Cache.getInstance(getProvider(), "dataCenters", DataCenter.class, CacheLevel.REGION_ACCOUNT);
                 dataCenters = (Collection<DataCenter>)cache.get(ctx);
                 if( dataCenters != null ) {
                     return dataCenters;
                 }
             }
-            if( provider.getEC2Provider().isStorage() ) {
+            if( getProvider().getEC2Provider().isStorage() ) {
                 if( regionId.equals(oneRegionId) ) {
                     return Collections.singletonList(getZone());
                 }
                 throw new CloudException("No such region: " + regionId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_AVAILABILITY_ZONES);
-            EC2Method method = new EC2Method(provider, provider.getEc2Url(regionId), parameters);
+            Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), DESCRIBE_AVAILABILITY_ZONES);
+            EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(regionId), parameters);
             NodeList blocks;
             Document doc;
 
@@ -301,26 +277,26 @@ public class RegionsAndZones implements DataCenterServices {
 
 	@Override
 	public Collection<Region> listRegions() throws InternalException, CloudException {
-        APITrace.begin(provider, "DC.listRegions");
+        APITrace.begin(getProvider(), "DC.listRegions");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
             }
-            Cache<Region> cache = Cache.getInstance(provider, "regions", Region.class, CacheLevel.CLOUD_ACCOUNT);
+            Cache<Region> cache = Cache.getInstance(getProvider(), "regions", Region.class, CacheLevel.CLOUD_ACCOUNT);
             Collection<Region> regions = (Collection<Region>)cache.get(ctx);
 
             if( regions != null ) {
                 return regions;
             }
-            if( provider.getEC2Provider().isStorage() ) {
+            if( getProvider().getEC2Provider().isStorage() ) {
                 return Collections.singletonList(getRegion());
             }
             regions = new ArrayList<Region>();
 
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
-            EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), DESCRIBE_REGIONS);
+            EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
             NodeList blocks, nodes;
             Document doc;
 
@@ -340,8 +316,11 @@ public class RegionsAndZones implements DataCenterServices {
 
                     if( region.getNodeName().equals("item") ) {
                         Region r = toRegion(nodes.item(j));
-
-                        if( provider.getEC2Provider().isEucalyptus() ) {
+                        if( r.getName().startsWith("eu-central") ) {
+                            // FIXME(stas): ignore new central european regions until we transitioned to v4 signatures
+                            continue;
+                        }
+                        if( getProvider().getEC2Provider().isEucalyptus() ) {
                             if( r.getProviderRegionId().equalsIgnoreCase("eucalyptus") ) {
                                 regions.add(r);
                             }
@@ -361,11 +340,11 @@ public class RegionsAndZones implements DataCenterServices {
 	}
 
 	Map<String,String> mapRegions(String url) throws InternalException, CloudException {
-        APITrace.begin(provider, "DC.mapRegions");
+        APITrace.begin(getProvider(), "DC.mapRegions");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), DESCRIBE_REGIONS);
+            Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), DESCRIBE_REGIONS);
             HashMap<String,String> results = new HashMap<String,String>();
-            EC2Method method = new EC2Method(provider, url, parameters);
+            EC2Method method = new EC2Method(getProvider(), url, parameters);
             NodeList blocks, regions;
             Document doc;
 
@@ -411,9 +390,9 @@ public class RegionsAndZones implements DataCenterServices {
 	}
 
     public String isRegionEC2VPC(String regionId) throws CloudException, InternalException{
-        ProviderContext ctx = provider.getContext();
+        ProviderContext ctx = getProvider().getContext();
 
-        Cache<HashMap> cache = Cache.getInstance(provider, "ec2-types", HashMap.class, CacheLevel.CLOUD_ACCOUNT);
+        Cache<HashMap> cache = Cache.getInstance(getProvider(), "ec2-types", HashMap.class, CacheLevel.CLOUD_ACCOUNT);
         Collection<HashMap> region2Ec2Types = (Collection<HashMap>)cache.get(ctx);
         HashMap<String, String> platformMap = null;
 
@@ -423,9 +402,9 @@ public class RegionsAndZones implements DataCenterServices {
             platformMap = new HashMap<String, String>();
 
             for(Region r : regions){
-                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ACCOUNT_ATTRIBUTES);
+                Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_ACCOUNT_ATTRIBUTES);
                 parameters.put("AttributeName.1", "supported-platforms");
-                EC2Method method = new EC2Method(provider, provider.getEc2Url(r.getProviderRegionId()), parameters);
+                EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(r.getProviderRegionId()), parameters);
                 try{
                     Document doc = method.invoke();
 
@@ -487,7 +466,7 @@ public class RegionsAndZones implements DataCenterServices {
 			else if( name.equals("zoneState") ) {
 				String value = item.getFirstChild().getNodeValue();
 
-				if( !provider.getEC2Provider().isAWS() ) {
+				if( !getProvider().getEC2Provider().isAWS() ) {
 				    dc.setAvailable(true);
 				}
 				else {
@@ -555,19 +534,4 @@ public class RegionsAndZones implements DataCenterServices {
 		}
 		return r;
 	}
-	
-	@Override
-	public Collection<ResourcePool> listResourcePools(String providerDataCenterId) throws InternalException, CloudException {
-		return Collections.emptyList();
-	}
-	
-	@Override
-	public ResourcePool getResourcePool(String providerResourcePoolId) throws InternalException, CloudException {
-		return null;
-	}
-
-    @Override
-    public @Nonnull Collection<StoragePool> listStoragePools() throws InternalException, CloudException {
-        return Collections.emptyList();
-    }
 }

@@ -30,7 +30,6 @@ import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpParams;
 import org.apache.http.params.HttpProtocolParams;
-import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
@@ -71,6 +70,9 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class AWSCloud extends AbstractCloud {
+
+    private static final int MAX_RETRIES = 0;
+
     static private String getLastItem( String name ) {
         int idx = name.lastIndexOf('.');
 
@@ -263,21 +265,28 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public boolean createTags( final String[] resourceIds, final Tag... keyValuePairs ) {
-        hold();
+        // TODO(stas): de-async experiment
+        boolean async = false;
+        if( async ) {
+            hold();
 
-        Thread t = new Thread() {
-            public void run() {
-                try {
-                    createTags(1, resourceIds, keyValuePairs);
-                } finally {
-                    release();
+            Thread t = new Thread() {
+                public void run() {
+                    try {
+                        createTags(1, resourceIds, keyValuePairs);
+                    }
+                    finally {
+                        release();
+                    }
                 }
-            }
-        };
+            };
 
-        t.setName("Tag Setter");
-        t.setDaemon(true);
-        t.start();
+            t.setName("Tag Setter");
+            t.setDaemon(true);
+            t.start();
+        } else {
+            createTags(1, resourceIds, keyValuePairs);
+        }
         return true;
     }
 
@@ -286,44 +295,71 @@ public class AWSCloud extends AbstractCloud {
         try {
             try {
                 Map<String, String> parameters = getStandardParameters(getContext(), "CreateTags");
-                EC2Method method;
+                addIndexedParameters(parameters, "ResourceId.", resourceIds);
 
-                for( int i = 0; i < resourceIds.length; i++ ) {
-                    parameters.put("ResourceId." + ( i + 1 ), resourceIds[i]);
-                }
-
-                Map<String, String> tagParameters = new HashMap<String, String>();
-                for( int i = 0; i < keyValuePairs.length; i++ ) {
-                    String key = keyValuePairs[i].getKey();
-                    String value = keyValuePairs[i].getValue();
-
-                    if (value == null) {
-                        value = "";
-                    }
-                    tagParameters.put("Tag." + (i + 1) + ".Key", key);
-                    tagParameters.put("Tag." + (i + 1) + ".Value", value);
-                }
+                Map<String, String> tagParameters = getTagsFromKeyValuePairs(keyValuePairs);
                 if( tagParameters.size() == 0 ) {
                     return;
                 }
                 addExtraParameters(parameters, tagParameters);
-                method = new EC2Method(this, getEc2Url(), parameters);
+
+                EC2Method method = new EC2Method(this, getEc2Url(), parameters);
                 try {
                     method.invoke();
                 } catch( EC2Exception e ) {
-                    if( attempt > 20 ) {
-                        logger.error("EC2 error settings tags for " + Arrays.toString(resourceIds) + ": " + e.getSummary());
+                    if( attempt > MAX_RETRIES ) {
+                        logger.error("EC2 error setting tags for " + Arrays.toString(resourceIds) + ": " + e.getSummary());
                         return;
                     }
                     try {
                         Thread.sleep(5000L);
                     } catch( InterruptedException ignore ) {
                     }
+                    logger.warn("Retry attempt "+ (attempt + 1) + " to create tags for ["+resourceIds+"]");
                     createTags(attempt + 1, resourceIds, keyValuePairs);
                 }
             } catch( Throwable ignore ) {
                 logger.error("Error while creating tags for " + Arrays.toString(resourceIds) + ".", ignore);
             }
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    private Map<String, String> getTagsFromKeyValuePairs(Tag... keyValuePairs) {
+        Map<String, String> tagParameters = new HashMap<String, String>();
+        for (int i = 0; i < keyValuePairs.length; i++) {
+            String key = keyValuePairs[i].getKey();
+            String value = keyValuePairs[i].getValue();
+
+            if (value != null) {
+                tagParameters.put("Tag." + (i + 1) + ".Key", key);
+                if (value.length() > 0) {
+                    tagParameters.put("Tag." + (i + 1) + ".Value", value);
+                }
+            }
+        }
+        return tagParameters;
+    }
+
+    public void createTagsSynchronously(final String resourceId, final Tag... keyValuePairs) throws CloudException, InternalException {
+        createTagsSynchronously(new String[]{resourceId}, keyValuePairs);
+    }
+
+    public void createTagsSynchronously(final String[] resourceIds, final Tag... keyValuePairs) throws CloudException, InternalException {
+        APITrace.begin(this, "Cloud.createTagsSynchronously");
+        try {
+            Map<String, String> parameters = getStandardParameters(getContext(), "CreateTags");
+            addIndexedParameters(parameters, "ResourceId.", resourceIds);
+
+            Map<String, String> tagParameters = getTagsFromKeyValuePairs(keyValuePairs);
+            if (tagParameters.size() == 0) {
+                return;
+            }
+            addExtraParameters(parameters, tagParameters);
+
+            new EC2Method(this, getEc2Url(), parameters).invoke();
+
         } finally {
             APITrace.end();
         }
@@ -372,32 +408,38 @@ public class AWSCloud extends AbstractCloud {
         Map<String, String> tags = new HashMap<String, String>();
         NodeList tagNodes = attr.getChildNodes();
         for( int j = 0; j < tagNodes.getLength(); j++ ) {
-            Node tag = tagNodes.item(j);
 
-            if( tag.getNodeName().equals("item") && tag.hasChildNodes() ) {
-                NodeList parts = tag.getChildNodes();
-                String key = null, value = null;
-
-                for( int k = 0; k < parts.getLength(); k++ ) {
-                    Node part = parts.item(k);
-
-                    if( part.getNodeName().equalsIgnoreCase("key") ) {
-                        if( part.hasChildNodes() ) {
-                            key = part.getFirstChild().getNodeValue().trim();
-                        }
-                    }
-                    else if( part.getNodeName().equalsIgnoreCase("value") ) {
-                        if( part.hasChildNodes() ) {
-                            value = part.getFirstChild().getNodeValue().trim();
-                        }
-                    }
-                    if( key != null && value != null ) {
-                        tags.put(key, value);
-                    }
-                }
+            Tag t = toTag(tagNodes.item(j));
+            if (t != null) {
+                tags.put(t.getKey(), t.getValue());
             }
         }
         return tags;
+    }
+
+    public Tag toTag(@Nonnull Node tag) {
+        if (tag.getNodeName().equals("item") && tag.hasChildNodes()) {
+            NodeList parts = tag.getChildNodes();
+            String key = null, value = null;
+
+            for (int k = 0; k < parts.getLength(); k++) {
+                Node part = parts.item(k);
+
+                if (part.getNodeName().equalsIgnoreCase("key")) {
+                    if (part.hasChildNodes()) {
+                        key = part.getFirstChild().getNodeValue().trim();
+                    }
+                } else if (part.getNodeName().equalsIgnoreCase("value")) {
+                    if (part.hasChildNodes()) {
+                        value = part.getFirstChild().getNodeValue().trim();
+                    }
+                }
+            }
+            if (key != null && value != null) {
+                return new Tag(key, value);
+            }
+        }
+        return null;
     }
 
     @Override
@@ -1207,29 +1249,10 @@ public class AWSCloud extends AbstractCloud {
             NodeList tags = attr.getChildNodes();
 
             for( int j = 0; j < tags.getLength(); j++ ) {
-                Node tag = tags.item(j);
+                Tag t = toTag(tags.item(j));
 
-                if( tag.getNodeName().equals("item") && tag.hasChildNodes() ) {
-                    NodeList parts = tag.getChildNodes();
-                    String key = null, value = null;
-
-                    for( int k = 0; k < parts.getLength(); k++ ) {
-                        Node part = parts.item(k);
-
-                        if( part.getNodeName().equalsIgnoreCase("key") ) {
-                            if( part.hasChildNodes() ) {
-                                key = part.getFirstChild().getNodeValue().trim();
-                            }
-                        }
-                        else if( part.getNodeName().equalsIgnoreCase("value") ) {
-                            if( part.hasChildNodes() ) {
-                                value = part.getFirstChild().getNodeValue().trim();
-                            }
-                        }
-                    }
-                    if( key != null && value != null ) {
-                        item.setTag(key, value);
-                    }
+                if (t != null && t.getValue() != null) {
+                    item.setTag(t.getKey(), t.getValue());
                 }
             }
         }
@@ -1517,6 +1540,11 @@ public class AWSCloud extends AbstractCloud {
             }
         });
         return client;
+    }
+
+    //Temporary @maksimov to push proper version
+    public boolean isDebug(){
+        return false;
     }
 
 }

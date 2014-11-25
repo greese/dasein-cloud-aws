@@ -1140,37 +1140,6 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public Iterable<VirtualMachineProduct> listProducts( VirtualMachineProductFilterOptions options ) throws InternalException, CloudException {
-        List<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
-        for( Architecture arch : Architecture.values() ) {
-            mergeProductLists(products, listProducts(options, arch));
-        }
-        return products;
-    }
-
-    // Merges product iterable to the list, using providerProductId as a unique key
-    private void mergeProductLists(List<VirtualMachineProduct> to, Iterable<VirtualMachineProduct> from) {
-        List<VirtualMachineProduct> copy = new ArrayList<VirtualMachineProduct>(to);
-        for( VirtualMachineProduct productFrom : from ) {
-            boolean found = false;
-            for( VirtualMachineProduct productTo : copy ) {
-                if( productTo.getProviderProductId().equalsIgnoreCase(productFrom.getProviderProductId()) ) {
-                    found = true;
-                    break;
-                }
-            }
-            if( !found ) {
-                to.add(productFrom);
-            }
-        }
-    }
-
-    @Override
-    public @Nonnull Iterable<VirtualMachineProduct> listProducts( @Nonnull Architecture architecture ) throws InternalException, CloudException {
-        return listProducts(null, architecture);
-    }
-
-    @Override
     public Iterable<VirtualMachineProduct> listProducts( VirtualMachineProductFilterOptions options, Architecture architecture ) throws InternalException, CloudException {
         ProviderContext ctx = getProvider().getContext();
         if( ctx == null ) {
@@ -1472,7 +1441,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         MachineImage img = null;
         final ComputeServices computeServices = getProvider().getComputeServices();
         if( computeServices != null) {
-            img = computeServices.getImageSupport().getMachineImage(cfg.getMachineImageId());
+            img = computeServices.getImageSupport().getImage(cfg.getMachineImageId());
         }
 
         if( img == null ) {
@@ -1670,10 +1639,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         if( cfg.getVirtualMachineGroup() != null ) {
             tags.add(new Tag("dsnVMGroup", cfg.getVirtualMachineGroup()));
         }
-        getProvider().createTags(
-                instanceIds.toArray(new String[instanceIds.size()]),
-                tags.toArray(new Tag[tags.size()])
-        );
+        getProvider().createTags(instanceIds.toArray(new String[instanceIds.size()]), tags.toArray(new Tag[tags.size()]));
 
         // Set all instances their passwords and attach volumes
         for( VirtualMachine server : servers ) {
@@ -2650,7 +2616,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public void removeTags( @Nonnull String vmId, @Nonnull Tag... tags ) throws CloudException, InternalException {
+    public void removeTags(@Nonnull String vmId, @Nonnull Tag... tags) throws CloudException, InternalException {
         getProvider().removeTags(vmId, tags);
     }
 

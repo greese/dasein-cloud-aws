@@ -58,7 +58,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-public class S3 extends AbstractBlobStoreSupport {
+public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
     static private final Logger logger = AWSCloud.getLogger(S3.class);
 
     static public final int                                       MAX_BUCKETS     = 100;
@@ -83,10 +83,8 @@ public class S3 extends AbstractBlobStoreSupport {
         public HashMap<String,Constraint> constraints = new HashMap<String, Constraint>();
     }
 
-    private AWSCloud provider = null;
-
     public S3(AWSCloud provider) {
-        this.provider = provider;
+        super(provider);
     }
 
     @Override
@@ -106,12 +104,12 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public @Nonnull Blob createBucket(@Nonnull String bucketName, boolean findFreeName) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.createBucket");
+        APITrace.begin(getProvider(), "Blob.createBucket");
         try {
             if( bucketName.contains("/") ) {
                 throw new OperationNotSupportedException("Nested buckets are not supported");
             }
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new InternalException("No context was set for this request");
@@ -125,7 +123,7 @@ public class S3 extends AbstractBlobStoreSupport {
             boolean success;
 
             success = false;
-            if( provider.getEC2Provider().isAWS() ) {
+            if( getProvider().getEC2Provider().isAWS() ) {
                 if( regionId.equals("eu-west-1") ) {
                     body = new StringBuilder();
                     body.append("<CreateBucketConfiguration>\r\n");
@@ -163,7 +161,7 @@ public class S3 extends AbstractBlobStoreSupport {
                 String ct = (body == null ? null : "text/xml; charset=utf-8");
                 S3Method method;
 
-                method = new S3Method(provider, S3Action.CREATE_BUCKET, null, null, ct, body == null ? null : body.toString());
+                method = new S3Method(getProvider(), S3Action.CREATE_BUCKET, null, null, ct, body == null ? null : body.toString());
                 try {
                     method.invoke(bucketName, null);
                     success = true;
@@ -202,9 +200,9 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public boolean exists(@Nonnull String bucketName) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.exists");
+        APITrace.begin(getProvider(), "Blob.exists");
         try {
-            S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
+            S3Method method = new S3Method(getProvider(), S3Action.LOCATE_BUCKET);
 
             try {
                 method.invoke(bucketName, "?location");
@@ -231,12 +229,12 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     private String getRegion(@Nonnull String bucket, boolean reload) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
+        ProviderContext ctx = getProvider().getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
         }
-        Cache<Affinity> cache = Cache.getInstance(provider, "affinity", Affinity.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
+        Cache<Affinity> cache = Cache.getInstance(getProvider(), "affinity", Affinity.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
         Iterable<Affinity> affinities = cache.get(ctx);
         Affinity affinity;
 
@@ -250,11 +248,11 @@ public class S3 extends AbstractBlobStoreSupport {
         Constraint c = affinity.constraints.get(bucket);
 
         if( reload || c == null || c.timeout <= System.currentTimeMillis() ) {
-            S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
+            S3Method method = new S3Method(getProvider(), S3Action.LOCATE_BUCKET);
             String location = null;
             S3Response response;
 
-            method = new S3Method(provider, S3Action.LOCATE_BUCKET);
+            method = new S3Method(getProvider(), S3Action.LOCATE_BUCKET);
             try {
                 response = method.invoke(bucket, "?location");
             }
@@ -280,12 +278,12 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public Blob getBucket(@Nonnull String bucketName) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.getBucket");
+        APITrace.begin(getProvider(), "Blob.getBucket");
         try {
             if( bucketName.contains("/") ) {
                 return null;
             }
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
@@ -295,7 +293,7 @@ public class S3 extends AbstractBlobStoreSupport {
             if( regionId == null ) {
                 throw new CloudException("No region was set for this request");
             }
-            S3Method method = new S3Method(provider, S3Action.LIST_BUCKETS);
+            S3Method method = new S3Method(getProvider(), S3Action.LIST_BUCKETS);
             S3Response response;
             NodeList blocks;
 
@@ -321,13 +319,13 @@ public class S3 extends AbstractBlobStoreSupport {
                         name = attr.getFirstChild().getNodeValue().trim();
                     }
                     else if( attr.getNodeName().equals("CreationDate") ) {
-                        ts = provider.parseTime(attr.getFirstChild().getNodeValue().trim());
+                        ts = getProvider().parseTime(attr.getFirstChild().getNodeValue().trim());
                     }
                 }
                 if( !bucketName.equals(name) ) {
                     continue;
                 }
-                if( provider.getEC2Provider().isAWS() ) {
+                if( getProvider().getEC2Provider().isAWS() ) {
                     if( getRegion(name, true).equals(regionId) ) {
                         return Blob.getInstance(regionId, getLocation(name, null), name, ts);
                     }
@@ -345,12 +343,12 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public Blob getObject(@Nullable String bucketName, @Nonnull String objectName) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.getObject");
+        APITrace.begin(getProvider(), "Blob.getObject");
         try {
             if( bucketName == null ) {
                 return null;
             }
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
@@ -380,7 +378,7 @@ public class S3 extends AbstractBlobStoreSupport {
                     parameters.put("marker", marker);
                 }
                 parameters.put("max-keys", String.valueOf(30));
-                method = new S3Method(provider, S3Action.LIST_CONTENTS, parameters, null);
+                method = new S3Method(getProvider(), S3Action.LIST_CONTENTS, parameters, null);
                 try {
                     response = method.invoke(bucketName, null);
                 }
@@ -451,14 +449,14 @@ public class S3 extends AbstractBlobStoreSupport {
     public String getSignedObjectUrl(@Nonnull String bucket, @Nonnull String object, @Nonnull String expiresEpochInSeconds) throws InternalException, CloudException {
       String signedUrl;
       try {
-        SecretKeySpec signingKey = new SecretKeySpec(provider.getContext().getAccessPrivate(), HMAC_SHA1_ALGORITHM);
+        SecretKeySpec signingKey = new SecretKeySpec(getProvider().getAccessKey(getProvider().getContext())[1], HMAC_SHA1_ALGORITHM);
         Mac mac = Mac.getInstance(HMAC_SHA1_ALGORITHM);
         mac.init(signingKey);
         String data = "GET\n\n\n" + expiresEpochInSeconds + "\n/" + bucket + "/" + object;
         byte[] rawHmac = mac.doFinal(data.getBytes());
         String signature = URLEncoder.encode( DatatypeConverter.printBase64Binary(rawHmac), "UTF-8");
         signedUrl = "https://" + bucket + ".s3.amazonaws.com/" + object + "?AWSAccessKeyId=" +
-          new String(provider.getContext().getAccessPublic(), "UTF-8") + "&Signature=" + signature + "&Expires=" + expiresEpochInSeconds;
+          new String(getProvider().getAccessKey(getProvider().getContext())[0], "UTF-8") + "&Signature=" + signature + "&Expires=" + expiresEpochInSeconds;
       }
       catch( NullPointerException e ) {
         logger.error(e);
@@ -484,9 +482,9 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     private boolean belongsToAnother(@Nonnull String bucketName) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.belongsToAnother");
+        APITrace.begin(getProvider(), "Blob.belongsToAnother");
         try {
-            S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
+            S3Method method = new S3Method(getProvider(), S3Action.LOCATE_BUCKET);
 
             try {
                 method.invoke(bucketName, "?location");
@@ -528,7 +526,7 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public @Nullable Storage<org.dasein.util.uom.storage.Byte> getObjectSize(@Nullable String bucket, @Nullable String object) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.getObjectSize");
+        APITrace.begin(getProvider(), "Blob.getObjectSize");
         try {
             if( bucket == null ) {
                 throw new CloudException("Requested object size for object in null bucket");
@@ -536,7 +534,7 @@ public class S3 extends AbstractBlobStoreSupport {
             if( object == null ) {
                 return null;
             }
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
@@ -544,7 +542,7 @@ public class S3 extends AbstractBlobStoreSupport {
             if( !getRegion(bucket, false).equals(ctx.getRegionId()) ) {
                 return null;
             }
-            S3Method method = new S3Method(provider, S3Action.OBJECT_EXISTS);
+            S3Method method = new S3Method(getProvider(), S3Action.OBJECT_EXISTS);
             S3Response response;
 
             try {
@@ -581,7 +579,7 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     private @Nonnull String findFreeName(@Nonnull String bucket) throws InternalException, CloudException {
-        ProviderContext ctx = provider.getContext();
+        ProviderContext ctx = getProvider().getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
@@ -631,7 +629,7 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     protected void get(@Nullable String bucket, @Nonnull String object, @Nonnull File toFile, @Nullable FileTransfer transfer) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.get");
+        APITrace.begin(getProvider(), "Blob.get");
         try {
             if( bucket == null ) {
                 throw new CloudException("No bucket was specified");
@@ -640,7 +638,7 @@ public class S3 extends AbstractBlobStoreSupport {
             int attempts = 0;
 
             while( attempts < 5 ) {
-                S3Method method = new S3Method(provider, S3Action.GET_OBJECT);
+                S3Method method = new S3Method(getProvider(), S3Action.GET_OBJECT);
                 S3Response response;
 
                 try {
@@ -688,7 +686,7 @@ public class S3 extends AbstractBlobStoreSupport {
     private @Nullable Document getAcl(@Nonnull String bucket, @Nullable String object) throws CloudException, InternalException {
         S3Method method;
 
-        method = new S3Method(provider, S3Action.GET_ACL);
+        method = new S3Method(getProvider(), S3Action.GET_ACL);
         try {
             S3Response response = method.invoke(bucket, object == null ? "?acl" : object + "?acl");
 
@@ -722,13 +720,13 @@ public class S3 extends AbstractBlobStoreSupport {
 
     /*
     private boolean isLocation(@Nonnull String bucket) throws CloudException, InternalException {
-        S3Method method = new S3Method(provider, S3Action.LOCATE_BUCKET);
-        ProviderContext ctx = provider.getContext();
+        S3Method method = new S3Method(getProvider(), S3Action.LOCATE_BUCKET);
+        ProviderContext ctx = getProvider().getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
         }
-        if( !provider.getEC2Provider().isAWS() ) {
+        if( !getProvider().getEC2Provider().isAWS() ) {
             return true;
         }
         String regionId = ctx.getRegionId();
@@ -790,7 +788,7 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public boolean isPublic(@Nullable String bucket, @Nullable String object) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.isPublic");
+        APITrace.begin(getProvider(), "Blob.isPublic");
         try {
             if( bucket == null ) {
                 throw new CloudException("A bucket name was not specified");
@@ -858,9 +856,9 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.isSubscribed");
+        APITrace.begin(getProvider(), "Blob.isSubscribed");
         try {
-            S3Method method = new S3Method(provider, S3Action.LIST_BUCKETS);
+            S3Method method = new S3Method(getProvider(), S3Action.LIST_BUCKETS);
 
             try {
                 method.invoke(null, null);
@@ -877,7 +875,7 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public @Nonnull Collection<Blob> list(final @Nullable String bucket) throws CloudException, InternalException {
-        final ProviderContext ctx = provider.getContext();
+        final ProviderContext ctx = getProvider().getContext();
         PopulatorThread <Blob> populator;
 
         if( ctx == null ) {
@@ -891,14 +889,14 @@ public class S3 extends AbstractBlobStoreSupport {
     	if( bucket != null && !getRegion(bucket, false).equals(regionId) ) {
     		throw new CloudException("No such bucket in target region: " + bucket + " in " + regionId);
     	}
-    	provider.hold();
+    	getProvider().hold();
     	populator = new PopulatorThread<Blob>(new JiteratorPopulator<Blob>() {
     		public void populate(@Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
                 try {
                     list(regionId, bucket, iterator);
                 }
                 finally {
-                    provider.release();
+                    getProvider().release();
                 }
             }
         });
@@ -907,7 +905,7 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     private void list(@Nonnull String regionId, @Nullable String bucket, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.list");
+        APITrace.begin(getProvider(), "Blob.list");
         try {
             if( bucket == null ) {
                 loadBuckets(regionId, iterator);
@@ -935,7 +933,7 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     private void loadBuckets(@Nonnull String regionId, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
-        S3Method method = new S3Method(provider, S3Action.LIST_BUCKETS);
+        S3Method method = new S3Method(getProvider(), S3Action.LIST_BUCKETS);
         S3Response response;
         NodeList blocks;
 
@@ -961,16 +959,16 @@ public class S3 extends AbstractBlobStoreSupport {
                     name = attr.getFirstChild().getNodeValue().trim();
                 }
                 else if( attr.getNodeName().equals("CreationDate") ) {
-                    ts = provider.parseTime(attr.getFirstChild().getNodeValue().trim());
+                    ts = getProvider().parseTime(attr.getFirstChild().getNodeValue().trim());
 				}
 			}
 			if( name == null ) {
 				throw new CloudException("Bad response from server.");
             }
-            if( provider.getEC2Provider().isAWS() ) {
+            if( getProvider().getEC2Provider().isAWS() ) {
                 String location = null;
 
-                method = new S3Method(provider, S3Action.LOCATE_BUCKET);
+                method = new S3Method(getProvider(), S3Action.LOCATE_BUCKET);
                 try {
                     response = method.invoke(name, "?location");
                 }
@@ -1013,7 +1011,7 @@ public class S3 extends AbstractBlobStoreSupport {
                 parameters.put("marker", marker);
             }
             parameters.put("max-keys", String.valueOf(30));
-            method = new S3Method(provider, S3Action.LIST_CONTENTS, parameters, null);
+            method = new S3Method(getProvider(), S3Action.LIST_CONTENTS, parameters, null);
             try {
                 response = method.invoke(bucket, null);
             }
@@ -1082,7 +1080,7 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public void makePublic(@Nullable String bucket, @Nullable String object) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.makePublic");
+        APITrace.begin(getProvider(), "Blob.makePublic");
         try {
             if( bucket == null ) {
                 throw new CloudException("No bucket was specified for this request");
@@ -1240,7 +1238,7 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public void move(@Nullable String sourceBucket, @Nullable String object, @Nullable String targetBucket) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.move");
+        APITrace.begin(getProvider(), "Blob.move");
         try {
             if( sourceBucket == null ) {
                 throw new CloudException("No source bucket was specified");
@@ -1261,7 +1259,7 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     protected void put(@Nullable String bucket, @Nonnull String object, @Nonnull File file) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.putFile");
+        APITrace.begin(getProvider(), "Blob.putFile");
         try {
             boolean bucketIsPublic = isPublic(bucket, null);
             HashMap<String,String> headers = null;
@@ -1271,7 +1269,7 @@ public class S3 extends AbstractBlobStoreSupport {
                 headers = new HashMap<String,String>();
                 headers.put("x-amz-acl", "public-read");
             }
-            method = new S3Method(provider, S3Action.PUT_OBJECT, null, headers, "application/octet-stream", file);
+            method = new S3Method(getProvider(), S3Action.PUT_OBJECT, null, headers, "application/octet-stream", file);
             try {
                 method.invoke(bucket, object);
             }
@@ -1286,7 +1284,7 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     protected void put(@Nullable String bucket, @Nonnull String object, @Nonnull String content) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.putString");
+        APITrace.begin(getProvider(), "Blob.putString");
         try {
             boolean bucketIsPublic = isPublic(bucket, null);
             HashMap<String,String> headers = null;
@@ -1310,7 +1308,7 @@ public class S3 extends AbstractBlobStoreSupport {
                     e.printStackTrace();
                     throw new InternalException(e);
                 }
-                method = new S3Method(provider, S3Action.PUT_OBJECT, null, headers, "text/plain", file);
+                method = new S3Method(getProvider(), S3Action.PUT_OBJECT, null, headers, "text/plain", file);
                 try {
                     method.invoke(bucket, object);
                 }
@@ -1333,9 +1331,9 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public void removeBucket(@Nonnull String bucket) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.removeBucket");
+        APITrace.begin(getProvider(), "Blob.removeBucket");
         try {
-            S3Method method = new S3Method(provider, S3Action.DELETE_BUCKET);
+            S3Method method = new S3Method(getProvider(), S3Action.DELETE_BUCKET);
     	
             try {
                 method.invoke(bucket, null);
@@ -1357,12 +1355,12 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public void removeObject(@Nullable String bucket, @Nonnull String name) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.removeObject");
+        APITrace.begin(getProvider(), "Blob.removeObject");
         try {
             if( bucket == null ) {
                 throw new CloudException("No bucket was specified for this request");
             }
-            S3Method method = new S3Method(provider, S3Action.DELETE_OBJECT);
+            S3Method method = new S3Method(getProvider(), S3Action.DELETE_OBJECT);
 
             try {
                 method.invoke(bucket, name);
@@ -1384,7 +1382,7 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public @Nonnull String renameBucket(@Nonnull String oldName, @Nonnull String newName, boolean findFreeName) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.renameBucket");
+        APITrace.begin(getProvider(), "Blob.renameBucket");
         try {
             Blob bucket = createBucket(newName, findFreeName);
 
@@ -1424,7 +1422,7 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public void renameObject(@Nullable String bucket, @Nonnull String object, @Nonnull String newName) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.renameObject");
+        APITrace.begin(getProvider(), "Blob.renameObject");
         try {
             if( bucket == null ) {
                 throw new CloudException("No bucket was specified");
@@ -1438,12 +1436,12 @@ public class S3 extends AbstractBlobStoreSupport {
     }
 
     private void setAcl(@Nonnull String bucket, @Nullable String object, @Nonnull String body) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.setAcl");
+        APITrace.begin(getProvider(), "Blob.setAcl");
         try {
             //String ct = "text/xml; charset=utf-8";
             S3Method method;
 
-            method = new S3Method(provider, S3Action.SET_ACL, null, null, null /* ct */, body);
+            method = new S3Method(getProvider(), S3Action.SET_ACL, null, null, null /* ct */, body);
             try {
                 method.invoke(bucket, object == null ? "?acl" : object + "?acl");
             }
@@ -1459,7 +1457,7 @@ public class S3 extends AbstractBlobStoreSupport {
 
     @Override
     public @Nonnull Blob upload(@Nonnull File source, @Nullable String bucket, @Nonnull String fileName) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.upload");
+        APITrace.begin(getProvider(), "Blob.upload");
         try {
             if( bucket == null ) {
                 throw new OperationNotSupportedException("Root objects are not supported");

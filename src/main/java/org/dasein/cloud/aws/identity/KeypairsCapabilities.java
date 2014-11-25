@@ -16,48 +16,36 @@
  * limitations under the License.
  * ====================================================================
  */
-package org.dasein.cloud.aws.platform;
+
+package org.dasein.cloud.aws.identity;
 
 import org.dasein.cloud.AbstractCapabilities;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.Requirement;
 import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.platform.PushNotificationCapabilities;
+import org.dasein.cloud.identity.ShellKeyCapabilities;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
 
 /**
- * Description
- * <p>Created by stas: 05/08/2014 15:37</p>
- *
- * @author Stas Maksimov
- * @version 2014.08 initial version
- * @since 2014.08
+ * Created by stas on 14/11/2014.
  */
-public class SNSCapabilities extends AbstractCapabilities<AWSCloud> implements PushNotificationCapabilities {
+public class KeypairsCapabilities extends AbstractCapabilities<AWSCloud> implements ShellKeyCapabilities {
 
-    public SNSCapabilities( @Nonnull AWSCloud provider ) {
+    public KeypairsCapabilities( @Nonnull AWSCloud provider ) {
         super(provider);
     }
 
     @Override
-    public boolean canCreateTopic() throws CloudException, InternalException {
-        return false;
+    public @Nonnull Requirement identifyKeyImportRequirement() throws CloudException, InternalException {
+        return Requirement.OPTIONAL;
     }
 
     @Override
-    public boolean canRemoveTopic() throws CloudException, InternalException {
-        return false;
+    public @Nonnull String getProviderTermForKeypair( @Nonnull Locale locale ) {
+        return "keypair";
     }
 
-    @Override
-    public @Nonnull String getProviderTermForSubscription( Locale locale ) {
-        return "subscription";
-    }
-
-    @Override
-    public @Nonnull String getProviderTermForTopic( Locale locale ) {
-        return "topic";
-    }
 }

@@ -124,6 +124,11 @@ public class AMICapabilities extends AbstractCapabilities<AWSCloud> implements I
     }
 
     @Override
+    public boolean supportsImageCopy() {
+        return true;
+    }
+
+    @Override
     public boolean supportsImageSharing() {
         return getProvider().getEC2Provider().isAWS();
     }
@@ -131,6 +136,11 @@ public class AMICapabilities extends AbstractCapabilities<AWSCloud> implements I
     @Override
     public boolean supportsImageSharingWithPublic() {
         return getProvider().getEC2Provider().isAWS();
+    }
+
+    @Override
+    public boolean supportsListingAllRegions() throws CloudException, InternalException {
+        return false;
     }
 
     @Override

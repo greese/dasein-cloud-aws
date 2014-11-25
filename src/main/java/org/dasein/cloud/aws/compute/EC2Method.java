@@ -29,10 +29,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudErrorType;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.*;
 import org.dasein.cloud.admin.PrepaymentSupport;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.*;
@@ -78,6 +75,9 @@ public class EC2Method {
     static public final String UPDATE_AUTO_SCALING_GROUP        = "UpdateAutoScalingGroup";
     static public final String UPDATE_AUTO_SCALING_GROUP_TAGS   = "CreateOrUpdateTags";
     static public final String DELETE_AUTO_SCALING_GROUP_TAGS   = "DeleteTags";
+    static public final String DESCRIBE_TAGS = "DescribeTags";
+    static public final String PUT_NOTIFICATION_CONFIGURATION     = "PutNotificationConfiguration";
+    static public final String DESCRIBE_NOTIFICATION_CONFIGURATIONS = "DescribeNotificationConfigurations";
 
     static public @Nonnull ServiceAction[] asAutoScalingServiceAction(@Nonnull String action) {
         if( action.equals(CREATE_AUTO_SCALING_GROUP) ) {
@@ -135,6 +135,7 @@ public class EC2Method {
     // AMI operations
     static public final String BUNDLE_INSTANCE          = "BundleInstance";
     static public final String CREATE_IMAGE             = "CreateImage";
+    static public final String COPY_IMAGE               = "CopyImage";
     static public final String DESCRIBE_BUNDLE_TASKS    = "DescribeBundleTasks";
     static public final String DEREGISTER_IMAGE         = "DeregisterImage";
     static public final String DESCRIBE_IMAGE_ATTRIBUTE = "DescribeImageAttribute";
@@ -169,7 +170,7 @@ public class EC2Method {
     static public final String TERMINATE_INSTANCES         = "TerminateInstances";
     static public final String UNMONITOR_INSTANCES         = "UnmonitorInstances";
     static public final String MODIFY_INSTANCE_ATTRIBUTE   = "ModifyInstanceAttribute";
-	static public final String DESCRIBE_INSTANCE_ATTRIBUTE = "DescribeInstanceAttribute";
+    static public final String DESCRIBE_INSTANCE_ATTRIBUTE = "DescribeInstanceAttribute";
     static public final String DESCRIBE_INSTANCE_STATUS    = "DescribeInstanceStatus";
 
     // Keypair operations
@@ -283,6 +284,9 @@ public class EC2Method {
         }
         else if( action.equals(CREATE_IMAGE) || action.equals(REGISTER_IMAGE) ) {
             return new ServiceAction[] { MachineImageSupport.REGISTER_IMAGE };
+        }
+        else if( action.equals(COPY_IMAGE) ) {
+            return new ServiceAction[] { MachineImageSupport.COPY_IMAGE };
         }
         else if( action.equals(DESCRIBE_BUNDLE_TASKS) ) {
             return new ServiceAction[0];
@@ -577,22 +581,22 @@ public class EC2Method {
         return new ServiceAction[0];
     }
 
-	private int                attempts    = 0;
-	private Map<String,String> parameters  = null;
-	private AWSCloud           provider    = null;
-	private String             url         = null;
+  private int                attempts    = 0;
+  private Map<String,String> parameters  = null;
+  private AWSCloud           provider    = null;
+  private String             url         = null;
 
-	public EC2Method(AWSCloud provider, String url, Map<String,String> parameters) throws InternalException, CloudException {
-		this.url = url;
-		this.parameters = parameters;
-		this.provider = provider;
+  public EC2Method(AWSCloud provider, String url, Map<String,String> parameters) throws InternalException, CloudException {
+    this.url = url;
+    this.parameters = parameters;
+    this.provider = provider;
         ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
             throw new CloudException("Provider context is necessary for this request");
         }
-		parameters.put(AWSCloud.P_SIGNATURE, provider.signEc2(ctx.getAccessPrivate(), url, parameters));
-	}
+    parameters.put(AWSCloud.P_SIGNATURE, provider.signEc2(ctx.getAccessPrivate(), url, parameters));
+  }
 
     public void checkSuccess(NodeList returnNodes) throws CloudException {
         if( returnNodes.getLength() > 0 ) {
@@ -624,18 +628,18 @@ public class EC2Method {
     }
 
     private Document invoke(boolean debug, XmlStreamParser callback) throws EC2Exception, CloudException, InternalException {
-	    if( logger.isTraceEnabled() ) {
-	        logger.trace("ENTER - " + EC2Method.class.getName() + ".invoke(" + debug + ")");
-	    }
+      if( logger.isTraceEnabled() ) {
+          logger.trace("ENTER - " + EC2Method.class.getName() + ".invoke(" + debug + ")");
+      }
         if( wire.isDebugEnabled() ) {
             wire.debug("");
             wire.debug("--------------------------------------------------------------------------------------");
         }
         HttpClient client = null;
-	    try {
-    		if( logger.isDebugEnabled() ) {
-    			logger.debug("Talking to server at " + url);
-    		}
+      try {
+        if( logger.isDebugEnabled() ) {
+          logger.debug("Talking to server at " + url);
+        }
 
             HttpPost post = new HttpPost(url);
             client = provider.getClient();
@@ -644,6 +648,15 @@ public class EC2Method {
 
             attempts++;
             post.addHeader("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
+
+            if ( provider.isDebug() ) {
+                post.addHeader("Connection", "close");
+            }
+            
+            RequestTrackingStrategy strategy = provider.getContext().getRequestTrackingStrategy();
+            if( strategy != null && strategy.getSendAsHeader() ){
+                post.addHeader(strategy.getHeaderName(), strategy.getRequestId());
+            }
 
             List<NameValuePair> params = new ArrayList<NameValuePair>();
 
@@ -887,24 +900,24 @@ public class EC2Method {
                     throw new CloudException(e);
                 }
             }
-	    }
-	    finally {
+      }
+      finally {
             if (client != null) {
                 client.getConnectionManager().shutdown();
             }
-	        if( logger.isTraceEnabled() ) {
-	            logger.trace("EXIT - " + EC2Method.class.getName() + ".invoke()");
-	        }
+          if( logger.isTraceEnabled() ) {
+              logger.trace("EXIT - " + EC2Method.class.getName() + ".invoke()");
+          }
             if( wire.isDebugEnabled() ) {
                 wire.debug("--------------------------------------------------------------------------------------");
                 wire.debug("");
             }
 
-	    }
-	}
+      }
+  }
 
-	private Document parseResponse(String responseBody) throws CloudException, InternalException {
-	    try {
+  private Document parseResponse(String responseBody) throws CloudException, InternalException {
+      try {
             if( wire.isDebugEnabled() ) {
                 String[] lines = responseBody.split("\n");
 
@@ -916,34 +929,34 @@ public class EC2Method {
                 }
             }
             return XMLParser.parse(new ByteArrayInputStream(responseBody.getBytes()));
-	    }
-	    catch( IOException e ) {
-	        throw new CloudException(e);
-	    }
-	    catch( ParserConfigurationException e ) {
+      }
+      catch( IOException e ) {
+          throw new CloudException(e);
+      }
+      catch( ParserConfigurationException e ) {
             throw new CloudException(e);
         }
         catch( SAXException e ) {
             throw new CloudException(e);
         }
-	}
+  }
 
-	private Document parseResponse(InputStream responseBodyAsStream) throws CloudException, InternalException {
+  private Document parseResponse(InputStream responseBodyAsStream) throws CloudException, InternalException {
         BufferedReader in = null;
-		try {
-			in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
-			StringBuilder sb = new StringBuilder();
-			String line;
+    try {
+      in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
+      StringBuilder sb = new StringBuilder();
+      String line;
 
-			while( (line = in.readLine()) != null ) {
-				sb.append(line);
-				sb.append("\n");
-			}
-			return parseResponse(sb.toString());
-		}
-		catch( IOException e ) {
-			throw new CloudException(e);
-		}
+      while( (line = in.readLine()) != null ) {
+        sb.append(line);
+        sb.append("\n");
+      }
+      return parseResponse(sb.toString());
+    }
+    catch( IOException e ) {
+      throw new CloudException(e);
+    }
         finally {
             if( in != null ) {
                 try {

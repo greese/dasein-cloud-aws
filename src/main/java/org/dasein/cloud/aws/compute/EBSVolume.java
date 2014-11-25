@@ -49,15 +49,19 @@ import javax.annotation.Nullable;
 
 public class EBSVolume extends AbstractVolumeSupport {
 	static private final Logger logger = Logger.getLogger(EBSVolume.class);
-	
-	private AWSCloud provider = null;
+
+    static private final String VOLUME_PRODUCT_IOPS = "io1";
+    static private final String VOLUME_PRODUCT_STANDARD = "standard";
+    static private final String VOLUME_PRODUCT_SSD = "gp2";
+
+    private AWSCloud provider = null;
     private EBSVolumeCapabilities capabilities;
 
     EBSVolume(AWSCloud provider) {
         super(provider);
 		this.provider = provider;
 	}
-	
+
 	@Override
 	public void attach(@Nonnull String volumeId, @Nonnull String toServer, @Nonnull String device) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "Volume.attach");
@@ -120,11 +124,13 @@ public class EBSVolume extends AbstractVolumeSupport {
                     VolumeProduct prd = getVolumeProduct( options.getVolumeProductId() );
                     if( prd != null ) {
                         parameters.put("VolumeType", prd.getProviderProductId());
-                        if( prd.getMaxIops() > 0 && options.getIops() > 0 ) {
-                            parameters.put("Iops", String.valueOf(options.getIops()));
-                        }
-                        else if( prd.getMinIops() > 0 ) {
-                            parameters.put("Iops", String.valueOf(prd.getMinIops()));
+                        if ( VOLUME_PRODUCT_IOPS.equals( prd.getProviderProductId() ) ) {
+                            if ( prd.getMaxIops() > 0 && options.getIops() > 0 ) {
+                                parameters.put( "Iops", String.valueOf( options.getIops() ) );
+                            }
+                            else if ( prd.getMinIops() > 0 ) {
+                                parameters.put( "Iops", String.valueOf( prd.getMinIops() ) );
+                            }
                         }
                     }
                 }
@@ -269,8 +275,10 @@ public class EBSVolume extends AbstractVolumeSupport {
                     }
                 }
 
-                prds.add(VolumeProduct.getInstance("standard", "Standard", "Standard EBS with no IOPS Guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 0, 0, rawPrice, 0f));
-                prds.add(VolumeProduct.getInstance("io1", "IOPS EBS", "EBS Volume with IOPS guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 100, 4000, 0.125f, 0.1f));
+                prds.add(VolumeProduct.getInstance( VOLUME_PRODUCT_STANDARD, "Standard", "Standard EBS with no IOPS Guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 0, 0, rawPrice, 0f));
+                prds.add(VolumeProduct.getInstance( VOLUME_PRODUCT_IOPS, "IOPS EBS", "EBS Volume with IOPS guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 100, 4000, 0.125f, 0.1f));
+                prds.add(VolumeProduct.getInstance( VOLUME_PRODUCT_SSD, "SSD EBS", "SSD-based Persistent Volume", VolumeType.SSD, new Storage<Gigabyte>(1, Storage.GIGABYTE), "USD", 3, 3000, 0.1f, 0f));
+
                 cache.put(getContext(), prds);
                 products = prds;
             }
@@ -506,7 +514,7 @@ public class EBSVolume extends AbstractVolumeSupport {
     public void updateTags(@Nonnull String[] volumeIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Volume.updateTags");
         try {
-            provider.createTags( volumeIds, tags );
+            provider.createTags(volumeIds, tags);
         }
         finally {
             APITrace.end();
@@ -515,14 +523,14 @@ public class EBSVolume extends AbstractVolumeSupport {
 
     @Override
     public void removeTags(@Nonnull String volumeId, @Nonnull Tag ... tags) throws CloudException, InternalException {
-        removeTags(new String[] { volumeId }, tags);
+        removeTags(new String[]{volumeId}, tags);
     }
 
     @Override
     public void removeTags(@Nonnull String[] volumeIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Volume.removeTags");
         try {
-            provider.removeTags( volumeIds, tags );
+            provider.removeTags(volumeIds, tags);
         }
         finally {
             APITrace.end();
