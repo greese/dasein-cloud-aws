@@ -47,32 +47,30 @@ import org.w3c.dom.NodeList;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-public class EBSVolume extends AbstractVolumeSupport {
+public class EBSVolume extends AbstractVolumeSupport<AWSCloud> {
 	static private final Logger logger = Logger.getLogger(EBSVolume.class);
 
     static private final String VOLUME_PRODUCT_IOPS = "io1";
     static private final String VOLUME_PRODUCT_STANDARD = "standard";
     static private final String VOLUME_PRODUCT_SSD = "gp2";
 
-    private AWSCloud provider = null;
     private EBSVolumeCapabilities capabilities;
 
     EBSVolume(AWSCloud provider) {
         super(provider);
-		this.provider = provider;
 	}
 
 	@Override
 	public void attach(@Nonnull String volumeId, @Nonnull String toServer, @Nonnull String device) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "Volume.attach");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ATTACH_VOLUME);
+            Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.ATTACH_VOLUME);
             EC2Method method;
 
             parameters.put("VolumeId", volumeId);
             parameters.put("InstanceId", toServer);
             parameters.put("Device", device);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -93,12 +91,12 @@ public class EBSVolume extends AbstractVolumeSupport {
             if( !options.getFormat().equals(VolumeFormat.BLOCK)) {
                 throw new OperationNotSupportedException("NFS volumes are not currently supported");
             }
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new InternalException("No context was specified for this request");
             }
-            Map<String,String> parameters = provider.getStandardParameters(ctx, EC2Method.CREATE_VOLUME);
+            Map<String,String> parameters = getProvider().getStandardParameters(ctx, EC2Method.CREATE_VOLUME);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -111,7 +109,7 @@ public class EBSVolume extends AbstractVolumeSupport {
             String az = options.getDataCenterId();
 
             if( az == null ) {
-                for( DataCenter dc : provider.getDataCenterServices().listDataCenters(ctx.getRegionId()) ) {
+                for( DataCenter dc : getProvider().getDataCenterServices().listDataCenters(ctx.getRegionId()) ) {
                     az = dc.getProviderDataCenterId();
                 }
                 if( az == null ) {
@@ -119,7 +117,7 @@ public class EBSVolume extends AbstractVolumeSupport {
                 }
             }
             parameters.put("AvailabilityZone", az);
-            if( provider.getEC2Provider().isAWS() || provider.getEC2Provider().isEnStratus() ) {
+            if( getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus() ) {
                 if( options.getVolumeProductId() != null ) {
                     VolumeProduct prd = getVolumeProduct( options.getVolumeProductId() );
                     if( prd != null ) {
@@ -135,7 +133,7 @@ public class EBSVolume extends AbstractVolumeSupport {
                     }
                 }
             }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -160,7 +158,7 @@ public class EBSVolume extends AbstractVolumeSupport {
                     }
                 }
                 if( !tags.isEmpty() ) {
-                    provider.createTags(id, tags.toArray(new Tag[tags.size()]));
+                    getProvider().createTags(id, tags.toArray(new Tag[tags.size()]));
                 }
                 return id;
             }
@@ -175,7 +173,7 @@ public class EBSVolume extends AbstractVolumeSupport {
     public void detach(@Nonnull String volumeId, boolean force) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "Volume.detach");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DETACH_VOLUME);
+            Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DETACH_VOLUME);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -184,7 +182,7 @@ public class EBSVolume extends AbstractVolumeSupport {
             if( force ) {
                 parameters.put("Force", "true");
             }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -207,7 +205,7 @@ public class EBSVolume extends AbstractVolumeSupport {
     @Override
     public VolumeCapabilities getCapabilities() {
         if( capabilities == null ) {
-            capabilities = new EBSVolumeCapabilities(provider);
+            capabilities = new EBSVolumeCapabilities(getProvider());
         }
         return capabilities;
     }
@@ -256,7 +254,7 @@ public class EBSVolume extends AbstractVolumeSupport {
 
             if( products == null ) {
                 ArrayList<VolumeProduct> prds = new ArrayList<VolumeProduct>();
-                ProviderContext ctx = provider.getContext();
+                ProviderContext ctx = getProvider().getContext();
                 float rawPrice = 0.11f;
 
                 if( ctx != null ) {
@@ -293,18 +291,18 @@ public class EBSVolume extends AbstractVolumeSupport {
 	public @Nullable Volume getVolume(@Nonnull String volumeId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "Volume.getVolume");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context exists for this request.");
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_VOLUMES);
+            Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_VOLUMES);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("VolumeId.1", volumeId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -354,18 +352,18 @@ public class EBSVolume extends AbstractVolumeSupport {
     public @Nonnull Iterable<ResourceStatus> listVolumeStatus() throws InternalException, CloudException {
         APITrace.begin(getProvider(), "Volume.listVolumeStatus");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context exists for this request.");
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_VOLUMES);
+            Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_VOLUMES);
             ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -406,22 +404,22 @@ public class EBSVolume extends AbstractVolumeSupport {
     public @Nonnull Iterable<Volume> listVolumes(@Nullable VolumeFilterOptions options) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "Volume.listVolumes");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context exists for this request.");
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_VOLUMES);
+            Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_VOLUMES);
             ArrayList<Volume> list = new ArrayList<Volume>();
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             if ( options != null ) {
-                AWSCloud.addExtraParameters( parameters, provider.getTagFilterParams( options.getTags() ) );
+                AWSCloud.addExtraParameters( parameters, getProvider().getTagFilterParams( options.getTags() ) );
             }
 
-            method = new EC2Method( provider, provider.getEc2Url(), parameters );
+            method = new EC2Method( getProvider(), parameters );
             try {
                 doc = method.invoke();
             }
@@ -479,13 +477,13 @@ public class EBSVolume extends AbstractVolumeSupport {
     public void remove(@Nonnull String volumeId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "Volume.remove");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DELETE_VOLUME);
+            Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DELETE_VOLUME);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("VolumeId", volumeId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -514,7 +512,7 @@ public class EBSVolume extends AbstractVolumeSupport {
     public void updateTags(@Nonnull String[] volumeIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Volume.updateTags");
         try {
-            provider.createTags(volumeIds, tags);
+            getProvider().createTags(volumeIds, tags);
         }
         finally {
             APITrace.end();
@@ -530,7 +528,7 @@ public class EBSVolume extends AbstractVolumeSupport {
     public void removeTags(@Nonnull String[] volumeIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Volume.removeTags");
         try {
-            provider.removeTags(volumeIds, tags);
+            getProvider().removeTags(volumeIds, tags);
         }
         finally {
             APITrace.end();
@@ -650,7 +648,7 @@ public class EBSVolume extends AbstractVolumeSupport {
         volume.setCurrentState( toVolumeState( attr ) );
       }
             else if( name.equals("tagSet") ) {
-                provider.setTags(attr, volume);
+                getProvider().setTags(attr, volume);
 
                 String s = volume.getTag("Name");
 

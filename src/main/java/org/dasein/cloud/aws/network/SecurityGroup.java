@@ -154,7 +154,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
                     parameters.put("IpPermissions.1.IpRanges.1.CidrIp", destinationEndpoint.getCidr());
                 }
             }
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -201,7 +201,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
             if( vlanId != null ) {
                 parameters.put("VpcId", vlanId);
             }
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -262,7 +262,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
             } else {
                 parameters.put("GroupId", securityGroupId);
             }
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -313,7 +313,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
             } else {
                 parameters.put("GroupId.1", securityGroupId);
             }
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -377,7 +377,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
             } else {
                 parameters.put("GroupId.1", securityGroupId);
             }
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -527,7 +527,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -571,7 +571,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -736,7 +736,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
                     parameters.put("IpPermissions.1.IpRanges.1.CidrIp", destinationEndpoint.getCidr());
                 }
             }
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
