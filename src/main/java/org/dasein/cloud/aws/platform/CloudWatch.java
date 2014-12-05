@@ -48,6 +48,7 @@ import java.util.*;
  */
 public class CloudWatch extends AbstractMonitoringSupport {
 
+    public static final String SERVICE_ID = "monitoring";
     public static final String STATE_OK = "OK";
     public static final String STATE_ALARM = "ALARM";
     public static final String STATE_INSUFFICIENT_DATA = "INSUFFICIENT_DATA";
@@ -89,7 +90,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
             AWSCloud.addIndexedParameters(parameters, "Dimensions.member.", options.getMetadata());
 
             EC2Method method;
-            method = new EC2Method(provider, getCloudWatchUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -141,7 +142,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
         provider.addIndexedParameters(parameters, "AlarmNames.member.", alarmNames);
 
         EC2Method method;
-        method = new EC2Method(provider, getCloudWatchUrl(), parameters);
+        method = new EC2Method(SERVICE_ID, provider, parameters);
         try {
             method.invoke();
         } catch( EC2Exception e ) {
@@ -168,7 +169,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
             EC2Method method;
             Document doc;
 
-            method = new EC2Method(provider, getCloudWatchUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -340,7 +341,7 @@ public class CloudWatch extends AbstractMonitoringSupport {
             EC2Method method;
             Document doc;
 
-            method = new EC2Method(provider, getCloudWatchUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {

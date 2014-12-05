@@ -32,8 +32,8 @@ import java.util.Map;
 
 public class IAMMethod extends EC2Method {
     static public final String IAM_PREFIX = "iam:";
-    static public final String IAM_URL    = "https://iam.amazonaws.com";
     static public final String VERSION    = "2010-05-08";
+    static public final String SERVICE_ID = "iam";
 
     static public final String ADD_USER_TO_GROUP      = "AddUserToGroup";
     static public final String CREATE_ACCESS_KEY      = "CreateAccessKey";
@@ -170,7 +170,7 @@ public class IAMMethod extends EC2Method {
     }
 
     public IAMMethod(AWSCloud provider, Map<String,String> parameters) throws CloudException, InternalException {
-        super(provider, IAM_URL, parameters);
+        super("iam", provider, parameters);
     }
 
 }

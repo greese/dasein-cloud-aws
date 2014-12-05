@@ -43,10 +43,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 public class ReservedInstance implements PrepaymentSupport {
     static private final Logger logger = AWSCloud.getLogger(ReservedInstance.class);
@@ -69,7 +66,7 @@ public class ReservedInstance implements PrepaymentSupport {
             Document doc;
 
             parameters.put("ReservedInstancesOfferingId", offeringId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -115,7 +112,7 @@ public class ReservedInstance implements PrepaymentSupport {
             Document doc;
 
             parameters.put("ReservedInstancesId.1", prepaymentId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -184,13 +181,13 @@ public class ReservedInstance implements PrepaymentSupport {
         APITrace.begin(provider, "Prepayment.listOfferings");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_RESERVED_INSTANCES_OFFERINGS);
-            ArrayList<Offering> list = new ArrayList<Offering>();
+            List<Offering> list = new ArrayList<Offering>();
             EC2Method method;
 
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -226,12 +223,12 @@ public class ReservedInstance implements PrepaymentSupport {
         APITrace.begin(provider, "Prepayment.listPrepayments");
         try {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_RESERVED_INSTANCES);
-            ArrayList<Prepayment> list = new ArrayList<Prepayment>();
+            List<Prepayment> list = new ArrayList<Prepayment>();
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -290,7 +287,7 @@ public class ReservedInstance implements PrepaymentSupport {
 
             parameters.put("ReservedInstanceOfferingId.1", offeringId);
             parameters.put("InstanceCount.1", String.valueOf(count));
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }

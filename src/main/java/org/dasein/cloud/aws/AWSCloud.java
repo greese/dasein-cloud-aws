@@ -38,9 +38,11 @@ import org.dasein.cloud.aws.compute.EC2ComputeServices;
 import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.aws.identity.AWSIdentityServices;
+import org.dasein.cloud.aws.identity.IAMMethod;
 import org.dasein.cloud.aws.network.EC2NetworkServices;
 import org.dasein.cloud.aws.platform.AWSPlatformServices;
 import org.dasein.cloud.aws.storage.AWSCloudStorageServices;
+import org.dasein.cloud.aws.storage.S3Method;
 import org.dasein.cloud.compute.ComputeServices;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.platform.KeyValuePair;
@@ -103,26 +105,28 @@ public class AWSCloud extends AbstractCloud {
 
     static private final Logger logger = getLogger(AWSCloud.class);
 
-    static public final String P_ACCESS = "AWSAccessKeyId";
-    static public final String P_ACTION = "Action";
-    static public final String P_CFAUTH = "Authorization";
-    static public final String P_AWS_DATE = "x-amz-date";
-    static public final String P_GOOG_DATE = "x-goog-date";
-    static public final String P_SIGNATURE = "Signature";
-    static public final String P_SIGNATURE_METHOD = "SignatureMethod";
+    static public final String P_ACCESS            = "AWSAccessKeyId";
+    static public final String P_ACTION            = "Action";
+    static public final String P_CFAUTH            = "Authorization";
+    static public final String P_AWS_DATE          = "x-amz-date";
+    static public final String P_AWS_CONTENT_SHA256 = "x-amz-content-sha256";
+    static public final String P_GOOG_DATE         = "x-goog-date";
+    static public final String P_SIGNATURE         = "Signature";
+    static public final String P_SIGNATURE_METHOD  = "SignatureMethod";
     static public final String P_SIGNATURE_VERSION = "SignatureVersion";
-    static public final String P_TIMESTAMP = "Timestamp";
-    static public final String P_VERSION = "Version";
+    static public final String P_TIMESTAMP         = "Timestamp";
+    static public final String P_VERSION           = "Version";
 
     static public final String CLOUD_FRONT_ALGORITHM = "HmacSHA1";
-    static public final String EC2_ALGORITHM = "HmacSHA256";
-    static public final String S3_ALGORITHM = "HmacSHA1";
-    static public final String SIGNATURE = "2";
-    static public final String V4_ALGORITHM = "AWS4-HMAC-SHA256";
-    static public final String V4_TERMINATION = "aws4_request";
+    static public final String EC2_ALGORITHM         = "HmacSHA256";
+    static public final String S3_ALGORITHM          = "HmacSHA1";
+    static public final String SIGNATURE_V2          = "2";
+    static public final String SIGNATURE_V4          = "4";
+    static public final String V4_ALGORITHM          = "AWS4-HMAC-SHA256";
+    static public final String V4_TERMINATION        = "aws4_request";
 
-    static public final String PLATFORM_EC2                     = "EC2";
-    static public final String PLATFORM_VPC                     = "VPC";
+    static public final String PLATFORM_EC2 = "EC2";
+    static public final String PLATFORM_VPC = "VPC";
 
 
     static public @Nonnull String encode( @Nonnull String value, boolean encodePath ) throws InternalException {
@@ -133,7 +137,8 @@ public class AWSCloud extends AbstractCloud {
             if( encodePath ) {
                 encoded = encoded.replace("%2F", "/");
             }
-        } catch( UnsupportedEncodingException e ) {
+        }
+        catch( UnsupportedEncodingException e ) {
             logger.error(e);
             e.printStackTrace();
             throw new InternalException(e);
@@ -184,11 +189,14 @@ public class AWSCloud extends AbstractCloud {
             mac = Mac.getInstance(algorithm);
             mac.init(new SecretKeySpec(key, algorithm));
             return mac.doFinal(data.getBytes("UTF-8"));
-        } catch( NoSuchAlgorithmException e ) {
+        }
+        catch( NoSuchAlgorithmException e ) {
             throw new InternalException(e);
-        } catch( InvalidKeyException e ) {
+        }
+        catch( InvalidKeyException e ) {
             throw new InternalException(e);
-        } catch( UnsupportedEncodingException e ) {
+        }
+        catch( UnsupportedEncodingException e ) {
             throw new InternalException(e);
         }
     }
@@ -204,9 +212,11 @@ public class AWSCloud extends AbstractCloud {
                 digest.update(buffer, 0, read);
             }
             return new String(Hex.encodeHex(digest.digest(), true));
-        } catch( NoSuchAlgorithmException e ) {
+        }
+        catch( NoSuchAlgorithmException e ) {
             throw new InternalException(e);
-        } catch( IOException e ) {
+        }
+        catch( IOException e ) {
             throw new InternalException(e);
         }
     }
@@ -224,7 +234,8 @@ public class AWSCloud extends AbstractCloud {
         authString.append("\n");
         try {
             endpoint = new URI(serviceUrl);
-        } catch( URISyntaxException e ) {
+        }
+        catch( URISyntaxException e ) {
             logger.error(e);
             e.printStackTrace();
             throw new InternalException(e);
@@ -303,7 +314,7 @@ public class AWSCloud extends AbstractCloud {
                 }
                 addExtraParameters(parameters, tagParameters);
 
-                EC2Method method = new EC2Method(this, getEc2Url(), parameters);
+                EC2Method method = new EC2Method(EC2Method.SERVICE_ID, this, parameters);
                 try {
                     method.invoke();
                 } catch( EC2Exception e ) {
@@ -334,9 +345,7 @@ public class AWSCloud extends AbstractCloud {
 
             if (value != null) {
                 tagParameters.put("Tag." + (i + 1) + ".Key", key);
-                if (value.length() > 0) {
-                    tagParameters.put("Tag." + (i + 1) + ".Value", value);
-                }
+                tagParameters.put("Tag." + (i + 1) + ".Value", value);
             }
         }
         return tagParameters;
@@ -358,7 +367,7 @@ public class AWSCloud extends AbstractCloud {
             }
             addExtraParameters(parameters, tagParameters);
 
-            new EC2Method(this, getEc2Url(), parameters).invoke();
+            new EC2Method(EC2Method.SERVICE_ID, this, parameters).invoke();
 
         } finally {
             APITrace.end();
@@ -389,7 +398,7 @@ public class AWSCloud extends AbstractCloud {
                         parameters.put("Tag." + (i + 1) + ".Value", value);
                     }
                 }
-                method = new EC2Method(this, getEc2Url(), parameters);
+                method = new EC2Method(EC2Method.SERVICE_ID, this, parameters);
                 method.invoke();
                 return true;
             } catch( Throwable ignore ) {
@@ -510,8 +519,8 @@ public class AWSCloud extends AbstractCloud {
                 new ContextRequirements.Field("proxyPort", "Proxy port", ContextRequirements.FieldType.TEXT, false));
     }
 
-    public byte[][] getAccessKey( ProviderContext ctx ) {
-        return ( byte[][] ) ctx.getConfigurationValue(DSN_ACCESS_KEY);
+    public byte[][] getAccessKey() {
+        return ( byte[][] ) getContext().getConfigurationValue(DSN_ACCESS_KEY);
     }
 
     @Override
@@ -621,7 +630,7 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public String getRdsVersion() {
-        return "2012-09-17";
+        return "2014-09-01";
     }
 
     public String getRoute53Version() {
@@ -714,21 +723,21 @@ public class AWSCloud extends AbstractCloud {
     }
 
     public Map<String, String> getStandardParameters( ProviderContext ctx, String action, String version ) throws InternalException {
-        HashMap<String, String> parameters = new HashMap<String, String>();
+        Map<String, String> parameters = new HashMap<String, String>();
 
         parameters.put(P_ACTION, action);
-        parameters.put(P_SIGNATURE_VERSION, SIGNATURE);
-        try {
-            byte[][] keys = getAccessKey(ctx);
-
-            parameters.put(P_ACCESS, new String(keys[0], "utf-8"));
-        } catch( UnsupportedEncodingException e ) {
-            logger.error(e);
-            e.printStackTrace();
-            throw new InternalException(e);
-        }
-        parameters.put(P_SIGNATURE_METHOD, EC2_ALGORITHM);
-        parameters.put(P_TIMESTAMP, getTimestamp(System.currentTimeMillis(), true));
+//        parameters.put(P_SIGNATURE_VERSION, SIGNATURE_V4);
+//        try {
+//            byte[][] keys = getAccessKey();
+//
+//            parameters.put(P_ACCESS, new String(keys[0], "utf-8"));
+//        } catch( UnsupportedEncodingException e ) {
+//            logger.error(e);
+//            e.printStackTrace();
+//            throw new InternalException(e);
+//        }
+//        parameters.put(P_SIGNATURE_METHOD, EC2_ALGORITHM);
+//        parameters.put(P_TIMESTAMP, getTimestamp(System.currentTimeMillis(), true));
         parameters.put(P_VERSION, version);
         return parameters;
     }
@@ -888,7 +897,16 @@ public class AWSCloud extends AbstractCloud {
         if( ctx == null ) {
             throw new InternalException("No context for signing the request");
         }
-        return sign(getAccessKey(ctx)[1], base64Policy, S3_ALGORITHM);
+        return sign(getAccessKey()[1], base64Policy, S3_ALGORITHM);
+    }
+
+    public String getRequestBodyHash(String bodyText) throws InternalException {
+        if (bodyText == null) {
+            // use hash of the empty string
+            return AWSCloud.computeSHA256Hash("");
+        } else {
+            return AWSCloud.computeSHA256Hash(bodyText);
+        }
     }
 
     public String signCloudFront( String accessKey, byte[] secretKey, String dateString ) throws InternalException {
@@ -978,10 +996,13 @@ public class AWSCloud extends AbstractCloud {
         if( ctx == null || ctx.getRegionId() == null ) {
             throw new InternalException("no region is configured");
         }
-        String regionId = ctx.getRegionId();
+        String host = headers.get("host");
 
         serviceId = serviceId.toLowerCase();
-
+        String regionId = getContext().getRegionId();
+        if( serviceId.equalsIgnoreCase(IAMMethod.SERVICE_ID) ) {
+            regionId = "us-east-1";
+        }
         String amzDate = extractV4Date(headers);
         String credentialScope = getV4CredentialScope(amzDate, regionId, serviceId);
         String signedHeaders = getV4SignedHeaders(headers);
@@ -1209,7 +1230,7 @@ public class AWSCloud extends AbstractCloud {
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(this, getEc2Url(), parameters);
+            method = new EC2Method(EC2Method.SERVICE_ID, this, parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1415,7 +1436,7 @@ public class AWSCloud extends AbstractCloud {
             NodeList blocks;
             Document doc;
             parameters.put("AttributeName.1", "supported-platforms");
-            method = new EC2Method(this, getEc2Url(), parameters);
+            method = new EC2Method(EC2Method.SERVICE_ID, this, parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1542,4 +1563,13 @@ public class AWSCloud extends AbstractCloud {
         return client;
     }
 
+    /**
+     * DEBUG_AWS should be specified as system properties, otherwise return false
+     *
+     * @return DEBUG_AWS properties value, or false if not specified
+     */
+    public boolean isDebug() {
+        Properties properties = System.getProperties();
+        return Boolean.valueOf(properties.getProperty("DEBUG_AWS", "false"));
+    }
 }

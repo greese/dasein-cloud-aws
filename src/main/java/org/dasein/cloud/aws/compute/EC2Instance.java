@@ -74,7 +74,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             parameters.put("InstanceId", vmId);
             parameters.put("InstanceType.Value", options.getProviderProductId());
 
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method("ec2", getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -101,7 +101,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 parameters.put("GroupId." + i, firewalls[i]);
             }
 
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method("ec2", getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -132,7 +132,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             EC2Method method;
 
             parameters.put("InstanceId.1", instanceId);
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method("ec2", getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -183,7 +183,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             parameters.put("Statistics.member.2", "Minimum");
             parameters.put("Statistics.member.3", "Maximum");
             parameters.put("Period", "60");
-            method = new EC2Method(getProvider(), getCloudWatchUrl(getContext()), parameters);
+            method = new EC2Method("monitoring", getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -367,7 +367,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 EC2Method method;
 
                 parameters.put("InstanceId.1", instanceId);
-                method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+                method = new EC2Method(getProvider(), parameters);
                 try {
                     method.invoke();
                 } catch( EC2Exception e ) {
@@ -443,7 +443,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             Map<String, String> params = awsProvider.getStandardParameters(awsProvider.getContext(), EC2Method.GET_PASSWORD_DATA);
             params.put("InstanceId", instanceId);
             try {
-                method = new EC2Method(awsProvider, ec2url, params);
+                method = new EC2Method(awsProvider, params);
             } catch( InternalException e ) {
                 logger.error(e.getMessage());
                 throw new CloudException(e);
@@ -510,7 +510,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             params.put("InstanceId", instanceId);
             params.put("Attribute", "userData");
             try {
-                method = new EC2Method(awsProvider, ec2url, params);
+                method = new EC2Method(awsProvider, params);
             } catch( InternalException e ) {
                 logger.error(e.getMessage());
                 throw new CloudException(e);
@@ -557,7 +557,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             Document doc;
 
             parameters.put("InstanceId", instanceId);
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -614,13 +614,13 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         APITrace.begin(getProvider(), "listFirewallsForVM");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCES);
-            ArrayList<String> firewalls = new ArrayList<String>();
+            List<String> firewalls = new ArrayList<String>();
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("InstanceId.1", instanceId);
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -691,7 +691,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
         AWSCloud.addIndexedParameters(parameters, "InstanceId", instanceIds);
 
-        method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+        method = new EC2Method(getProvider(), parameters);
         try {
             doc = method.invoke();
         } catch( EC2Exception e ) {
@@ -1017,7 +1017,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             Map<String, String> filterParameters = createFilterParametersFrom(filterOptions);
             AWSCloud.addExtraParameters(params, filterParameters);
             try {
-                method = new EC2Method(getProvider(), getProvider().getEc2Url(), params);
+                method = new EC2Method(getProvider(), params);
             } catch( InternalException e ) {
                 logger.error(e.getMessage());
                 throw new CloudException(e);
@@ -1116,7 +1116,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         APITrace.begin(getProvider(), "isSubscribedVirtualMachine");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCES);
-            EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            EC2Method method = new EC2Method(getProvider(), parameters);
 
             try {
                 method.invoke();
@@ -1577,7 +1577,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         }
 
         // Send request to AWS
-        method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+        method = new EC2Method(getProvider(), parameters);
         try {
             doc = method.invoke();
         } catch( EC2Exception e ) {
@@ -1712,7 +1712,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
                         params.put("InstanceId", instanceId);
                         params.put("SourceDestCheck.Value", "false");
-                        m = new EC2Method(getProvider(), getProvider().getEc2Url(), params);
+                        m = new EC2Method(getProvider(), params);
 
                         m.invoke();
                         return;
@@ -1753,7 +1753,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 throw new CloudException("No context was established for this request");
             }
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INSTANCES);
-            EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            EC2Method method = new EC2Method(getProvider(), parameters);
             ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
             NodeList blocks;
             Document doc;
@@ -1862,7 +1862,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
             AWSCloud.addExtraParameters(parameters, extraParameters);
 
-            EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            EC2Method method = new EC2Method(getProvider(), parameters);
             ArrayList<VirtualMachine> list = new ArrayList<VirtualMachine>();
             NodeList blocks;
             Document doc;
@@ -1976,7 +1976,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             if( force ) {
                 parameters.put("Force", "true");
             }
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -1996,7 +1996,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             EC2Method method;
 
             parameters.put("InstanceId.1", instanceId);
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -2026,7 +2026,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             EC2Method method;
 
             parameters.put("InstanceId.1", instanceId);
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -2517,7 +2517,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 EC2Method method;
 
                 parameters.put("InstanceId.1", instanceId);
-                method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+                method = new EC2Method(getProvider(), parameters);
                 try {
                     method.invoke();
                 } catch( EC2Exception e ) {
@@ -2628,7 +2628,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 APITrace.begin(getProvider(), "cancelSpotVirtualMachineRequest");
                 Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DELETE_SPOT_DATAFEED_SUBSCRIPTION);
                 EC2Method method;
-                method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+                method = new EC2Method(getProvider(), parameters);
                 try {
                     method.invoke();
                 } catch( EC2Exception e ) {
@@ -2652,7 +2652,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.CANCEL_SPOT_INSTANCE_REQUESTS);
                 parameters.put("SpotInstanceRequestId.1", providerSpotInstanceRequestID);
                 EC2Method method;
-                method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+                method = new EC2Method(getProvider(), parameters);
                 try {
                     method.invoke();
                 } catch( EC2Exception e ) {
@@ -2718,7 +2718,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 Document doc;
                 NodeList blocks;
 
-                method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+                method = new EC2Method(getProvider(), parameters);
                 try {
                     doc = method.invoke();
                 } catch( EC2Exception e ) {
@@ -2757,7 +2757,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.CREATE_SPOT_DATAFEED_SUBSCRIPTION);
                 parameters.put("Bucket", s3BucketName);
                 EC2Method method;
-                method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+                method = new EC2Method(getProvider(), parameters);
                 try {
                     method.invoke();
                 } catch( EC2Exception e ) {
@@ -2841,7 +2841,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             EC2Method method;
             Document doc;
             NodeList blocks;
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -2906,7 +2906,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         if( nextToken != null ) {
             parameters.put("NextToken", nextToken);
         }
-        method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+        method = new EC2Method(getProvider(), parameters);
         try {
             doc = method.invoke();
         } catch( EC2Exception e ) {
