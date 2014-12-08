@@ -331,13 +331,8 @@ public class AWSCloud extends AbstractCloud {
         for (int i = 0; i < keyValuePairs.length; i++) {
             String key = keyValuePairs[i].getKey();
             String value = keyValuePairs[i].getValue();
-
-            if (value != null) {
-                tagParameters.put("Tag." + (i + 1) + ".Key", key);
-                if (value.length() > 0) {
-                    tagParameters.put("Tag." + (i + 1) + ".Value", value);
-                }
-            }
+            tagParameters.put("Tag." + (i + 1) + ".Key", key);
+            tagParameters.put("Tag." + (i + 1) + ".Value", value != null ? value : "" );
         }
         return tagParameters;
     }
