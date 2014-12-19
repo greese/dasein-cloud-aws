@@ -1446,6 +1446,8 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         MachineImageType type = null;
         MachineImageFormat storageFormat = null;
         Node tagsNode = null;
+        String virtualizationType = null;
+        String hypervisor = null;
 
         for( int i=0; i<attributes.getLength(); i++ ) {
             Node attribute = attributes.item(i);
@@ -1559,6 +1561,12 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                     }
                 }
             }
+            else if ( "virtualizationType".equals(name) ) {
+                virtualizationType = attribute.getFirstChild().getNodeValue();
+            }
+            else if ( "hypervisor".equals(name) ) {
+                hypervisor = attribute.getFirstChild().getNodeValue();
+            }
             else if ( name.equals("tagSet")) {
                 tagsNode = attribute;
             }
@@ -1657,7 +1665,13 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         image.setTag("public", String.valueOf(isPublic)); // for compatibility's sake
         image.setTag("stateReason", reason);
         if( tagsNode != null ) {
-            getProvider(). setTags(tagsNode, image);
+            getProvider().setTags(tagsNode, image);
+        }
+        if( virtualizationType != null ) {
+            image.setTag("virtualizationType", virtualizationType);
+        }
+        if( hypervisor != null ) {
+            image.setTag("hypervisor", hypervisor);
         }
         if( type != null ) {
             image.withType(type);
