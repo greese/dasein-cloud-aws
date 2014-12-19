@@ -138,8 +138,10 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
         String description = null;
         boolean isPublic = false;
         boolean itemEnd = false;
-
+        String virtualizationType = null;
+        String hypervisor = null;
         String value = null;
+
         for( int event = parser.next(); event != XMLStreamConstants.END_DOCUMENT && !itemEnd; event = parser.next() ) {
             switch( event ) {
                 case XMLStreamConstants.START_ELEMENT:
@@ -232,6 +234,12 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
                             imageType = MachineImageType.STORAGE;
                             imageFormat = MachineImageFormat.AWS;
                         }
+                    }
+                    else if( "virtualizationType".equals(name) ) {
+                        tags.put("virtualizationType", value);
+                    }
+                    else if( "hypervisor".equals(name) ) {
+                        tags.put("hypervisor", value);
                     }
                     else if( "tagSet".equals(name) ) {
                         readTags(parser, tags);
