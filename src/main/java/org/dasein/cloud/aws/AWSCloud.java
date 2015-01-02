@@ -550,7 +550,7 @@ public class AWSCloud extends AbstractCloud {
         ProviderContext ctx = getContext();
         String url;
 
-        if( regionId == null ) {
+        if( regionId == null || regionId.isEmpty() ) {
             return getBootstrapUrls(ctx)[0];
         }
         if( getEC2Provider().isAWS() ) {
@@ -988,17 +988,20 @@ public class AWSCloud extends AbstractCloud {
      * @throws InternalException
      */
     public String getV4Authorization( String accessKey, String secretKey, String action, String url, String serviceId, Map<String, String> headers, String bodyHash ) throws InternalException {
-
-        ProviderContext ctx = getContext();
-        if( ctx == null || ctx.getRegionId() == null ) {
-            throw new InternalException("no region is configured");
-        }
-        String host = headers.get("host");
-
         serviceId = serviceId.toLowerCase();
-        String regionId = getContext().getRegionId();
-        if( serviceId.equalsIgnoreCase(IAMMethod.SERVICE_ID) ) {
-            regionId = "us-east-1";
+        String regionId = "us-east-1";
+        ProviderContext ctx = getContext();
+        if( ctx != null && ctx.getRegionId() != null && !ctx.getRegionId().isEmpty() &&
+                !serviceId.equalsIgnoreCase(IAMMethod.SERVICE_ID) ) {
+            regionId = getContext().getRegionId();
+        } else {
+            String[] urlParts = url.split("\\."); // everywhere except s3 and iam this is: service.region.amazonaws.com
+            if( urlParts.length == 4) {
+                regionId = urlParts[1];
+                if( regionId.startsWith("s3-") ) {
+                    regionId = regionId.substring(3);
+                }
+            }
         }
         String amzDate = extractV4Date(headers);
         String credentialScope = getV4CredentialScope(amzDate, regionId, serviceId);
@@ -1067,14 +1070,14 @@ public class AWSCloud extends AbstractCloud {
 
     private String getV4CanonicalRequest( String action, String serviceUrl, Map<String, String> headers, String bodyHash ) throws InternalException {
     /*
-      CanonicalRequest =
-      HTTPRequestMethod + '\n' +
-      CanonicalURI + '\n' +
-      CanonicalQueryString + '\n' +
-      CanonicalHeaders + '\n' +
-      SignedHeaders + '\n' +
-      HexEncode(Hash(Payload))
-     */
+        CanonicalRequest =
+        HTTPRequestMethod + '\n' +
+        CanonicalURI + '\n' +
+        CanonicalQueryString + '\n' +
+        CanonicalHeaders + '\n' +
+        SignedHeaders + '\n' +
+        HexEncode(Hash(Payload))
+    */
 
         final URI endpoint;
         try {
@@ -1085,7 +1088,6 @@ public class AWSCloud extends AbstractCloud {
 
         final StringBuilder s = new StringBuilder();
         s.append(action.toUpperCase()).append("\n");
-
 
         String path = endpoint.getPath();
         if( path == null || path.length() == 0 ) {

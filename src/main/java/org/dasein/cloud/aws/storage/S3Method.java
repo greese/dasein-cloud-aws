@@ -234,7 +234,7 @@ public class S3Method {
 
                     if( bucket != null && validDomainName ) {
                         url.append(bucket);
-                        if (regionId != null && !"us-east-1".equals(regionId)) {
+                        if (regionId != null && !regionId.isEmpty() && !"us-east-1".equals(regionId)) {
                             url.append(".s3-");
                             url.append(regionId);
                             url.append(".amazonaws.com/");
@@ -244,7 +244,7 @@ public class S3Method {
                         }
                     }
                     else {
-                        if (regionId != null && !"us-east-1".equals(regionId)) {
+                        if (regionId != null && !regionId.isEmpty() && !"us-east-1".equals(regionId)) {
                             url.append("s3-");
                             url.append(regionId);
                             url.append(".amazonaws.com/");
