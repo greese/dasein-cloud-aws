@@ -396,7 +396,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             HashMap<String, String> parameters = new HashMap<String, String>();
 
             parameters.put(AWSCloud.P_ACTION, action);
-            parameters.put(AWSCloud.P_SIGNATURE_VERSION, AWSCloud.SIGNATURE);
+            parameters.put(AWSCloud.P_SIGNATURE_VERSION, AWSCloud.SIGNATURE_V2);
             try {
                 parameters.put(AWSCloud.P_ACCESS, new String(ctx.getAccessPublic(), "utf-8"));
             } catch( UnsupportedEncodingException e ) {

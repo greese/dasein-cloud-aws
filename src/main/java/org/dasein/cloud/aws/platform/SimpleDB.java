@@ -49,6 +49,8 @@ import org.w3c.dom.NodeList;
 public class SimpleDB implements KeyValueDatabaseSupport {
     static private final Logger logger = AWSCloud.getLogger(SimpleDB.class);
 
+    static public final String SERVICE_ID        = "sdb";
+    
     static public final String CREATE_DOMAIN     = "CreateDomain";
     static public final String DELETE_ATTRIBUTES = "DeleteAttributes";
     static public final String DELETE_DOMAIN     = "DeleteDomain";
@@ -97,7 +99,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
                     parameters.put("Attribute." + i + ".Value", pair.getValue());
                     i++;
                 }
-                method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, provider, parameters);
                 try {
                     method.invoke();
                 } catch( EC2Exception e ) {
@@ -119,7 +121,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
 
             name = validateName(name);
             parameters.put("DomainName", name);
-            method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 method.invoke();
             }
@@ -150,7 +152,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
             Document doc;
 
             parameters.put("DomainName", domainId);
-            method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -229,7 +231,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
             parameters.put("DomainName", inDomainId);
             parameters.put("ItemName", itemId);
             parameters.put("ConsistentRead", String.valueOf(consistentRead));
-            method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -302,7 +304,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
             Map<String,String> parameters = provider.getStandardSimpleDBParameters(provider.getContext(), LIST_DOMAINS);
             EC2Method method;
 
-            method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 method.invoke();
                 return true;
@@ -350,7 +352,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
                 if( marker != null ) {
                     parameters.put("NextToken", marker);
                 }
-                method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, provider, parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -408,7 +410,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
                 if( marker != null ) {
                     parameters.put("NextToken", marker);
                 }
-                method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, provider, parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -493,7 +495,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
                 }
                 parameters.put("SelectExpression", queryString);
                 parameters.put("ConsistentRead", String.valueOf(consistentRead));
-                method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, provider, parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -582,7 +584,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
             EC2Method method;
 
             parameters.put("DomainName", domainId);
-            method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 method.invoke();
             }
@@ -613,7 +615,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
                     }
                     i++;
                 }
-                method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, provider, parameters);
                 try {
                     method.invoke();
                 }
@@ -642,7 +644,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
                     parameters.put("Attribute." + i + ".Name", pair);
                     i++;
                 }
-                method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, provider, parameters);
                 try {
                     method.invoke();
                 }
@@ -673,7 +675,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
                     parameters.put("Attribute." + i + ".Replace", "true");
                     i++;
                 }
-                method = new EC2Method(provider, getSimpleDBUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, provider, parameters);
                 try {
                     method.invoke();
                 }
