@@ -32,6 +32,7 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.admin.PrepaymentSupport;
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.aws.identity.IAMMethod;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.identity.ShellKeySupport;
@@ -49,78 +50,81 @@ import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class EC2Method {
     static private final Logger logger = AWSCloud.getLogger(EC2Method.class);
-    static private final Logger wire = AWSCloud.getWireLogger(EC2Method.class);
+    static private final Logger wire   = AWSCloud.getWireLogger(EC2Method.class);
+    static public final String SERVICE_ID = "ec2";
+    private String serviceId;
 
     static public final String AUTOSCALING_PREFIX = "autoscaling:";
 
     // Auto-scaling operations
-    static public final String CREATE_AUTO_SCALING_GROUP        = "CreateAutoScalingGroup";
-    static public final String CREATE_LAUNCH_CONFIGURATION      = "CreateLaunchConfiguration";
-    static public final String CREATE_OR_UPDATE_SCALING_TRIGGER = "CreateOrUpdateScalingTrigger";
-    static public final String DELETE_AUTO_SCALING_GROUP        = "DeleteAutoScalingGroup";
-    static public final String DELETE_LAUNCH_CONFIGURATION      = "DeleteLaunchConfiguration";
-    static public final String DELETE_SCALING_POLICY            = "DeletePolicy";
-    static public final String DESCRIBE_AUTO_SCALING_GROUPS     = "DescribeAutoScalingGroups";
-    static public final String SUSPEND_AUTO_SCALING_GROUP       = "SuspendProcesses";
-    static public final String RESUME_AUTO_SCALING_GROUP        = "ResumeProcesses";
-    static public final String PUT_SCALING_POLICY               = "PutScalingPolicy";
-    static public final String DESCRIBE_SCALING_POLICIES        = "DescribePolicies";
-    static public final String DESCRIBE_LAUNCH_CONFIGURATIONS   = "DescribeLaunchConfigurations";
-    static public final String SET_DESIRED_CAPACITY             = "SetDesiredCapacity";
-    static public final String UPDATE_AUTO_SCALING_GROUP        = "UpdateAutoScalingGroup";
-    static public final String UPDATE_AUTO_SCALING_GROUP_TAGS   = "CreateOrUpdateTags";
-    static public final String DELETE_AUTO_SCALING_GROUP_TAGS   = "DeleteTags";
-    static public final String DESCRIBE_TAGS = "DescribeTags";
-    static public final String PUT_NOTIFICATION_CONFIGURATION     = "PutNotificationConfiguration";
+    static public final String CREATE_AUTO_SCALING_GROUP            = "CreateAutoScalingGroup";
+    static public final String CREATE_LAUNCH_CONFIGURATION          = "CreateLaunchConfiguration";
+    static public final String CREATE_OR_UPDATE_SCALING_TRIGGER     = "CreateOrUpdateScalingTrigger";
+    static public final String DELETE_AUTO_SCALING_GROUP            = "DeleteAutoScalingGroup";
+    static public final String DELETE_LAUNCH_CONFIGURATION          = "DeleteLaunchConfiguration";
+    static public final String DELETE_SCALING_POLICY                = "DeletePolicy";
+    static public final String DESCRIBE_AUTO_SCALING_GROUPS         = "DescribeAutoScalingGroups";
+    static public final String SUSPEND_AUTO_SCALING_GROUP           = "SuspendProcesses";
+    static public final String RESUME_AUTO_SCALING_GROUP            = "ResumeProcesses";
+    static public final String PUT_SCALING_POLICY                   = "PutScalingPolicy";
+    static public final String DESCRIBE_SCALING_POLICIES            = "DescribePolicies";
+    static public final String DESCRIBE_LAUNCH_CONFIGURATIONS       = "DescribeLaunchConfigurations";
+    static public final String SET_DESIRED_CAPACITY                 = "SetDesiredCapacity";
+    static public final String UPDATE_AUTO_SCALING_GROUP            = "UpdateAutoScalingGroup";
+    static public final String UPDATE_AUTO_SCALING_GROUP_TAGS       = "CreateOrUpdateTags";
+    static public final String DELETE_AUTO_SCALING_GROUP_TAGS       = "DeleteTags";
+    static public final String DESCRIBE_TAGS                        = "DescribeTags";
+    static public final String PUT_NOTIFICATION_CONFIGURATION       = "PutNotificationConfiguration";
     static public final String DESCRIBE_NOTIFICATION_CONFIGURATIONS = "DescribeNotificationConfigurations";
 
-    static public @Nonnull ServiceAction[] asAutoScalingServiceAction(@Nonnull String action) {
+    static public @Nonnull ServiceAction[] asAutoScalingServiceAction( @Nonnull String action ) {
         if( action.equals(CREATE_AUTO_SCALING_GROUP) ) {
-            return new ServiceAction[] { AutoScalingSupport.CREATE_SCALING_GROUP };
+            return new ServiceAction[]{AutoScalingSupport.CREATE_SCALING_GROUP};
         }
         else if( action.equals(CREATE_LAUNCH_CONFIGURATION) ) {
-            return new ServiceAction[] { AutoScalingSupport.CREATE_LAUNCH_CONFIGURATION };
+            return new ServiceAction[]{AutoScalingSupport.CREATE_LAUNCH_CONFIGURATION};
         }
         else if( action.equals(CREATE_OR_UPDATE_SCALING_TRIGGER) ) {
-            return new ServiceAction[] { AutoScalingSupport.SET_SCALING_TRIGGER };
+            return new ServiceAction[]{AutoScalingSupport.SET_SCALING_TRIGGER};
         }
         else if( action.equals(DELETE_AUTO_SCALING_GROUP) ) {
-            return new ServiceAction[] { AutoScalingSupport.REMOVE_SCALING_GROUP };
+            return new ServiceAction[]{AutoScalingSupport.REMOVE_SCALING_GROUP};
         }
         else if( action.equals(DELETE_LAUNCH_CONFIGURATION) ) {
-            return new ServiceAction[] { AutoScalingSupport.REMOVE_LAUNCH_CONFIGURATION };
+            return new ServiceAction[]{AutoScalingSupport.REMOVE_LAUNCH_CONFIGURATION};
         }
         else if( action.equals(DESCRIBE_AUTO_SCALING_GROUPS) ) {
-            return new ServiceAction[] { AutoScalingSupport.GET_SCALING_GROUP, AutoScalingSupport.LIST_SCALING_GROUP };
+            return new ServiceAction[]{AutoScalingSupport.GET_SCALING_GROUP, AutoScalingSupport.LIST_SCALING_GROUP};
         }
         else if( action.equals(DESCRIBE_LAUNCH_CONFIGURATIONS) ) {
-            return new ServiceAction[] { AutoScalingSupport.GET_LAUNCH_CONFIGURATION, AutoScalingSupport.LIST_LAUNCH_CONFIGURATION };
+            return new ServiceAction[]{AutoScalingSupport.GET_LAUNCH_CONFIGURATION, AutoScalingSupport.LIST_LAUNCH_CONFIGURATION};
         }
         else if( action.equals(SET_DESIRED_CAPACITY) ) {
-            return new ServiceAction[] { AutoScalingSupport.SET_CAPACITY };
+            return new ServiceAction[]{AutoScalingSupport.SET_CAPACITY};
         }
         else if( action.equals(UPDATE_AUTO_SCALING_GROUP) ) {
-            return new ServiceAction[] { AutoScalingSupport.UPDATE_SCALING_GROUP };
+            return new ServiceAction[]{AutoScalingSupport.UPDATE_SCALING_GROUP};
         }
         else if( action.equals(SUSPEND_AUTO_SCALING_GROUP) ) {
-          return new ServiceAction[] { AutoScalingSupport.SUSPEND_AUTO_SCALING_GROUP };
+            return new ServiceAction[]{AutoScalingSupport.SUSPEND_AUTO_SCALING_GROUP};
         }
         else if( action.equals(RESUME_AUTO_SCALING_GROUP) ) {
-          return new ServiceAction[] { AutoScalingSupport.RESUME_AUTO_SCALING_GROUP };
+            return new ServiceAction[]{AutoScalingSupport.RESUME_AUTO_SCALING_GROUP};
         }
         else if( action.equals(PUT_SCALING_POLICY) ) {
-          return new ServiceAction[] { AutoScalingSupport.PUT_SCALING_POLICY };
+            return new ServiceAction[]{AutoScalingSupport.PUT_SCALING_POLICY};
         }
         else if( action.equals(DELETE_SCALING_POLICY) ) {
-          return new ServiceAction[] { AutoScalingSupport.DELETE_SCALING_POLICY };
+            return new ServiceAction[]{AutoScalingSupport.DELETE_SCALING_POLICY};
         }
         else if( action.equals(DESCRIBE_SCALING_POLICIES) ) {
-          return new ServiceAction[] { AutoScalingSupport.LIST_SCALING_POLICIES };
+            return new ServiceAction[]{AutoScalingSupport.LIST_SCALING_POLICIES};
         }
         return new ServiceAction[0];
     }
@@ -202,27 +206,27 @@ public class EC2Method {
     static public final String MODIFY_SNAPSHOT_ATTRIBUTE   = "ModifySnapshotAttribute";
 
     // VPC operations
-    static public final String ASSOCIATE_DHCP_OPTIONS  = "AssociateDhcpOptions";
-    static public final String ASSOCIATE_ROUTE_TABLE   = "AssociateRouteTable";
-    static public final String ATTACH_INTERNET_GATEWAY = "AttachInternetGateway";
-    static public final String CREATE_DHCP_OPTIONS     = "CreateDhcpOptions";
-    static public final String CREATE_INTERNET_GATEWAY = "CreateInternetGateway";
-    static public final String CREATE_ROUTE            = "CreateRoute";
-    static public final String CREATE_ROUTE_TABLE      = "CreateRouteTable";
-    static public final String CREATE_SUBNET           = "CreateSubnet";
-    static public final String CREATE_VPC              = "CreateVpc";
-    static public final String DELETE_INTERNET_GATEWAY = "DeleteInternetGateway";
-    static public final String DELETE_SUBNET           = "DeleteSubnet";
-    static public final String DELETE_VPC              = "DeleteVpc";
-    static public final String DESCRIBE_DHCP_OPTIONS   = "DescribeDhcpOptions";
-    static public final String DESCRIBE_INTERNET_GATEWAYS = "DescribeInternetGateways";
-    static public final String DELETE_ROUTE            = "DeleteRoute";
-    static public final String DELETE_ROUTE_TABLE      = "DeleteRouteTable";
-    static public final String DESCRIBE_ROUTE_TABLES   = "DescribeRouteTables";
-    static public final String DESCRIBE_SUBNETS        = "DescribeSubnets";
-    static public final String DESCRIBE_VPCS           = "DescribeVpcs";
-    static public final String DETACH_INTERNET_GATEWAY = "DetachInternetGateway";
-    static public final String DISASSOCIATE_ROUTE_TABLE = "DisassociateRouteTable";
+    static public final String ASSOCIATE_DHCP_OPTIONS          = "AssociateDhcpOptions";
+    static public final String ASSOCIATE_ROUTE_TABLE           = "AssociateRouteTable";
+    static public final String ATTACH_INTERNET_GATEWAY         = "AttachInternetGateway";
+    static public final String CREATE_DHCP_OPTIONS             = "CreateDhcpOptions";
+    static public final String CREATE_INTERNET_GATEWAY         = "CreateInternetGateway";
+    static public final String CREATE_ROUTE                    = "CreateRoute";
+    static public final String CREATE_ROUTE_TABLE              = "CreateRouteTable";
+    static public final String CREATE_SUBNET                   = "CreateSubnet";
+    static public final String CREATE_VPC                      = "CreateVpc";
+    static public final String DELETE_INTERNET_GATEWAY         = "DeleteInternetGateway";
+    static public final String DELETE_SUBNET                   = "DeleteSubnet";
+    static public final String DELETE_VPC                      = "DeleteVpc";
+    static public final String DESCRIBE_DHCP_OPTIONS           = "DescribeDhcpOptions";
+    static public final String DESCRIBE_INTERNET_GATEWAYS      = "DescribeInternetGateways";
+    static public final String DELETE_ROUTE                    = "DeleteRoute";
+    static public final String DELETE_ROUTE_TABLE              = "DeleteRouteTable";
+    static public final String DESCRIBE_ROUTE_TABLES           = "DescribeRouteTables";
+    static public final String DESCRIBE_SUBNETS                = "DescribeSubnets";
+    static public final String DESCRIBE_VPCS                   = "DescribeVpcs";
+    static public final String DETACH_INTERNET_GATEWAY         = "DetachInternetGateway";
+    static public final String DISASSOCIATE_ROUTE_TABLE        = "DisassociateRouteTable";
     static public final String REPLACE_ROUTE_TABLE_ASSOCIATION = "ReplaceRouteTableAssociation";
 
     // network ACL operations
@@ -235,370 +239,388 @@ public class EC2Method {
     static public final String REPLACE_NETWORK_ACL_ASSOC = "ReplaceNetworkAclAssociation";
 
     // network interface operations
-    static public final String ATTACH_NIC             = "AttachNetworkInterface";
-    static public final String CREATE_NIC             = "CreateNetworkInterface";
-    static public final String DELETE_NIC             = "DeleteNetworkInterface";
-    static public final String DETACH_NIC             = "DetachNetworkInterface";
-    static public final String DESCRIBE_NICS          = "DescribeNetworkInterfaces";
+    static public final String ATTACH_NIC    = "AttachNetworkInterface";
+    static public final String CREATE_NIC    = "CreateNetworkInterface";
+    static public final String DELETE_NIC    = "DeleteNetworkInterface";
+    static public final String DETACH_NIC    = "DetachNetworkInterface";
+    static public final String DESCRIBE_NICS = "DescribeNetworkInterfaces";
 
     // VPN operations
-    static public final String ATTACH_VPN_GATEWAY          = "AttachVpnGateway";
-    static public final String CREATE_CUSTOMER_GATEWAY     = "CreateCustomerGateway";
-    static public final String CREATE_VPN_CONNECTION       = "CreateVpnConnection";
-    static public final String CREATE_VPN_GATEWAY          = "CreateVpnGateway";
-    static public final String DELETE_CUSTOMER_GATEWAY     = "DeleteCustomerGateway";
-    static public final String DELETE_VPN_GATEWAY          = "DeleteVpnGateway";
-    static public final String DELETE_VPN_CONNECTION       = "DeleteVpnConnection";
-    static public final String DESCRIBE_CUSTOMER_GATEWAYS  = "DescribeCustomerCateways";
-    static public final String DESCRIBE_VPN_CONNECTIONS    = "DescribeVpnConnections";
-    static public final String DESCRIBE_VPN_GATEWAYS       = "DescribeVpnGateways";
-    static public final String DETACH_VPN_GATEWAY          = "DetachVpnGateway";
+    static public final String ATTACH_VPN_GATEWAY         = "AttachVpnGateway";
+    static public final String CREATE_CUSTOMER_GATEWAY    = "CreateCustomerGateway";
+    static public final String CREATE_VPN_CONNECTION      = "CreateVpnConnection";
+    static public final String CREATE_VPN_GATEWAY         = "CreateVpnGateway";
+    static public final String DELETE_CUSTOMER_GATEWAY    = "DeleteCustomerGateway";
+    static public final String DELETE_VPN_GATEWAY         = "DeleteVpnGateway";
+    static public final String DELETE_VPN_CONNECTION      = "DeleteVpnConnection";
+    static public final String DESCRIBE_CUSTOMER_GATEWAYS = "DescribeCustomerCateways";
+    static public final String DESCRIBE_VPN_CONNECTIONS   = "DescribeVpnConnections";
+    static public final String DESCRIBE_VPN_GATEWAYS      = "DescribeVpnGateways";
+    static public final String DETACH_VPN_GATEWAY         = "DetachVpnGateway";
 
     // CloudWatch operations
-    static public final String LIST_METRICS = "ListMetrics";
-    static public final String DESCRIBE_ALARMS = "DescribeAlarms";
-    static public final String PUT_METRIC_ALARM = "PutMetricAlarm";
-    static public final String DELETE_ALARMS = "DeleteAlarms";
-    static public final String ENABLE_ALARM_ACTIONS = "EnableAlarmActions";
+    static public final String LIST_METRICS          = "ListMetrics";
+    static public final String DESCRIBE_ALARMS       = "DescribeAlarms";
+    static public final String PUT_METRIC_ALARM      = "PutMetricAlarm";
+    static public final String DELETE_ALARMS         = "DeleteAlarms";
+    static public final String ENABLE_ALARM_ACTIONS  = "EnableAlarmActions";
     static public final String DISABLE_ALARM_ACTIONS = "DisableAlarmActions";
 
     // Account operations
-    static public final String DESCRIBE_ACCOUNT_ATTRIBUTES      = "DescribeAccountAttributes";
+    static public final String DESCRIBE_ACCOUNT_ATTRIBUTES = "DescribeAccountAttributes";
 
     // Spot instances
-    static public final String CREATE_SPOT_DATAFEED_SUBSCRIPTION    = "CreateSpotDatafeedSubscription";
-    static public final String DESCRIBE_SPOT_DATAFEED_SUBSCRIPTION  = "DescribeSpotDatafeedSubscription";
-    static public final String DELETE_SPOT_DATAFEED_SUBSCRIPTION    = "DeleteSpotDatafeedSubscription";
-    static public final String REQUEST_SPOT_INSTANCES               = "RequestSpotInstances";
-    static public final String DESCRIBE_SPOT_INSTANCE_REQUESTS      = "DescribeSpotInstanceRequests";
-    static public final String CANCEL_SPOT_INSTANCE_REQUESTS        = "CancelSpotInstanceRequests";
-    static public final String DESCRIBE_SPOT_PRICE_HISTORY          = "DescribeSpotPriceHistory";
+    static public final String CREATE_SPOT_DATAFEED_SUBSCRIPTION   = "CreateSpotDatafeedSubscription";
+    static public final String DESCRIBE_SPOT_DATAFEED_SUBSCRIPTION = "DescribeSpotDatafeedSubscription";
+    static public final String DELETE_SPOT_DATAFEED_SUBSCRIPTION   = "DeleteSpotDatafeedSubscription";
+    static public final String REQUEST_SPOT_INSTANCES              = "RequestSpotInstances";
+    static public final String DESCRIBE_SPOT_INSTANCE_REQUESTS     = "DescribeSpotInstanceRequests";
+    static public final String CANCEL_SPOT_INSTANCE_REQUESTS       = "CancelSpotInstanceRequests";
+    static public final String DESCRIBE_SPOT_PRICE_HISTORY         = "DescribeSpotPriceHistory";
 
 
-
-    static public @Nonnull ServiceAction[] asEC2ServiceAction(@Nonnull String action) {
+    static public @Nonnull ServiceAction[] asEC2ServiceAction( @Nonnull String action ) {
         // TODO: implement me
         // AMI operations
         if( action.equals(BUNDLE_INSTANCE) ) {
-            return new ServiceAction[] { MachineImageSupport.IMAGE_VM };
+            return new ServiceAction[]{MachineImageSupport.IMAGE_VM};
         }
         else if( action.equals(CREATE_IMAGE) || action.equals(REGISTER_IMAGE) ) {
-            return new ServiceAction[] { MachineImageSupport.REGISTER_IMAGE };
+            return new ServiceAction[]{MachineImageSupport.REGISTER_IMAGE};
         }
         else if( action.equals(COPY_IMAGE) ) {
-            return new ServiceAction[] { MachineImageSupport.COPY_IMAGE };
+            return new ServiceAction[]{MachineImageSupport.COPY_IMAGE};
         }
         else if( action.equals(DESCRIBE_BUNDLE_TASKS) ) {
             return new ServiceAction[0];
         }
         else if( action.equals(DEREGISTER_IMAGE) ) {
-            return new ServiceAction[] { MachineImageSupport.REMOVE_IMAGE };
+            return new ServiceAction[]{MachineImageSupport.REMOVE_IMAGE};
         }
         else if( action.equals(DESCRIBE_IMAGE_ATTRIBUTE) || action.equals(DESCRIBE_IMAGES) ) {
-            return new ServiceAction[] { MachineImageSupport.GET_IMAGE, MachineImageSupport.LIST_IMAGE };
+            return new ServiceAction[]{MachineImageSupport.GET_IMAGE, MachineImageSupport.LIST_IMAGE};
         }
         else if( action.equals(MODIFY_IMAGE_ATTRIBUTE) ) {
-            return new ServiceAction[] { MachineImageSupport.MAKE_PUBLIC, MachineImageSupport.SHARE_IMAGE };
+            return new ServiceAction[]{MachineImageSupport.MAKE_PUBLIC, MachineImageSupport.SHARE_IMAGE};
         }
         // EBS operations
         if( action.equals(ATTACH_VOLUME) ) {
-            return new ServiceAction[] { VolumeSupport.ATTACH };
+            return new ServiceAction[]{VolumeSupport.ATTACH};
         }
         else if( action.equals(CREATE_VOLUME) ) {
-            return new ServiceAction[] { VolumeSupport.CREATE_VOLUME };
+            return new ServiceAction[]{VolumeSupport.CREATE_VOLUME};
         }
         else if( action.equals(DELETE_VOLUME) ) {
-            return new ServiceAction[] { VolumeSupport.REMOVE_VOLUME };
+            return new ServiceAction[]{VolumeSupport.REMOVE_VOLUME};
         }
         else if( action.equals(DETACH_VOLUME) ) {
-            return new ServiceAction[] { VolumeSupport.DETACH };
+            return new ServiceAction[]{VolumeSupport.DETACH};
         }
         else if( action.equals(DESCRIBE_VOLUMES) ) {
-            return new ServiceAction[] { VolumeSupport.GET_VOLUME, VolumeSupport.LIST_VOLUME };
+            return new ServiceAction[]{VolumeSupport.GET_VOLUME, VolumeSupport.LIST_VOLUME};
         }
         // elastic IP operations
         if( action.equals(ALLOCATE_ADDRESS) ) {
-            return new ServiceAction[] { IpAddressSupport.CREATE_IP_ADDRESS };
+            return new ServiceAction[]{IpAddressSupport.CREATE_IP_ADDRESS};
         }
         else if( action.equals(ASSOCIATE_ADDRESS) ) {
-            return new ServiceAction[] { IpAddressSupport.ASSIGN };
+            return new ServiceAction[]{IpAddressSupport.ASSIGN};
         }
         else if( action.equals(DESCRIBE_ADDRESSES) ) {
-            return new ServiceAction[] { IpAddressSupport.GET_IP_ADDRESS, IpAddressSupport.LIST_IP_ADDRESS };
+            return new ServiceAction[]{IpAddressSupport.GET_IP_ADDRESS, IpAddressSupport.LIST_IP_ADDRESS};
         }
         else if( action.equals(DISASSOCIATE_ADDRESS) ) {
-            return new ServiceAction[] { IpAddressSupport.RELEASE };
+            return new ServiceAction[]{IpAddressSupport.RELEASE};
         }
         else if( action.equals(RELEASE_ADDRESS) ) {
-            return new ServiceAction[] { IpAddressSupport.REMOVE_IP_ADDRESS };
+            return new ServiceAction[]{IpAddressSupport.REMOVE_IP_ADDRESS};
         }
         // instance operations
         if( action.equals(DESCRIBE_INSTANCES) ) {
-            return new ServiceAction[] { VirtualMachineSupport.GET_VM, VirtualMachineSupport.LIST_VM };
+            return new ServiceAction[]{VirtualMachineSupport.GET_VM, VirtualMachineSupport.LIST_VM};
         }
         else if( action.equals(GET_CONSOLE_OUTPUT) ) {
-            return new ServiceAction[] { VirtualMachineSupport.VIEW_CONSOLE };
+            return new ServiceAction[]{VirtualMachineSupport.VIEW_CONSOLE};
         }
         else if( action.equals(GET_METRIC_STATISTICS) ) {
-            return new ServiceAction[] { VirtualMachineSupport.VIEW_ANALYTICS };
+            return new ServiceAction[]{VirtualMachineSupport.VIEW_ANALYTICS};
         }
         else if( action.equals(GET_PASSWORD_DATA) ) {
-            return new ServiceAction[] { VirtualMachineSupport.GET_VM };
+            return new ServiceAction[]{VirtualMachineSupport.GET_VM};
         }
         else if( action.equals(MONITOR_INSTANCES) || action.equals(UNMONITOR_INSTANCES) ) {
-            return new ServiceAction[] { VirtualMachineSupport.TOGGLE_ANALYTICS };
+            return new ServiceAction[]{VirtualMachineSupport.TOGGLE_ANALYTICS};
         }
         else if( action.equals(REBOOT_INSTANCES) ) {
-            return new ServiceAction[] { VirtualMachineSupport.REBOOT };
+            return new ServiceAction[]{VirtualMachineSupport.REBOOT};
         }
         else if( action.equals(RUN_INSTANCES) ) {
-            return new ServiceAction[] { VirtualMachineSupport.CREATE_VM };
+            return new ServiceAction[]{VirtualMachineSupport.CREATE_VM};
         }
         else if( action.equals(START_INSTANCES) ) {
-            return new ServiceAction[] { VirtualMachineSupport.BOOT };
+            return new ServiceAction[]{VirtualMachineSupport.BOOT};
         }
         else if( action.equals(STOP_INSTANCES) ) {
-            return new ServiceAction[] { VirtualMachineSupport.PAUSE };
+            return new ServiceAction[]{VirtualMachineSupport.PAUSE};
         }
         else if( action.equals(TERMINATE_INSTANCES) ) {
-            return new ServiceAction[] { VirtualMachineSupport.REMOVE_VM };
+            return new ServiceAction[]{VirtualMachineSupport.REMOVE_VM};
         }
         // keypair operations
         if( action.equals(CREATE_KEY_PAIR) ) {
-            return new ServiceAction[] { ShellKeySupport.CREATE_KEYPAIR };
+            return new ServiceAction[]{ShellKeySupport.CREATE_KEYPAIR};
         }
         else if( action.equals(DELETE_KEY_PAIR) ) {
-            return new ServiceAction[] { ShellKeySupport.REMOVE_KEYPAIR };
+            return new ServiceAction[]{ShellKeySupport.REMOVE_KEYPAIR};
         }
         else if( action.equals(IMPORT_KEY_PAIR) ) {
-            return new ServiceAction[] { ShellKeySupport.CREATE_KEYPAIR };
+            return new ServiceAction[]{ShellKeySupport.CREATE_KEYPAIR};
         }
         else if( action.equals(DESCRIBE_KEY_PAIRS) ) {
-            return new ServiceAction[] { ShellKeySupport.GET_KEYPAIR, ShellKeySupport.LIST_KEYPAIR };
+            return new ServiceAction[]{ShellKeySupport.GET_KEYPAIR, ShellKeySupport.LIST_KEYPAIR};
         }
         // reserved instance operations
         if( action.equals(DESCRIBE_RESERVED_INSTANCES) ) {
-            return new ServiceAction[] { PrepaymentSupport.GET_PREPAYMENT, PrepaymentSupport.LIST_PREPAYMENT };
+            return new ServiceAction[]{PrepaymentSupport.GET_PREPAYMENT, PrepaymentSupport.LIST_PREPAYMENT};
         }
         else if( action.equals(DESCRIBE_RESERVED_INSTANCES_OFFERINGS) ) {
-            return new ServiceAction[] { PrepaymentSupport.GET_OFFERING, PrepaymentSupport.LIST_OFFERING };
+            return new ServiceAction[]{PrepaymentSupport.GET_OFFERING, PrepaymentSupport.LIST_OFFERING};
         }
         else if( action.equals(PURCHASE_RESERVED_INSTANCES_OFFERING) ) {
-            return new ServiceAction[] { PrepaymentSupport.PREPAY };
+            return new ServiceAction[]{PrepaymentSupport.PREPAY};
         }
         // security group operations
         if( action.equals(AUTHORIZE_SECURITY_GROUP_INGRESS) ) {
-            return new ServiceAction[] { FirewallSupport.AUTHORIZE };
+            return new ServiceAction[]{FirewallSupport.AUTHORIZE};
         }
         else if( action.equals(AUTHORIZE_SECURITY_GROUP_EGRESS) ) {
-            return new ServiceAction[] { FirewallSupport.AUTHORIZE };
+            return new ServiceAction[]{FirewallSupport.AUTHORIZE};
         }
         else if( action.equals(CREATE_SECURITY_GROUP) ) {
-            return new ServiceAction[] { FirewallSupport.CREATE_FIREWALL };
+            return new ServiceAction[]{FirewallSupport.CREATE_FIREWALL};
         }
         else if( action.equals(DELETE_SECURITY_GROUP) ) {
-            return new ServiceAction[] { FirewallSupport.REMOVE_FIREWALL };
+            return new ServiceAction[]{FirewallSupport.REMOVE_FIREWALL};
         }
         else if( action.equals(DESCRIBE_SECURITY_GROUPS) ) {
-            return new ServiceAction[] { FirewallSupport.GET_FIREWALL, FirewallSupport.LIST_FIREWALL };
+            return new ServiceAction[]{FirewallSupport.GET_FIREWALL, FirewallSupport.LIST_FIREWALL};
         }
         else if( action.equals(REVOKE_SECURITY_GROUP_INGRESS) ) {
-            return new ServiceAction[] { FirewallSupport.REVOKE };
+            return new ServiceAction[]{FirewallSupport.REVOKE};
         }
         else if( action.equals(REVOKE_SECURITY_GROUP_EGRESS) ) {
-            return new ServiceAction[] { FirewallSupport.REVOKE };
+            return new ServiceAction[]{FirewallSupport.REVOKE};
         }
 
         // network ACL operations
         if( action.equals(CREATE_NETWORK_ACL_ENTRY) || action.equals(REPLACE_NETWORK_ACL_ENTRY) ) {
-            return new ServiceAction[] { NetworkFirewallSupport.AUTHORIZE };
+            return new ServiceAction[]{NetworkFirewallSupport.AUTHORIZE};
         }
         else if( action.equals(REPLACE_NETWORK_ACL_ASSOC) ) {
-            return new ServiceAction[] { NetworkFirewallSupport.ASSOCIATE };
+            return new ServiceAction[]{NetworkFirewallSupport.ASSOCIATE};
         }
         else if( action.equals(CREATE_NETWORK_ACL) ) {
-            return new ServiceAction[] { NetworkFirewallSupport.CREATE_FIREWALL };
+            return new ServiceAction[]{NetworkFirewallSupport.CREATE_FIREWALL};
         }
         else if( action.equals(DELETE_NETWORK_ACL) ) {
-            return new ServiceAction[] { NetworkFirewallSupport.REMOVE_FIREWALL };
+            return new ServiceAction[]{NetworkFirewallSupport.REMOVE_FIREWALL};
         }
         else if( action.equals(DESCRIBE_NETWORK_ACLS) ) {
-            return new ServiceAction[] { NetworkFirewallSupport.GET_FIREWALL, NetworkFirewallSupport.LIST_FIREWALL };
+            return new ServiceAction[]{NetworkFirewallSupport.GET_FIREWALL, NetworkFirewallSupport.LIST_FIREWALL};
         }
         else if( action.equals(DELETE_NETWORK_ACL_ENTRY) ) {
-            return new ServiceAction[] { NetworkFirewallSupport.REVOKE };
+            return new ServiceAction[]{NetworkFirewallSupport.REVOKE};
         }
 
         // snapshot operations
         if( action.equals(COPY_SNAPSHOT) ) {
-            return new ServiceAction[] { SnapshotSupport.CREATE_SNAPSHOT };
+            return new ServiceAction[]{SnapshotSupport.CREATE_SNAPSHOT};
         }
         else if( action.equals(CREATE_SNAPSHOT) ) {
-            return new ServiceAction[] { SnapshotSupport.CREATE_SNAPSHOT };
+            return new ServiceAction[]{SnapshotSupport.CREATE_SNAPSHOT};
         }
         else if( action.equals(DELETE_SNAPSHOT) ) {
-            return new ServiceAction[] { SnapshotSupport.REMOVE_SNAPSHOT };
+            return new ServiceAction[]{SnapshotSupport.REMOVE_SNAPSHOT};
         }
         else if( action.equals(DESCRIBE_SNAPSHOTS) ) {
-            return new ServiceAction[] { SnapshotSupport.GET_SNAPSHOT, SnapshotSupport.LIST_SNAPSHOT };
+            return new ServiceAction[]{SnapshotSupport.GET_SNAPSHOT, SnapshotSupport.LIST_SNAPSHOT};
         }
         else if( action.equals(DESCRIBE_SNAPSHOT_ATTRIBUTE) ) {
-            return new ServiceAction[] { SnapshotSupport.GET_SNAPSHOT };
+            return new ServiceAction[]{SnapshotSupport.GET_SNAPSHOT};
         }
         else if( action.equals(MODIFY_SNAPSHOT_ATTRIBUTE) ) {
-            return new ServiceAction[] { SnapshotSupport.MAKE_PUBLIC, SnapshotSupport.SHARE_SNAPSHOT };
+            return new ServiceAction[]{SnapshotSupport.MAKE_PUBLIC, SnapshotSupport.SHARE_SNAPSHOT};
         }
         // VPC operations
         if( action.equals(ASSOCIATE_DHCP_OPTIONS) ) {
             return new ServiceAction[0];
         }
         else if( action.equals(ASSOCIATE_ROUTE_TABLE) ) {
-            return new ServiceAction[] { VLANSupport.ASSIGN_ROUTE_TO_SUBNET };
+            return new ServiceAction[]{VLANSupport.ASSIGN_ROUTE_TO_SUBNET};
         }
         else if( action.equals(CREATE_DHCP_OPTIONS) ) {
             return new ServiceAction[0];
         }
         else if( action.equals(CREATE_ROUTE_TABLE) ) {
-            return new ServiceAction[] { VLANSupport.CREATE_ROUTING_TABLE };
+            return new ServiceAction[]{VLANSupport.CREATE_ROUTING_TABLE};
         }
         else if( action.equals(CREATE_ROUTE) ) {
-            return new ServiceAction[] { VLANSupport.ADD_ROUTE };
+            return new ServiceAction[]{VLANSupport.ADD_ROUTE};
         }
         else if( action.equals(CREATE_SUBNET) ) {
-            return new ServiceAction[] { VLANSupport.CREATE_SUBNET };
+            return new ServiceAction[]{VLANSupport.CREATE_SUBNET};
         }
         else if( action.equals(CREATE_VPC) ) {
-            return new ServiceAction[] { VLANSupport.CREATE_VLAN};
+            return new ServiceAction[]{VLANSupport.CREATE_VLAN};
         }
         else if( action.equals(DELETE_INTERNET_GATEWAY) ) {
-            return new ServiceAction[] { VLANSupport.REMOVE_INTERNET_GATEWAY};
+            return new ServiceAction[]{VLANSupport.REMOVE_INTERNET_GATEWAY};
         }
         else if( action.equals(DELETE_ROUTE) ) {
-            return new ServiceAction[] { VLANSupport.REMOVE_ROUTE };
+            return new ServiceAction[]{VLANSupport.REMOVE_ROUTE};
         }
         else if( action.equals(DELETE_ROUTE_TABLE) ) {
-            return new ServiceAction[] { VLANSupport.REMOVE_ROUTING_TABLE };
+            return new ServiceAction[]{VLANSupport.REMOVE_ROUTING_TABLE};
         }
         else if( action.equals(DELETE_SUBNET) ) {
-            return new ServiceAction[] { VLANSupport.REMOVE_SUBNET };
+            return new ServiceAction[]{VLANSupport.REMOVE_SUBNET};
         }
         else if( action.equals(DELETE_VPC) ) {
-            return new ServiceAction[] { VLANSupport.REMOVE_VLAN };
+            return new ServiceAction[]{VLANSupport.REMOVE_VLAN};
         }
         else if( action.equals(DESCRIBE_DHCP_OPTIONS) ) {
             return new ServiceAction[0];
         }
         else if( action.equalsIgnoreCase(DESCRIBE_ROUTE_TABLES) ) {
-            return new ServiceAction[] { VLANSupport.GET_ROUTING_TABLE, VLANSupport.LIST_ROUTING_TABLE };
+            return new ServiceAction[]{VLANSupport.GET_ROUTING_TABLE, VLANSupport.LIST_ROUTING_TABLE};
         }
         else if( action.equals(DESCRIBE_SUBNETS) ) {
-            return new ServiceAction[] { VLANSupport.GET_SUBNET, VLANSupport.LIST_SUBNET };
+            return new ServiceAction[]{VLANSupport.GET_SUBNET, VLANSupport.LIST_SUBNET};
         }
         else if( action.equals(DESCRIBE_VPCS) ) {
-            return new ServiceAction[] { VLANSupport.GET_VLAN, VLANSupport.LIST_VLAN };
+            return new ServiceAction[]{VLANSupport.GET_VLAN, VLANSupport.LIST_VLAN};
         }
         else if( action.equals(CREATE_INTERNET_GATEWAY) ) {
-            return new ServiceAction[] { VLANSupport.CREATE_VLAN };
+            return new ServiceAction[]{VLANSupport.CREATE_VLAN};
         }
         else if( action.equals(ATTACH_INTERNET_GATEWAY) ) {
-            return new ServiceAction[] { VLANSupport.CREATE_VLAN };
+            return new ServiceAction[]{VLANSupport.CREATE_VLAN};
         }
 
         // NIC operations
         if( action.equals(CREATE_NIC) ) {
-            return new ServiceAction[] { VLANSupport.CREATE_NIC };
+            return new ServiceAction[]{VLANSupport.CREATE_NIC};
         }
         else if( action.equals(ATTACH_NIC) ) {
-            return new ServiceAction[] { VLANSupport.ATTACH_NIC };
+            return new ServiceAction[]{VLANSupport.ATTACH_NIC};
         }
         else if( action.equals(DETACH_NIC) ) {
-            return new ServiceAction[] { VLANSupport.DETACH_NIC };
+            return new ServiceAction[]{VLANSupport.DETACH_NIC};
         }
         else if( action.equals(DELETE_NIC) ) {
-            return new ServiceAction[] { VLANSupport.REMOVE_NIC };
+            return new ServiceAction[]{VLANSupport.REMOVE_NIC};
         }
         else if( action.equals(DESCRIBE_NICS) ) {
-            return new ServiceAction[] { VLANSupport.GET_NIC, VLANSupport.LIST_NIC };
+            return new ServiceAction[]{VLANSupport.GET_NIC, VLANSupport.LIST_NIC};
         }
         // VPN operations
         if( action.equals(CREATE_CUSTOMER_GATEWAY) ) {
-            return new ServiceAction[] {VPNSupport.CREATE_GATEWAY };
+            return new ServiceAction[]{VPNSupport.CREATE_GATEWAY};
         }
         else if( action.equals(ATTACH_VPN_GATEWAY) ) {
-            return new ServiceAction[] { VPNSupport.ATTACH };
+            return new ServiceAction[]{VPNSupport.ATTACH};
         }
         else if( action.equals(CREATE_VPN_GATEWAY) ) {
-            return new ServiceAction[] {VPNSupport.CREATE_VPN };
+            return new ServiceAction[]{VPNSupport.CREATE_VPN};
         }
         else if( action.equals(DELETE_CUSTOMER_GATEWAY) ) {
-            return new ServiceAction[] { VPNSupport.REMOVE_GATEWAY };
+            return new ServiceAction[]{VPNSupport.REMOVE_GATEWAY};
         }
         else if( action.equals(DELETE_VPN_GATEWAY) ) {
-            return new ServiceAction[] { VPNSupport.REMOVE_VPN };
+            return new ServiceAction[]{VPNSupport.REMOVE_VPN};
         }
         else if( action.equals(DESCRIBE_CUSTOMER_GATEWAYS) ) {
-            return new ServiceAction[] { VPNSupport.LIST_GATEWAY, VPNSupport.GET_GATEWAY };
+            return new ServiceAction[]{VPNSupport.LIST_GATEWAY, VPNSupport.GET_GATEWAY};
         }
         else if( action.equals(DESCRIBE_VPN_CONNECTIONS) ) {
-            return new ServiceAction[] { VPNSupport.LIST_GATEWAY, VPNSupport.GET_GATEWAY, VPNSupport.LIST_VPN, VPNSupport.GET_VPN  };
+            return new ServiceAction[]{VPNSupport.LIST_GATEWAY, VPNSupport.GET_GATEWAY, VPNSupport.LIST_VPN, VPNSupport.GET_VPN};
         }
         else if( action.equals(DESCRIBE_VPN_GATEWAYS) ) {
-            return new ServiceAction[] { VPNSupport.LIST_VPN, VPNSupport.GET_VPN };
+            return new ServiceAction[]{VPNSupport.LIST_VPN, VPNSupport.GET_VPN};
         }
         else if( action.equals(CREATE_VPN_CONNECTION) ) {
-            return new ServiceAction[] { VPNSupport.CONNECT_GATEWAY };
+            return new ServiceAction[]{VPNSupport.CONNECT_GATEWAY};
         }
         else if( action.equals(DELETE_VPN_CONNECTION) ) {
-            return new ServiceAction[] { VPNSupport.DISCONNECT_GATEWAY };
+            return new ServiceAction[]{VPNSupport.DISCONNECT_GATEWAY};
         }
         else if( action.equals(DETACH_INTERNET_GATEWAY) ) {
-            return new ServiceAction[] { VPNSupport.REMOVE_GATEWAY };
+            return new ServiceAction[]{VPNSupport.REMOVE_GATEWAY};
         }
         else if( action.equals(DETACH_VPN_GATEWAY) ) {
-            return new ServiceAction[] { VPNSupport.DETACH };
+            return new ServiceAction[]{VPNSupport.DETACH};
         }
 
         // CloudWatch operations
         if( action.equals(LIST_METRICS) ) {
-          return new ServiceAction[] {MonitoringSupport.LIST_METRICS};
+            return new ServiceAction[]{MonitoringSupport.LIST_METRICS};
         }
-        else if ( action.equals( DESCRIBE_ALARMS ) ) {
-          return new ServiceAction[] {MonitoringSupport.DESCRIBE_ALARMS};
+        else if( action.equals(DESCRIBE_ALARMS) ) {
+            return new ServiceAction[]{MonitoringSupport.DESCRIBE_ALARMS};
         }
-        else if ( action.equals( PUT_METRIC_ALARM ) ) {
-          return new ServiceAction[] {MonitoringSupport.UPDATE_ALARM};
+        else if( action.equals(PUT_METRIC_ALARM) ) {
+            return new ServiceAction[]{MonitoringSupport.UPDATE_ALARM};
         }
-        else if ( action.equals( DELETE_ALARMS ) ) {
-          return new ServiceAction[] {MonitoringSupport.REMOVE_ALARMS};
+        else if( action.equals(DELETE_ALARMS) ) {
+            return new ServiceAction[]{MonitoringSupport.REMOVE_ALARMS};
         }
-        else if ( action.equals( ENABLE_ALARM_ACTIONS ) ) {
-          return new ServiceAction[] {MonitoringSupport.ENABLE_ALARM_ACTIONS};
+        else if( action.equals(ENABLE_ALARM_ACTIONS) ) {
+            return new ServiceAction[]{MonitoringSupport.ENABLE_ALARM_ACTIONS};
         }
-        else if ( action.equals( DISABLE_ALARM_ACTIONS ) ) {
-          return new ServiceAction[] {MonitoringSupport.DISABLE_ALARM_ACTIONS};
+        else if( action.equals(DISABLE_ALARM_ACTIONS) ) {
+            return new ServiceAction[]{MonitoringSupport.DISABLE_ALARM_ACTIONS};
         }
 
         return new ServiceAction[0];
     }
 
-  private int                attempts    = 0;
-  private Map<String,String> parameters  = null;
-  private AWSCloud           provider    = null;
-  private String             url         = null;
+    private int                 attempts   = 0;
+    private Map<String, String> parameters = null;
+    private AWSCloud            provider   = null;
+    private String              url        = null;
 
-  public EC2Method(AWSCloud provider, String url, Map<String,String> parameters) throws InternalException, CloudException {
-    this.url = url;
-    this.parameters = parameters;
-    this.provider = provider;
+    public EC2Method( AWSCloud provider, Map<String, String> parameters ) throws InternalException, CloudException {
+        this(EC2Method.SERVICE_ID, provider, parameters);
+    }
+
+    public EC2Method( String serviceId, AWSCloud provider, Map<String, String> parameters ) throws InternalException, CloudException {
+        this(serviceId, provider.getContext().getRegionId(), provider, parameters);
+    }
+    public EC2Method( String serviceId, String regionIdOverride, AWSCloud provider, Map<String, String> parameters ) throws InternalException, CloudException {
+        this.parameters = parameters;
+        this.provider = provider;
+        this.serviceId = serviceId;
+        if( serviceId.equalsIgnoreCase(EC2Method.SERVICE_ID) ) {
+            this.url = provider.getEc2Url(); // for eucalyptus' sake
+        }
+        else {
+            if( serviceId.equalsIgnoreCase(IAMMethod.SERVICE_ID) ) {
+                this.url = "https://" + serviceId + ".amazonaws.com";
+            }
+            else {
+                this.url = "https://" + serviceId + "." + regionIdOverride + ".amazonaws.com";
+
+            }
+        }
         ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
             throw new CloudException("Provider context is necessary for this request");
         }
-    parameters.put(AWSCloud.P_SIGNATURE, provider.signEc2(ctx.getAccessPrivate(), url, parameters));
-  }
+//        parameters.put(AWSCloud.P_SIGNATURE, provider.signEc2(ctx.getAccessPrivate(), url, parameters));
+    }
 
-    public void checkSuccess(NodeList returnNodes) throws CloudException {
+    public void checkSuccess( NodeList returnNodes ) throws CloudException {
         if( returnNodes.getLength() > 0 ) {
             if( !returnNodes.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
                 throw new CloudException("Failed to revoke security group rule without explanation.");
@@ -610,7 +632,7 @@ public class EC2Method {
         return invoke(false);
     }
 
-    public Document invoke(boolean debug) throws InternalException, CloudException, EC2Exception {
+    public Document invoke( boolean debug ) throws InternalException, CloudException, EC2Exception {
         return this.invoke(debug, null);
     }
 
@@ -623,23 +645,23 @@ public class EC2Method {
      * @throws CloudException
      * @throws EC2Exception
      */
-    public void invoke(XmlStreamParser callback) throws InternalException, CloudException, EC2Exception {
+    public void invoke( XmlStreamParser callback ) throws InternalException, CloudException, EC2Exception {
         this.invoke(false, callback);
     }
 
-    private Document invoke(boolean debug, XmlStreamParser callback) throws EC2Exception, CloudException, InternalException {
-      if( logger.isTraceEnabled() ) {
-          logger.trace("ENTER - " + EC2Method.class.getName() + ".invoke(" + debug + ")");
-      }
+    private Document invoke( boolean debug, XmlStreamParser callback ) throws EC2Exception, CloudException, InternalException {
+        if( logger.isTraceEnabled() ) {
+            logger.trace("ENTER - " + EC2Method.class.getName() + ".invoke(" + debug + ")");
+        }
         if( wire.isDebugEnabled() ) {
             wire.debug("");
             wire.debug("--------------------------------------------------------------------------------------");
         }
         HttpClient client = null;
-      try {
-        if( logger.isDebugEnabled() ) {
-          logger.debug("Talking to server at " + url);
-        }
+        try {
+            if( logger.isDebugEnabled() ) {
+                logger.debug("Talking to server at " + url);
+            }
 
             HttpPost post = new HttpPost(url);
             client = provider.getClient();
@@ -648,13 +670,16 @@ public class EC2Method {
 
             attempts++;
             post.addHeader("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
-
-            if ( provider.isDebug() ) {
+            post.addHeader(AWSCloud.P_AWS_DATE, provider.getV4HeaderDate(null));
+            String host = post.getURI().getHost();
+            String serviceId = host.split("\\.")[0];
+            post.addHeader("host", host);
+            if( provider.isDebug() ) {
                 post.addHeader("Connection", "close");
             }
-            
+
             RequestTrackingStrategy strategy = provider.getContext().getRequestTrackingStrategy();
-            if( strategy != null && strategy.getSendAsHeader() ){
+            if( strategy != null && strategy.getSendAsHeader() ) {
                 post.addHeader(strategy.getHeaderName(), strategy.getRequestId());
             }
 
@@ -669,6 +694,22 @@ public class EC2Method {
             catch( UnsupportedEncodingException e ) {
                 throw new InternalException(e);
             }
+
+            Map<String, String> headers = new HashMap<String, String>();
+            for( Header header : post.getAllHeaders() ) {
+                headers.put(header.getName(), header.getValue());
+            }
+
+            final String v4Authorization;
+            try {
+                v4Authorization = provider.getV4Authorization(new String(provider.getAccessKey()[0]), new String(provider.getAccessKey()[1]), post.getMethod(), url, serviceId, headers, provider.getRequestBodyHash(EntityUtils.toString(post.getEntity())));
+            }
+            catch( IOException e ) {
+                throw new InternalException(e);
+            }
+            post.addHeader(AWSCloud.P_CFAUTH, v4Authorization);
+
+
             if( wire.isDebugEnabled() ) {
                 wire.debug(post.getRequestLine().toString());
                 for( Header header : post.getAllHeaders() ) {
@@ -676,8 +717,11 @@ public class EC2Method {
                 }
                 wire.debug("");
 
-                try { wire.debug(EntityUtils.toString(post.getEntity())); }
-                catch( IOException ignore ) { }
+                try {
+                    wire.debug(EntityUtils.toString(post.getEntity()));
+                }
+                catch( IOException ignore ) {
+                }
 
                 wire.debug("");
             }
@@ -706,7 +750,7 @@ public class EC2Method {
                         // When callback is passed, callback will parse the response, and therefore there
                         // will be no DOM document created. The callback will likely take a list to populate
                         // the results with.
-                        if (callback != null) {
+                        if( callback != null ) {
                             callback.parse(input);
                             return null;
                         }
@@ -739,7 +783,7 @@ public class EC2Method {
                         StringBuilder sb = new StringBuilder();
                         String line;
 
-                        while( (line = in.readLine()) != null ) {
+                        while( ( line = in.readLine() ) != null ) {
                             sb.append(line);
                             sb.append("\n");
                         }
@@ -756,7 +800,7 @@ public class EC2Method {
                                     NodeList attrs;
 
                                     attrs = error.getChildNodes();
-                                    for( int i=0; i<attrs.getLength(); i++ ) {
+                                    for( int i = 0; i < attrs.getLength(); i++ ) {
                                         Node attr = attrs.item(i);
 
                                         if( attr.getNodeName().equals("Code") ) {
@@ -783,10 +827,10 @@ public class EC2Method {
                                 throw EC2Exception.create(status, requestId, code, message);
                             }
                         }
-                        catch( RuntimeException ignore  ) {
+                        catch( RuntimeException ignore ) {
                             // ignore me
                         }
-                        catch( Error ignore  ) {
+                        catch( Error ignore ) {
                             // ignore me
                         }
                         msg = msg + ": " + sb.toString().trim().replaceAll("\n", " / ");
@@ -841,7 +885,9 @@ public class EC2Method {
                         throw new CloudException(msg);
                     }
                     else {
-                        try { Thread.sleep(5000L); }
+                        try {
+                            Thread.sleep(5000L);
+                        }
                         catch( InterruptedException e ) { /* ignore */ }
                         return invoke();
                     }
@@ -870,7 +916,7 @@ public class EC2Method {
                             NodeList attrs;
 
                             attrs = error.getChildNodes();
-                            for( int i=0; i<attrs.getLength(); i++ ) {
+                            for( int i = 0; i < attrs.getLength(); i++ ) {
                                 Node attr = attrs.item(i);
 
                                 if( attr.getNodeName().equals("Code") ) {
@@ -900,72 +946,77 @@ public class EC2Method {
                     throw new CloudException(e);
                 }
             }
-      }
-      finally {
-            if (client != null) {
+        }
+        finally {
+            if( client != null ) {
                 client.getConnectionManager().shutdown();
             }
-          if( logger.isTraceEnabled() ) {
-              logger.trace("EXIT - " + EC2Method.class.getName() + ".invoke()");
-          }
+            if( logger.isTraceEnabled() ) {
+                logger.trace("EXIT - " + EC2Method.class.getName() + ".invoke()");
+            }
             if( wire.isDebugEnabled() ) {
                 wire.debug("--------------------------------------------------------------------------------------");
                 wire.debug("");
             }
 
-      }
-  }
+        }
+    }
 
-  private Document parseResponse(String responseBody) throws CloudException, InternalException {
-      try {
+    private Document parseResponse( String responseBody ) throws CloudException, InternalException {
+        try {
             if( wire.isDebugEnabled() ) {
                 String[] lines = responseBody.split("\n");
 
                 if( lines.length < 1 ) {
-                    lines = new String[] { responseBody };
+                    lines = new String[]{responseBody};
                 }
                 for( String l : lines ) {
                     wire.debug(l);
                 }
             }
             return XMLParser.parse(new ByteArrayInputStream(responseBody.getBytes()));
-      }
-      catch( IOException e ) {
-          throw new CloudException(e);
-      }
-      catch( ParserConfigurationException e ) {
+        }
+        catch( IOException e ) {
+            throw new CloudException(e);
+        }
+        catch( ParserConfigurationException e ) {
             throw new CloudException(e);
         }
         catch( SAXException e ) {
             throw new CloudException(e);
         }
-  }
+    }
 
-  private Document parseResponse(InputStream responseBodyAsStream) throws CloudException, InternalException {
+    private Document parseResponse( InputStream responseBodyAsStream ) throws CloudException, InternalException {
         BufferedReader in = null;
-    try {
-      in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
-      StringBuilder sb = new StringBuilder();
-      String line;
+        try {
+            in = new BufferedReader(new InputStreamReader(responseBodyAsStream));
+            StringBuilder sb = new StringBuilder();
+            String line;
 
-      while( (line = in.readLine()) != null ) {
-        sb.append(line);
-        sb.append("\n");
-      }
-      return parseResponse(sb.toString());
-    }
-    catch( IOException e ) {
-      throw new CloudException(e);
-    }
+            while( ( line = in.readLine() ) != null ) {
+                sb.append(line);
+                sb.append("\n");
+            }
+            return parseResponse(sb.toString());
+        }
+        catch( IOException e ) {
+            throw new CloudException(e);
+        }
         finally {
             if( in != null ) {
                 try {
                     in.close();
-                } catch( IOException e ) {
+                }
+                catch( IOException e ) {
                     // Ignore
                 }
             }
         }
+    }
+
+    public String getServiceId() {
+        return serviceId;
     }
 
 }

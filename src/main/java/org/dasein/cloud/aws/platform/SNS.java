@@ -54,6 +54,8 @@ import org.w3c.dom.NodeList;
  */
 public class SNS implements PushNotificationSupport {
     static private final Logger logger = AWSCloud.getLogger(SNS.class);
+
+    static public final String SERVICE_ID                  = "sns";
     
     static public final String CONFIRM_SUBSCRIPTION        = "ConfirmSubscription";
     static public final String CREATE_TOPIC                = "CreateTopic";
@@ -106,7 +108,7 @@ public class SNS implements PushNotificationSupport {
             if( authenticateUnsubscribe ) {
                 parameters.put("AuthenticateOnUnsubscribe", "true");
             }
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -145,7 +147,7 @@ public class SNS implements PushNotificationSupport {
             Document doc;
 
             parameters.put("Name", name);
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -216,7 +218,7 @@ public class SNS implements PushNotificationSupport {
             Map<String,String> parameters = provider.getStandardSnsParameters(provider.getContext(), LIST_TOPICS);
             EC2Method method;
 
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 method.invoke();
                 return true;
@@ -255,7 +257,7 @@ public class SNS implements PushNotificationSupport {
             if( optionalTopicId != null ) {
                 parameters.put("TopicArn", optionalTopicId);
             }
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -295,7 +297,7 @@ public class SNS implements PushNotificationSupport {
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -335,7 +337,7 @@ public class SNS implements PushNotificationSupport {
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -382,7 +384,7 @@ public class SNS implements PushNotificationSupport {
             parameters.put("TopicArn", providerTopicId);
             parameters.put("Subject", subject);
             parameters.put("Message", message);
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -418,7 +420,7 @@ public class SNS implements PushNotificationSupport {
             EC2Method method;
 
             parameters.put("TopicArn", providerTopicId);
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 method.invoke();
             }
@@ -462,7 +464,7 @@ public class SNS implements PushNotificationSupport {
             parameters.put("AttributeName", attributeName);
             parameters.put("AttributeValue", attributeValue);
 
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 method.invoke();
             }
@@ -493,7 +495,7 @@ public class SNS implements PushNotificationSupport {
             Document doc;
 
             parameters.put("TopicArn", topic.getProviderTopicId());
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -593,7 +595,7 @@ public class SNS implements PushNotificationSupport {
                     break;
             }
             parameters.put("Endpoint", endpoint);
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 method.invoke();
             }
@@ -727,7 +729,7 @@ public class SNS implements PushNotificationSupport {
             EC2Method method;
 
             parameters.put("SubscriptionArn", providerSubscriptionId);
-            method = new EC2Method(provider, getSNSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, provider, parameters);
             try {
                 method.invoke();
             }
