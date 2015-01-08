@@ -65,14 +65,19 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public VirtualMachine alterVirtualMachine( @Nonnull String vmId, @Nonnull VMScalingOptions options ) throws InternalException, CloudException {
-        APITrace.begin(getProvider(), "alterVirtualMachine");
+    /**
+     * Change the VM product size. Caveat: not all products are compatible with each other, see
+     * http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-resize.html
+     * This will be addressed within FB5952.
+     */
+    public VirtualMachine alterVirtualMachineProduct( @Nonnull String virtualMachineId, @Nonnull String productId ) throws InternalException, CloudException {
+        APITrace.begin(getProvider(), "alterVirtualMachineProduct");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.MODIFY_INSTANCE_ATTRIBUTE);
             EC2Method method;
 
-            parameters.put("InstanceId", vmId);
-            parameters.put("InstanceType.Value", options.getProviderProductId());
+            parameters.put("InstanceId", virtualMachineId);
+            parameters.put("InstanceType.Value", productId);
 
             method = new EC2Method("ec2", getProvider(), parameters);
             try {
@@ -83,20 +88,20 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             } catch( Throwable ex ) {
                 throw new CloudException(ex);
             }
-            return getVirtualMachine(vmId);
+            return getVirtualMachine(virtualMachineId);
         } finally {
             APITrace.end();
         }
     }
 
     @Override
-    public VirtualMachine modifyInstance( @Nonnull String vmId, @Nonnull String[] firewalls ) throws InternalException, CloudException {
-        APITrace.begin(getProvider(), "alterVirtualMachine");
+    public VirtualMachine alterVirtualMachineFirewalls( @Nonnull String virtualMachineId, @Nonnull String[] firewalls ) throws InternalException, CloudException {
+        APITrace.begin(getProvider(), "alterVirtualMachineFirewalls");
         try {
             Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.MODIFY_INSTANCE_ATTRIBUTE);
             EC2Method method;
 
-            parameters.put("InstanceId", vmId);
+            parameters.put("InstanceId", virtualMachineId);
             for( int i = 0; i < firewalls.length; i++ ) {
                 parameters.put("GroupId." + i, firewalls[i]);
             }
@@ -110,11 +115,21 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             } catch( Throwable ex ) {
                 throw new CloudException(ex);
             }
-            return getVirtualMachine(vmId);
+            return getVirtualMachine(virtualMachineId);
         } finally {
             APITrace.end();
         }
     }
+
+    @Override
+    public VirtualMachine alterVirtualMachine( @Nonnull String vmId, @Nonnull VMScalingOptions options ) throws InternalException, CloudException {
+        return alterVirtualMachineProduct(vmId, options.getProviderProductId());
+    }
+
+    @Override
+    public VirtualMachine modifyInstance( @Nonnull String vmId, @Nonnull String[] firewalls ) throws InternalException, CloudException {
+        return alterVirtualMachineFirewalls(vmId, firewalls);
+    };
 
     @Override
     public void start( @Nonnull String instanceId ) throws InternalException, CloudException {

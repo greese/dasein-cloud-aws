@@ -128,7 +128,7 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
 
     @Override
     public @Nullable VMScalingCapabilities getVerticalScalingCapabilities() throws CloudException, InternalException {
-        return null;
+        return VMScalingCapabilities.getInstance(false, true, false);
     }
 
     @Nonnull
