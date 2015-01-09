@@ -97,7 +97,7 @@ public class ElasticIP implements IpAddressSupport {
 
             setId("", parameters, addressId, false);
             parameters.put("InstanceId", instanceId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -128,7 +128,7 @@ public class ElasticIP implements IpAddressSupport {
 
             parameters.put("AllocationId", addressId);
             parameters.put("NetworkInterfaceId", nicId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -192,7 +192,7 @@ public class ElasticIP implements IpAddressSupport {
             Document doc;
 
             parameters.put("PublicIp.1", addressId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -301,7 +301,7 @@ public class ElasticIP implements IpAddressSupport {
             Document doc;
 
             parameters.put("AllocationId.1", addressId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -462,7 +462,7 @@ public class ElasticIP implements IpAddressSupport {
         NodeList blocks;
         Document doc;
 
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        method = new EC2Method(provider, parameters);
         try {
           doc = method.invoke();
         }
@@ -509,7 +509,7 @@ public class ElasticIP implements IpAddressSupport {
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -601,7 +601,7 @@ public class ElasticIP implements IpAddressSupport {
                 addressId = address.getProviderAssociationId();
             }
             setId("", parameters, addressId, true);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -654,7 +654,7 @@ public class ElasticIP implements IpAddressSupport {
            Document doc;
 
            setId("", parameters, addressId, false);
-           method = new EC2Method(provider, provider.getEc2Url(), parameters);
+           method = new EC2Method(provider, parameters);
            try {
                doc = method.invoke();
            }
@@ -690,7 +690,7 @@ public class ElasticIP implements IpAddressSupport {
                 throw new OperationNotSupportedException(provider.getCloudName() + " does not support " + version);
             }
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -731,7 +731,7 @@ public class ElasticIP implements IpAddressSupport {
             Document doc;
 
             parameters.put("Domain","vpc");
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }

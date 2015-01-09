@@ -45,6 +45,7 @@ import javax.annotation.Nullable;
 public class SQS extends AbstractMQSupport<AWSCloud> {
     static public final String SET_QUEUE_ATTRIBUTES = "SetQueueAttributes";
 
+    static public final String SERVICE_ID = "sqs";
 
     public static ServiceAction[] asSQSServiceAction(String action) {
         return new ServiceAction[0];
@@ -98,7 +99,7 @@ public class SQS extends AbstractMQSupport<AWSCloud> {
 
         parameters.put("Attribute.Name", name);
         parameters.put("Attribute.Value", value);
-        method = new EC2Method(getProvider(), endpoint, parameters);
+        method = new EC2Method(SERVICE_ID, getProvider(), parameters);
         try {
             method.invoke();
         }

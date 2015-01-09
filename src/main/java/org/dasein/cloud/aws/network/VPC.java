@@ -42,37 +42,30 @@ import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 import java.util.*;
 
-public class VPC extends AbstractVLANSupport {
+public class VPC extends AbstractVLANSupport<AWSCloud> {
     static private final Logger logger = Logger.getLogger(VPC.class);
 
-    private AWSCloud provider;
     private transient volatile NetworkCapabilities capabilities;
 
     VPC(AWSCloud provider) {
         super(provider);
-        this.provider = provider;
-    }
-
-    @Override
-    public boolean allowsNewSubnetCreation() throws CloudException, InternalException {
-        return getCapabilities().allowsNewSubnetCreation();
     }
 
     @Override
     public void assignRoutingTableToSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.assignRoutingTableToSubnet");
+        APITrace.begin(getProvider(), "VLAN.assignRoutingTableToSubnet");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ASSOCIATE_ROUTE_TABLE);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.ASSOCIATE_ROUTE_TABLE);
             EC2Method method;
 
             parameters.put("SubnetId", subnetId);
             parameters.put("RouteTableId", routingTableId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -89,19 +82,19 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public void disassociateRoutingTableFromSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.disassociateRoutingTableFromSubnet");
+        APITrace.begin(getProvider(), "VLAN.disassociateRoutingTableFromSubnet");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DISASSOCIATE_ROUTE_TABLE);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DISASSOCIATE_ROUTE_TABLE);
             EC2Method method;
 
             String associationId = getRoutingTableAssociationIdForSubnet(subnetId, routingTableId);
             parameters.put("AssociationId", associationId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -117,14 +110,14 @@ public class VPC extends AbstractVLANSupport {
     }
 
     private @Nonnull String getRoutingTableAssociationIdForSubnet(@Nonnull String subnetId, @Nonnull String routingTableId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.getRoutingTableAssociationIdForSubnet");
+        APITrace.begin(getProvider(), "VLAN.getRoutingTableAssociationIdForSubnet");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_ROUTE_TABLES);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_ROUTE_TABLES);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -134,7 +127,7 @@ public class VPC extends AbstractVLANSupport {
             parameters.put("Filter.2.Name", "association.subnet-id");
             parameters.put("Filter.2.Value.1", subnetId);
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -189,14 +182,14 @@ public class VPC extends AbstractVLANSupport {
     }
 
     private @Nonnull String getMainRoutingTableAssociationIdForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.getMainRoutingTableAssociationIdForVlan");
+        APITrace.begin(getProvider(), "VLAN.getMainRoutingTableAssociationIdForVlan");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -206,7 +199,7 @@ public class VPC extends AbstractVLANSupport {
             parameters.put("Filter.2.Name", "vpc-id");
             parameters.put("Filter.2.Value.1", vlanId);
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -246,21 +239,21 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public void assignRoutingTableToVlan(@Nonnull String vlanId, @Nonnull String routingTableId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.assignRoutingTableToVlan");
+        APITrace.begin(getProvider(), "VLAN.assignRoutingTableToVlan");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
             String associationId = getMainRoutingTableAssociationIdForVlan(vlanId);
 
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.REPLACE_ROUTE_TABLE_ASSOCIATION);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.REPLACE_ROUTE_TABLE_ASSOCIATION);
             EC2Method method;
 
             parameters.put("AssociationId", associationId);
             parameters.put("RouteTableId", routingTableId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -277,7 +270,7 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public void attachNetworkInterface(@Nonnull String nicId, @Nonnull String vmId, int index) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.attachNetworkInterface");
+        APITrace.begin(getProvider(), "VLAN.attachNetworkInterface");
         try {
             if( index < 1 ) {
                 index = 1;
@@ -287,13 +280,13 @@ public class VPC extends AbstractVLANSupport {
                     }
                 }
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.ATTACH_NIC);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.ATTACH_NIC);
             EC2Method method;
 
             parameters.put("NetworkInterfaceId", nicId);
             parameters.put("InstanceId", vmId);
             parameters.put("DeviceIndex", String.valueOf(index));
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -310,19 +303,19 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public String createInternetGateway(@Nonnull String vlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.createInternetGateway");
+        APITrace.begin(getProvider(), "VLAN.createInternetGateway");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_INTERNET_GATEWAY);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.CREATE_INTERNET_GATEWAY);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -345,10 +338,10 @@ public class VPC extends AbstractVLANSupport {
             if( gatewayId == null ) {
                 throw new CloudException("No internet gateway was created, but no error was reported");
             }
-            parameters = provider.getStandardParameters(provider.getContext(), EC2Method.ATTACH_INTERNET_GATEWAY);
+            parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.ATTACH_INTERNET_GATEWAY);
             parameters.put("VpcId", vlanId);
             parameters.put("InternetGatewayId", gatewayId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
                 return gatewayId;
@@ -366,20 +359,20 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull String createRoutingTable(@Nonnull String vlanId, @Nonnull String name, @Nonnull String description) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.createRoutingTable");
+        APITrace.begin(getProvider(), "VLAN.createRoutingTable");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_ROUTE_TABLE);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.CREATE_ROUTE_TABLE);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("VpcId", vlanId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -414,7 +407,7 @@ public class VPC extends AbstractVLANSupport {
             t.setKey("Description");
             t.setValue(description);
             tags[1] = t;
-            provider.createTags(id, tags);
+            getProvider().createTags(id, tags);
             return id;
         } finally {
             APITrace.end();
@@ -423,14 +416,14 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull NetworkInterface createNetworkInterface(@Nonnull NICCreateOptions options) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.createNetworkInterface");
+        APITrace.begin(getProvider(), "VLAN.createNetworkInterface");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_NIC);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.CREATE_NIC);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -447,7 +440,7 @@ public class VPC extends AbstractVLANSupport {
                     parameters.put("SecurityGroupId." + i, id);
                 }
             }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -473,7 +466,7 @@ public class VPC extends AbstractVLANSupport {
                     t.setKey("Description");
                     t.setValue(options.getDescription());
                     tags[1] = t;
-                    provider.createTags(nic.getProviderNetworkInterfaceId(), tags);
+                    getProvider().createTags(nic.getProviderNetworkInterfaceId(), tags);
                     nic.setName(options.getName());
                     nic.setDescription(options.getDescription());
                     return nic;
@@ -487,28 +480,28 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public Route addRouteToAddress(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String address) throws CloudException, InternalException {
-        throw new OperationNotSupportedException("You cannot route to a raw IP address in " + provider.getCloudName() + ".");
+        throw new OperationNotSupportedException("You cannot route to a raw IP address in " + getProvider().getCloudName() + ".");
     }
 
     @Override
     public Route addRouteToGateway(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String gatewayId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.addRouteToGateway");
+        APITrace.begin(getProvider(), "VLAN.addRouteToGateway");
         try {
             if( !version.equals(IPVersion.IPV4) ) {
-                throw new CloudException(provider.getCloudName() + " does not support " + version);
+                throw new CloudException(getProvider().getCloudName() + " does not support " + version);
             }
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_ROUTE);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.CREATE_ROUTE);
             EC2Method method;
 
             parameters.put("GatewayId", gatewayId);
             parameters.put("RouteTableId", routingTableId);
             parameters.put("DestinationCidrBlock", destinationCidr);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -526,23 +519,23 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public Route addRouteToNetworkInterface(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String nicId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.addRouteToNetworkInterface");
+        APITrace.begin(getProvider(), "VLAN.addRouteToNetworkInterface");
         try {
             if( !version.equals(IPVersion.IPV4) ) {
-                throw new CloudException(provider.getCloudName() + " does not support " + version);
+                throw new CloudException(getProvider().getCloudName() + " does not support " + version);
             }
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_ROUTE);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.CREATE_ROUTE);
             EC2Method method;
 
             parameters.put("NetworkInterfaceId", nicId);
             parameters.put("RouteTableId", routingTableId);
             parameters.put("DestinationCidrBlock", destinationCidr);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -560,23 +553,23 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public Route addRouteToVirtualMachine(@Nonnull String routingTableId, @Nonnull IPVersion version, @Nullable String destinationCidr, @Nonnull String vmId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.addRouteToVirtualMachine");
+        APITrace.begin(getProvider(), "VLAN.addRouteToVirtualMachine");
         try {
             if( !version.equals(IPVersion.IPV4) ) {
-                throw new CloudException(provider.getCloudName() + " does not support " + version);
+                throw new CloudException(getProvider().getCloudName() + " does not support " + version);
             }
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_ROUTE);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.CREATE_ROUTE);
             EC2Method method;
 
             parameters.put("InstanceId", vmId);
             parameters.put("RouteTableId", routingTableId);
             parameters.put("DestinationCidrBlock", destinationCidr);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -591,21 +584,6 @@ public class VPC extends AbstractVLANSupport {
         } finally {
             APITrace.end();
         }
-    }
-
-    @Override
-    public boolean allowsNewNetworkInterfaceCreation() throws CloudException, InternalException {
-        return getCapabilities().allowsNewNetworkInterfaceCreation();
-    }
-
-    @Override
-    public boolean allowsNewVlanCreation() throws CloudException, InternalException {
-        return getCapabilities().allowsNewVlanCreation();
-    }
-
-    @Override
-    public boolean allowsNewRoutingTableCreation() throws CloudException, InternalException {
-        return getCapabilities().allowsNewRoutingTableCreation();
     }
 
     private void assignDHCPOptions(VLAN vlan, String domainName, String[] dnsServers, String[] ntpServers) throws CloudException, InternalException {
@@ -678,14 +656,14 @@ public class VPC extends AbstractVLANSupport {
     }
 
     private void assignDhcp(String vlanId, String dhcp) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.assignDhcp");
+        APITrace.begin(getProvider(), "VLAN.assignDhcp");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.ASSOCIATE_DHCP_OPTIONS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.ASSOCIATE_DHCP_OPTIONS);
             EC2Method method;
 
             parameters.put("DhcpOptionsId", dhcp);
             parameters.put("VpcId", vlanId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -701,9 +679,9 @@ public class VPC extends AbstractVLANSupport {
     }
 
     private String createDhcp(String domainName, String[] dnsServers, String[] ntpServers) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.createDhcp");
+        APITrace.begin(getProvider(), "VLAN.createDhcp");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_DHCP_OPTIONS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.CREATE_DHCP_OPTIONS);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -733,7 +711,7 @@ public class VPC extends AbstractVLANSupport {
                     vdx++;
                 }
             }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -759,14 +737,14 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull Subnet createSubnet(@Nonnull SubnetCreateOptions options) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.createSubnet");
+        APITrace.begin(getProvider(), "VLAN.createSubnet");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_SUBNET);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.CREATE_SUBNET);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -779,7 +757,7 @@ public class VPC extends AbstractVLANSupport {
             if( dc != null ) {
                 parameters.put("AvailabilityZone", dc);
             }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -810,7 +788,7 @@ public class VPC extends AbstractVLANSupport {
                         t.setValue(entry.getValue().toString());
                         tags[j++] = t;
                     }
-                    provider.createTags(subnet.getProviderSubnetId(), tags);
+                    getProvider().createTags(subnet.getProviderSubnetId(), tags);
                     subnet.setName(options.getDescription());
                     subnet.setDescription(options.getDescription());
                     return subnet;
@@ -831,21 +809,21 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull VLAN createVlan(final @Nonnull VlanCreateOptions options) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.createVLAN");
+        APITrace.begin(getProvider(), "VLAN.createVLAN");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_VPC);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.CREATE_VPC);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("CidrBlock", options.getCidr());
             parameters.put("InstanceTenancy", "default");
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -878,7 +856,7 @@ public class VPC extends AbstractVLANSupport {
                     t.setKey("Description");
                     t.setValue(options.getDescription());
                     tags[1] = t;
-                    provider.createTags(vlan.getProviderVlanId(), tags);
+                    getProvider().createTags(vlan.getProviderVlanId(), tags);
                     vlan.setName(options.getName());
                     vlan.setDescription(options.getDescription());
                     return vlan;
@@ -896,20 +874,20 @@ public class VPC extends AbstractVLANSupport {
     }
 
     private @Nonnull Collection<Attachment> getAttachments(@Nonnull String nicId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.getAttachments");
+        APITrace.begin(getProvider(), "VLAN.getAttachments");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_NICS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("NetworkInterfaceId.1", nicId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -960,16 +938,16 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public void detachNetworkInterface(@Nonnull String nicId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.detachNetworkInterface");
+        APITrace.begin(getProvider(), "VLAN.detachNetworkInterface");
         try {
             Collection<Attachment> attachments = getAttachments(nicId);
 
             for( Attachment a : attachments ) {
-                Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DETACH_NIC);
+                Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DETACH_NIC);
                 EC2Method method;
 
                 parameters.put("AttachmentId", a.attachmentId);
-                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                method = new EC2Method(getProvider(), parameters);
                 try {
                     method.invoke();
                 } catch( EC2Exception e ) {
@@ -988,19 +966,9 @@ public class VPC extends AbstractVLANSupport {
     @Override
     public VLANCapabilities getCapabilities() {
         if( capabilities == null ) {
-            capabilities = new NetworkCapabilities(provider);
+            capabilities = new NetworkCapabilities(getProvider());
         }
         return capabilities;
-    }
-
-    @Override
-    public int getMaxNetworkInterfaceCount() throws CloudException, InternalException {
-        return getCapabilities().getMaxNetworkInterfaceCount();
-    }
-
-    @Override
-    public int getMaxVlanCount() throws CloudException, InternalException {
-        return getCapabilities().getMaxVlanCount();
     }
 
     @Override
@@ -1020,20 +988,20 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public NetworkInterface getNetworkInterface(@Nonnull String nicId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.getNetworkInterface");
+        APITrace.begin(getProvider(), "VLAN.getNetworkInterface");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_NICS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("NetworkInterfaceId.1", nicId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1064,14 +1032,14 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public RoutingTable getRoutingTableForSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.getRoutingTableForSubnet");
+        APITrace.begin(getProvider(), "VLAN.getRoutingTableForSubnet");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -1081,7 +1049,7 @@ public class VPC extends AbstractVLANSupport {
             parameters.put("Filter.1.Name", "association.subnet-id");
             parameters.put("Filter.1.Value.1", subnetId);
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1121,9 +1089,9 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public RoutingTable getRoutingTableForVlan(@Nonnull String vlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.getRoutingTableForVlan");
+        APITrace.begin(getProvider(), "VLAN.getRoutingTableForVlan");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
             parameters.put("Filter.1.Name", "association.main");
             parameters.put("Filter.1.Value.1", "true");
             parameters.put("Filter.2.Name", "vpc-id");
@@ -1142,9 +1110,9 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public RoutingTable getRoutingTable(@Nonnull String id) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.getRoutingTable");
+        APITrace.begin(getProvider(), "VLAN.getRoutingTable");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
             parameters.put("Filter.1.Name", "route-table-id");
             parameters.put("Filter.1.Value.1", id);
             return getRoutingTableAbstract(parameters);
@@ -1154,7 +1122,7 @@ public class VPC extends AbstractVLANSupport {
     }
 
     private RoutingTable getRoutingTableAbstract(@Nonnull Map<String, String> parameters) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
+        ProviderContext ctx = getProvider().getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was configured");
@@ -1164,7 +1132,7 @@ public class VPC extends AbstractVLANSupport {
         NodeList blocks;
         Document doc;
 
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        method = new EC2Method(getProvider(), parameters);
         try {
             doc = method.invoke();
         } catch( EC2Exception e ) {
@@ -1196,20 +1164,20 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nullable Subnet getSubnet(@Nonnull String providerSubnetId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.getSubnet");
+        APITrace.begin(getProvider(), "VLAN.getSubnet");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_SUBNETS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_SUBNETS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("SubnetId.1", providerSubnetId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1245,20 +1213,20 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nullable VLAN getVlan(@Nonnull String providerVlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.getVlan");
+        APITrace.begin(getProvider(), "VLAN.getVlan");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_VPCS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("VpcId.1", providerVlanId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1309,12 +1277,12 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.isSubscribed");
+        APITrace.begin(getProvider(), "VLAN.isSubscribed");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_VPCS);
             EC2Method method;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
                 return true;
@@ -1345,20 +1313,20 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull Collection<String> listFirewallIdsForNIC(@Nonnull String nicId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.listFirewallIdsForNIC");
+        APITrace.begin(getProvider(), "VLAN.listFirewallIdsForNIC");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_NICS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("NetworkInterfaceId.1", nicId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1419,19 +1387,19 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listNetworkInterfaceStatus() throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.listNetworkInterfaceStatus");
+        APITrace.begin(getProvider(), "VLAN.listNetworkInterfaceStatus");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_NICS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1459,19 +1427,19 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull Iterable<NetworkInterface> listNetworkInterfaces() throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.listNetworkInterfaces");
+        APITrace.begin(getProvider(), "VLAN.listNetworkInterfaces");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_NICS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1500,21 +1468,21 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesForVM(@Nonnull String forVmId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.listNetworkInterfacesForVM");
+        APITrace.begin(getProvider(), "VLAN.listNetworkInterfacesForVM");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_NICS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("Filter.1.Name", "attachment.instance-id");
             parameters.put("Filter.1.Value.1", forVmId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1543,21 +1511,21 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesInSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.listNetworkInterfacesInSubnet");
+        APITrace.begin(getProvider(), "VLAN.listNetworkInterfacesInSubnet");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_NICS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("Filter.1.Name", "subnet-id");
             parameters.put("Filter.1.Value.1", subnetId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1586,21 +1554,21 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull Iterable<NetworkInterface> listNetworkInterfacesInVLAN(@Nonnull String vlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.listNetworkInterfacesInVLAN");
+        APITrace.begin(getProvider(), "VLAN.listNetworkInterfacesInVLAN");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_NICS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_NICS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("Filter.1.Name", "vpc-id");
             parameters.put("Filter.1.Value.1", vlanId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1637,7 +1605,7 @@ public class VPC extends AbstractVLANSupport {
                 try {
                     APITrace.begin(getProvider(), "VLAN.listResources");
                     try {
-                        NetworkServices network = provider.getNetworkServices();
+                        NetworkServices network = getProvider().getNetworkServices();
 
                         if( network != null ) {
                             FirewallSupport fwSupport = network.getFirewallSupport();
@@ -1665,7 +1633,7 @@ public class VPC extends AbstractVLANSupport {
                             for( RoutingTable table : listRoutingTables(vlanId) ) {
                                 iterator.push(table);
                             }
-                            ComputeServices compute = provider.getComputeServices();
+                            ComputeServices compute = getProvider().getComputeServices();
                             VirtualMachineSupport vmSupport = compute == null ? null : compute.getVirtualMachineSupport();
                             Iterable<VirtualMachine> vms;
 
@@ -1698,9 +1666,9 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull Iterable<RoutingTable> listRoutingTablesForSubnet(@Nonnull String subnetId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.listRoutingTablesForSubnet");
+        APITrace.begin(getProvider(), "VLAN.listRoutingTablesForSubnet");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
             parameters.put("Filter.1.Name", "association.subnet-id");
             parameters.put("Filter.1.Value.1", subnetId);
             return listRoutingTablesForResource(parameters);
@@ -1710,16 +1678,10 @@ public class VPC extends AbstractVLANSupport {
     }
 
     @Override
-    @Deprecated
-    public @Nonnull Iterable<RoutingTable> listRoutingTables(@Nonnull String vlanId) throws CloudException, InternalException {
-        return listRoutingTablesForVlan(vlanId);
-    }
-
-    @Override
     public @Nonnull Iterable<RoutingTable> listRoutingTablesForVlan(@Nullable String vlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.listRoutingTablesForVlan");
+        APITrace.begin(getProvider(), "VLAN.listRoutingTablesForVlan");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_ROUTE_TABLES);
             if( vlanId != null ) {
                 parameters.put("Filter.1.Name", "vpc-id");
                 parameters.put("Filter.1.Value.1", vlanId);
@@ -1731,7 +1693,7 @@ public class VPC extends AbstractVLANSupport {
     }
 
     private @Nonnull Iterable<RoutingTable> listRoutingTablesForResource(@Nonnull Map<String, String> params) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
+        ProviderContext ctx = getProvider().getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was configured");
@@ -1740,7 +1702,7 @@ public class VPC extends AbstractVLANSupport {
         EC2Method method;
         Document doc;
 
-        method = new EC2Method(provider, provider.getEc2Url(), params);
+        method = new EC2Method(getProvider(), params);
         try {
             doc = method.invoke();
         } catch( EC2Exception e ) {
@@ -1779,14 +1741,14 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull Iterable<Subnet> listSubnets(@Nullable String providerVlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.listSubnets");
+        APITrace.begin(getProvider(), "VLAN.listSubnets");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_SUBNETS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_SUBNETS);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -1795,7 +1757,7 @@ public class VPC extends AbstractVLANSupport {
                 parameters.put("Filter.1.Name", "vpc-id");
                 parameters.put("Filter.1.Value.1", providerVlanId);
             }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1830,19 +1792,19 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listVlanStatus() throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.listVlanStatus");
+        APITrace.begin(getProvider(), "VLAN.listVlanStatus");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_VPCS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1871,19 +1833,19 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull Iterable<VLAN> listVlans() throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.listVlans");
+        APITrace.begin(getProvider(), "VLAN.listVlans");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPCS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_VPCS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1913,14 +1875,14 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nullable String getAttachedInternetGatewayId(@Nonnull String vlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.getAttachedInternetGatewayId");
+        APITrace.begin(getProvider(), "VLAN.getAttachedInternetGatewayId");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_INTERNET_GATEWAYS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_INTERNET_GATEWAYS);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -1928,7 +1890,7 @@ public class VPC extends AbstractVLANSupport {
             parameters.put("Filter.1.Name", "attachment.vpc-id");
             parameters.put("Filter.1.Value.1", vlanId);
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -1968,21 +1930,21 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nullable InternetGateway getInternetGatewayById(@Nonnull String gatewayId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.getInternetGatewayById");
+        APITrace.begin(getProvider(), "VLAN.getInternetGatewayById");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_INTERNET_GATEWAYS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_INTERNET_GATEWAYS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("InternetGatewayId.1", gatewayId);
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -2007,14 +1969,14 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public @Nonnull Collection<InternetGateway> listInternetGateways(@Nullable String vlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.listInternetGateways");
+        APITrace.begin(getProvider(), "VLAN.listInternetGateways");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider().getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was configured");
             }
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_INTERNET_GATEWAYS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_INTERNET_GATEWAYS);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -2024,7 +1986,7 @@ public class VPC extends AbstractVLANSupport {
                 parameters.put("Filter.1.Value.1", vlanId);
             }
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -2056,9 +2018,9 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public void removeInternetGateway(@Nonnull String vlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.removeInternetGateway");
+        APITrace.begin(getProvider(), "VLAN.removeInternetGateway");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DETACH_INTERNET_GATEWAY);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DETACH_INTERNET_GATEWAY);
             String gatewayId = getAttachedInternetGatewayId(vlanId);
 
             if( gatewayId == null ) {
@@ -2068,7 +2030,7 @@ public class VPC extends AbstractVLANSupport {
 
             parameters.put("InternetGatewayId", gatewayId);
             parameters.put("VpcId", vlanId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -2086,9 +2048,9 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public void removeInternetGatewayById(@Nonnull String id) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.removeInternetGatewayById");
+        APITrace.begin(getProvider(), "VLAN.removeInternetGatewayById");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DETACH_INTERNET_GATEWAY);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DETACH_INTERNET_GATEWAY);
             EC2Method method;
 
             InternetGateway ig = getInternetGatewayById(id);
@@ -2099,7 +2061,7 @@ public class VPC extends AbstractVLANSupport {
 
             parameters.put("InternetGatewayId", id);
             parameters.put("VpcId", ig.getProviderVlanId());
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -2116,11 +2078,11 @@ public class VPC extends AbstractVLANSupport {
     }
 
     private void removeGateway(@Nonnull String gatewayId) throws CloudException, InternalException {
-        Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_INTERNET_GATEWAY);
+        Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DELETE_INTERNET_GATEWAY);
 
         parameters.put("InternetGatewayId", gatewayId);
 
-        EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        EC2Method method = new EC2Method(getProvider(), parameters);
 
         try {
             method.invoke();
@@ -2137,7 +2099,7 @@ public class VPC extends AbstractVLANSupport {
     public void removeInternetGatewayTags(@Nonnull String internetGatewayId, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "InternetGateway.removeTags");
         try {
-            provider.removeTags(internetGatewayId, tags);
+            getProvider().removeTags(internetGatewayId, tags);
         } finally {
             APITrace.end();
         }
@@ -2147,7 +2109,7 @@ public class VPC extends AbstractVLANSupport {
     public void updateInternetGatewayTags(@Nonnull String internetGatewayId, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "InternetGateway.createTags");
         try {
-            provider.createTags(internetGatewayId, tags);
+            getProvider().createTags(internetGatewayId, tags);
         } finally {
             APITrace.end();
         }
@@ -2155,13 +2117,13 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public void removeNetworkInterface(@Nonnull String nicId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.removeNetworkInterface");
+        APITrace.begin(getProvider(), "VLAN.removeNetworkInterface");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_NIC);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DELETE_NIC);
             EC2Method method;
 
             parameters.put("NetworkInterfaceId", nicId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -2178,14 +2140,14 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public void removeRoute(@Nonnull String inRoutingTableId, @Nonnull String destinationCidr) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.removeRoute");
+        APITrace.begin(getProvider(), "VLAN.removeRoute");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_ROUTE);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DELETE_ROUTE);
             EC2Method method;
 
             parameters.put("RouteTableId", inRoutingTableId);
             parameters.put("DestinationCidrBlock", destinationCidr);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -2202,13 +2164,13 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public void removeRoutingTable(@Nonnull String routingTableId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.removeRoutingTable");
+        APITrace.begin(getProvider(), "VLAN.removeRoutingTable");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_ROUTE_TABLE);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DELETE_ROUTE_TABLE);
             EC2Method method;
 
             parameters.put("RouteTableId", routingTableId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -2227,7 +2189,7 @@ public class VPC extends AbstractVLANSupport {
     public void removeRoutingTableTags(@Nonnull String routingTableId, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "RoutingTable.removeTags");
         try {
-            provider.removeTags(routingTableId, tags);
+            getProvider().removeTags(routingTableId, tags);
         } finally {
             APITrace.end();
         }
@@ -2237,22 +2199,22 @@ public class VPC extends AbstractVLANSupport {
     public void updateRoutingTableTags(@Nonnull String routingTableId, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "RoutingTable.createTags");
         try {
-            provider.createTags(routingTableId, tags);
+            getProvider().createTags(routingTableId, tags);
         } finally {
             APITrace.end();
         }
     }
 
     private void loadDHCPOptions(String dhcpOptionsId, VLAN vlan) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.loadDHCPOptions");
+        APITrace.begin(getProvider(), "VLAN.loadDHCPOptions");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_DHCP_OPTIONS);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DESCRIBE_DHCP_OPTIONS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
             parameters.put("DhcpOptionsId.1", dhcpOptionsId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             } catch( EC2Exception e ) {
@@ -2380,13 +2342,13 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public void removeSubnet(String providerSubnetId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.removeSubnet");
+        APITrace.begin(getProvider(), "VLAN.removeSubnet");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_SUBNET);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DELETE_SUBNET);
             EC2Method method;
 
             parameters.put("SubnetId", providerSubnetId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -2403,13 +2365,13 @@ public class VPC extends AbstractVLANSupport {
 
     @Override
     public void removeVlan(String providerVpcId) throws CloudException, InternalException {
-        APITrace.begin(provider, "VLAN.removeVlan");
+        APITrace.begin(getProvider(), "VLAN.removeVlan");
         try {
-            Map<String, String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_VPC);
+            Map<String, String> parameters = getProvider().getStandardParameters(getProvider().getContext(), ELBMethod.DELETE_VPC);
             EC2Method method;
 
             parameters.put("VpcId", providerVpcId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             } catch( EC2Exception e ) {
@@ -2511,7 +2473,7 @@ public class VPC extends AbstractVLANSupport {
                     }
                 }
             } else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
-                provider.setTags(child, nic);
+                getProvider().setTags(child, nic);
                 if( nic.getTags().get("name") != null ) {
                     name = nic.getTags().get("name");
                 }
@@ -2658,7 +2620,7 @@ public class VPC extends AbstractVLANSupport {
                 table.setMain(main);
                 table.setProviderSubnetIds(associations.toArray(new String[associations.size()]));
             } else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
-                provider.setTags(child, table);
+                getProvider().setTags(child, table);
                 if( table.getTags().get("name") != null ) {
                     name = table.getTags().get("name");
                 } else if( table.getTags().get("Name") != null ) {
@@ -2721,7 +2683,7 @@ public class VPC extends AbstractVLANSupport {
             } else if( nodeName.equalsIgnoreCase("availabilityZone") ) {
                 subnet.setProviderDataCenterId(child.getFirstChild().getNodeValue().trim());
             } else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
-                provider.setTags(child, subnet);
+                getProvider().setTags(child, subnet);
             }
         }
         if( subnet.getProviderSubnetId() == null ) {
@@ -2776,7 +2738,7 @@ public class VPC extends AbstractVLANSupport {
             } else if( nodeName.equalsIgnoreCase("dhcpOptionsId") ) {
                 dhcp = child.getFirstChild().getNodeValue().trim();
             } else if( nodeName.equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
-                provider.setTags(child, vlan);
+                getProvider().setTags(child, vlan);
                 if( vlan.getTags().get("name") != null ) {
                     vlan.setName(vlan.getTags().get("name"));
                 } else {
@@ -2904,7 +2866,7 @@ public class VPC extends AbstractVLANSupport {
                         }
                     }
                 } else if( child.getNodeName().equalsIgnoreCase("tagSet") && child.hasChildNodes() ) {
-                    provider.setTags(child, ig);
+                    getProvider().setTags(child, ig);
                 }
             }
         }

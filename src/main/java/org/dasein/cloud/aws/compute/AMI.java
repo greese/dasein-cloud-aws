@@ -46,17 +46,15 @@ import java.util.*;
 public class AMI extends AbstractImageSupport<AWSCloud> {
 	static private final Logger logger = Logger.getLogger(AMI.class);
 	
-	private AWSCloud provider = null;
     private volatile transient AMICapabilities capabilities;
 
     AMI(AWSCloud provider) {
 		super(provider);
-        this.provider = provider;
 	}
 
     @Override
     public void addImageShare(@Nonnull String providerImageId, @Nonnull String accountNumber) throws CloudException, InternalException {
-        APITrace.begin(provider, "Image.addImageShare");
+        APITrace.begin(getProvider(), "Image.addImageShare");
         try {
             setPrivateShare(providerImageId, true, accountNumber);
         }
@@ -67,7 +65,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
     @Override
     public void addPublicShare(@Nonnull String providerImageId) throws CloudException, InternalException {
-        APITrace.begin(provider, "Image.addPublicShare");
+        APITrace.begin(getProvider(), "Image.addPublicShare");
         try {
             setPublicShare(providerImageId, true);
         }
@@ -79,14 +77,14 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     @Override
     public ImageCapabilities getCapabilities() {
         if( capabilities == null ) {
-            capabilities = new AMICapabilities(provider);
+            capabilities = new AMICapabilities(getProvider());
         }
         return capabilities;
     }
 
     @Override
     protected MachineImage capture(@Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
+        ProviderContext ctx = getProvider(). getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
@@ -95,7 +93,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     }
     
     private @Nonnull MachineImage captureImage(@Nonnull ProviderContext ctx, @Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
-        APITrace.begin(provider, "captureImage");
+        APITrace.begin(getProvider(), "captureImage");
         try {
             if( task != null ) {
                 task.setStartTime(System.currentTimeMillis());
@@ -107,7 +105,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             while( timeout > System.currentTimeMillis() ) {
                 try {
                     //noinspection ConstantConditions
-                    vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(options.getVirtualMachineId());
+                    vm = getProvider(). getComputeServices().getVirtualMachineSupport().getVirtualMachine(options.getVirtualMachineId());
                     if( vm == null || VmState.TERMINATED.equals(vm.getCurrentState()) ) {
                         break;
                     }
@@ -118,11 +116,11 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                     
                     if( !vm.isPersistent() ) {
                     	if( vm.getPlatform().isWindows() ) {
-                           	String bucket = provider.getStorageServices().getOnlineStorageSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
+                           	String bucket = getProvider(). getStorageServices().getOnlineStorageSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
                             if( bucket == null ) {
                                 throw new CloudException("There is no bucket");
                             }
-                            return captureWindows(provider.getContext(), options, bucket, task);
+                            return captureWindows(getProvider(). getContext(), options, bucket, task);
                         }
                     }
 
@@ -140,7 +138,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             int attempts = 5;
 
             while( attempts > 0 ) {
-                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.CREATE_IMAGE);
+                Map<String,String> parameters = getProvider(). getStandardParameters(getProvider(). getContext(), EC2Method.CREATE_IMAGE);
                 NodeList blocks;
                 EC2Method method;
                 Document doc;
@@ -159,7 +157,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                 parameters.put("InstanceId", options.getVirtualMachineId());
                 parameters.put("Name", options.getName());
                 parameters.put("Description", options.getDescription());
-                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                method = new EC2Method(getProvider(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -215,9 +213,9 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     }
 
     private MachineImage captureWindows(@Nonnull ProviderContext ctx, @Nonnull ImageCreateOptions options, @Nonnull String bucket, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
-        APITrace.begin(provider, "Image.captureWindows");
+        APITrace.begin(getProvider(), "Image.captureWindows");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.BUNDLE_INSTANCE);
+            Map<String,String> parameters = getProvider(). getStandardParameters(getProvider(). getContext(), EC2Method.BUNDLE_INSTANCE);
             StringBuilder uploadPolicy = new StringBuilder();
             NodeList blocks;
             EC2Method method;
@@ -259,8 +257,8 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             parameters.put("Storage.S3.Prefix", options.getName());
             parameters.put("Storage.S3.AWSAccessKeyId", ctx.getAccountNumber());
             parameters.put("Storage.S3.UploadPolicy", base64Policy);
-            parameters.put("Storage.S3.UploadPolicySignature", provider.signUploadPolicy(base64Policy));
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            parameters.put("Storage.S3.UploadPolicySignature", getProvider(). signUploadPolicy(base64Policy));
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -306,14 +304,14 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
     @Override
     public @Nonnull String copyImage(@Nonnull ImageCopyOptions options) throws CloudException, InternalException {
-        APITrace.begin(provider, "copyImage");
+        APITrace.begin(getProvider(), "copyImage");
         AWSCloud targetProvider = null;
         try {
             /* Steps overview:
              * 1. Connect to target region using the same account
              * 2. Invoke EC2 'copyImage' method in the context of target region
              */
-            final ProviderContext ctx = provider.getContext();
+            final ProviderContext ctx = getProvider(). getContext();
             if( ctx == null ) {
                 throw new CloudException( "Provider context is necessary for this request" );
             }
@@ -342,7 +340,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
             Document doc;
             try {
-                EC2Method method = new EC2Method( targetProvider, targetProvider.getEc2Url(), parameters );
+                EC2Method method = new EC2Method(targetProvider, parameters);
                 doc = method.invoke();
             }
             catch( EC2Exception e ) {
@@ -365,9 +363,9 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     }
 
     private @Nonnull Iterable<MachineImage> executeImageSearch(int pass, boolean forPublic, @Nonnull ImageFilterOptions options) throws CloudException, InternalException {
-        APITrace.begin(provider, "Image.executeImageSearch");
+        APITrace.begin(getProvider(), "Image.executeImageSearch");
         try {
-            final ProviderContext ctx = provider.getContext();
+            final ProviderContext ctx = getProvider(). getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
@@ -384,7 +382,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                     return Collections.emptyList();
                 }
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+            Map<String,String> parameters = getProvider(). getStandardParameters(getProvider(). getContext(), EC2Method.DESCRIBE_IMAGES);
 
             final List<MachineImage> list = new ArrayList<MachineImage>();
 
@@ -406,12 +404,12 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             }
             final ImageFilterOptions finalOptions = fillImageFilterParameters(forPublic, options, parameters);
 
-            EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            EC2Method method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke(
                         new DescribeImagesResponseParser(
-                                provider.getContext().getRegionId(),
-                                (provider.getEC2Provider().isAWS() ? null : provider.getContext().getAccountNumber()),
+                                getProvider(). getContext().getRegionId(),
+                                (getProvider(). getEC2Provider().isAWS() ? null : getProvider(). getContext().getAccountNumber()),
                                 finalOptions,
                                 list));
             }
@@ -428,21 +426,21 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
     @Override
     public @Nullable MachineImage getImage(@Nonnull String providerImageId) throws CloudException, InternalException {
-        APITrace.begin(provider, "Image.getImage");
+        APITrace.begin(getProvider(), "Image.getImage");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider(). getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
             }
-            if( provider.getEC2Provider().isAWS() ) {
-                Map<String,String> parameters = provider.getStandardParameters(ctx, EC2Method.DESCRIBE_IMAGES);
+            if( getProvider(). getEC2Provider().isAWS() ) {
+                Map<String,String> parameters = getProvider(). getStandardParameters(ctx, EC2Method.DESCRIBE_IMAGES);
                 NodeList blocks;
                 EC2Method method;
                 Document doc;
 
                 parameters.put("ImageId", providerImageId);
-                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                method = new EC2Method(getProvider(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -496,7 +494,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 	
     @Override
     public boolean isImageSharedWithPublic(@Nonnull String machineImageId) throws CloudException, InternalException {
-        APITrace.begin(provider, "Image.isImageSharedWithPublic");
+        APITrace.begin(getProvider(), "Image.isImageSharedWithPublic");
         try {
             MachineImage image = getMachineImage(machineImageId);
 
@@ -520,11 +518,11 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     public boolean isSubscribed() throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Image.isSubscribed");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(getContext(), EC2Method.DESCRIBE_IMAGES);
-            if( provider.getEC2Provider().isAWS() ) {
+            Map<String,String> parameters = getProvider(). getStandardParameters(getContext(), EC2Method.DESCRIBE_IMAGES);
+            if( getProvider(). getEC2Provider().isAWS() ) {
                 parameters.put("Owner", getContext().getAccountNumber());
             }
-            EC2Method method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            EC2Method method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
                 return true;
@@ -548,11 +546,11 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     }
 
     public @Nonnull Iterable<ResourceStatus> listImageStatus(final @Nonnull ImageClass cls) throws CloudException, InternalException {
-            provider.hold();
+            getProvider(). hold();
             PopulatorThread<ResourceStatus> populator = new PopulatorThread<ResourceStatus>(new JiteratorPopulator<ResourceStatus>() {
                 @Override
                 public void populate(@Nonnull Jiterator<ResourceStatus> iterator) throws Exception {
-                    APITrace.begin(provider, "Image.listImageStatus");
+                    APITrace.begin(getProvider(), "Image.listImageStatus");
                     try {
                         try {
                             TreeSet<String> ids = new TreeSet<String>();
@@ -568,7 +566,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                             }
                         }
                         finally {
-                            provider.release();
+                            getProvider(). release();
                         }
                     }
                     finally {
@@ -585,13 +583,13 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     private @Nonnull Iterable<ResourceStatus> executeStatusList(int pass, @Nonnull ImageClass cls) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Image.executeStatusList");
         try {
-            ProviderContext ctx = provider.getContext();
+            ProviderContext ctx = getProvider(). getContext();
 
             if( ctx == null ) {
                 throw new CloudException("No context was set for this request");
             }
 
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+            Map<String,String> parameters = getProvider(). getStandardParameters(getProvider(). getContext(), EC2Method.DESCRIBE_IMAGES);
             ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
             EC2Method method;
             NodeList blocks;
@@ -602,7 +600,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             if( pass ==  1 ) {
                 parameters.put("ExecutableBy.1", "self");
             }
-            else if( provider.getEC2Provider().isAWS() ) {
+            else if( getProvider(). getEC2Provider().isAWS() ) {
                 parameters.put("Owner", "self");
             }
 
@@ -615,7 +613,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             }
             parameters.put("Filter.1.Name", "image-type");
             parameters.put("Filter.1.Value", t);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -639,12 +637,12 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                     }
                 }
             }
-            if( provider.getEC2Provider().isAWS() ) {
-                parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+            if( getProvider(). getEC2Provider().isAWS() ) {
+                parameters = getProvider(). getStandardParameters(getProvider(). getContext(), EC2Method.DESCRIBE_IMAGES);
                 parameters.put("ExecutableBy", accountNumber);
                 parameters.put("Filter.1.Name", "image-type");
                 parameters.put("Filter.1.Value", t);
-                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                method = new EC2Method(getProvider(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -729,7 +727,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
         Map<String, String> extraParameters = new HashMap<String, String>();
 
-        AWSCloud.addExtraParameters( extraParameters, provider.getTagFilterParams( options.getTags(), filter ) );
+        AWSCloud.addExtraParameters( extraParameters, getProvider(). getTagFilterParams( options.getTags(), filter ) );
         parameters.putAll(extraParameters);
         String regex = options.getRegex();
 
@@ -789,9 +787,9 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
     /*
 	private void populateImages(@Nonnull ProviderContext ctx, @Nullable String accountNumber, @Nonnull Jiterator<MachineImage> iterator, Map<String,String> extraParameters) throws CloudException, InternalException {
-        APITrace.begin(provider, "populateImages");
+        APITrace.begin(getProvider(), "populateImages");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+            Map<String,String> parameters = getProvider(). getStandardParameters(getProvider(). getContext(), EC2Method.DESCRIBE_IMAGES);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -799,13 +797,13 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             if( accountNumber == null ) {
                 accountNumber = ctx.getAccountNumber();
             }
-            if( provider.getEC2Provider().isAWS() ) {
+            if( getProvider(). getEC2Provider().isAWS() ) {
                 parameters.put("Owner", accountNumber);
             }
 
-            provider.putExtraParameters( parameters, extraParameters );
+            getProvider(). putExtraParameters( parameters, extraParameters );
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -829,11 +827,11 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                     }
                 }
             }
-            if( provider.getEC2Provider().isAWS() ) {
-                parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGES);
+            if( getProvider(). getEC2Provider().isAWS() ) {
+                parameters = getProvider(). getStandardParameters(getProvider(). getContext(), EC2Method.DESCRIBE_IMAGES);
                 parameters.put("ExecutableBy", accountNumber);
-                provider.putExtraParameters( parameters, extraParameters );
-                method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                getProvider(). putExtraParameters( parameters, extraParameters );
+                method = new EC2Method(getProvider(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -867,7 +865,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
     @Override
     public @Nonnull MachineImage registerImageBundle(@Nonnull ImageCreateOptions options) throws CloudException, InternalException {
-        APITrace.begin(provider, "Image.registerImageBundle");
+        APITrace.begin(getProvider(), "Image.registerImageBundle");
         try {
             if( !MachineImageFormat.AWS.equals(options.getBundleFormat()) ) {
                 throw new CloudException("Unsupported bundle format: " + options.getBundleFormat());
@@ -875,13 +873,13 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             if( options.getBundleLocation() == null ) {
                 throw new OperationNotSupportedException("A valid bundle location in object storage was not provided");
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.REGISTER_IMAGE);
+            Map<String,String> parameters = getProvider(). getStandardParameters(getProvider(). getContext(), EC2Method.REGISTER_IMAGE);
             NodeList blocks;
             EC2Method method;
             Document doc;
 
             parameters.put("ImageLocation", options.getBundleLocation());
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -935,13 +933,13 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                 }
             }
 
-            Map<String, String> parameters = provider.getStandardParameters( provider.getContext(), EC2Method.DEREGISTER_IMAGE );
+            Map<String, String> parameters = getProvider(). getStandardParameters( getProvider(). getContext(), EC2Method.DEREGISTER_IMAGE );
             NodeList blocks;
             EC2Method method;
             Document doc;
 
             parameters.put( "ImageId", providerImageId );
-            method = new EC2Method( provider, provider.getEc2Url(), parameters );
+            method = new EC2Method( getProvider(), parameters );
             try {
                 doc = method.invoke();
             } catch ( EC2Exception e ) {
@@ -964,7 +962,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
     @Override
     public void removeAllImageShares(@Nonnull String providerImageId) throws CloudException, InternalException {
-        APITrace.begin(provider, "Image.removeAllImageShares");
+        APITrace.begin(getProvider(), "Image.removeAllImageShares");
         try {
             List<String> shares = sharesAsList(providerImageId);
 
@@ -978,7 +976,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
     @Override
     public void removeImageShare(@Nonnull String providerImageId, @Nonnull String accountNumber) throws CloudException, InternalException {
-        APITrace.begin(provider, "Image.removeImageShare");
+        APITrace.begin(getProvider(), "Image.removeImageShare");
         try {
             setPrivateShare(providerImageId, false, accountNumber);
         }
@@ -989,7 +987,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
     @Override
     public void removePublicShare(@Nonnull String providerImageId) throws CloudException, InternalException {
-        APITrace.begin(provider, "Image.removePublicShare");
+        APITrace.begin(getProvider(), "Image.removePublicShare");
         try {
             setPublicShare(providerImageId, false);
         }
@@ -1008,7 +1006,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         else {
             opts = options;
         }
-        provider.hold();
+        getProvider(). hold();
         PopulatorThread<MachineImage> populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
             @Override
             public void populate(@Nonnull Jiterator<MachineImage> iterator) throws Exception {
@@ -1028,7 +1026,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                         }
                     }
                     finally {
-                        provider.release();
+                        getProvider(). release();
                     }
                 }
                 finally {
@@ -1043,7 +1041,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
     @Override
     public @Nonnull Iterable<MachineImage> searchPublicImages(final @Nonnull ImageFilterOptions options) throws CloudException, InternalException {
-        provider.hold();
+        getProvider(). hold();
         PopulatorThread<MachineImage> populator = new PopulatorThread<MachineImage>(new JiteratorPopulator<MachineImage>() {
             @Override
             public void populate(@Nonnull Jiterator<MachineImage> iterator) throws Exception {
@@ -1058,7 +1056,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                         }
                     }
                     finally {
-                        provider.release();
+                        getProvider(). release();
                     }
                 }
                 finally {
@@ -1094,7 +1092,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             try { Thread.sleep(15000L); }
             catch( InterruptedException ignore ) { }
         }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.MODIFY_IMAGE_ATTRIBUTE);
+        Map<String,String> parameters = getProvider(). getStandardParameters(getProvider(). getContext(), EC2Method.MODIFY_IMAGE_ATTRIBUTE);
         EC2Method method;
         NodeList blocks;
         Document doc;
@@ -1108,7 +1106,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                 parameters.put("LaunchPermission.Remove." + (i+1) + ".UserId", accountIds[i]);
             }
         }
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        method = new EC2Method(getProvider(), parameters);
         try {
             doc = method.invoke();
         }
@@ -1182,7 +1180,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             try { Thread.sleep(15000L); }
             catch( InterruptedException ignore ) { }
         }
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.MODIFY_IMAGE_ATTRIBUTE);
+        Map<String,String> parameters = getProvider(). getStandardParameters(getProvider(). getContext(), EC2Method.MODIFY_IMAGE_ATTRIBUTE);
         EC2Method method;
         NodeList blocks;
         Document doc;
@@ -1194,7 +1192,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         else {
             parameters.put("LaunchPermission.Remove.1.Group", "all");
         }
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        method = new EC2Method(getProvider(), parameters);
         try {
             doc = method.invoke();
         }
@@ -1234,7 +1232,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     }
 
     private @Nonnull List<String> sharesAsList(@Nonnull String forMachineImageId) throws CloudException, InternalException {
-        Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_IMAGE_ATTRIBUTE);
+        Map<String,String> parameters = getProvider(). getStandardParameters(getProvider(). getContext(), EC2Method.DESCRIBE_IMAGE_ATTRIBUTE);
         ArrayList<String> list = new ArrayList<String>();
         EC2Method method;
         NodeList blocks;
@@ -1242,7 +1240,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
         parameters.put("ImageId", forMachineImageId);
         parameters.put("Attribute", "launchPermission");
-        method = new EC2Method(provider, provider.getEc2Url(), parameters);
+        method = new EC2Method(getProvider(), parameters);
         try {
             doc = method.invoke();
         }
@@ -1374,7 +1372,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         if( node == null ) {
             return null;
         }
-        ProviderContext ctx = provider.getContext();
+        ProviderContext ctx = getProvider(). getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
@@ -1422,7 +1420,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         if( node == null ) {
             return null;
         }
-        ProviderContext ctx = provider.getContext();
+        ProviderContext ctx = getProvider(). getContext();
 
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
@@ -1448,6 +1446,8 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         MachineImageType type = null;
         MachineImageFormat storageFormat = null;
         Node tagsNode = null;
+        String virtualizationType = null;
+        String hypervisor = null;
 
         for( int i=0; i<attributes.getLength(); i++ ) {
             Node attribute = attributes.item(i);
@@ -1561,6 +1561,12 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                     }
                 }
             }
+            else if ( "virtualizationType".equals(name) ) {
+                virtualizationType = attribute.getFirstChild().getNodeValue();
+            }
+            else if ( "hypervisor".equals(name) ) {
+                hypervisor = attribute.getFirstChild().getNodeValue();
+            }
             else if ( name.equals("tagSet")) {
                 tagsNode = attribute;
             }
@@ -1648,7 +1654,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                 description = createDescription(imgName, arch, platform);
             }
         }
-        if( !provider.getEC2Provider().isAWS() ) {
+        if( !getProvider(). getEC2Provider().isAWS() ) {
             ownerId = ctx.getAccountNumber();
         }
         MachineImage image = MachineImage.getInstance(ownerId, regionId, amiId, imgClass, state, imgName, description, arch, platform);
@@ -1659,7 +1665,13 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         image.setTag("public", String.valueOf(isPublic)); // for compatibility's sake
         image.setTag("stateReason", reason);
         if( tagsNode != null ) {
-            provider.setTags(tagsNode, image);
+            getProvider().setTags(tagsNode, image);
+        }
+        if( virtualizationType != null ) {
+            image.setTag("virtualizationType", virtualizationType);
+        }
+        if( hypervisor != null ) {
+            image.setTag("hypervisor", hypervisor);
         }
         if( type != null ) {
             image.withType(type);
@@ -1695,7 +1707,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     public void updateTags(@Nonnull String[] imageIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Image.updateTags");
         try {
-            provider.createTags(imageIds, tags);
+            getProvider(). createTags(imageIds, tags);
         }
         finally {
             APITrace.end();
@@ -1711,7 +1723,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     public void removeTags(@Nonnull String[] imageIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Image.removeTags");
         try {
-            provider.removeTags(imageIds, tags);
+            getProvider(). removeTags(imageIds, tags);
         }
         finally {
             APITrace.end();
@@ -1725,13 +1737,13 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                 long failurePoint = -1L;
 
                 while( !task.isComplete() ) {
-                    Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), EC2Method.DESCRIBE_BUNDLE_TASKS);
+                    Map<String,String> parameters = getProvider(). getStandardParameters(getProvider(). getContext(), EC2Method.DESCRIBE_BUNDLE_TASKS);
                     NodeList blocks;
                     EC2Method method;
                     Document doc;
 
                     parameters.put("BundleId", bundleId);
-                    method = new EC2Method(provider, provider.getEc2Url(), parameters);
+                    method = new EC2Method(getProvider(), parameters);
                     try {
                         doc = method.invoke();
                     }

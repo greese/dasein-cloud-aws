@@ -76,7 +76,7 @@ public class Keypairs implements ShellKeySupport {
             Document doc;
 
             parameters.put("KeyName", name);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -136,7 +136,7 @@ public class Keypairs implements ShellKeySupport {
             Document doc;
 
             parameters.put("KeyName", name);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -176,7 +176,7 @@ public class Keypairs implements ShellKeySupport {
             Document doc;
 
             parameters.put("KeyName.1", name);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -225,7 +225,7 @@ public class Keypairs implements ShellKeySupport {
             Document doc;
 
             parameters.put("KeyName.1", name);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -309,7 +309,7 @@ public class Keypairs implements ShellKeySupport {
 
             parameters.put("KeyName", name);
             parameters.put("PublicKeyMaterial", material);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -388,7 +388,7 @@ public class Keypairs implements ShellKeySupport {
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }

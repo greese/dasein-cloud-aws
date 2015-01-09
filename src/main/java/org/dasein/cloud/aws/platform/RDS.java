@@ -57,6 +57,8 @@ import static org.dasein.cloud.platform.DatabaseLicenseModel.*;
  */
 public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
     static private final Logger logger = AWSCloud.getLogger(RDS.class);
+
+    static public final String SERVICE_ID                          = "rds";
     
     static public final String AUTHORIZE_DB_SECURITY_GROUP_INGRESS = "AuthorizeDBSecurityGroupIngress";
     static public final String CREATE_DB_INSTANCE                  = "CreateDBInstance";
@@ -108,22 +110,27 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
         APITrace.begin(getProvider(), "RDBMS.addAccess");
         try {
             Iterator<String> securityGroups = getSecurityGroups(providerDatabaseId).iterator();
-            String id;
+            String groupName;
 
             if( !securityGroups.hasNext() ) {
-                id = createSecurityGroup(providerDatabaseId);
-                setSecurityGroup(providerDatabaseId, id);
+                groupName = createSecurityGroup(providerDatabaseId);
+                setSecurityGroup(providerDatabaseId, groupName);
             }
             else {
-                id = securityGroups.next();
+                groupName = securityGroups.next();
             }
 
             Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), AUTHORIZE_DB_SECURITY_GROUP_INGRESS);
             EC2Method method;
-
-            parameters.put("DBSecurityGroupName", id);
+            String ec2Type = getProvider().getDataCenterServices().isRegionEC2VPC(getProvider().getContext().getRegionId());
+            if(ec2Type.equals(AWSCloud.PLATFORM_EC2)) {
+                parameters.put("DBSecurityGroupName", groupName);
+            }
+            else {
+                parameters.put("EC2SecurityGroupId", groupName);
+            }
             parameters.put("CIDRIP", sourceCidr);
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -140,31 +147,36 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             APITrace.end();
         }
     }
-    
-    private String getWindowString(TimeWindow window) {
+
+    /**
+     * Formats a time window as hh24:mi-hh24:mi or ddd:hh24:mi-ddd:hh24:mi
+     * @param window
+     * @param includeDays must be false for PreferredBackupWindow parameter
+     * @return formatted time window text representation
+     */
+    private String getWindowString(TimeWindow window, boolean includeDays) {
         StringBuilder str = new StringBuilder();
-    
-        if( window.getStartDayOfWeek() == null ) {
-            str.append("*");
+        if( includeDays ) {
+            if( window.getStartDayOfWeek() == null ) {
+                str.append("*");
+            }
+            else {
+                str.append(window.getStartDayOfWeek().getShortString());
+            }
+            str.append(":");
         }
-        else {
-            str.append(window.getStartDayOfWeek().getShortString());
-        }
-        str.append(":");
-        str.append(String.valueOf(window.getStartHour()));
-        str.append(":");
-        str.append(String.valueOf(window.getStartMinute()));
+        str.append(String.format("%02d:%02d", window.getStartHour(), window.getStartMinute()));
         str.append("-");
-        if( window.getEndDayOfWeek() == null ) {
-            str.append("*");
+        if( includeDays ) {
+            if( window.getEndDayOfWeek() == null ) {
+                str.append("*");
+            }
+            else {
+                str.append(window.getEndDayOfWeek().getShortString());
+            }
+            str.append(":");
         }
-        else {
-            str.append(window.getEndDayOfWeek().getShortString());
-        }
-        str.append(":");
-        str.append(String.valueOf(window.getEndHour()));
-        str.append(":");
-        str.append(String.valueOf(window.getEndMinute()));        
+        str.append(String.format("%02d:%02d", window.getEndHour(), window.getEndMinute()));
         return str.toString();
     }
     
@@ -181,12 +193,12 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 parameters.put("DBParameterGroupName", configurationId);
             }
             if( preferredMaintenanceWindow != null ) {
-                String window = getWindowString(preferredMaintenanceWindow);
+                String window = getWindowString(preferredMaintenanceWindow, true);
 
                 parameters.put("PreferredMaintenanceWindow", window);
             }
             if( preferredBackupWindow != null ) {
-                String window = getWindowString(preferredBackupWindow);
+                String window = getWindowString(preferredBackupWindow, false);
 
                 parameters.put("PreferredBackupWindow", window);
             }
@@ -202,7 +214,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             if( snapshotRetentionInDays > -1 ) {
                 parameters.put("BackupRetentionPeriod", String.valueOf(snapshotRetentionInDays));
             }
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -214,16 +226,23 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             APITrace.end();
         }
     }
-    
-    private String createSecurityGroup(String id) throws CloudException, InternalException {
+
+    /**
+     *
+     * @param groupName
+     * @return groupName if successful
+     * @throws CloudException
+     * @throws InternalException
+     */
+    private String createSecurityGroup(String groupName) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "RDBMS.createSecurityGroup");
         try {
             Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), CREATE_DB_SECURITY_GROUP);
             EC2Method method;
 
-            parameters.put("DBSecurityGroupName", id);
-            parameters.put("DBSecurityGroupDescription", "Auto-generated DB security group for " + id);
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            parameters.put("DBSecurityGroupName", groupName);
+            parameters.put("DBSecurityGroupDescription", "Auto-generated DB security group for " + groupName);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -231,11 +250,11 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 String code = e.getCode();
 
                 if( code != null && code.equals("DBSecurityGroupAlreadyExists") ) {
-                    return id;
+                    return groupName;
                 }
                 throw new CloudException(e);
             }
-            return id;
+            return groupName;
         }
         finally {
             APITrace.end();
@@ -303,7 +322,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 // set az if not empty, otherwise the region's default is used
                 parameters.put("AvailabilityZone", product.getProviderDataCenterId());
             }
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -332,7 +351,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
 
             parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), RESTORE_DB_INSTANCE_TO_TIME);
             parameters.put("SourceDBInstanceIdentifier", providerDatabaseId);
-            parameters.put("UseLatestRestorableTime", "True");
+            parameters.put("UseLatestRestorableTime", "true"); // booleans should be lowercase, as per xsd1.1
             parameters.put("TargetDBInstanceIdentifier", id);
             parameters.put("DBInstanceClass", productSize);
             parameters.put("Port", String.valueOf(hostPort));
@@ -343,7 +362,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 parameters.put("AvailabilityZone", providerDataCenterId);
                 parameters.put("MultiAZ", "false");
             }
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -382,7 +401,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 parameters.put("AvailabilityZone", providerDataCenterId);
                 parameters.put("MultiAZ", "false");
             }
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -422,7 +441,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 parameters.put("AvailabilityZone", providerDataCenterId);
                 parameters.put("MultiAZ", "false");
             }
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -529,7 +548,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
 
                 parameters.put("Engine", getEngineString(forEngine));
                 parameters.put("DefaultOnly", "true");
-                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, getProvider(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -570,7 +589,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             APITrace.end();
         }
     }
-    
+
     @Override
     public Iterable<String> getSupportedVersions(DatabaseEngine forEngine) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "RDBMS.getSupportedVersions");
@@ -587,7 +606,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                     Document doc;
 
                     parameters.put("Engine", getEngineString(forEngine));
-                    method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+                    method = new EC2Method(SERVICE_ID, getProvider(), parameters);
                     try {
                         doc = method.invoke();
                     }
@@ -643,50 +662,44 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
         }
     }
     
-    private volatile List<DatabaseProduct> databaseProducts = null;
-
     @Override
     public Iterable<DatabaseProduct> listDatabaseProducts( DatabaseEngine engine ) throws CloudException, InternalException {
-        List<DatabaseProduct> products = databaseProducts;
+        List<DatabaseProduct> products = new ArrayList<DatabaseProduct>();
+        DatabaseProvider databaseProvider = DatabaseProvider.fromFile("/org/dasein/cloud/aws/dbproducts.json", "AWS");
 
-        if( products == null ) {
-            products = new ArrayList<DatabaseProduct>();
-            DatabaseProvider databaseProvider = DatabaseProvider.fromFile("/org/dasein/cloud/aws/dbproducts.json", "AWS");
+        org.dasein.cloud.aws.model.DatabaseEngine databaseEngine = databaseProvider.findEngine(getEngineString(engine));
 
-            org.dasein.cloud.aws.model.DatabaseEngine databaseEngine = databaseProvider.findEngine(getEngineString(engine));
-
-            if( databaseEngine != null ) {
-                for ( DatabaseRegion region : databaseEngine.getRegions() ) {
-                    if( region.getName().equalsIgnoreCase( getProvider().getContext().getRegionId()) ) {
-                        for( org.dasein.cloud.aws.model.DatabaseProduct databaseProduct : region.getProducts() ) {
-                            DatabaseProduct product = new DatabaseProduct(databaseProduct.getName());
-                            product.setEngine(engine);
-                            product.setHighAvailability(databaseProduct.isHighAvailability());
-                            product.setStandardHourlyRate(databaseProduct.getHourlyRate());
-                            product.setStandardIoRate(databaseProduct.getIoRate());
-                            product.setStandardStorageRate(databaseProduct.getStorageRate());
-                            DatabaseLicenseModel lic = GENERAL_PUBLIC_LICENSE;
-                            if( "included".equalsIgnoreCase(databaseProduct.getLicense())) {
-                                lic = LICENSE_INCLUDED;
-                            } else if( "byol".equalsIgnoreCase(databaseProduct.getLicense())) {
-                                lic = BRING_YOUR_OWN_LICENSE;
-                            } else if( "postgres".equalsIgnoreCase(databaseProduct.getLicense())) {
-                                lic = POSTGRESQL_LICENSE;
-                            }
-                            product.setLicenseModel(lic);
-                            product.setCurrency(databaseProduct.getCurrency());
-                            DatabaseProductDefinition def = databaseProvider.findProductDefinition(databaseProduct.getName());
-                            if( def != null) {
-                                product.setName(String.format("%.2fGB RAM, %d CPU, %s Network Performance", def.getMemory(), def.getvCpus(), def.getNetworkPerformance()));
-                            }
-                            product.setStorageInGigabytes(databaseProduct.getMinStorage());
-                            products.add(product);
+        if( databaseEngine != null ) {
+            for ( DatabaseRegion region : databaseEngine.getRegions() ) {
+                if( region.getName().equalsIgnoreCase( getProvider().getContext().getRegionId()) ) {
+                    for( org.dasein.cloud.aws.model.DatabaseProduct databaseProduct : region.getProducts() ) {
+                        DatabaseProduct product = new DatabaseProduct(databaseProduct.getName());
+                        product.setEngine(engine);
+                        product.setHighAvailability(databaseProduct.isHighAvailability());
+                        product.setStandardHourlyRate(databaseProduct.getHourlyRate());
+                        product.setStandardIoRate(databaseProduct.getIoRate());
+                        product.setStandardStorageRate(databaseProduct.getStorageRate());
+                        DatabaseLicenseModel lic = GENERAL_PUBLIC_LICENSE;
+                        if( "included".equalsIgnoreCase(databaseProduct.getLicense())) {
+                            lic = LICENSE_INCLUDED;
+                        } else if( "byol".equalsIgnoreCase(databaseProduct.getLicense())) {
+                            lic = BRING_YOUR_OWN_LICENSE;
+                        } else if( "postgres".equalsIgnoreCase(databaseProduct.getLicense())) {
+                            lic = POSTGRESQL_LICENSE;
                         }
+                        product.setLicenseModel(lic);
+                        product.setCurrency(databaseProduct.getCurrency());
+                        DatabaseProductDefinition def = databaseProvider.findProductDefinition(databaseProduct.getName());
+                        if( def != null) {
+                            product.setName(String.format("%.2fGB RAM, %d CPU, %s Network Performance", def.getMemory(), def.getvCpus(), def.getNetworkPerformance()));
+                        }
+                        product.setStorageInGigabytes(databaseProduct.getMinStorage());
+                        products.add(product);
                     }
                 }
             }
         }
-        return databaseProducts = products;
+        return products;
     }
 
 
@@ -916,7 +929,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
         APITrace.begin(getProvider(), "RDBMS.isSubscribed");
         try {
             Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DESCRIBE_DB_INSTANCES);
-            EC2Method method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            EC2Method method = new EC2Method(SERVICE_ID, getProvider(), parameters);
 
             try {
                 method.invoke();
@@ -1046,7 +1059,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 if( marker != null ) {
                     parameters.put("Marker", marker);
                 }
-                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, getProvider(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -1113,7 +1126,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 if( targetId != null ) {
                     parameters.put("DBInstanceIdentifier", targetId);
                 }
-                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, getProvider(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -1236,7 +1249,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             Document doc;
 
             parameters.put("DBSecurityGroupName", securityGroupId);
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -1314,7 +1327,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 if( targetId != null ) {
                     parameters.put("DBParameterGroupName", targetId);
                 }
-                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, getProvider(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -1380,7 +1393,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 if( marker != null ) {
                     parameters.put("Marker", marker);
                 }
-                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, getProvider(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -1433,7 +1446,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             Document doc;
 
             parameters.put("DBInstanceIdentifier", providerDatabaseId);
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -1514,7 +1527,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 if( databaseId != null ) {
                     parameters.put("DBInstanceIdentifier", databaseId);
                 }
-                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, getProvider(), parameters);
                 try {
                     doc = method.invoke();
                 }
@@ -1570,7 +1583,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             EC2Method method;
 
             parameters.put("DBParameterGroupName", providerConfigurationId);
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -1590,7 +1603,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             EC2Method method;
 
             parameters.put("DBSecurityGroupName", securityGroupId);
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -1628,7 +1641,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
 
             parameters.put("DBInstanceIdentifier", providerDatabaseId);
             parameters.put("FinalDBSnapshotIdentifier", providerDatabaseId + "-FINAL-" + System.currentTimeMillis());
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -1636,7 +1649,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), DELETE_DB_INSTANCE);
                 parameters.put("DBInstanceIdentifier", providerDatabaseId);
                 parameters.put("SkipFinalSnapshot", "true");
-                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, getProvider(), parameters);
                 try {
                     method.invoke();
                 }
@@ -1672,7 +1685,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             EC2Method method;
 
             parameters.put("DBSnapshotIdentifier", providerSnapshotId);
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -1705,7 +1718,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                     parameters.put("Parameters.member." + i + ".ApplyMethod", "pending-reboot");
                 }
             }
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -1725,7 +1738,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             EC2Method method;
 
             parameters.put("DBInstanceIdentifier", providerDatabaseId);
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -1749,7 +1762,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
 
                 parameters.put("DBSecurityGroupName", securityGroupId);
                 parameters.put("CIDRIP", sourceCidr);
-                method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+                method = new EC2Method(SERVICE_ID, getProvider(), parameters);
                 try {
                     method.invoke();
                 }
@@ -1783,7 +1796,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                     break;
                 }
             }
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -1813,8 +1826,14 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
 
             parameters.put("DBInstanceIdentifier", id);
             parameters.put("ApplyImmediately", "true");
-            parameters.put("DBSecurityGroups.member.1", securityGroupId);
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            String ec2Type = getProvider().getDataCenterServices().isRegionEC2VPC(getProvider().getContext().getRegionId());
+            if(ec2Type.equals(AWSCloud.PLATFORM_EC2)){
+                parameters.put("DBSecurityGroups.member.1", securityGroupId);
+            }
+            else {
+                parameters.put("VpcSecurityGroupIds.member.1", securityGroupId);
+            }
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -1836,7 +1855,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
 
             parameters.put("DBSnapshotIdentifier", id);
             parameters.put("DBInstanceIdentifier", providerDatabaseId);
-            method = new EC2Method(getProvider(), getRDSUrl(), parameters);
+            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -2010,7 +2029,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                         if( parts.length == 2 ) {
                             TimeWindow window = getTimeWindow(parts[0], parts[1]);
 
-                            db.setSnapshotWindow(window);
+                            db.setBackupWindow(window);
                         }
                     }
                 }

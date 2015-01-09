@@ -92,7 +92,7 @@ public class RegionsAndZones extends AbstractDataCenterServices<AWSCloud> {
             Document doc;
 
             parameters.put("ZoneName", zoneId);
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -172,7 +172,7 @@ public class RegionsAndZones extends AbstractDataCenterServices<AWSCloud> {
             Document doc;
 
             parameters.put("RegionName.1", regionId);
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -241,7 +241,7 @@ public class RegionsAndZones extends AbstractDataCenterServices<AWSCloud> {
                 throw new CloudException("No such region: " + regionId);
             }
             Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), DESCRIBE_AVAILABILITY_ZONES);
-            EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(regionId), parameters);
+            EC2Method method = new EC2Method(getProvider(), parameters);
             NodeList blocks;
             Document doc;
 
@@ -296,7 +296,7 @@ public class RegionsAndZones extends AbstractDataCenterServices<AWSCloud> {
             regions = new ArrayList<Region>();
 
             Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), DESCRIBE_REGIONS);
-            EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            EC2Method method = new EC2Method(getProvider(), parameters);
             NodeList blocks, nodes;
             Document doc;
 
@@ -316,10 +316,10 @@ public class RegionsAndZones extends AbstractDataCenterServices<AWSCloud> {
 
                     if( region.getNodeName().equals("item") ) {
                         Region r = toRegion(nodes.item(j));
-                        if( r.getName().startsWith("eu-central") ) {
-                            // FIXME(stas): ignore new central european regions until we transitioned to v4 signatures
-                            continue;
-                        }
+//                        if( r.getName().startsWith("eu-central") ) {
+//                            // FIXME(stas): ignore new central european regions until we transitioned to v4 signatures
+//                            continue;
+//                        }
                         if( getProvider().getEC2Provider().isEucalyptus() ) {
                             if( r.getProviderRegionId().equalsIgnoreCase("eucalyptus") ) {
                                 regions.add(r);
@@ -343,8 +343,8 @@ public class RegionsAndZones extends AbstractDataCenterServices<AWSCloud> {
         APITrace.begin(getProvider(), "DC.mapRegions");
         try {
             Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), DESCRIBE_REGIONS);
-            HashMap<String,String> results = new HashMap<String,String>();
-            EC2Method method = new EC2Method(getProvider(), url, parameters);
+            Map<String,String> results = new HashMap<String,String>();
+            EC2Method method = new EC2Method(getProvider(), parameters);
             NodeList blocks, regions;
             Document doc;
 
@@ -404,7 +404,7 @@ public class RegionsAndZones extends AbstractDataCenterServices<AWSCloud> {
             for(Region r : regions){
                 Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.DESCRIBE_ACCOUNT_ATTRIBUTES);
                 parameters.put("AttributeName.1", "supported-platforms");
-                EC2Method method = new EC2Method(getProvider(), getProvider().getEc2Url(r.getProviderRegionId()), parameters);
+                EC2Method method = new EC2Method(EC2Method.SERVICE_ID, r.getProviderRegionId(), getProvider(), parameters);
                 try{
                     Document doc = method.invoke();
 

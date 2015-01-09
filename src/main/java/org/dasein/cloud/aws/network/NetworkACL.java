@@ -74,7 +74,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport<AWSCloud> {
 
             parameters.put("AssociationId", currentAssociation);
             parameters.put("NetworkAclId", firewallId);
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -140,7 +140,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport<AWSCloud> {
                 parameters.put("Icmp.Code", "-1");
                 parameters.put("Icmp.Type", "-1");
             }
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -178,7 +178,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport<AWSCloud> {
             else {
                 throw new CloudException("You must specify a VLAN with which to associate your network ACL");
             }
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -250,7 +250,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport<AWSCloud> {
 
             parameters.put("Filter.1.Name", "association.subnet-id");
             parameters.put("Filter.1.Value.1", subnetId);
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -305,7 +305,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport<AWSCloud> {
             Document doc;
 
             parameters.put("NetworkAclId.1", firewallId);
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -376,7 +376,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport<AWSCloud> {
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -417,7 +417,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport<AWSCloud> {
             Document doc;
 
             parameters.put("NetworkAclId.1", firewallId);
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -548,7 +548,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport<AWSCloud> {
                     Document doc;
 
                     parameters.put("NetworkAclId", id);
-                    method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+                    method = new EC2Method(getProvider(), parameters);
                     try {
                         doc = method.invoke();
                     }
@@ -602,7 +602,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport<AWSCloud> {
             parameters.put("NetworkAclId", parts[0]);
             parameters.put("Egress", String.valueOf(parts[1].equalsIgnoreCase(Direction.EGRESS.name())));
             parameters.put("RuleNumber", parts[2]);
-            method = new EC2Method(getProvider(), getProvider().getEc2Url(), parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }

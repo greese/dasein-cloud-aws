@@ -67,7 +67,7 @@ public class VPCGateway implements VPNSupport {
 
             parameters.put("VpcId", providerVlanId);
             parameters.put("VpnGatewayId", providerVpnId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 method.invoke();
             }
@@ -109,7 +109,7 @@ public class VPCGateway implements VPNSupport {
             parameters.put("Type", getAWSProtocol(vpn.getProtocol()));
             parameters.put("CustomerGatewayId", gateway.getProviderVpnGatewayId());
             parameters.put("VpnGatewayId", vpn.getProviderVpnId());
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 method.invoke();
             }
@@ -139,7 +139,7 @@ public class VPCGateway implements VPNSupport {
             Document doc;
 
             parameters.put("Type", getAWSProtocol(protocol));
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -182,7 +182,7 @@ public class VPCGateway implements VPNSupport {
             parameters.put("Type", getAWSProtocol(protocol));
             parameters.put("IpAddress", endpoint);
             parameters.put("BgpAsn", bgpAsn);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -218,7 +218,7 @@ public class VPCGateway implements VPNSupport {
             EC2Method method;
 
             parameters.put("VpnGatewayId", providerVpnId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 method.invoke();
             }
@@ -240,7 +240,7 @@ public class VPCGateway implements VPNSupport {
             EC2Method method;
 
             parameters.put("CustomerGatewayId", gatewayId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 method.invoke();
             }
@@ -268,7 +268,7 @@ public class VPCGateway implements VPNSupport {
 
             parameters.put("VpcId", providerVlanId);
             parameters.put("VpnGatewayId", providerVpnId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 method.invoke();
             }
@@ -317,7 +317,7 @@ public class VPCGateway implements VPNSupport {
             EC2Method method;
 
             parameters.put("VpnConnectionId", connectionId);
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 method.invoke();
             }
@@ -389,7 +389,7 @@ public class VPCGateway implements VPNSupport {
             Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_CUSTOMER_GATEWAYS);
             EC2Method method;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 method.invoke();
                 return true;
@@ -439,7 +439,7 @@ public class VPCGateway implements VPNSupport {
                 parameters.put("Filter.1.Name", "vpn-gateway-id");
                 parameters.put("Filter.1.Value.1", vpnId);
             }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -487,7 +487,7 @@ public class VPCGateway implements VPNSupport {
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -545,7 +545,7 @@ public class VPCGateway implements VPNSupport {
                 parameters.put("Filter.1.Name", "bgp-asn");
                 parameters.put("Filter.1.Value.1", bgpAsn);
             }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -607,7 +607,7 @@ public class VPCGateway implements VPNSupport {
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }
@@ -660,7 +660,7 @@ public class VPCGateway implements VPNSupport {
             if( vpnId != null ) {
                 parameters.put("VpnGatewayId.1", vpnId);
             }
-            method = new EC2Method(provider, provider.getEc2Url(), parameters);
+            method = new EC2Method(provider, parameters);
             try {
                 doc = method.invoke();
             }

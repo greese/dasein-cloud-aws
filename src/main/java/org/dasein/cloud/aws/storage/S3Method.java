@@ -24,8 +24,10 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.FileEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -53,10 +55,13 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Pattern;
 
+import static org.apache.http.entity.ContentType.APPLICATION_XML;
+
 public class S3Method {
     static private final Logger logger = Logger.getLogger(S3Method.class);
 
     static public final String S3_PREFIX     = "s3:";
+    public static final String SERVICE_ID    = "s3";
 
     static public @Nonnull ServiceAction[] asS3ServiceAction(@Nonnull String action) {
         if( action.equals("CreateBucket") ) {
@@ -230,7 +235,7 @@ public class S3Method {
 
                     if( bucket != null && validDomainName ) {
                         url.append(bucket);
-                        if (regionId != null && !"us-east-1".equals(regionId)) {
+                        if (regionId != null && !regionId.isEmpty() && !"us-east-1".equals(regionId)) {
                             url.append(".s3-");
                             url.append(regionId);
                             url.append(".amazonaws.com/");
@@ -239,9 +244,8 @@ public class S3Method {
                             url.append(".s3.amazonaws.com/");
                         }
                     }
-                    else if ( bucket != null && !validDomainName) {
-
-                        if (regionId != null && !"us-east-1".equals(regionId)) {
+                    else {
+                        if (regionId != null && !regionId.isEmpty() && !"us-east-1".equals(regionId)) {
                             url.append("s3-");
                             url.append(regionId);
                             url.append(".amazonaws.com/");
@@ -249,9 +253,6 @@ public class S3Method {
                         else {
                             url.append("s3.amazonaws.com/");
                         }
-                    }
-                    else {
-                        url.append("s3.amazonaws.com/");
                     }
                     if ( bucket != null && !validDomainName) {
                         url.append(bucket);
@@ -347,51 +348,85 @@ public class S3Method {
                         url.append(AWSCloud.encode(key, false));
                     }
                 }
-            }            
+            }
 
             if( provider.getEC2Provider().isStorage() && provider.getProviderName().equalsIgnoreCase("Google") ) {
                 headers.put(AWSCloud.P_GOOG_DATE, getDate());
             }
             else {
-                headers.put(AWSCloud.P_AWS_DATE, getDate());
+                headers.put(AWSCloud.P_AWS_DATE, provider.getV4HeaderDate(null));
             }
-            method = action.getMethod(url.toString().replace(" ", "%20"));
+            if( contentType == null && body != null ) {
+                contentType = "application/xml";
+                headers.put("Content-Type", contentType);
+            }
+            else if( contentType != null ) {
+                headers.put("Content-Type", contentType);
+            }
+
+            method = action.getMethod(url.toString());
+            String host = method.getURI().getHost();
+            headers.put("host", host);
+
             if( headers != null ) {
                 for( Map.Entry<String, String> entry : headers.entrySet() ) {
                     method.addHeader(entry.getKey(), entry.getValue());
                 }
             }
-            if( contentType == null && body != null ) {
-                contentType = "application/xml";
-                method.addHeader("Content-Type", contentType);
-            }
-            else if( contentType != null ) {
-                method.addHeader("Content-Type", contentType);
-            }
-            try {
-                String hash = null;
-                String signature;
-                
-                signature = provider.signS3(new String(provider.getContext().getAccessPublic(), "utf-8"), provider.getContext().getAccessPrivate(), method.getMethod(), hash, contentType, headers, bucket, object);
-                method.addHeader(AWSCloud.P_CFAUTH, signature);
-            } 
-            catch (UnsupportedEncodingException e) {
-                logger.error(e);
-            }
+
             if( body != null ) {
-                try {
-                    ((HttpEntityEnclosingRequestBase)method).setEntity(new StringEntity(body, "application/xml", "utf-8"));
-                }
-                catch( UnsupportedEncodingException e ) {
-                    throw new InternalException(e);
-                }
+                ((HttpEntityEnclosingRequestBase)method).setEntity(new StringEntity(body, APPLICATION_XML));
             }
             else if( uploadFile != null ) {
                 ((HttpEntityEnclosingRequestBase)method).setEntity(new FileEntity(uploadFile, contentType));
             }
-            attempts++;
-            client = provider.getClient(body == null && uploadFile == null);
-            
+            try {
+                String hash = null;
+                if( method instanceof HttpEntityEnclosingRequestBase ) {
+                    try {
+                        hash = provider.getRequestBodyHash(EntityUtils.toString(((HttpEntityEnclosingRequestBase)method).getEntity()));
+                    }
+                    catch( IOException e ) {
+                        throw new InternalException(e);
+                    }
+                }
+                else {
+                    hash = provider.getRequestBodyHash("");
+                }
+
+                String signature;
+                if( provider.getEC2Provider().isAWS() ) {
+                    // Sign v4 for AWS
+                    signature = provider.getV4Authorization(
+                            new String(provider.getAccessKey()[0]),
+                            new String(provider.getAccessKey()[1]),
+                            method.getMethod(),
+                            url.toString(),
+                            SERVICE_ID,
+                            headers,
+                            hash);
+                    if( hash != null ) {
+                        method.addHeader(AWSCloud.P_AWS_CONTENT_SHA256, hash);
+                    }
+                }
+                else {
+                    // Eucalyptus et al use v2
+                    signature = provider.signS3(
+                            new String(provider.getAccessKey()[0], "utf-8"),
+                            provider.getAccessKey()[1],
+                            method.getMethod(),
+                            null,
+                            contentType,
+                            headers,
+                            bucket,
+                            object);
+                }
+                method.addHeader(AWSCloud.P_CFAUTH, signature);
+            }
+            catch (UnsupportedEncodingException e) {
+                logger.error(e);
+            }
+
             if( wire.isDebugEnabled() ) {
                 wire.debug("[" + url.toString() + "]");
                 wire.debug(method.getRequestLine().toString());
@@ -403,13 +438,17 @@ public class S3Method {
                     try { wire.debug(EntityUtils.toString(((HttpEntityEnclosingRequestBase)method).getEntity())); }
                     catch( IOException ignore ) { }
 
-                    wire.debug("");                    
+                    wire.debug("");
                 }
                 else if( uploadFile != null ) {
                     wire.debug("-- file upload --");
                     wire.debug("");
                 }
             }
+
+            attempts++;
+            client = provider.getClient(body == null && uploadFile == null);
+            
             S3Response response = new S3Response();
             HttpResponse httpResponse;
             

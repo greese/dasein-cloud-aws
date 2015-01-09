@@ -33,6 +33,8 @@ import java.util.Map;
 public class ELBMethod extends EC2Method {
     static public final String ELB_PREFIX = "elasticloadbalancing:";
 
+    static public final String SERVICE_ID = "elasticloadbalancing";
+
     static public final String CREATE_LOAD_BALANCER       = "CreateLoadBalancer";
     static public final String DELETE_LOAD_BALANCER       = "DeleteLoadBalancer";
     static public final String DEREGISTER_INSTANCES       = "DeregisterInstancesFromLoadBalancer";
@@ -101,7 +103,7 @@ public class ELBMethod extends EC2Method {
     }
 
     public ELBMethod(@Nonnull AWSCloud provider, @Nonnull ProviderContext ctx, @Nonnull Map<String, String> parameters) throws CloudException, InternalException {
-        super(provider, "https://elasticloadbalancing." + ctx.getRegionId() + ".amazonaws.com", parameters);
+        super(SERVICE_ID, provider, parameters);
     }
 
 }
