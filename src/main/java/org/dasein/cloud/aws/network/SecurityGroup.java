@@ -214,7 +214,9 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
                 blocks = doc.getElementsByTagName("groupId");
                 if( blocks.getLength() > 0 ) {
                     Map<String, String> metaData = options.getMetaData();
-
+                    metaData.put("Name", options.getName());
+                    metaData.put("Description", options.getDescription());
+                    
                     String id = blocks.item(0).getFirstChild().getNodeValue().trim();
 
                     if( !metaData.isEmpty() ) {
