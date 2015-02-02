@@ -214,7 +214,9 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
                 blocks = doc.getElementsByTagName("groupId");
                 if( blocks.getLength() > 0 ) {
                     Map<String, String> metaData = options.getMetaData();
-
+                    metaData.put("Name", options.getName());
+                    metaData.put("Description", options.getDescription());
+                    
                     String id = blocks.item(0).getFirstChild().getNodeValue().trim();
 
                     if( !metaData.isEmpty() ) {
@@ -635,7 +637,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
 
     @Override
     public void updateTags(@Nonnull String firewallId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        removeTags(new String[]{firewallId}, tags);
+    	updateTags(new String[]{firewallId}, tags);
     }
 
     @Override
