@@ -407,7 +407,7 @@ public class VPC extends AbstractVLANSupport<AWSCloud> {
             t.setKey("Description");
             t.setValue(description);
             tags[1] = t;
-            getProvider().createTags(id, tags);
+            getProvider().createTags(EC2Method.SERVICE_ID, id, tags);
             return id;
         } finally {
             APITrace.end();
@@ -466,7 +466,7 @@ public class VPC extends AbstractVLANSupport<AWSCloud> {
                     t.setKey("Description");
                     t.setValue(options.getDescription());
                     tags[1] = t;
-                    getProvider().createTags(nic.getProviderNetworkInterfaceId(), tags);
+                    getProvider().createTags(EC2Method.SERVICE_ID, nic.getProviderNetworkInterfaceId(), tags);
                     nic.setName(options.getName());
                     nic.setDescription(options.getDescription());
                     return nic;
@@ -788,7 +788,7 @@ public class VPC extends AbstractVLANSupport<AWSCloud> {
                         t.setValue(entry.getValue().toString());
                         tags[j++] = t;
                     }
-                    getProvider().createTags(subnet.getProviderSubnetId(), tags);
+                    getProvider().createTags(EC2Method.SERVICE_ID, subnet.getProviderSubnetId(), tags);
                     subnet.setName(options.getDescription());
                     subnet.setDescription(options.getDescription());
                     return subnet;
@@ -856,7 +856,7 @@ public class VPC extends AbstractVLANSupport<AWSCloud> {
                     t.setKey("Description");
                     t.setValue(options.getDescription());
                     tags[1] = t;
-                    getProvider().createTags(vlan.getProviderVlanId(), tags);
+                    getProvider().createTags(EC2Method.SERVICE_ID, vlan.getProviderVlanId(), tags);
                     vlan.setName(options.getName());
                     vlan.setDescription(options.getDescription());
                     return vlan;
@@ -2099,7 +2099,7 @@ public class VPC extends AbstractVLANSupport<AWSCloud> {
     public void removeInternetGatewayTags(@Nonnull String internetGatewayId, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "InternetGateway.removeTags");
         try {
-            getProvider().removeTags(internetGatewayId, tags);
+            getProvider().removeTags(EC2Method.SERVICE_ID, internetGatewayId, tags);
         } finally {
             APITrace.end();
         }
@@ -2109,7 +2109,7 @@ public class VPC extends AbstractVLANSupport<AWSCloud> {
     public void updateInternetGatewayTags(@Nonnull String internetGatewayId, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "InternetGateway.createTags");
         try {
-            getProvider().createTags(internetGatewayId, tags);
+            getProvider().createTags(EC2Method.SERVICE_ID, internetGatewayId, tags);
         } finally {
             APITrace.end();
         }
@@ -2189,7 +2189,7 @@ public class VPC extends AbstractVLANSupport<AWSCloud> {
     public void removeRoutingTableTags(@Nonnull String routingTableId, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "RoutingTable.removeTags");
         try {
-            getProvider().removeTags(routingTableId, tags);
+            getProvider().removeTags(EC2Method.SERVICE_ID, routingTableId, tags);
         } finally {
             APITrace.end();
         }
@@ -2199,7 +2199,7 @@ public class VPC extends AbstractVLANSupport<AWSCloud> {
     public void updateRoutingTableTags(@Nonnull String routingTableId, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "RoutingTable.createTags");
         try {
-            getProvider().createTags(routingTableId, tags);
+            getProvider().createTags(EC2Method.SERVICE_ID, routingTableId, tags);
         } finally {
             APITrace.end();
         }
@@ -2846,41 +2846,41 @@ public class VPC extends AbstractVLANSupport<AWSCloud> {
 
     @Override
     public void updateSubnetTags(@Nonnull String subnetId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ( (AWSCloud) getProvider() ).createTags(subnetId, tags);
+        ( (AWSCloud) getProvider() ).createTags(EC2Method.SERVICE_ID, subnetId, tags);
     }
 
     @Override
     public void updateSubnetTags(@Nonnull String[] subnetIds, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ( (AWSCloud) getProvider() ).createTags(subnetIds, tags);
+        ( (AWSCloud) getProvider() ).createTags(EC2Method.SERVICE_ID, subnetIds, tags);
     }
 
     @Override
     public void updateVLANTags(@Nonnull String vlanId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ( (AWSCloud) getProvider() ).createTags(vlanId, tags);
+        ( (AWSCloud) getProvider() ).createTags(EC2Method.SERVICE_ID, vlanId, tags);
     }
 
     @Override
     public void updateVLANTags(@Nonnull String[] vlanIds, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ( (AWSCloud) getProvider() ).createTags(vlanIds, tags);
+        ( (AWSCloud) getProvider() ).createTags(EC2Method.SERVICE_ID, vlanIds, tags);
     }
 
     @Override
     public void removeSubnetTags(@Nonnull String subnetId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ( (AWSCloud) getProvider() ).removeTags(subnetId, tags);
+        ( (AWSCloud) getProvider() ).removeTags(EC2Method.SERVICE_ID, subnetId, tags);
     }
 
     @Override
     public void removeSubnetTags(@Nonnull String[] subnetIds, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ( (AWSCloud) getProvider() ).removeTags(subnetIds, tags);
+        ( (AWSCloud) getProvider() ).removeTags(EC2Method.SERVICE_ID, subnetIds, tags);
     }
 
     @Override
     public void removeVLANTags(@Nonnull String vlanId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ( (AWSCloud) getProvider() ).removeTags(vlanId, tags);
+        ( (AWSCloud) getProvider() ).removeTags(EC2Method.SERVICE_ID, vlanId, tags);
     }
 
     @Override
     public void removeVLANTags(@Nonnull String[] vlanIds, @Nonnull Tag... tags) throws CloudException, InternalException {
-        ( (AWSCloud) getProvider() ).removeTags(vlanIds, tags);
+        ( (AWSCloud) getProvider() ).removeTags(EC2Method.SERVICE_ID, vlanIds, tags);
     }
 }

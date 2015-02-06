@@ -1653,7 +1653,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         if( cfg.getVirtualMachineGroup() != null ) {
             tags.add(new Tag("dsnVMGroup", cfg.getVirtualMachineGroup()));
         }
-        getProvider().createTags(instanceIds.toArray(new String[instanceIds.size()]), tags.toArray(new Tag[tags.size()]));
+        getProvider().createTags(EC2Method.SERVICE_ID, instanceIds.toArray(new String[instanceIds.size()]), tags.toArray(new Tag[tags.size()]));
 
         // Set all instances their passwords and attach volumes
         for( VirtualMachine server : servers ) {
@@ -2618,22 +2618,22 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
     @Override
     public void updateTags( @Nonnull String vmId, @Nonnull Tag... tags ) throws CloudException, InternalException {
-        getProvider().createTags(vmId, tags);
+        getProvider().createTags(EC2Method.SERVICE_ID, vmId, tags);
     }
 
     @Override
     public void updateTags( @Nonnull String[] vmIds, @Nonnull Tag... tags ) throws CloudException, InternalException {
-        getProvider().createTags(vmIds, tags);
+        getProvider().createTags(EC2Method.SERVICE_ID, vmIds, tags);
     }
 
     @Override
     public void removeTags(@Nonnull String vmId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        getProvider().removeTags(vmId, tags);
+        getProvider().removeTags(EC2Method.SERVICE_ID, vmId, tags);
     }
 
     @Override
     public void removeTags( @Nonnull String[] vmIds, @Nonnull Tag... tags ) throws CloudException, InternalException {
-        getProvider().removeTags(vmIds, tags);
+        getProvider().removeTags(EC2Method.SERVICE_ID, vmIds, tags);
     }
 
     @Override

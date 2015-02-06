@@ -124,7 +124,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport<AWSCloud> {
                         tags.add(new Tag(entry.getKey(), value));
                     }
                 }
-                getProvider().createTags(id, tags.toArray(new Tag[tags.size()]));
+                getProvider().createTags(EC2Method.SERVICE_ID, id, tags.toArray(new Tag[tags.size()]));
                 return id;
             }
             throw new CloudException("No error occurred, but no snapshot was provided");
@@ -572,7 +572,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport<AWSCloud> {
     public void removeTags(@Nonnull String snapshotId, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Snapshot.removeTags");
         try {
-            ((AWSCloud)getProvider()).removeTags(snapshotId, tags);
+            ((AWSCloud)getProvider()).removeTags(EC2Method.SERVICE_ID, snapshotId, tags);
         }
         finally {
             APITrace.end();
@@ -583,7 +583,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport<AWSCloud> {
     public void removeTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Snapshot.removeTags");
         try {
-            ((AWSCloud)getProvider()).removeTags(snapshotIds, tags);
+            ((AWSCloud)getProvider()).removeTags(EC2Method.SERVICE_ID, snapshotIds, tags);
         }
         finally {
             APITrace.end();
@@ -951,7 +951,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport<AWSCloud> {
     public void updateTags(@Nonnull String snapshotId, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Snapshot.updateTags");
         try {
-            ((AWSCloud)getProvider()).createTags(snapshotId, tags);
+            ((AWSCloud)getProvider()).createTags(EC2Method.SERVICE_ID, snapshotId, tags);
         }
         finally {
             APITrace.end();
@@ -962,7 +962,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport<AWSCloud> {
     public void updateTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Snapshot.updateTags");
         try {
-            ((AWSCloud)getProvider()).createTags(snapshotIds, tags);
+            ((AWSCloud)getProvider()).createTags(EC2Method.SERVICE_ID, snapshotIds, tags);
         }
         finally {
             APITrace.end();

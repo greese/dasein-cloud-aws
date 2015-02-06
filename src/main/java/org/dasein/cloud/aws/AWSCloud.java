@@ -40,6 +40,7 @@ import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.aws.identity.AWSIdentityServices;
 import org.dasein.cloud.aws.identity.IAMMethod;
 import org.dasein.cloud.aws.network.EC2NetworkServices;
+import org.dasein.cloud.aws.network.ELBMethod;
 import org.dasein.cloud.aws.platform.AWSPlatformServices;
 import org.dasein.cloud.aws.storage.AWSCloudStorageServices;
 import org.dasein.cloud.aws.storage.S3Method;
@@ -271,11 +272,11 @@ public class AWSCloud extends AbstractCloud {
     }
 
 
-    public boolean createTags( String resourceId, Tag... keyValuePairs ) {
-        return createTags(new String[]{resourceId}, keyValuePairs);
+    public boolean createTags( String service, String resourceId, Tag... keyValuePairs ) {
+        return createTags(service, new String[]{resourceId}, keyValuePairs);
     }
 
-    public boolean createTags( final String[] resourceIds, final Tag... keyValuePairs ) {
+    public boolean createTags( final String service, final String[] resourceIds, final Tag... keyValuePairs ) {
         // TODO(stas): de-async experiment
         boolean async = false;
         if( async ) {
@@ -284,7 +285,7 @@ public class AWSCloud extends AbstractCloud {
             Thread t = new Thread() {
                 public void run() {
                     try {
-                        createTags(1, resourceIds, keyValuePairs);
+                        createTags(1, service, resourceIds, keyValuePairs);
                     }
                     finally {
                         release();
@@ -296,54 +297,66 @@ public class AWSCloud extends AbstractCloud {
             t.setDaemon(true);
             t.start();
         } else {
-            createTags(1, resourceIds, keyValuePairs);
+            createTags(1, service, resourceIds, keyValuePairs);
         }
         return true;
     }
 
-    private void createTags( int attempt, String[] resourceIds, Tag... keyValuePairs ) {
-        APITrace.begin(this, "Cloud.createTags");
-        try {
-            try {
-                Map<String, String> parameters = getStandardParameters(getContext(), "CreateTags");
-                addIndexedParameters(parameters, "ResourceId.", resourceIds);
-
-                Map<String, String> tagParameters = getTagsFromKeyValuePairs(keyValuePairs);
-                if( tagParameters.size() == 0 ) {
-                    return;
-                }
-                addExtraParameters(parameters, tagParameters);
-
-                EC2Method method = new EC2Method(EC2Method.SERVICE_ID, this, parameters);
-                try {
-                    method.invoke();
-                } catch( EC2Exception e ) {
-                    if( attempt > MAX_RETRIES ) {
-                        logger.error("EC2 error setting tags for " + Arrays.toString(resourceIds) + ": " + e.getSummary());
-                        return;
-                    }
-                    try {
-                        Thread.sleep(5000L);
-                    } catch( InterruptedException ignore ) {
-                    }
-                    logger.warn("Retry attempt "+ (attempt + 1) + " to create tags for ["+resourceIds+"]");
-                    createTags(attempt + 1, resourceIds, keyValuePairs);
-                }
-            } catch( Throwable ignore ) {
-                logger.error("Error while creating tags for " + Arrays.toString(resourceIds) + ".", ignore);
-            }
-        } finally {
-            APITrace.end();
-        }
+    private void createTags( int attempt, String service, String[] resourceIds, Tag... keyValuePairs ) {
+    	APITrace.begin(this, "Cloud.createTags");
+    	try {
+    		try {
+    			Map<String, String> parameters = null , tagParameters = null;
+    			if (service.equalsIgnoreCase(ELBMethod.SERVICE_ID)) {
+    				parameters = getElbParameters(getContext(), "AddTags");
+    				addIndexedParameters(parameters, "LoadBalancerNames.member.", resourceIds);
+    				tagParameters = getTagsFromKeyValuePairs("Tags.member.", keyValuePairs);
+    			}
+    			else if(service.equalsIgnoreCase("rds")) {
+    				parameters = getStandardRdsParameters(getContext(), "AddTagsToResource");
+    				// We can't tag multiple RDS resource at a time.
+    				parameters.put("ResourceName", resourceIds[0]);
+    				tagParameters = getTagsFromKeyValuePairs("Tags.member.", keyValuePairs);
+    			}
+    			else {
+    				parameters = getStandardParameters(getContext(), "CreateTags");
+    				addIndexedParameters(parameters, "ResourceId.", resourceIds);
+    				tagParameters = getTagsFromKeyValuePairs("Tag.", keyValuePairs);
+    			}
+    			if( tagParameters.size() == 0 ) {
+    				return;
+    			}
+    			addExtraParameters(parameters, tagParameters);
+    			EC2Method method = new EC2Method(service, this, parameters);
+    			try {
+    				method.invoke();
+    			} catch( EC2Exception e ) {
+    				if( attempt > MAX_RETRIES ) {
+    					logger.error("EC2 error setting tags for " + Arrays.toString(resourceIds) + ": " + e.getSummary());
+    					return;
+    				}
+    				try {
+    					Thread.sleep(5000L);
+    				} catch( InterruptedException ignore ) {
+    				}
+    				logger.warn("Retry attempt "+ (attempt + 1) + " to create tags for ["+resourceIds+"]");
+    				createTags(attempt + 1, service, resourceIds, keyValuePairs);
+    			}
+    		} catch( Throwable ignore ) {
+    			logger.error("Error while creating tags for " + Arrays.toString(resourceIds) + ".", ignore);
+    		}
+    	} finally {
+    		APITrace.end();
+    	}
     }
 
-    private Map<String, String> getTagsFromKeyValuePairs(Tag... keyValuePairs) {
+    private Map<String, String> getTagsFromKeyValuePairs(String tagPrefix, Tag... keyValuePairs) {
         Map<String, String> tagParameters = new HashMap<String, String>();
         for (int i = 0; i < keyValuePairs.length; i++) {
             String key = keyValuePairs[i].getKey();
             String value = keyValuePairs[i].getValue();
-            tagParameters.put("Tag." + (i + 1) + ".Key", key);
-            tagParameters.put("Tag." + (i + 1) + ".Value", value != null ? value : "" );
+            tagParameters.put(tagPrefix + (i + 1) + ".Key", key);
+            tagParameters.put(tagPrefix + (i + 1) + ".Value", value != null ? value : "" );
         }
         return tagParameters;
     }
@@ -358,7 +371,7 @@ public class AWSCloud extends AbstractCloud {
             Map<String, String> parameters = getStandardParameters(getContext(), "CreateTags");
             addIndexedParameters(parameters, "ResourceId.", resourceIds);
 
-            Map<String, String> tagParameters = getTagsFromKeyValuePairs(keyValuePairs);
+            Map<String, String> tagParameters = getTagsFromKeyValuePairs("Tag.", keyValuePairs);
             if (tagParameters.size() == 0) {
                 return;
             }
@@ -371,40 +384,40 @@ public class AWSCloud extends AbstractCloud {
         }
     }
 
-    public boolean removeTags( String resourceId, Tag... keyValuePairs ) {
-        return removeTags(new String[]{resourceId}, keyValuePairs);
+    public boolean removeTags( String service, String resourceId, Tag... keyValuePairs ) {
+        return removeTags(service, new String[]{resourceId}, keyValuePairs);
     }
 
-    public boolean removeTags( String[] resourceIds, Tag... keyValuePairs ) {
-        APITrace.begin(this, "Cloud.removeTags");
-        try {
-            try {
-                Map<String, String> parameters = getStandardParameters(getContext(), "DeleteTags");
-                EC2Method method;
-
-                for( int i = 0; i < resourceIds.length; i++ ) {
-                    parameters.put("ResourceId." + ( i + 1 ), resourceIds[i]);
-                }
-
-                for( int i = 0; i < keyValuePairs.length; i++ ) {
-                    String key = keyValuePairs[i].getKey();
-                    String value = keyValuePairs[i].getValue();
-
-                    parameters.put("Tag." + (i + 1) + ".Key", key);
-                    if (value != null && value.length() > 0) {
-                        parameters.put("Tag." + (i + 1) + ".Value", value);
-                    }
-                }
-                method = new EC2Method(EC2Method.SERVICE_ID, this, parameters);
-                method.invoke();
-                return true;
-            } catch( Throwable ignore ) {
-                logger.error("Error while removing tags for " + Arrays.toString(resourceIds) + ".", ignore);
-                return false;
-            }
-        } finally {
-            APITrace.end();
-        }
+    public boolean removeTags( String service, String[] resourceIds, Tag... keyValuePairs ) {
+    	APITrace.begin(this, "Cloud.removeTags");
+    	try {
+    		try {
+    			Map<String, String> parameters, tagParameters = null ;
+    			if (service.equalsIgnoreCase(ELBMethod.SERVICE_ID)){
+    				parameters = getElbParameters(getContext(), "RemoveTags");
+    				addIndexedParameters(parameters, "LoadBalancerNames.member.", resourceIds);
+    				tagParameters = getTagsFromKeyValuePairs("Tags.member.", keyValuePairs);
+    			} else if(service.equalsIgnoreCase("rds")){
+    				parameters = getStandardRdsParameters(getContext(), "RemoveTagsFromResource");
+    				parameters.put("ResourceName", resourceIds[0]);
+    				for (int i = 0; i < keyValuePairs.length; i++)
+    					parameters.put("TagKeys.member." + (i + 1) , keyValuePairs[i].getKey());
+    			} else {
+    				parameters = getStandardParameters(getContext(), "DeleteTags");
+    				addIndexedParameters(parameters, "ResourceId.", resourceIds);
+    				tagParameters = getTagsFromKeyValuePairs("Tag.", keyValuePairs);
+    			}
+    			addExtraParameters(parameters, tagParameters);
+    			EC2Method method = new EC2Method(service, this, parameters);
+    			method.invoke();
+    			return true;
+    		} catch( Throwable ignore ) {
+    			logger.error("Error while removing tags for " + Arrays.toString(resourceIds) + ".", ignore);
+    			return false;
+    		}
+    	} finally {
+    		APITrace.end();
+    	}
     }
 
     public Map<String, String> getTagsFromTagSet( Node attr ) {
@@ -738,6 +751,13 @@ public class AWSCloud extends AbstractCloud {
         parameters.put(P_VERSION, version);
         return parameters;
     }
+    
+    private @Nonnull Map<String, String> getElbParameters( @Nonnull ProviderContext ctx, @Nonnull String action ) throws InternalException {
+		Map<String, String> parameters = getStandardParameters(ctx, action);
+
+		parameters.put(P_VERSION, getElbVersion());
+		return parameters;
+	}
 
     public Map<String, String> getStandardCloudWatchParameters( ProviderContext ctx, String action ) throws InternalException {
         Map<String, String> parameters = getStandardParameters(ctx, action);

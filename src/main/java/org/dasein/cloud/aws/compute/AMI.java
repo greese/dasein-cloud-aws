@@ -208,7 +208,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                         tags.add(new Tag(entry.getKey(), entry.getValue() == null ? "" : entry.getValue().toString()));
 
                     if( !tags.isEmpty() ) {
-                    	getProvider().createTags(id, tags.toArray(new Tag[tags.size()]));
+                    	getProvider().createTags(EC2Method.SERVICE_ID, id, tags.toArray(new Tag[tags.size()]));
                     }     
                     return img;
                 }
@@ -1719,7 +1719,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     public void updateTags(@Nonnull String[] imageIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Image.updateTags");
         try {
-            getProvider(). createTags(imageIds, tags);
+            getProvider(). createTags(EC2Method.SERVICE_ID, imageIds, tags);
         }
         finally {
             APITrace.end();
@@ -1735,7 +1735,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     public void removeTags(@Nonnull String[] imageIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Image.removeTags");
         try {
-            getProvider(). removeTags(imageIds, tags);
+            getProvider(). removeTags(EC2Method.SERVICE_ID, imageIds, tags);
         }
         finally {
             APITrace.end();
