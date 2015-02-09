@@ -1657,18 +1657,21 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 }
             }
             try {
-                for( String securityGroupId : securityGroups ) {
-                    if( securityGroupId.equals(providerDatabaseId) ) {
-                    	try { Thread.sleep(15000L); }
-                        catch( InterruptedException ignore ) { }
-                        try {
-                            removeSecurityGroup(securityGroupId);
-                        }
-                        catch( CloudException ignore ) {
-                            // ignore this because it means it is a shared security group
-                        }
-                    }
-                }
+            	for( String securityGroupId : securityGroups ) {
+            		if( securityGroupId.equals(providerDatabaseId) ) {
+            			for( int i=0; i<5; i++ ) {
+            				try {
+            					removeSecurityGroup(securityGroupId);
+            					break;
+            				}
+            				catch( CloudException ignore ) {
+            					try { Thread.sleep(4000L); }
+            					catch( InterruptedException e ) { }
+            					// ignore this because it means it is a shared security group
+            				}
+            			}
+            		}
+            	}
             }
             catch( Throwable t ) {
                 t.printStackTrace();
