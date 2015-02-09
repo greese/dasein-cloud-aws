@@ -1674,6 +1674,8 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             try {
                 for( String securityGroupId : securityGroups ) {
                     if( securityGroupId.equals(providerDatabaseId) ) {
+                    	try { Thread.sleep(15000L); }
+                    	catch( InterruptedException ignore ) {	}
                         try {
                             removeSecurityGroup(securityGroupId);
                         }
