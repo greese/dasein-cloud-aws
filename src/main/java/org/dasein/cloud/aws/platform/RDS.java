@@ -1607,7 +1607,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 method.invoke();
             }
             catch( EC2Exception e ) {
-                throw new CloudException(e);
+                throw e;
             }
         }
         finally {
@@ -1659,15 +1659,18 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             try {
             	for( String securityGroupId : securityGroups ) {
             		if( securityGroupId.equals(providerDatabaseId) ) {
-            			for( int i=0; i<5; i++ ) {
+            			for( int i=0; i<3; i++ ) {
             				try {
             					removeSecurityGroup(securityGroupId);
             					break;
             				}
-            				catch( CloudException ignore ) {
-            					try { Thread.sleep(4000L); }
-            					catch( InterruptedException e ) { }
-            					// ignore this because it means it is a shared security group
+            				catch( EC2Exception e ) {
+            					if (e.getProviderCode().equalsIgnoreCase("InvalidDBSecurityGroupState")) {
+            						try { Thread.sleep(6000L); }
+            						catch( InterruptedException ie ) { }
+            						// ignore this because it means it is a shared security group
+            					}
+            					else throw new CloudException(e);
             				}
             			}
             		}
