@@ -46,7 +46,7 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
 
     @Override
     public boolean canAlter(@Nonnull VmState fromState) throws CloudException, InternalException {
-        return false;
+        return VmState.STOPPED.equals(fromState);
     }
 
     @Override
