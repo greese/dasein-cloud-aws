@@ -34,6 +34,11 @@ import org.dasein.cloud.aws.model.DatabaseProductDefinition;
 import org.dasein.cloud.aws.model.DatabaseProvider;
 import org.dasein.cloud.aws.model.DatabaseRegion;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.network.Direction;
+import org.dasein.cloud.network.FirewallRule;
+import org.dasein.cloud.network.FirewallSupport;
+import org.dasein.cloud.network.Protocol;
+import org.dasein.cloud.network.RuleTargetType;
 import org.dasein.cloud.platform.*;
 import static org.dasein.cloud.platform.DatabaseEngine.*;
 import org.dasein.cloud.util.APITrace;
@@ -104,42 +109,54 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
     RDS(AWSCloud provider) {
         super(provider);
     }
-    
+
+    private void authorizeClassicDbSecurityGroup(String groupName, String sourceCidr) throws CloudException, InternalException {
+        Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), AUTHORIZE_DB_SECURITY_GROUP_INGRESS);
+        EC2Method method;
+        String ec2Type = getProvider().getDataCenterServices().isRegionEC2VPC(getProvider().getContext().getRegionId());
+        parameters.put("DBSecurityGroupName", groupName);
+        if(ec2Type.equals(AWSCloud.PLATFORM_EC2)) {
+        }
+        else {
+            parameters.put("EC2SecurityGroupId", groupName);
+        }
+        parameters.put("CIDRIP", sourceCidr);
+        method = new EC2Method(SERVICE_ID, getProvider(), parameters);
+        try {
+            method.invoke();
+        }
+        catch( EC2Exception e ) {
+            String code = e.getCode();
+
+            if( code != null && code.equals("AuthorizationAlreadyExists") ) {
+                return;
+            }
+            throw new CloudException(e);
+        }
+    }
+
     public void addAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "RDBMS.addAccess");
         try {
+            Database db = getDatabase(providerDatabaseId);
             Iterator<String> securityGroups = getSecurityGroups(providerDatabaseId).iterator();
             String groupName;
 
             if( !securityGroups.hasNext() ) {
+                // FIXME: not sure we need to do this. a db should always have a security group right from the start
                 groupName = createSecurityGroup(providerDatabaseId);
                 setSecurityGroup(providerDatabaseId, groupName);
             }
             else {
                 groupName = securityGroups.next();
             }
-
-            Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), AUTHORIZE_DB_SECURITY_GROUP_INGRESS);
-            EC2Method method;
             String ec2Type = getProvider().getDataCenterServices().isRegionEC2VPC(getProvider().getContext().getRegionId());
             if(ec2Type.equals(AWSCloud.PLATFORM_EC2)) {
-                parameters.put("DBSecurityGroupName", groupName);
+                authorizeClassicDbSecurityGroup(groupName, sourceCidr);
             }
-            else {
-                parameters.put("EC2SecurityGroupId", groupName);
-            }
-            parameters.put("CIDRIP", sourceCidr);
-            method = new EC2Method(SERVICE_ID, getProvider(), parameters);
-            try {
-                method.invoke();
-            }
-            catch( EC2Exception e ) {
-                String code = e.getCode();
-
-                if( code != null && code.equals("AuthorizationAlreadyExists") ) {
-                    return;
-                }
-                throw new CloudException(e);
+            else if( getProvider().hasNetworkServices() && getProvider().getNetworkServices().hasFirewallSupport() ) {
+                FirewallSupport firewallSupport = getProvider().getNetworkServices().getFirewallSupport();
+                firewallSupport.authorize(groupName, sourceCidr, Protocol.TCP, db.getHostPort(), db.getHostPort());
             }
         }
         finally {
@@ -1028,21 +1045,47 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
         idPopulator.populate();
         
         final Iterable<String> ids = idPopulator.getResult();
-        getProvider().hold();
-        accessPopulator = new PopulatorThread<String>(new JiteratorPopulator<String>() {
-            public void populate(Jiterator<String> iterator) throws CloudException, InternalException {
-                try {
-                    for( String id : ids ) {
-                        populateAccess(id, iterator);
+
+        String ec2Type = getProvider().getDataCenterServices().isRegionEC2VPC(getProvider().getContext().getRegionId());
+        if(ec2Type.equals(AWSCloud.PLATFORM_EC2)) {
+            getProvider().hold();
+            accessPopulator = new PopulatorThread<String>(new JiteratorPopulator<String>() {
+                public void populate(Jiterator<String> iterator) throws CloudException, InternalException {
+                    try {
+                        for( String id : ids ) {
+                            populateAccess(id, iterator);
+                        }
+                    }
+                    finally {
+                        getProvider().release();
                     }
                 }
-                finally {
-                    getProvider().release();
+            });
+            accessPopulator.populate();
+            return accessPopulator.getResult();
+        }
+        else {
+            List<String> cidrs = new ArrayList<String>();
+            if( getProvider().getNetworkServices() == null ) {
+                return cidrs;
+            }
+            FirewallSupport firewallSupport = getProvider().getNetworkServices().getFirewallSupport();
+            if( firewallSupport == null ) {
+                return cidrs;
+            }
+            for( String id : ids ) {
+                for( FirewallRule rule : firewallSupport.getRules(id) ) {
+                    // FIXME: We need to be able to include GLOBAL rule targets too, but they don't have the CIDR
+                    if( rule.getDirection().equals(Direction.EGRESS) && rule.getDestinationEndpoint().getRuleTargetType().equals(RuleTargetType.CIDR) ) {
+                        cidrs.add(rule.getDestinationEndpoint().getCidr());
+                    }
+                    else if( rule.getDirection().equals(Direction.INGRESS) && rule.getSourceEndpoint().getRuleTargetType().equals(RuleTargetType.CIDR) ) {
+                        cidrs.add(rule.getSourceEndpoint().getCidr());
+                    }
                 }
             }
-        });
-        accessPopulator.populate();
-        return accessPopulator.getResult();
+            return cidrs;
+        }
     }
     
     public Iterable<DatabaseConfiguration> listConfigurations() throws CloudException, InternalException {
@@ -1486,7 +1529,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                                 if( attr.hasChildNodes() ) {
                                     NodeList groups = attr.getChildNodes();
 
-                                    for( int l=0; l<groups.getLength(); l++ ) {
+                                    for( int l = 0; l < groups.getLength(); l++ ) {
                                         Node group = groups.item(l);
 
                                         if( group.hasChildNodes() ) {
@@ -1494,13 +1537,42 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                                             String groupName = null;
                                             boolean active = false;
 
-                                            for( int m=0; m<groupAttrs.getLength(); m++ ) {
+                                            for( int m = 0; m < groupAttrs.getLength(); m++ ) {
                                                 Node ga = groupAttrs.item(m);
 
                                                 if( ga.getNodeName().equalsIgnoreCase("Status") ) {
                                                     active = ga.getFirstChild().getNodeValue().trim().equalsIgnoreCase("active");
                                                 }
                                                 else if( ga.getNodeName().equalsIgnoreCase("DBSecurityGroupName") ) {
+                                                    groupName = ga.getFirstChild().getNodeValue().trim();
+                                                }
+                                            }
+                                            if( groupName != null && active ) {
+                                                iterator.push(groupName);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            else if( name.equalsIgnoreCase("VpcSecurityGroups") ) {
+                                if( attr.hasChildNodes() ) {
+                                    NodeList groups = attr.getChildNodes(); // VpcSecurityGroupMembership
+
+                                    for( int l = 0; l < groups.getLength(); l++ ) {
+                                        Node group = groups.item(l);
+
+                                        if( group.hasChildNodes() ) {
+                                            NodeList groupAttrs = group.getChildNodes();
+                                            String groupName = null;
+                                            boolean active = false;
+
+                                            for( int m = 0; m < groupAttrs.getLength(); m++ ) {
+                                                Node ga = groupAttrs.item(m);
+
+                                                if( ga.getNodeName().equalsIgnoreCase("Status") ) {
+                                                    active = ga.getFirstChild().getNodeValue().trim().equalsIgnoreCase("active");
+                                                }
+                                                else if( ga.getNodeName().equalsIgnoreCase("VpcSecurityGroupId") ) {
                                                     groupName = ga.getFirstChild().getNodeValue().trim();
                                                 }
                                             }
@@ -1772,21 +1844,31 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             APITrace.end();
         }
     }
-    
+
+    private void revokeClassicDbSecurityGroup(String groupName, String sourceCidr) throws CloudException, InternalException {
+        Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), REVOKE_DB_SECURITY_GROUP_INGRESS);
+
+        parameters.put("CIDRIP", sourceCidr);
+        parameters.put("DBSecurityGroupName", groupName);
+        EC2Method method = new EC2Method(SERVICE_ID, getProvider(), parameters);
+        method.invoke();
+    }
+
     public void revokeAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "RDBMS.revokeAccess");
         try {
             EC2Exception error = null;
-
-            for( String securityGroupId : getSecurityGroups(providerDatabaseId) ) {
-                Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), REVOKE_DB_SECURITY_GROUP_INGRESS);
-                EC2Method method;
-
-                parameters.put("DBSecurityGroupName", securityGroupId);
-                parameters.put("CIDRIP", sourceCidr);
-                method = new EC2Method(SERVICE_ID, getProvider(), parameters);
+            Database db = getDatabase(providerDatabaseId);
+            for( String securityGroup : getSecurityGroups(providerDatabaseId) ) {
                 try {
-                    method.invoke();
+                    String ec2Type = getProvider().getDataCenterServices().isRegionEC2VPC(getProvider().getContext().getRegionId());
+                    if( ec2Type.equals(AWSCloud.PLATFORM_EC2) ) {
+                        revokeClassicDbSecurityGroup(securityGroup, sourceCidr);
+                    }
+                    else if( getProvider().hasNetworkServices() && getProvider().getNetworkServices().hasFirewallSupport() ) {
+                        FirewallSupport firewallSupport = getProvider().getNetworkServices().getFirewallSupport();
+                        firewallSupport.revoke(securityGroup, sourceCidr, Protocol.TCP, db.getHostPort(), db.getHostPort());
+                    }
                 }
                 catch( EC2Exception e ) {
                     error = e;

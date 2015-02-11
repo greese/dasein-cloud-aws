@@ -941,6 +941,9 @@ public class EC2Method {
                         if( message == null ) {
                             throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
                         }
+                        if( code != null && code.toLowerCase().contains("capacity") ) {
+                            throw new CloudException(CloudErrorType.CAPACITY, status, code, message);
+                        }
                         throw EC2Exception.create(status, requestId, code, message);
                     }
                     throw new CloudException("Unable to parse error.");
