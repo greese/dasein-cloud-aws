@@ -330,7 +330,13 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             }
             blocks = doc.getElementsByTagName("DBInstanceIdentifier");
             if( blocks.getLength() > 0 ) {
-                return blocks.item(0).getFirstChild().getNodeValue().trim();
+                String dbId = blocks.item(0).getFirstChild().getNodeValue().trim();
+                
+                // Set tags
+                ArrayList<Tag> tags = new ArrayList<Tag>();
+                tags.add(new Tag("Name", databaseName));
+               	getProvider().createTags(SERVICE_ID, "arn:aws:rds:" + getProvider().getContext().getRegionId() + ":" + getProvider().getContext().getAccountNumber().replace("-", "") +":db:" + dbId , tags.toArray(new Tag[tags.size()]));   
+              	return dbId;
             }
             return null;
         }
@@ -370,6 +376,9 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             }
             blocks = doc.getElementsByTagName("DBInstanceIdentifier");
             if( blocks.getLength() > 0 ) {
+            	ArrayList<Tag> tags = new ArrayList<Tag>();
+                tags.add(new Tag("Name", databaseName));
+                getProvider().createTags(SERVICE_ID, "arn:aws:rds:" + getProvider().getContext().getRegionId() + ":" + getProvider().getContext().getAccountNumber().replace("-", "") +":db:" + id, tags.toArray(new Tag[tags.size()]));
                 return id;
             }
             return null;
@@ -409,6 +418,9 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             }
             blocks = doc.getElementsByTagName("DBInstanceIdentifier");
             if( blocks.getLength() > 0 ) {
+            	ArrayList<Tag> tags = new ArrayList<Tag>();
+                tags.add(new Tag("Name", databaseName));
+                getProvider().createTags(SERVICE_ID, "arn:aws:rds:" + getProvider().getContext().getRegionId() + ":" + getProvider().getContext().getAccountNumber().replace("-", "") +":db:" + id, tags.toArray(new Tag[tags.size()]));
                 return id;
             }
             return null;
@@ -449,6 +461,9 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             }
             blocks = doc.getElementsByTagName("DBInstanceIdentifier");
             if( blocks.getLength() > 0 ) {
+            	ArrayList<Tag> tags = new ArrayList<Tag>();
+                tags.add(new Tag("Name", databaseName));
+                getProvider().createTags(SERVICE_ID, "arn:aws:rds:" + getProvider().getContext().getRegionId() + ":" + getProvider().getContext().getAccountNumber().replace("-", "") +":db:" + id, tags.toArray(new Tag[tags.size()]));
                 return id;
             }
             return null;
@@ -1607,7 +1622,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 method.invoke();
             }
             catch( EC2Exception e ) {
-                throw new CloudException(e);
+                throw e;
             }
         }
         finally {
@@ -1657,16 +1672,24 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 }
             }
             try {
-                for( String securityGroupId : securityGroups ) {
-                    if( securityGroupId.equals(providerDatabaseId) ) {
-                        try {
-                            removeSecurityGroup(securityGroupId);
-                        }
-                        catch( CloudException ignore ) {
-                            // ignore this because it means it is a shared security group
-                        }
-                    }
-                }
+            	for( String securityGroupId : securityGroups ) {
+            		if( securityGroupId.equals(providerDatabaseId) ) {
+            			for( int i=0; i<3; i++ ) {
+            				try {
+            					removeSecurityGroup(securityGroupId);
+            					break;
+            				}
+            				catch( EC2Exception e ) {
+            					if (e.getProviderCode().equalsIgnoreCase("InvalidDBSecurityGroupState")) {
+            						try { Thread.sleep(6000L); }
+            						catch( InterruptedException ie ) { }
+            						// ignore this because it means it is a shared security group
+            					}
+            					else throw new CloudException(e);
+            				}
+            			}
+            		}
+            	}
             }
             catch( Throwable t ) {
                 t.printStackTrace();
@@ -2336,5 +2359,30 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
     private boolean isPostgres(DatabaseEngine engine) {
         return(engine == POSTGRES);
     }
+    
+    @Override
+    public void removeTags(@Nonnull String providerDatabaseId, @Nonnull Tag... tags) throws CloudException, InternalException {
+    	getProvider().removeTags(SERVICE_ID, "arn:aws:rds:" + getProvider().getContext().getRegionId() + ":" + getProvider().getContext().getAccountNumber().replace("-", "") +":db:" + providerDatabaseId, tags);   
+    }
 
+    @Override
+    public void removeTags(@Nonnull String[] providerDatabaseIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+    	APITrace.begin(getProvider(), "Database.updateTags");
+        for( String id : providerDatabaseIds ) {
+            removeTags(id, tags);
+        }
+    }
+    
+    @Override
+    public void updateTags(@Nonnull String providerDatabaseId, @Nonnull Tag... tags) throws CloudException, InternalException {
+    	getProvider().createTags(SERVICE_ID, "arn:aws:rds:" + getProvider().getContext().getRegionId() + ":" + getProvider().getContext().getAccountNumber().replace("-", "") +":db:" + providerDatabaseId, tags);
+    }
+
+    @Override
+    public void updateTags(@Nonnull String[] providerDatabaseIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+    	APITrace.begin(getProvider(), "Database.updateTags");
+        for( String id : providerDatabaseIds ) {
+            updateTags(id, tags);
+        }
+    }
 }

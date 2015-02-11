@@ -292,6 +292,23 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     }
                 }
 
+                // Set tags
+                ArrayList<Tag> tags = new ArrayList<Tag>();
+                Map<String, Object> meta = options.getMetaData();
+                for( Map.Entry<String,Object> entry : meta.entrySet() ) {
+                    Object value = entry.getValue();
+                   
+                    if( value != null ) {
+                        tags.add(new Tag(entry.getKey(), value.toString()));
+                    }
+                }
+                tags.add(new Tag("Name", options.getName()));
+                tags.add(new Tag("Description", options.getDescription()));
+
+                if( !tags.isEmpty() ) {
+                    provider.createTags(ELBMethod.SERVICE_ID, new String[]{name}, tags.toArray(new Tag[tags.size()]));   
+                }
+                
                 if( options.getHealthCheckOptions() != null ) {
                     options.getHealthCheckOptions().setLoadBalancerId(name);
                     options.getHealthCheckOptions().setName(toHCName(name));
@@ -1901,4 +1918,36 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
     }
 
+    @Override
+    public void removeTags(@Nonnull String loadBalancerId, @Nonnull Tag... tags) throws CloudException, InternalException {
+    	removeTags(new String[] { loadBalancerId }, tags);		
+    }
+
+    @Override
+    public void removeTags(@Nonnull String[] loadBalancerIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+    	APITrace.begin(getProvider(), "LoadBalancer.removeTags");
+    	try {
+    		getProvider().removeTags(ELBMethod.SERVICE_ID, loadBalancerIds, tags);
+    	}
+    	finally {
+    		APITrace.end();
+    	}		
+    }
+
+    @Override
+    public void updateTags(@Nonnull String loadBalancerId, @Nonnull Tag... tags) throws CloudException, InternalException {
+    	updateTags(new String[] { loadBalancerId }, tags);
+    }
+
+    @Override
+    public void updateTags(@Nonnull String[] loadBalancerIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+    	APITrace.begin(getProvider(), "LoadBalancer.updateTags");
+    	try {
+    		getProvider().createTags(ELBMethod.SERVICE_ID, loadBalancerIds, tags);
+    	}
+    	finally {
+    		APITrace.end();
+    	}	
+    }
+    
 }

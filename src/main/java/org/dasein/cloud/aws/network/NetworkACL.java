@@ -206,7 +206,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport<AWSCloud> {
                         tags.add(new Tag(key, value));
                     }
                 }
-                getProvider().createTags(id, tags.toArray(new Tag[tags.size()]));
+                getProvider().createTags(EC2Method.SERVICE_ID, id, tags.toArray(new Tag[tags.size()]));
                 firewallId = id;
             }
             else {
@@ -579,7 +579,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport<AWSCloud> {
     public void removeTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "NetworkFirewall.removeTags");
         try {
-            getProvider().removeTags(firewallIds, tags);
+            getProvider().removeTags(EC2Method.SERVICE_ID, firewallIds, tags);
         }
         finally {
             APITrace.end();
@@ -631,7 +631,7 @@ public class NetworkACL extends AbstractNetworkFirewallSupport<AWSCloud> {
     public void updateTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "NetworkFirewall.updateTags");
         try {
-            getProvider().createTags(firewallIds, tags);
+            getProvider().createTags(EC2Method.SERVICE_ID, firewallIds, tags);
         }
         finally {
             APITrace.end();

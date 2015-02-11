@@ -214,7 +214,9 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
                 blocks = doc.getElementsByTagName("groupId");
                 if( blocks.getLength() > 0 ) {
                     Map<String, String> metaData = options.getMetaData();
-
+                    metaData.put("Name", options.getName());
+                    metaData.put("Description", options.getDescription());
+                    
                     String id = blocks.item(0).getFirstChild().getNodeValue().trim();
 
                     if( !metaData.isEmpty() ) {
@@ -228,7 +230,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
                                 tags.add(new Tag(key, value));
                             }
                         }
-                        getProvider().createTags(id, tags.toArray(new Tag[tags.size()]));
+                        getProvider().createTags(EC2Method.SERVICE_ID, id, tags.toArray(new Tag[tags.size()]));
                     }
                     firewallId = id;
                 } else {
@@ -627,7 +629,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
     public void removeTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Firewall.removeTags");
         try {
-            getProvider().removeTags(firewallIds, tags);
+            getProvider().removeTags(EC2Method.SERVICE_ID, firewallIds, tags);
         } finally {
             APITrace.end();
         }
@@ -635,14 +637,14 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
 
     @Override
     public void updateTags(@Nonnull String firewallId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        removeTags(new String[]{firewallId}, tags);
+    	updateTags(new String[]{firewallId}, tags);
     }
 
     @Override
     public void updateTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Firewall.updateTags");
         try {
-            getProvider().createTags(firewallIds, tags);
+            getProvider().createTags(EC2Method.SERVICE_ID, firewallIds, tags);
         } finally {
             APITrace.end();
         }
