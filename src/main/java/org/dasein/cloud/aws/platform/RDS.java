@@ -110,24 +110,23 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
         super(provider);
     }
 
+    /**
+     * Use this to authorize with security groups in EC2-Classic
+     * @param groupName
+     * @param sourceCidr
+     * @throws CloudException
+     * @throws InternalException
+     */
     private void authorizeClassicDbSecurityGroup(String groupName, String sourceCidr) throws CloudException, InternalException {
         Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), AUTHORIZE_DB_SECURITY_GROUP_INGRESS);
-        EC2Method method;
-        String ec2Type = getProvider().getDataCenterServices().isRegionEC2VPC(getProvider().getContext().getRegionId());
         parameters.put("DBSecurityGroupName", groupName);
-        if(ec2Type.equals(AWSCloud.PLATFORM_EC2)) {
-        }
-        else {
-            parameters.put("EC2SecurityGroupId", groupName);
-        }
         parameters.put("CIDRIP", sourceCidr);
-        method = new EC2Method(SERVICE_ID, getProvider(), parameters);
+        EC2Method method = new EC2Method(SERVICE_ID, getProvider(), parameters);
         try {
             method.invoke();
         }
         catch( EC2Exception e ) {
             String code = e.getCode();
-
             if( code != null && code.equals("AuthorizationAlreadyExists") ) {
                 return;
             }
@@ -1066,21 +1065,13 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
         }
         else {
             List<String> cidrs = new ArrayList<String>();
-            if( getProvider().getNetworkServices() == null ) {
-                return cidrs;
-            }
-            FirewallSupport firewallSupport = getProvider().getNetworkServices().getFirewallSupport();
-            if( firewallSupport == null ) {
-                return cidrs;
-            }
-            for( String id : ids ) {
-                for( FirewallRule rule : firewallSupport.getRules(id) ) {
-                    // FIXME: We need to be able to include GLOBAL rule targets too, but they don't have the CIDR
-                    if( rule.getDirection().equals(Direction.EGRESS) && rule.getDestinationEndpoint().getRuleTargetType().equals(RuleTargetType.CIDR) ) {
-                        cidrs.add(rule.getDestinationEndpoint().getCidr());
-                    }
-                    else if( rule.getDirection().equals(Direction.INGRESS) && rule.getSourceEndpoint().getRuleTargetType().equals(RuleTargetType.CIDR) ) {
-                        cidrs.add(rule.getSourceEndpoint().getCidr());
+            if( getProvider().hasNetworkServices() && getProvider().getNetworkServices().hasFirewallSupport() ) {
+                for( String id : ids ) {
+                    for( FirewallRule rule : getProvider().getNetworkServices().getFirewallSupport().getRules(id) ) {
+                        // FIXME: We need to be able to include GLOBAL rule targets too, but they don't have the CIDR
+                        if( rule.getDirection().equals(Direction.INGRESS) && rule.getSourceEndpoint().getRuleTargetType().equals(RuleTargetType.CIDR) ) {
+                            cidrs.add(rule.getSourceEndpoint().getCidr());
+                        }
                     }
                 }
             }
@@ -1845,6 +1836,13 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
         }
     }
 
+    /**
+     * Use this to revoke access of security groups in EC2-Classic
+     * @param groupName
+     * @param sourceCidr
+     * @throws CloudException
+     * @throws InternalException
+     */
     private void revokeClassicDbSecurityGroup(String groupName, String sourceCidr) throws CloudException, InternalException {
         Map<String,String> parameters = getProvider().getStandardRdsParameters(getProvider().getContext(), REVOKE_DB_SECURITY_GROUP_INGRESS);
 
