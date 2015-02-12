@@ -917,13 +917,17 @@ public class EC2Method {
 
                             attrs = error.getChildNodes();
                             for( int i = 0; i < attrs.getLength(); i++ ) {
-                                Node attr = attrs.item(i);
-
-                                if( attr.getNodeName().equals("Code") ) {
-                                    code = attr.getFirstChild().getNodeValue().trim();
+                                Node childNode = attrs.item(i).getFirstChild();
+                                String name = attrs.item(i).getNodeName();
+                                String value = null;
+                                if( childNode != null && childNode.getNodeValue() != null ) {
+                                    value = childNode.getNodeValue().trim();
                                 }
-                                else if( attr.getNodeName().equals("Message") ) {
-                                    message = attr.getFirstChild().getNodeValue().trim();
+                                if( "Code".equals(name) ) {
+                                    code = value;
+                                }
+                                else if( "Message".equals(name) ) {
+                                    message = value;
                                 }
                             }
 
@@ -936,6 +940,9 @@ public class EC2Method {
                         }
                         if( message == null ) {
                             throw new CloudException(CloudErrorType.COMMUNICATION, status, null, "Unable to identify error condition: " + status + "/" + requestId + "/" + code);
+                        }
+                        if( code != null && code.toLowerCase().contains("capacity") ) {
+                            throw new CloudException(CloudErrorType.CAPACITY, status, code, message);
                         }
                         throw EC2Exception.create(status, requestId, code, message);
                     }
