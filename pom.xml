@@ -19,7 +19,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.dasein</groupId>
     <artifactId>dasein-cloud-aws</artifactId>
-    <version>2014.11.5-SNAPSHOT</version>
+    <version>2014.11.4</version>
     <packaging>jar</packaging>
 
     <name>dasein-cloud-aws</name>
