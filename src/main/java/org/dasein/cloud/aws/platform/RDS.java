@@ -1042,7 +1042,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
             }
         });
         idPopulator.populate();
-        
+
         final Iterable<String> ids = idPopulator.getResult();
 
         String ec2Type = getProvider().getDataCenterServices().isRegionEC2VPC(getProvider().getContext().getRegionId());
@@ -1081,14 +1081,14 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
     
     public Iterable<DatabaseConfiguration> listConfigurations() throws CloudException, InternalException {
         PopulatorThread<DatabaseConfiguration> populator;
-        
+
         populator = new PopulatorThread<DatabaseConfiguration>(new JiteratorPopulator<DatabaseConfiguration>() {
             public void populate(Jiterator<DatabaseConfiguration> iterator) throws CloudException, InternalException {
                 populateConfigurationList(null, iterator);
             }
         });
         populator.populate();
-        return populator.getResult(); 
+        return populator.getResult();
     }
 
     @Override
@@ -1229,7 +1229,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
     public Collection<ConfigurationParameter> listParameters(String forProviderConfigurationId) throws CloudException, InternalException {
         PopulatorThread<ConfigurationParameter> populator;
         final String id = forProviderConfigurationId;
-        
+
         getProvider().hold();
         populator = new PopulatorThread<ConfigurationParameter>(new JiteratorPopulator<ConfigurationParameter>() {
             public void populate(Jiterator<ConfigurationParameter> iterator) throws CloudException, InternalException {
@@ -1248,7 +1248,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
     public Collection<ConfigurationParameter> listDefaultParameters(DatabaseEngine engine) throws CloudException, InternalException {
         PopulatorThread<ConfigurationParameter> populator;
         final DatabaseEngine dbEngine = engine;
-        
+
         getProvider().hold();
         populator = new PopulatorThread<ConfigurationParameter>(new JiteratorPopulator<ConfigurationParameter>() {
             public void populate(Jiterator<ConfigurationParameter> iterator) throws CloudException, InternalException {
@@ -1266,7 +1266,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
     
     public Iterable<DatabaseSnapshot> listSnapshots(String forOptionalProviderDatabaseId) throws CloudException, InternalException {
         PopulatorThread<DatabaseSnapshot> populator;
-        
+
         getProvider().hold();
         final String id = (forOptionalProviderDatabaseId == null ? null : forOptionalProviderDatabaseId);
         populator = new PopulatorThread<DatabaseSnapshot>(new JiteratorPopulator<DatabaseSnapshot>() {
@@ -2048,8 +2048,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
                 String val = attr.getFirstChild().getNodeValue().trim();
                 
                 if( val != null ) {
-                    // TODO: do we need engine version in Database?
-                    engineVersion = val.toLowerCase().trim();
+                    db.setEngineVersion(val.toLowerCase().trim());
                 }
             }
             else if( name.equalsIgnoreCase("Engine") ) {
