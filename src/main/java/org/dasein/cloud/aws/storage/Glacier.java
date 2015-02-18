@@ -816,4 +816,46 @@ public class Glacier implements OfflineStoreSupport {
             APITrace.end();
         }
     }
+
+	@Override
+	public void updateTags(String bucket, Tag... tags) throws CloudException,
+			InternalException {
+		// NO-OP
+		
+	}
+
+	@Override
+	public void updateTags(String[] buckets, Tag... tags)
+			throws CloudException, InternalException {
+		// NO-OP
+		
+	}
+
+	@Override
+	public void removeTags(String bucket, Tag... tags) throws CloudException,
+			InternalException {
+		// NO-OP
+		
+	}
+
+	@Override
+	public void removeTags(String[] buckets, Tag... tags)
+			throws CloudException, InternalException {
+		// NO-OP
+		
+	}
+
+	@Override
+	public void setTags(String bucket, Tag... tags) throws CloudException,
+			InternalException {
+		// NO-OP
+		
+	}
+
+	@Override
+	public void setTags(String[] buckets, Tag... tags) throws CloudException,
+			InternalException {
+		// NO-OP
+		
+	}
 }
