@@ -67,6 +67,7 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
 
 
     static private final Random random = new Random();
+    private static final int MAX_RETRIES = 0;
 
     public S3( AWSCloud provider ) {
         super(provider);
@@ -176,6 +177,11 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
                     }
                 }
             }
+            // set tags
+            List<Tag> tags = new ArrayList<Tag>();
+            tags.add(new Tag("Name", bucketName));
+            updateTags( 1, bucketName, S3Action.PUT_BUCKET_TAG, tags.toArray(new Tag[tags.size()]));
+
             return Blob.getInstance(regionId, "http://" + bucketName + ".s3.amazonaws.com", bucketName, System.currentTimeMillis());
         }
         finally {
@@ -211,6 +217,88 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
         finally {
             APITrace.end();
         }
+    }
+
+    private void updateTags ( int attempt, String bucketName, S3Action action, Tag... keyValuePairs ) throws CloudException, InternalException{
+    	APITrace.begin(getProvider(),  "Cloud.updateTags");
+    	try {
+    		try {
+    			StringBuilder body = new StringBuilder();
+
+    			if(action.equals(S3Action.PUT_BUCKET_TAG)) {
+    				body.append("<Tagging>");
+    				body.append("<TagSet>"); 
+
+    				for (int i = 0; i < keyValuePairs.length; i++) {
+    					body.append("<Tag>");
+    					body.append("<Key>").append(keyValuePairs[i].getKey()).append("</Key>");
+    					body.append("<Value>").append(keyValuePairs[i].getValue() != null ? keyValuePairs[i].getValue() : "" ).append("</Value>");
+    					body.append("</Tag>");
+    				}
+
+    				body.append("</TagSet>");
+    				body.append("</Tagging>");
+    			}
+    			else body = null; // DELETE_BUCKET_TAG
+
+    			String ct = ( body == null ? null : "text/xml; charset=utf-8" );
+    			S3Method method = new S3Method(getProvider(), action, null, null, ct, body == null ? null : body.toString());
+    			try {
+    				method.invoke(bucketName, "?tagging");
+    				return;
+    			}
+    			catch( S3Exception e ) {
+    				if( attempt > MAX_RETRIES ) {
+    					logger.error("S3 error setting tags for " + bucketName + ": " + e.getSummary());
+    					return;
+    				}
+    				try { Thread.sleep(5000L); } 
+    				catch( InterruptedException ignore ) { }
+    				logger.warn("Retry attempt "+ (attempt + 1) + " to create tags for ["+bucketName+"]");
+    				updateTags( attempt + 1, bucketName, action, keyValuePairs);
+    			} 
+    		}catch( Throwable ignore ) {
+    			logger.error("Error while creating tags for " + bucketName + ".", ignore);
+    		}
+    	}
+    	finally {
+    		APITrace.end();
+    	}
+    }
+
+    private List<Tag> getTags ( String bucketName )throws CloudException, InternalException {
+    	APITrace.begin(getProvider(),  "Cloud.getTags");
+    	try {
+    		try {
+    			S3Method method = new S3Method(getProvider(), S3Action.GET_BUCKET_TAG, null, null);
+    			S3Response response = method.invoke(bucketName, "?tagging");
+    			List<Tag> tags = new ArrayList<Tag>();
+    			String key = null , val = null;
+
+    			NodeList blocks = response.document.getElementsByTagName("Tag");
+
+    			for( int i = 0; i < blocks.getLength(); i++ ) {
+    				Node object = blocks.item(i);
+    				NodeList child = object.getChildNodes();
+    				for( int j = 0; j < child.getLength(); j++ ) {
+    					Node attr = child.item(j);
+    					if( attr.getNodeName().equals("Key") ) 
+    						key = attr.getFirstChild().getNodeValue().trim();
+    					if( attr.getNodeName().equals("Value") ) 
+    						val = attr.getFirstChild().getNodeValue().trim();    
+    				}
+    				if (key != null) tags.add(new Tag(key, val != null ? val : ""));
+    			}
+    			return tags;
+    		}
+    		catch( S3Exception e ) {
+    			logger.error(e.getSummary());
+    		}   
+    		return null;
+    	}
+    	finally {
+    		APITrace.end();
+    	}
     }
 
     private String getRegion( @Nonnull String bucket, boolean reload ) throws CloudException, InternalException {
@@ -1472,6 +1560,58 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
     @Override
     public @Nonnull NamingConstraints getObjectNameRules() throws CloudException, InternalException {
         return NamingConstraints.getAlphaNumeric(1, 255).lowerCaseOnly().limitedToLatin1().constrainedBy(new char[]{'-', '.', ',', '#', '+'});
+    }
+
+    @Override
+    public void updateTags(@Nonnull String bucketName, @Nonnull Tag ... tags) throws CloudException, InternalException {
+    	APITrace.begin(getProvider(), "Bucket.updateTags");
+    	try {
+            List<Tag> tagsList = getTags( bucketName);
+    		if (tagsList == null) tagsList = new ArrayList<Tag>();
+
+    		for (int i = 0; i < tags.length ; i++ )
+    			tagsList.add(new Tag (tags[i].getKey(), tags[i].getValue()));
+    		updateTags(1, bucketName, S3Action.PUT_BUCKET_TAG, tagsList.toArray(new Tag[tagsList.size()]));
+    	}
+    	finally {
+    		APITrace.end();
+    	}
+    }
+
+    @Override
+    public void updateTags(@Nonnull String[] bucketNames, @Nonnull Tag ... tags) throws CloudException, InternalException {
+    	for( String id : bucketNames ) {
+    		updateTags(id, tags);
+    	}
+    }
+
+    @Override
+    public void removeTags(@Nonnull String bucketName, @Nonnull Tag ... tags) throws CloudException, InternalException {
+    	APITrace.begin(getProvider(), "Bucket.removeTags");
+    	try {
+    		List<Tag> existTags = getTags( bucketName);
+
+    		if (existTags != null) 
+    			for (int i = 0; i < tags.length ; i++ )
+    				for (int j = 0; j < existTags.size(); j++ ){
+    					if (tags[i].getKey().equals(existTags.get(j).getKey())){
+    						existTags.remove(j);
+    						break;
+    					}
+    				}
+    		updateTags(1, bucketName, S3Action.DELETE_BUCKET_TAG);
+    		updateTags(1, bucketName, S3Action.PUT_BUCKET_TAG, existTags.toArray(new Tag[existTags.size()]));
+    	}
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void removeTags(@Nonnull String[] bucketNames, @Nonnull Tag ... tags) throws CloudException, InternalException {
+    	for( String id : bucketNames ) {
+    		removeTags(id, tags);
+    	}
     }
 
     static private class Constraint {
