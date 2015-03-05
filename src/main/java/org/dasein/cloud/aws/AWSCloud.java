@@ -1423,11 +1423,11 @@ public class AWSCloud extends AbstractCloud {
      * @param key        the key of the value
      * @param value      the value to add if not null
      */
-    public static void addValueIfNotNull( @Nonnull Map<String, String> parameters, @Nonnull String key, String value ) {
+    public static void addValueIfNotNull( @Nonnull Map<String, String> parameters, @Nonnull String key, Object value ) {
         if( value == null ) {
             return;
         }
-        parameters.put(key, value);
+        parameters.put(key, value.toString());
     }
 
     private static volatile Boolean supportsEC2 = null;
