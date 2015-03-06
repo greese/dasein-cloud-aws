@@ -139,7 +139,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>2.7</version>
+                <version>2.10.1</version>
                 <executions>
                     <execution>
                         <id>javadoc</id>
@@ -153,8 +153,8 @@
                     <encoding>utf-8</encoding>
                     <quiet>true</quiet>
                     <links>
-                        <link>http://java.sun.com/javase/6/docs/api/</link>
-                        <link>http://java.sun.com/javaee/6/docs/api/</link>
+                      <link>http://docs.oracle.com/javase/6/docs/api/</link>
+                      <link>http://docs.oracle.com/javaee/6/api/</link>
                     </links>
                     <stylesheetfile>dasein-javadoc.css</stylesheetfile>
                     <footer />
@@ -259,7 +259,7 @@
                         <property>
                             <name>proxyPort</name>
                             <value>${proxyPort}</value>
-                        </property>			
+                        </property>
                     </systemProperties>
                     <includes>
                         <include>**/TestSuite.java</include>

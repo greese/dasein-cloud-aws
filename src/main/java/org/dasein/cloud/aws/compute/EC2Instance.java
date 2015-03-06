@@ -1569,7 +1569,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
                 // this only applies for the first NIC
                 if( i == 1 ) {
-                    parameters.put("NetworkInterface.1.AssociatePublicIpAddress", String.valueOf(cfg.isAssociatePublicIpAddress()));
+                    AWSCloud.addValueIfNotNull(parameters,
+                            "NetworkInterface." + i + ".AssociatePublicIpAddress",
+                            cfg.isAssociatePublicIpAddress());
                 }
                 if( c.nicId == null ) {
                     parameters.put("NetworkInterface." + i + ".SubnetId", c.nicToCreate.getSubnetId());
@@ -1586,7 +1588,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         else {
             parameters.put("NetworkInterface.1.DeviceIndex", "0");
             parameters.put("NetworkInterface.1.SubnetId", cfg.getSubnetId());
-            parameters.put("NetworkInterface.1.AssociatePublicIpAddress", String.valueOf(cfg.isAssociatePublicIpAddress()));
+            AWSCloud.addValueIfNotNull(parameters,
+                    "NetworkInterface.1.AssociatePublicIpAddress",
+                    cfg.isAssociatePublicIpAddress());
             AWSCloud.addValueIfNotNull(parameters, "NetworkInterface.1.PrivateIpAddress", cfg.getPrivateIp());
             AWSCloud.addIndexedParameters(parameters, "NetworkInterface.1.SecurityGroupId.", cfg.getFirewallIds());
         }
