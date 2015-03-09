@@ -114,15 +114,13 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
         return NamingConstraints.getAlphaNumeric(1, 100);
     }
 
-    @Nullable
     @Override
-    public VisibleScope getVirtualMachineVisibleScope() {
+    public @Nullable VisibleScope getVirtualMachineVisibleScope() {
         return null;
     }
 
-    @Nullable
     @Override
-    public VisibleScope getVirtualMachineProductVisibleScope() {
+    public @Nullable VisibleScope getVirtualMachineProductVisibleScope() {
         return null;
     }
 
@@ -131,9 +129,8 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
         return VMScalingCapabilities.getInstance(false, true, false);
     }
 
-    @Nonnull
     @Override
-    public Requirement identifyDataCenterLaunchRequirement() throws CloudException, InternalException {
+    public @Nonnull Requirement identifyDataCenterLaunchRequirement() throws CloudException, InternalException {
         return Requirement.OPTIONAL;
     }
 
@@ -162,9 +159,8 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
         return Requirement.NONE;
     }
 
-    @Nonnull
     @Override
-    public Requirement identifySubnetRequirement() throws CloudException, InternalException {
+    public @Nonnull Requirement identifySubnetRequirement() throws CloudException, InternalException {
         // Did not exist in 2013.07
         return (getProvider().getEC2Provider().isEucalyptus() ? Requirement.NONE : Requirement.OPTIONAL);
     }
@@ -210,47 +206,63 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
         return architectures;
     }
 
-    @Override public boolean supportsSpotVirtualMachines() throws InternalException, CloudException {
+    @Override
+    public boolean supportsSpotVirtualMachines() throws InternalException, CloudException {
         return (getProvider().getEC2Provider().isAWS());
     }
 
-    @Override public boolean supportsAlterVM() {
+    @Override
+    public boolean supportsClientRequestToken() throws InternalException, CloudException {
+        return (getProvider().getEC2Provider().isAWS());
+    }
+
+    @Override
+    public boolean supportsAlterVM() {
         return true;
     }
 
-    @Override public boolean supportsClone() {
+    @Override
+    public boolean supportsClone() {
         return true;
     }
 
-    @Override public boolean supportsPause() {
+    @Override
+    public boolean supportsPause() {
         return false;
     }
 
-    @Override public boolean supportsReboot() {
+    @Override
+    public boolean supportsReboot() {
         return true;
     }
 
-    @Override public boolean supportsResume() {
+    @Override
+    public boolean supportsResume() {
         return false;
     }
 
-    @Override public boolean supportsStart() {
+    @Override
+    public boolean supportsStart() {
         return true;
     }
 
-    @Override public boolean supportsStop() {
+    @Override
+    public boolean supportsStop() {
         return true;
     }
 
-    @Override public boolean supportsSuspend() {
+    @Override
+    public boolean supportsSuspend() {
         return false;
     }
 
-    @Override public boolean supportsTerminate() {
+    @Override
+    public boolean supportsTerminate() {
         return true;
     }
 
-    @Override public boolean supportsUnPause() {
+    @Override
+    public boolean supportsUnPause() {
         return false;
     }
 }

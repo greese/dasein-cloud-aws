@@ -1498,6 +1498,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 }
             }
         }
+        AWSCloud.addValueIfNotNull(parameters, "ClientToken", cfg.getClientRequestToken());
         AWSCloud.addValueIfNotNull(parameters, "KeyName", cfg.getBootstrapKey());
 
         if( getProvider().getEC2Provider().isAWS() ) {
@@ -2495,6 +2496,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             }
             else if( "spot-instance-request-id".equals(name) ) {
                 server.setSpotRequestId(AWSCloud.getTextValue(attr));
+            }
+            else if( "clientToken".equals(name) ) {
+                server.setClientRequestToken(AWSCloud.getTextValue(attr));
             }
         }
         if( server.getPlatform() == null ) {
