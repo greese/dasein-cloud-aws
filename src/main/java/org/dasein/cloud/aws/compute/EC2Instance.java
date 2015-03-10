@@ -1154,7 +1154,43 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public Iterable<VirtualMachineProduct> listProducts( VirtualMachineProductFilterOptions options, Architecture architecture ) throws InternalException, CloudException {
+    public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull String machineImageId) throws InternalException, CloudException {
+        MachineImage image = getProvider().getComputeServices().getImageSupport().getImage(machineImageId);
+        Iterable<VirtualMachineProduct> allProducts = listProducts(VirtualMachineProductFilterOptions.getInstance().withArchitecture(image.getArchitecture()));
+        List<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
+        for( VirtualMachineProduct product : allProducts ) {
+            String vt = product.getProviderMetadata().get("vt");
+            String rdt = product.getProviderMetadata().get("rdt");
+            boolean matchesVt = false;
+            if( vt != null ) {
+                for( String type : vt.split(",") ) {
+                    if( type.equalsIgnoreCase(image.getProviderMetadata().get("virtualizationType")) ) {
+                        matchesVt = true;
+                        break;
+                    }
+                }
+            }
+            boolean matchesRdt = false;
+            if( rdt != null ) {
+                for( String type : rdt.split(",") ) {
+                    if( type.equalsIgnoreCase("ebs") && MachineImageType.VOLUME.equals(image.getType()) ) {
+                        matchesRdt = true;
+                        break;
+                    }
+                    else if( type.equalsIgnoreCase("instance") && MachineImageType.STORAGE.equals(image.getType()) ) {
+                        matchesRdt = true;
+                    }
+                }
+            }
+            if( matchesRdt && matchesVt ) {
+                products.add(product);
+            }
+        }
+        return products;
+    }
+
+    @Override
+    public @Nonnull Iterable<VirtualMachineProduct> listProducts( VirtualMachineProductFilterOptions options, Architecture architecture ) throws InternalException, CloudException {
         ProviderContext ctx = getProvider().getContext();
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
@@ -2562,7 +2598,11 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 "description":"Small Instance (m1.small)",
                 "cpuCount":1,
                 "rootVolumeSizeInGb":160,
-                "ramSizeInMb": 1700
+                "ramSizeInMb": 1700,
+                "generation":"current",
+                "vt":["hvm"],
+                "rdt":["ebs","instance"]
+
             },
          */
         VirtualMachineProduct prd = new VirtualMachineProduct();
@@ -2617,6 +2657,39 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                         prd.setStandardHourlyRate(( float ) rate.getDouble("rate"));
                     }
                 }
+            }
+            if( json.has("architectures") ) {
+                List<Architecture> architectures = new ArrayList<Architecture>();
+                JSONArray values = json.getJSONArray("architectures");
+                for( int i=0; i<values.length(); i++ ) {
+                    String arch = values.getString(i);
+                    architectures.add(Architecture.valueOf(arch));
+                }
+                prd.setArchitectures(architectures.toArray(new Architecture[architectures.size()]));
+            }
+            if( json.has("vt") ) {
+                JSONArray vts = json.getJSONArray("vt");
+                StringBuilder sb = new StringBuilder();
+                for( int i=0; i<vts.length(); i++ ) {
+                    String vt = vts.getString(i);
+                    if( sb.length() > 0 ) {
+                        sb.append(",");
+                    }
+                    sb.append(vt);
+                }
+                prd.getProviderMetadata().put("vt", sb.toString());
+            }
+            if( json.has("rdt") ) {
+                JSONArray types = json.getJSONArray("rdt");
+                StringBuilder sb = new StringBuilder();
+                for( int i=0; i<types.length(); i++ ) {
+                    String type = types.getString(i);
+                    if( sb.length() > 0 ) {
+                        sb.append(",");
+                    }
+                    sb.append(type);
+                }
+                prd.getProviderMetadata().put("rdt", sb.toString());
             }
         } catch( JSONException e ) {
             throw new InternalException(e);
