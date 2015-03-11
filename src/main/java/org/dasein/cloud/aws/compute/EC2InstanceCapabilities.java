@@ -217,6 +217,18 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
     }
 
     @Override
+    public boolean supportsCloudStoredShellKey() throws InternalException, CloudException {
+        if( getProvider().getIdentityServices() != null ) {
+            return getProvider().getIdentityServices().hasShellKeySupport();
+        }
+        return false;
+    }
+
+    @Override public boolean isVMProductDCConstrained() throws InternalException, CloudException {
+        return false;
+    }
+
+    @Override
     public boolean supportsAlterVM() {
         return true;
     }

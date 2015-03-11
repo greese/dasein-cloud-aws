@@ -63,7 +63,7 @@
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-core</artifactId>
-            <version>2015.03.1-SNAPSHOT</version>
+            <version>2015.03.1</version>
             <scope>compile</scope>
             <optional>false</optional>
         </dependency>
@@ -113,7 +113,7 @@
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-test</artifactId>
-            <version>2015.03.1-SNAPSHOT</version>
+            <version>2015.03.2-SNAPSHOT</version>
             <scope>test</scope>
             <optional>false</optional>
         </dependency>
@@ -259,6 +259,10 @@
                         <property>
                             <name>proxyPort</name>
                             <value>${proxyPort}</value>
+                        </property>
+                        <property>
+                            <name>test.machineImage</name>
+                            <value>${test.machineImage}</value>
                         </property>
                     </systemProperties>
                     <includes>

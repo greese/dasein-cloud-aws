@@ -1565,10 +1565,10 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                     String value = attribute.getFirstChild().getNodeValue();
 
                     if( value.equalsIgnoreCase("ebs") ) {
-                        type = MachineImageType.VOLUME;
+                        type = MachineImageType.VOLUME; // ebs
                     }
                     else {
-                        type = MachineImageType.STORAGE;
+                        type = MachineImageType.STORAGE; // instance-store
                         storageFormat = MachineImageFormat.AWS;
                     }
                 }
@@ -1671,6 +1671,12 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         }
         MachineImage image = MachineImage.getInstance(ownerId, regionId, amiId, imgClass, state, imgName, description, arch, platform);
         image.withVolumes(volumes);
+        if( hypervisor != null ) {
+            image.getProviderMetadata().put("hypervisor", hypervisor);
+        }
+        if( virtualizationType != null ) {
+            image.getProviderMetadata().put("virtualizationType", virtualizationType);
+        }
         if( isPublic ) {
             image.sharedWithPublic();
         }
@@ -1678,12 +1684,6 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         image.setTag("stateReason", reason);
         if( tagsNode != null ) {
             getProvider().setTags(tagsNode, image);
-        }
-        if( virtualizationType != null ) {
-            image.setTag("virtualizationType", virtualizationType);
-        }
-        if( hypervisor != null ) {
-            image.setTag("hypervisor", hypervisor);
         }
         if( type != null ) {
             image.withType(type);

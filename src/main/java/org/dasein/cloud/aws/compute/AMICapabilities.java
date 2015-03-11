@@ -147,4 +147,9 @@ public class AMICapabilities extends AbstractCapabilities<AWSCloud> implements I
     public boolean supportsPublicLibrary(@Nonnull ImageClass imageClass) {
         return getProvider().getEC2Provider().isAWS();
     }
+
+    @Override
+    public boolean imageCaptureDestroysVM() throws CloudException, InternalException {
+        return false;
+    }
 }
