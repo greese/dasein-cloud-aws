@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2015 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -88,6 +88,11 @@ public class ElasticLoadBalancerCapabilities extends AbstractCapabilities<AWSClo
 
     @Override
     public Requirement identifyVlanOnCreateRequirement() { return Requirement.NONE; }
+
+    @Override
+    public @Nonnull Requirement identifyHealthCheckOnCreateRequirement() throws CloudException, InternalException {
+        return Requirement.OPTIONAL;
+    }
 
     @Override
     public boolean isAddressAssignedByProvider() throws CloudException, InternalException {

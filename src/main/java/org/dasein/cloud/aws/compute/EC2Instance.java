@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2015 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -1155,7 +1155,43 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
-    public Iterable<VirtualMachineProduct> listProducts( VirtualMachineProductFilterOptions options, Architecture architecture ) throws InternalException, CloudException {
+    public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull String machineImageId) throws InternalException, CloudException {
+        MachineImage image = getProvider().getComputeServices().getImageSupport().getImage(machineImageId);
+        Iterable<VirtualMachineProduct> allProducts = listProducts(VirtualMachineProductFilterOptions.getInstance().withArchitecture(image.getArchitecture()));
+        List<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
+        for( VirtualMachineProduct product : allProducts ) {
+            String vt = product.getProviderMetadata().get("vt");
+            String rdt = product.getProviderMetadata().get("rdt");
+            boolean matchesVt = false;
+            if( vt != null ) {
+                for( String type : vt.split(",") ) {
+                    if( type.equalsIgnoreCase(image.getProviderMetadata().get("virtualizationType")) ) {
+                        matchesVt = true;
+                        break;
+                    }
+                }
+            }
+            boolean matchesRdt = false;
+            if( rdt != null ) {
+                for( String type : rdt.split(",") ) {
+                    if( type.equalsIgnoreCase("ebs") && MachineImageType.VOLUME.equals(image.getType()) ) {
+                        matchesRdt = true;
+                        break;
+                    }
+                    else if( type.equalsIgnoreCase("instance") && MachineImageType.STORAGE.equals(image.getType()) ) {
+                        matchesRdt = true;
+                    }
+                }
+            }
+            if( matchesRdt && matchesVt ) {
+                products.add(product);
+            }
+        }
+        return products;
+    }
+
+    @Override
+    public @Nonnull Iterable<VirtualMachineProduct> listProducts( VirtualMachineProductFilterOptions options, Architecture architecture ) throws InternalException, CloudException {
         ProviderContext ctx = getProvider().getContext();
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
@@ -1499,6 +1535,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 }
             }
         }
+        AWSCloud.addValueIfNotNull(parameters, "ClientToken", cfg.getClientRequestToken());
         AWSCloud.addValueIfNotNull(parameters, "KeyName", cfg.getBootstrapKey());
 
         if( getProvider().getEC2Provider().isAWS() ) {
@@ -1570,7 +1607,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 parameters.put("NetworkInterface." + i + ".DeviceIndex", String.valueOf(i));
                 // this only applies for the first NIC
                 if( i == 1 ) {
-                    parameters.put("NetworkInterface.1.AssociatePublicIpAddress", String.valueOf(cfg.isAssociatePublicIpAddress()));
+                    AWSCloud.addValueIfNotNull(parameters,
+                            "NetworkInterface." + i + ".AssociatePublicIpAddress",
+                            cfg.isAssociatePublicIpAddress());
                 }
                 if( c.nicId == null ) {
                     parameters.put("NetworkInterface." + i + ".SubnetId", c.nicToCreate.getSubnetId());
@@ -1587,7 +1626,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         else {
             parameters.put("NetworkInterface.1.DeviceIndex", "0");
             parameters.put("NetworkInterface.1.SubnetId", cfg.getSubnetId());
-            parameters.put("NetworkInterface.1.AssociatePublicIpAddress", String.valueOf(cfg.isAssociatePublicIpAddress()));
+            AWSCloud.addValueIfNotNull(parameters,
+                    "NetworkInterface.1.AssociatePublicIpAddress",
+                    cfg.isAssociatePublicIpAddress());
             AWSCloud.addValueIfNotNull(parameters, "NetworkInterface.1.PrivateIpAddress", cfg.getPrivateIp());
             AWSCloud.addIndexedParameters(parameters, "NetworkInterface.1.SecurityGroupId.", cfg.getFirewallIds());
         }
@@ -1654,7 +1695,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         if( cfg.getVirtualMachineGroup() != null ) {
             tags.add(new Tag("dsnVMGroup", cfg.getVirtualMachineGroup()));
         }
-        getProvider().createTags(instanceIds.toArray(new String[instanceIds.size()]), tags.toArray(new Tag[tags.size()]));
+        getProvider().createTags(EC2Method.SERVICE_ID, instanceIds.toArray(new String[instanceIds.size()]), tags.toArray(new Tag[tags.size()]));
 
         // Set all instances their passwords and attach volumes
         for( VirtualMachine server : servers ) {
@@ -2496,6 +2537,9 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
             else if( "spot-instance-request-id".equals(name) ) {
                 server.setSpotRequestId(AWSCloud.getTextValue(attr));
             }
+            else if( "clientToken".equals(name) ) {
+                server.setClientRequestToken(AWSCloud.getTextValue(attr));
+            }
         }
         if( server.getPlatform() == null ) {
             server.setPlatform(Platform.UNKNOWN);
@@ -2558,7 +2602,11 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                 "description":"Small Instance (m1.small)",
                 "cpuCount":1,
                 "rootVolumeSizeInGb":160,
-                "ramSizeInMb": 1700
+                "ramSizeInMb": 1700,
+                "generation":"current",
+                "vt":["hvm"],
+                "rdt":["ebs","instance"]
+
             },
          */
         VirtualMachineProduct prd = new VirtualMachineProduct();
@@ -2614,6 +2662,39 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
                     }
                 }
             }
+            if( json.has("architectures") ) {
+                List<Architecture> architectures = new ArrayList<Architecture>();
+                JSONArray values = json.getJSONArray("architectures");
+                for( int i=0; i<values.length(); i++ ) {
+                    String arch = values.getString(i);
+                    architectures.add(Architecture.valueOf(arch));
+                }
+                prd.setArchitectures(architectures.toArray(new Architecture[architectures.size()]));
+            }
+            if( json.has("vt") ) {
+                JSONArray vts = json.getJSONArray("vt");
+                StringBuilder sb = new StringBuilder();
+                for( int i=0; i<vts.length(); i++ ) {
+                    String vt = vts.getString(i);
+                    if( sb.length() > 0 ) {
+                        sb.append(",");
+                    }
+                    sb.append(vt);
+                }
+                prd.getProviderMetadata().put("vt", sb.toString());
+            }
+            if( json.has("rdt") ) {
+                JSONArray types = json.getJSONArray("rdt");
+                StringBuilder sb = new StringBuilder();
+                for( int i=0; i<types.length(); i++ ) {
+                    String type = types.getString(i);
+                    if( sb.length() > 0 ) {
+                        sb.append(",");
+                    }
+                    sb.append(type);
+                }
+                prd.getProviderMetadata().put("rdt", sb.toString());
+            }
         } catch( JSONException e ) {
             throw new InternalException(e);
         }
@@ -2622,22 +2703,22 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
 
     @Override
     public void updateTags( @Nonnull String vmId, @Nonnull Tag... tags ) throws CloudException, InternalException {
-        getProvider().createTags(vmId, tags);
+        getProvider().createTags(EC2Method.SERVICE_ID, vmId, tags);
     }
 
     @Override
     public void updateTags( @Nonnull String[] vmIds, @Nonnull Tag... tags ) throws CloudException, InternalException {
-        getProvider().createTags(vmIds, tags);
+        getProvider().createTags(EC2Method.SERVICE_ID, vmIds, tags);
     }
 
     @Override
     public void removeTags(@Nonnull String vmId, @Nonnull Tag... tags) throws CloudException, InternalException {
-        getProvider().removeTags(vmId, tags);
+        getProvider().removeTags(EC2Method.SERVICE_ID, vmId, tags);
     }
 
     @Override
     public void removeTags( @Nonnull String[] vmIds, @Nonnull Tag... tags ) throws CloudException, InternalException {
-        getProvider().removeTags(vmIds, tags);
+        getProvider().removeTags(EC2Method.SERVICE_ID, vmIds, tags);
     }
 
     @Override

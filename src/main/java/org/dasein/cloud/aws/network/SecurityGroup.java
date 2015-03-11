@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2015 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -230,7 +230,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
                                 tags.add(new Tag(key, value));
                             }
                         }
-                        getProvider().createTags(id, tags.toArray(new Tag[tags.size()]));
+                        getProvider().createTags(EC2Method.SERVICE_ID, id, tags.toArray(new Tag[tags.size()]));
                     }
                     firewallId = id;
                 } else {
@@ -629,7 +629,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
     public void removeTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Firewall.removeTags");
         try {
-            getProvider().removeTags(firewallIds, tags);
+            getProvider().removeTags(EC2Method.SERVICE_ID, firewallIds, tags);
         } finally {
             APITrace.end();
         }
@@ -644,7 +644,7 @@ public class SecurityGroup extends AbstractFirewallSupport<AWSCloud> {
     public void updateTags(@Nonnull String[] firewallIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Firewall.updateTags");
         try {
-            getProvider().createTags(firewallIds, tags);
+            getProvider().createTags(EC2Method.SERVICE_ID, firewallIds, tags);
         } finally {
             APITrace.end();
         }

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2015 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -208,8 +208,8 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                         tags.add(new Tag(entry.getKey(), entry.getValue() == null ? "" : entry.getValue().toString()));
 
                     if( !tags.isEmpty() ) {
-                    	getProvider().createTags(id, tags.toArray(new Tag[tags.size()]));
-                    }             
+                    	getProvider().createTags(EC2Method.SERVICE_ID, id, tags.toArray(new Tag[tags.size()]));
+                    }     
                     return img;
                 }
                 throw new CloudException("No error occurred during imaging, but no machine image was specified");
@@ -1565,10 +1565,10 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                     String value = attribute.getFirstChild().getNodeValue();
 
                     if( value.equalsIgnoreCase("ebs") ) {
-                        type = MachineImageType.VOLUME;
+                        type = MachineImageType.VOLUME; // ebs
                     }
                     else {
-                        type = MachineImageType.STORAGE;
+                        type = MachineImageType.STORAGE; // instance-store
                         storageFormat = MachineImageFormat.AWS;
                     }
                 }
@@ -1671,6 +1671,12 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         }
         MachineImage image = MachineImage.getInstance(ownerId, regionId, amiId, imgClass, state, imgName, description, arch, platform);
         image.withVolumes(volumes);
+        if( hypervisor != null ) {
+            image.getProviderMetadata().put("hypervisor", hypervisor);
+        }
+        if( virtualizationType != null ) {
+            image.getProviderMetadata().put("virtualizationType", virtualizationType);
+        }
         if( isPublic ) {
             image.sharedWithPublic();
         }
@@ -1678,12 +1684,6 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
         image.setTag("stateReason", reason);
         if( tagsNode != null ) {
             getProvider().setTags(tagsNode, image);
-        }
-        if( virtualizationType != null ) {
-            image.setTag("virtualizationType", virtualizationType);
-        }
-        if( hypervisor != null ) {
-            image.setTag("hypervisor", hypervisor);
         }
         if( type != null ) {
             image.withType(type);
@@ -1719,7 +1719,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     public void updateTags(@Nonnull String[] imageIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Image.updateTags");
         try {
-            getProvider(). createTags(imageIds, tags);
+            getProvider(). createTags(EC2Method.SERVICE_ID, imageIds, tags);
         }
         finally {
             APITrace.end();
@@ -1735,7 +1735,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
     public void removeTags(@Nonnull String[] imageIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Image.removeTags");
         try {
-            getProvider(). removeTags(imageIds, tags);
+            getProvider(). removeTags(EC2Method.SERVICE_ID, imageIds, tags);
         }
         finally {
             APITrace.end();

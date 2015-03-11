@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2015 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -146,5 +146,10 @@ public class AMICapabilities extends AbstractCapabilities<AWSCloud> implements I
     @Override
     public boolean supportsPublicLibrary(@Nonnull ImageClass imageClass) {
         return getProvider().getEC2Provider().isAWS();
+    }
+
+    @Override
+    public boolean imageCaptureDestroysVM() throws CloudException, InternalException {
+        return false;
     }
 }

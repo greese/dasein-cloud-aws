@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2015 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -220,7 +220,7 @@ public class S3Method {
             if( bucket != null ) {
                 bucket = AWSCloud.encode(bucket, false);
             }
-            if( object != null && !"?location".equalsIgnoreCase( object ) && !"?acl".equalsIgnoreCase( object )) {
+            if( object != null && !"?location".equalsIgnoreCase( object ) && !"?acl".equalsIgnoreCase( object ) && !"?tagging".equalsIgnoreCase( object )) {
                 object = AWSCloud.encode(object, false);
             }
             if( temporaryEndpoint != null ) {
@@ -368,6 +368,15 @@ public class S3Method {
             String host = method.getURI().getHost();
             headers.put("host", host);
 
+            if(action.equals(S3Action.PUT_BUCKET_TAG))
+            	try {
+            		headers.put("Content-MD5", toBase64(computeMD5Hash(body)));
+            	} catch (NoSuchAlgorithmException e) {
+            		logger.error(e);
+            	} catch (IOException e) {
+            		logger.error(e);
+            	}
+            
             if( headers != null ) {
                 for( Map.Entry<String, String> entry : headers.entrySet() ) {
                     method.addHeader(entry.getKey(), entry.getValue());
@@ -493,7 +502,7 @@ public class S3Method {
                         try {
                             Header ct = httpResponse.getFirstHeader("Content-Type");
     
-                            if( ct != null && (ct.getValue().startsWith("application/xml") || ct.getValue().startsWith("text/xml")) ) {
+                            if( (ct != null && (ct.getValue().startsWith("application/xml") || ct.getValue().startsWith("text/xml"))) || ( action.equals(S3Action.GET_BUCKET_TAG) && input != null )) {
                                 try {
                                     response.document = parseResponse(input);
                                     return response;
@@ -665,7 +674,7 @@ public class S3Method {
 				sb.append(line);
 			}
 			in.close();
-	            
+            
             wire.debug(sb.toString());
 
 			return XMLParser.parse(new ByteArrayInputStream(sb.toString().getBytes()));

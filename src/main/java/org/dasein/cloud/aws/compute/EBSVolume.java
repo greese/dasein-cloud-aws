@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2013 Dell, Inc.
+ * Copyright (C) 2009-2015 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -158,7 +158,7 @@ public class EBSVolume extends AbstractVolumeSupport<AWSCloud> {
                     }
                 }
                 if( !tags.isEmpty() ) {
-                    getProvider().createTags(id, tags.toArray(new Tag[tags.size()]));
+                    getProvider().createTags(EC2Method.SERVICE_ID, id, tags.toArray(new Tag[tags.size()]));
                 }
                 return id;
             }
@@ -512,7 +512,7 @@ public class EBSVolume extends AbstractVolumeSupport<AWSCloud> {
     public void updateTags(@Nonnull String[] volumeIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Volume.updateTags");
         try {
-            getProvider().createTags(volumeIds, tags);
+            getProvider().createTags(EC2Method.SERVICE_ID, volumeIds, tags);
         }
         finally {
             APITrace.end();
@@ -528,7 +528,7 @@ public class EBSVolume extends AbstractVolumeSupport<AWSCloud> {
     public void removeTags(@Nonnull String[] volumeIds, @Nonnull Tag... tags) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "Volume.removeTags");
         try {
-            getProvider().removeTags(volumeIds, tags);
+            getProvider().removeTags(EC2Method.SERVICE_ID, volumeIds, tags);
         }
         finally {
             APITrace.end();

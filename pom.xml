@@ -1,6 +1,6 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <!--
-        Copyright (C) 2008-2013 Dell, Inc. (http://www.enstratius.com)
+        Copyright (C) 2008-2015 Dell, Inc. (http://www.enstratius.com)
 
         ====================================================================
         Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.dasein</groupId>
     <artifactId>dasein-cloud-aws</artifactId>
-    <version>2014.11.4</version>
+    <version>2015.03.2-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>dasein-cloud-aws</name>
@@ -62,7 +62,7 @@
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-core</artifactId>
-            <version>2014.11.1</version>
+            <version>2015.03.1</version>
             <scope>compile</scope>
             <optional>false</optional>
         </dependency>
@@ -112,7 +112,7 @@
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-test</artifactId>
-            <version>2014.11.1</version>
+            <version>2015.03.2-SNAPSHOT</version>
             <scope>test</scope>
             <optional>false</optional>
         </dependency>
@@ -138,7 +138,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>2.7</version>
+                <version>2.10.1</version>
                 <executions>
                     <execution>
                         <id>javadoc</id>
@@ -152,8 +152,8 @@
                     <encoding>utf-8</encoding>
                     <quiet>true</quiet>
                     <links>
-                        <link>http://java.sun.com/javase/6/docs/api/</link>
-                        <link>http://java.sun.com/javaee/6/docs/api/</link>
+                      <link>http://docs.oracle.com/javase/6/docs/api/</link>
+                      <link>http://docs.oracle.com/javaee/6/api/</link>
                     </links>
                     <stylesheetfile>dasein-javadoc.css</stylesheetfile>
                     <footer />
@@ -177,7 +177,7 @@
                         <exclude>**/LICENSE-APACHE.txt</exclude>
                     </excludes>
                     <properties>
-                        <year>2009-2013</year>
+                        <year>2009-2015</year>
                         <copyrightHolder>Dell, Inc.</copyrightHolder>
                     </properties>
                 </configuration>
@@ -258,7 +258,11 @@
                         <property>
                             <name>proxyPort</name>
                             <value>${proxyPort}</value>
-                        </property>			
+                        </property>
+                        <property>
+                            <name>test.machineImage</name>
+                            <value>${test.machineImage}</value>
+                        </property>
                     </systemProperties>
                     <excludes>
                         <exclude>**/TestSuite.java</exclude>
