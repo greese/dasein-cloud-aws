@@ -24,6 +24,7 @@ import org.apache.commons.codec.binary.Hex;
 import org.apache.http.*;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.GzipDecompressingEntity;
+import org.apache.http.client.utils.URIUtils;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.impl.client.DefaultHttpClient;
@@ -1009,18 +1010,20 @@ public class AWSCloud extends AbstractCloud {
      */
     public String getV4Authorization( String accessKey, String secretKey, String action, String url, String serviceId, Map<String, String> headers, String bodyHash ) throws InternalException {
         serviceId = serviceId.toLowerCase();
-        String regionId = "us-east-1";
-        ProviderContext ctx = getContext();
-        if( ctx != null && ctx.getRegionId() != null && !ctx.getRegionId().isEmpty() &&
-                !serviceId.equalsIgnoreCase(IAMMethod.SERVICE_ID) ) {
-            regionId = getContext().getRegionId();
-        } else {
-            String[] urlParts = url.split("\\."); // everywhere except s3 and iam this is: service.region.amazonaws.com
-            if( urlParts.length == 4) {
-                regionId = urlParts[1];
-                if( regionId.startsWith("s3-") ) {
-                    regionId = regionId.substring(3);
-                }
+        String regionId = "us-east-1"; // default for IAM
+//        if( ctx != null && ctx.getRegionId() != null && !ctx.getRegionId().isEmpty() &&
+//                !serviceId.equalsIgnoreCase(IAMMethod.SERVICE_ID) ) {
+//            regionId = getContext().getRegionId();
+//        } else {
+        String host = url.replaceAll("https?:\\/\\/", "");
+        if( host.indexOf('/') > 0 ) {
+            host = host.substring(0, host.indexOf('/', 1));
+        }
+        if( !IAMMethod.SERVICE_ID.equalsIgnoreCase(serviceId) ) {
+            String[] urlParts = host.split("\\."); // everywhere except s3 and iam this is: service.region.amazonaws.com
+            regionId = urlParts[urlParts.length-3];
+            if( regionId.startsWith("s3-") ) {
+                regionId = regionId.substring(3);
             }
         }
         String amzDate = extractV4Date(headers);
@@ -1428,93 +1431,6 @@ public class AWSCloud extends AbstractCloud {
             return;
         }
         parameters.put(key, value.toString());
-    }
-
-    private static volatile Boolean supportsEC2 = null;
-    private static volatile Boolean supportsVPC = null;
-
-    /**
-     * Retrieve current account number using DescribeSecurityGroups. May not always be reliable but is better than
-     * nothing.
-     *
-     * @return current account number or null if not found
-     */
-    private void fetchSupportedPlatforms() {
-        if( supportsEC2 != null ) {
-            // We've already done this before, don't continue;
-            return;
-        }
-        APITrace.begin(this, "AWSCloud.getSupportedPlatforms");
-        try {
-            ProviderContext ctx = getContext();
-            if( ctx == null ) {
-                return;
-            }
-            Map<String, String> parameters = getStandardParameters(getContext(), EC2Method.DESCRIBE_ACCOUNT_ATTRIBUTES);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-            parameters.put("AttributeName.1", "supported-platforms");
-            method = new EC2Method(EC2Method.SERVICE_ID, this, parameters);
-            try {
-                doc = method.invoke();
-            } catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-
-            blocks = doc.getElementsByTagName("attributeValueSet");
-            for (int i = 0; i < blocks.getLength(); i++) {
-                NodeList items = blocks.item(i).getChildNodes();
-
-                for( int j = 0; j < items.getLength(); j++ ) {
-                    Node item = items.item(j);
-
-                    if( item.getNodeName().equals("item") ) {
-                        NodeList attrs = item.getChildNodes();
-                        for( int k = 0; k < attrs.getLength(); k++ ) {
-                            Node attr = attrs.item(k);
-                            if (attr.getNodeName().equals("attributeValue")) {
-                                String value = attr.getFirstChild().getNodeValue().trim();
-                                if( PLATFORM_EC2.equalsIgnoreCase(value) ) {
-                                    supportsEC2 = Boolean.TRUE;
-                                }
-                                else if( PLATFORM_VPC.equalsIgnoreCase(value) ) {
-                                    supportsVPC = Boolean.TRUE;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if( supportsEC2 == null ) {
-                supportsEC2 = Boolean.FALSE;
-            }
-            if( supportsVPC == null ) {
-                supportsVPC = Boolean.FALSE;
-            }
-        } catch ( InternalException e ) {
-        } catch ( CloudException e ) {
-        } finally {
-            APITrace.end();
-        }
-    }
-
-    /**
-     * @return
-     */
-    public boolean isEC2Supported() {
-        fetchSupportedPlatforms();
-        return supportsEC2 != null && supportsEC2;
-    }
-
-    /**
-     *
-     * @return
-     */
-    public boolean isVPCSupported() {
-        fetchSupportedPlatforms();
-        return supportsVPC != null && supportsVPC;
     }
 
     public @Nonnull HttpClient getClient() throws InternalException {
