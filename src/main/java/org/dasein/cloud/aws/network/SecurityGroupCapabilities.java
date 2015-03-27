@@ -21,6 +21,7 @@ package org.dasein.cloud.aws.network;
 
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.aws.RegionsAndZones;
 import org.dasein.cloud.network.*;
 
 import javax.annotation.Nonnull;
@@ -121,7 +122,12 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
     @Override
     public Requirement requiresVLAN() throws CloudException, InternalException {
         // no VLAN support in EC2-Classic, it's optional in EC2-VPC - the default VPC will be used if not specified
-        return getProvider().isEC2Supported() ? Requirement.NONE : Requirement.OPTIONAL;
+        final RegionsAndZones services = getProvider().getDataCenterServices();
+        if( services != null ) {
+            return AWSCloud.PLATFORM_EC2.equals(services.isRegionEC2VPC(getContext().getRegionId()))
+                    ? Requirement.NONE : Requirement.OPTIONAL;
+        }
+        return Requirement.NONE;
     }
 
     @Override
