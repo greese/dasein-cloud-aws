@@ -601,7 +601,7 @@ public class EC2Method {
         this.provider = provider;
         this.serviceId = serviceId;
         if( serviceId.equalsIgnoreCase(EC2Method.SERVICE_ID) ) {
-            this.url = provider.getEc2Url(); // for eucalyptus' sake
+            this.url = provider.getEc2Url(regionIdOverride); // for eucalyptus' sake
         }
         else {
             if( serviceId.equalsIgnoreCase(IAMMethod.SERVICE_ID) ) {
