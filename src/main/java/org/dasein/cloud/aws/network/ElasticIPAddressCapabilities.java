@@ -24,6 +24,7 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.aws.RegionsAndZones;
 import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.network.IPAddressCapabilities;
 import org.dasein.cloud.network.IPVersion;
@@ -93,6 +94,10 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
 
     @Override
     public boolean supportsVLANAddresses(@Nonnull IPVersion ofVersion) throws InternalException, CloudException {
-        return getProvider().isVPCSupported() ? IPVersion.IPV4.equals(ofVersion) : false;
+        final RegionsAndZones services = getProvider().getDataCenterServices();
+        if( services != null ) {
+            return AWSCloud.PLATFORM_VPC.equals(services.isRegionEC2VPC(getContext().getRegionId()));
+        }
+        return false;
     }
 }
