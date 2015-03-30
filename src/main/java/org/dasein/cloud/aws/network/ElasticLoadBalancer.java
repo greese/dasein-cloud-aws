@@ -1490,6 +1490,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         boolean withHealthCheck = false;
         long created = 0L;
         LbType type = null;
+        String vlanId = null;
         ArrayList<String> subnetList = new ArrayList<String>();
 
         if( regionId == null ) {
@@ -1578,6 +1579,9 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     logger.warn("Unable to parse time: " + e.getMessage());
                 }
             }
+            else if( name.equalsIgnoreCase("vpcId") ) {
+                vlanId = attr.getFirstChild().getNodeValue().trim();
+            }
             else if( name.equals("healthcheck") ) {
                 withHealthCheck = true;
             }
@@ -1659,6 +1663,9 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
         if( withHealthCheck ) {
             lb.setProviderLBHealthCheckId(lbId);
+        }
+        if( vlanId != null ) {
+            lb.forVlan(vlanId);
         }
         return lb;
     }
