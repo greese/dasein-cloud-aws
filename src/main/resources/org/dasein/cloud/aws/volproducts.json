@@ -1,0 +1,224 @@
+[
+  {
+    "cloud": "AWS",
+    "provider": "AWS",
+    "created": 1429015313000,
+    "products": [
+      {
+        "id": "standard",
+        "name": "Standard",
+        "description": "Standard EBS with no IOPS guarantees",
+        "type": "hdd",
+        "minSize": 1,
+        "maxSize": 1024,
+        "minIops": 0,
+        "maxIops": 0,
+        "iopsToGb": 0
+      },
+      {
+        "id": "io1",
+        "name": "IOPS EBS",
+        "description": "EBS Volume with IOPS guarantees",
+        "type": "ssd",
+        "minSize": 4,
+        "maxSize": 16384,
+        "minIops": 100,
+        "maxIops": 20000,
+        "iopsToGb": 30
+      },
+      {
+        "id": "gp2",
+        "name": "SSD EBS",
+        "description": "SSD-based Persistent Volume",
+        "type": "ssd",
+        "minSize": 1,
+        "maxSize": 16384,
+        "minIops": 0,
+        "maxIops": 0,
+        "iopsToGb": 3
+      }
+    ],
+    "regions": [
+      {
+        "name": "us-east-1",
+        "prices": [
+          {
+            "id": "gp2",
+            "monthly": 0.10,
+            "iops": 0.0
+          },
+          {
+            "id": "io1",
+            "monthly": 0.125,
+            "iops": 0.065
+          },
+          {
+            "id": "standard",
+            "monthly": 0.05,
+            "iops": 0.05
+          }
+        ]
+      },
+      {
+        "name": "us-west-1",
+        "prices": [
+          {
+            "id": "gp2",
+            "monthly": 0.12,
+            "iops": 0.0
+          },
+          {
+            "id": "io1",
+            "monthly": 0.138,
+            "iops": 0.072
+          },
+          {
+            "id": "standard",
+            "monthly": 0.08,
+            "iops": 0.08
+          }
+        ]
+      },
+      {
+        "name": "us-west-2",
+        "prices": [
+          {
+            "id": "gp2",
+            "monthly": 0.10,
+            "iops": 0.0
+          },
+          {
+            "id": "io1",
+            "monthly": 0.125,
+            "iops": 0.065
+          },
+          {
+            "id": "standard",
+            "monthly": 0.05,
+            "iops": 0.05
+          }
+        ]
+      },
+      {
+        "name": "eu-west-1",
+        "prices": [
+          {
+            "id": "gp2",
+            "monthly": 0.11,
+            "iops": 0.0
+          },
+          {
+            "id": "io1",
+            "monthly": 0.138,
+            "iops": 0.072
+          },
+          {
+            "id": "standard",
+            "monthly": 0.055,
+            "iops": 0.055
+          }
+        ]
+      },
+      {
+        "name": "eu-central-1",
+        "prices": [
+          {
+            "id": "gp2",
+            "monthly": 0.119,
+            "iops": 0.0
+          },
+          {
+            "id": "io1",
+            "monthly": 0.149,
+            "iops": 0.078
+          },
+          {
+            "id": "standard",
+            "monthly": 0.059,
+            "iops": 0.059
+          }
+        ]
+      },
+      {
+        "name": "ap-southeast-1",
+        "prices": [
+          {
+            "id": "gp2",
+            "monthly": 0.12,
+            "iops": 0.0
+          },
+          {
+            "id": "io1",
+            "monthly": 0.138,
+            "iops": 0.072
+          },
+          {
+            "id": "standard",
+            "monthly": 0.08,
+            "iops": 0.08
+          }
+        ]
+      },
+      {
+        "name": "ap-northeast-1",
+        "prices": [
+          {
+            "id": "gp2",
+            "monthly": 0.12,
+            "iops": 0.0
+          },
+          {
+            "id": "io1",
+            "monthly": 0.142,
+            "iops": 0.074
+          },
+          {
+            "id": "standard",
+            "monthly": 0.080,
+            "iops": 0.080
+          }
+        ]
+      },
+      {
+        "name": "ap-northeast-2",
+        "prices": [
+          {
+            "id": "gp2",
+            "monthly": 0.12,
+            "iops": 0.0
+          },
+          {
+            "id": "io1",
+            "monthly": 0.138,
+            "iops": 0.072
+          },
+          {
+            "id": "standard",
+            "monthly": 0.08,
+            "iops": 0.08
+          }
+        ]
+      },
+      {
+        "name": "sa-east-1",
+        "prices": [
+          {
+            "id": "gp2",
+            "monthly": 0.19,
+            "iops": 0.0
+          },
+          {
+            "id": "io1",
+            "monthly": 0.238,
+            "iops": 0.091
+          },
+          {
+            "id": "standard",
+            "monthly": 0.12,
+            "iops": 0.12
+          }
+        ]
+      }
+    ]
+  }
+]
