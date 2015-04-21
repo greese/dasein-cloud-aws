@@ -259,6 +259,9 @@ public class EBSVolume extends AbstractVolumeSupport<AWSCloud> {
                 continue;
             }
             VolumeProduct volumeProduct = VolumeProduct.getInstance(product.getId(), product.getName(), product.getDescription(), VolumeType.valueOf(product.getType().toUpperCase()), product.getMinIops(), product.getMaxIops(), price.getMonthly(), price.getIops() );
+            volumeProduct.withMaxIopsRatio(product.getIopsToGb());
+            volumeProduct.withMaxVolumeSize(new Storage<Gigabyte>(product.getMaxSize(), Storage.GIGABYTE));
+            volumeProduct.withMinVolumeSize(new Storage<Gigabyte>(product.getMinSize(), Storage.GIGABYTE));
             volumeProducts.add(volumeProduct);
         }
         return volumeProducts;
