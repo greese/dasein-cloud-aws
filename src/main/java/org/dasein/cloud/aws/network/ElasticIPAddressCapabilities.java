@@ -63,6 +63,11 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
     }
 
     @Override
+    public @Nonnull Requirement identifyVMForPortForwarding() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
+
+    @Override
     public boolean isAssigned(@Nonnull IPVersion version) throws CloudException, InternalException {
         return IPVersion.IPV4.equals(version);
     }
