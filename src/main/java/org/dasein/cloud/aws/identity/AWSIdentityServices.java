@@ -22,21 +22,22 @@ package org.dasein.cloud.aws.identity;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.identity.AbstractIdentityServices;
 
-public class AWSIdentityServices extends AbstractIdentityServices {
-    private AWSCloud cloud;
-    
-    public AWSIdentityServices(AWSCloud cloud) { this.cloud = cloud; }
-    
+public class AWSIdentityServices extends AbstractIdentityServices<AWSCloud> {
+
+    public AWSIdentityServices(AWSCloud provider) {
+        super(provider);
+    }
+
     @Override
     public IAM getIdentityAndAccessSupport() {
-        if( cloud.getEC2Provider().isAWS() || cloud.getEC2Provider().isEnStratus() ) {
-            return new IAM(cloud);
+        if( getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus() ) {
+            return new IAM(getProvider());
         }
         return null;
     }
 
     @Override
     public Keypairs getShellKeySupport() {
-        return new Keypairs(cloud);
+        return new Keypairs(getProvider());
     }
 }

@@ -732,27 +732,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport<AWSCloud> {
         }
     }
 
-    @Override
-    public boolean supportsSnapshotCopying() throws CloudException, InternalException {
-        return getCapabilities().supportsSnapshotCopying();
-    }
-
-    @Override
-    public boolean supportsSnapshotCreation() throws CloudException, InternalException {
-        return getCapabilities().supportsSnapshotCreation();
-    }
-
-    @Override
-    public boolean supportsSnapshotSharing() throws InternalException, CloudException {
-        return getCapabilities().supportsSnapshotSharing();
-    }
-
-    @Override
-    public boolean supportsSnapshotSharingWithPublic() throws InternalException, CloudException {
-        return getCapabilities().supportsSnapshotSharingWithPublic();
-    }
-
-    private @Nullable Snapshot toSnapshot(@Nullable Node node) throws CloudException {
+    private @Nullable Snapshot toSnapshot(@Nullable Node node) throws CloudException, InternalException {
         if( node == null ) {
             return null;
         }

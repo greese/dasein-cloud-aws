@@ -30,18 +30,18 @@ import javax.annotation.Nonnull;
  * @version 2013.07 added support for Glacier
  * @since unknown
  */
-public class AWSCloudStorageServices extends AbstractStorageServices {
-    private AWSCloud cloud;
-    
-    public AWSCloudStorageServices(AWSCloud cloud) { this.cloud = cloud; }
+public class AWSCloudStorageServices extends AbstractStorageServices<AWSCloud> {
+    public AWSCloudStorageServices(AWSCloud provider) {
+        super(provider);
+    }
 
     @Override
     public @Nonnull Glacier getOfflineStorageSupport() {
-        return new Glacier(cloud);
+        return new Glacier(getProvider());
     }
 
     @Override
     public @Nonnull S3 getOnlineStorageSupport() {
-        return new S3(cloud);
+        return new S3(getProvider());
     }
 }
