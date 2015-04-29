@@ -26,51 +26,50 @@ import org.dasein.cloud.network.DNSSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-public class EC2NetworkServices extends AbstractNetworkServices {
-    private AWSCloud cloud;
-
-    public EC2NetworkServices(AWSCloud cloud) { this.cloud = cloud; }
+public class EC2NetworkServices extends AbstractNetworkServices<AWSCloud> {
+    public EC2NetworkServices(AWSCloud provider) {
+        super(provider);
+    }
 
     @Override
     public @Nullable DNSSupport getDnsSupport() {
-        if( cloud.getEC2Provider().isAWS() || cloud.getEC2Provider().isEnStratus() ) {
-            return new Route53(cloud);
+        if( getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus() ) {
+            return new Route53(getProvider());
         }
         return null;
     }
 
     @Override
     public @Nonnull SecurityGroup getFirewallSupport() {
-        return new SecurityGroup(cloud);
+        return new SecurityGroup(getProvider());
     }
 
     @Override
     public @Nonnull ElasticIP getIpAddressSupport() {
-        return new ElasticIP(cloud);
+        return new ElasticIP(getProvider());
     }
 
     @Override
     public @Nullable ElasticLoadBalancer getLoadBalancerSupport() {
-        if( cloud.getEC2Provider().isAWS() || cloud.getEC2Provider().isEnStratus() ) {
-            return new ElasticLoadBalancer(cloud);
+        if( getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus() ) {
+            return new ElasticLoadBalancer(getProvider());
         }
         return null;
     }
 
     @Override
     public @Nullable NetworkACL getNetworkFirewallSupport() {
-        if( cloud.getEC2Provider().isAWS() ) {
-            return new NetworkACL(cloud);
+        if( getProvider().getEC2Provider().isAWS() ) {
+            return new NetworkACL(getProvider());
         }
         return null;
     }
 
     @Override
     public @Nullable VPC getVlanSupport() {
-        if( cloud.getEC2Provider().isAWS() || cloud.getEC2Provider().isEnStratus() ) {
-            return new VPC(cloud);
+        if( getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus() ) {
+            return new VPC(getProvider());
         }
         return null;
     }
-
 }

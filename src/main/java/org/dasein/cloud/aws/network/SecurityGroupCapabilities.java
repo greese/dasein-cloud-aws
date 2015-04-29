@@ -71,6 +71,11 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
     @Nonnull
     @Override
     public Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan) throws InternalException, CloudException {
+        return listSupportedDestinationTypes(inVlan, null);
+    }
+
+    @Override
+    public @Nonnull Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan, Direction direction) throws InternalException, CloudException {
         return Collections.singletonList(RuleTargetType.GLOBAL);
     }
 
@@ -110,6 +115,10 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
     @Nonnull
     @Override
     public Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan) throws InternalException, CloudException {
+        return listSupportedSourceTypes(inVlan, null);
+    }
+
+    @Nonnull @Override public Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan, Direction direction) throws InternalException, CloudException {
         return supportedSourceTypes;
     }
 
