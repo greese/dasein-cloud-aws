@@ -70,13 +70,21 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
 
     @Nonnull
     @Override
+    @Deprecated
     public Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan) throws InternalException, CloudException {
-        return listSupportedDestinationTypes(inVlan, null);
+        return listSupportedDestinationTypes(inVlan, Direction.INGRESS);
     }
 
     @Override
     public @Nonnull Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan, Direction direction) throws InternalException, CloudException {
-        return Collections.singletonList(RuleTargetType.GLOBAL);
+        List<RuleTargetType> supportedDestinationTypes = new ArrayList<RuleTargetType>();
+        if (direction.equals(Direction.INGRESS)) {
+            supportedDestinationTypes = Collections.singletonList(RuleTargetType.GLOBAL);
+        }
+        else if (direction.equals(Direction.EGRESS)){
+            supportedDestinationTypes = Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.GLOBAL));
+        }
+        return supportedDestinationTypes;
     }
 
     static private volatile List<Direction> supportedDirectionsVlan =
@@ -119,11 +127,10 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
     @Nonnull @Override public Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan, Direction direction) throws InternalException, CloudException {
         List<RuleTargetType> supportedSourceTypes = new ArrayList<RuleTargetType>();
         if (direction.equals(Direction.INGRESS)) {
-            supportedSourceTypes.add(RuleTargetType.CIDR);
-            supportedSourceTypes.add(RuleTargetType.GLOBAL);
+            supportedSourceTypes = Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.GLOBAL));
         }
         else if (direction.equals(Direction.EGRESS)){
-            supportedSourceTypes.add(RuleTargetType.GLOBAL);
+            supportedSourceTypes = Collections.singletonList(RuleTargetType.GLOBAL);
         }
         return supportedSourceTypes;
     }
