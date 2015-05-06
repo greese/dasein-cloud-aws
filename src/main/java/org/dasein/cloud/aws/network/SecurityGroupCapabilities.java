@@ -70,13 +70,21 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
 
     @Nonnull
     @Override
+    @Deprecated
     public Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan) throws InternalException, CloudException {
-        return listSupportedDestinationTypes(inVlan, null);
+        return listSupportedDestinationTypes(inVlan, Direction.INGRESS);
     }
 
     @Override
     public @Nonnull Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan, Direction direction) throws InternalException, CloudException {
-        return Collections.singletonList(RuleTargetType.GLOBAL);
+        List<RuleTargetType> supportedDestinationTypes = new ArrayList<RuleTargetType>();
+        if (direction.equals(Direction.INGRESS)) {
+            supportedDestinationTypes = Collections.singletonList(RuleTargetType.GLOBAL);
+        }
+        else if (direction.equals(Direction.EGRESS)){
+            supportedDestinationTypes = Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.GLOBAL));
+        }
+        return supportedDestinationTypes;
     }
 
     static private volatile List<Direction> supportedDirectionsVlan =
@@ -101,7 +109,7 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
 
     @Override
     public @Nonnull Iterable<Protocol> listSupportedProtocols( boolean inVlan ) throws InternalException, CloudException {
-        List protocols = Arrays.asList(Protocol.TCP, Protocol.UDP, Protocol.ICMP);
+        List<Protocol> protocols = Arrays.asList(Protocol.TCP, Protocol.UDP, Protocol.ICMP);
         // TODO: The ALL in VLAN limitation only seems valid for ingress; egress doesn't specify this limitation.
         if( inVlan ) {
             protocols.add(Protocol.ANY);
@@ -109,16 +117,21 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
         return Collections.unmodifiableList(protocols);
     }
 
-    static private volatile List<RuleTargetType> supportedSourceTypes =
-            Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.GLOBAL));
-
     @Nonnull
+    @Deprecated
     @Override
     public Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan) throws InternalException, CloudException {
-        return listSupportedSourceTypes(inVlan, null);
+        return listSupportedSourceTypes(inVlan, Direction.INGRESS);
     }
 
     @Nonnull @Override public Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan, Direction direction) throws InternalException, CloudException {
+        List<RuleTargetType> supportedSourceTypes = new ArrayList<RuleTargetType>();
+        if (direction.equals(Direction.INGRESS)) {
+            supportedSourceTypes = Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.GLOBAL));
+        }
+        else if (direction.equals(Direction.EGRESS)){
+            supportedSourceTypes = Collections.singletonList(RuleTargetType.GLOBAL);
+        }
         return supportedSourceTypes;
     }
 
@@ -129,14 +142,12 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
     }
 
     @Override
+    @Nonnull
     public Requirement requiresVLAN() throws CloudException, InternalException {
         // no VLAN support in EC2-Classic, it's optional in EC2-VPC - the default VPC will be used if not specified
         final RegionsAndZones services = getProvider().getDataCenterServices();
-        if( services != null ) {
-            return AWSCloud.PLATFORM_EC2.equals(services.isRegionEC2VPC(getContext().getRegionId()))
-                    ? Requirement.NONE : Requirement.OPTIONAL;
-        }
-        return Requirement.NONE;
+        return AWSCloud.PLATFORM_EC2.equals(services.isRegionEC2VPC(getContext().getRegionId()))
+                ? Requirement.NONE : Requirement.OPTIONAL;
     }
 
     @Override
