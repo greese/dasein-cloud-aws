@@ -22,6 +22,7 @@ package org.dasein.cloud.aws.compute;
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.compute.SnapshotCapabilities;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -76,5 +77,10 @@ public class EBSSnapshotCapabilities extends AbstractCapabilities<AWSCloud> impl
     @Override
     public boolean supportsSnapshotSharingWithPublic() throws InternalException, CloudException {
         return getProvider().getEC2Provider().isAWS();
+    }
+
+    @Override
+    public @Nonnull NamingConstraints getSnapshotNamingConstraints() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(0, 255);
     }
 }
