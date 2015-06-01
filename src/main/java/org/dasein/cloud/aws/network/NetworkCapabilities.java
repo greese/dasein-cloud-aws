@@ -23,6 +23,7 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.network.IPVersion;
 import org.dasein.cloud.network.VLANCapabilities;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -153,5 +154,10 @@ public class NetworkCapabilities extends AbstractCapabilities<AWSCloud> implemen
     @Override
     public boolean supportsRawAddressRouting() throws CloudException, InternalException {
         return false;
+    }
+
+    @Override
+    public @Nonnull NamingConstraints getVlanNamingConstraints() {
+        return null;
     }
 }

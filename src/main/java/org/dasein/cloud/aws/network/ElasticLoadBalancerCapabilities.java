@@ -22,6 +22,7 @@ package org.dasein.cloud.aws.network;
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.network.*;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -164,5 +165,9 @@ public class ElasticLoadBalancerCapabilities extends AbstractCapabilities<AWSClo
     @Override
     public boolean supportsMultipleTrafficTypes() throws CloudException, InternalException {
         return true;
+    }
+
+    @Override public NamingConstraints getLoadBalancerNamingConstraints() {
+        return null;
     }
 }

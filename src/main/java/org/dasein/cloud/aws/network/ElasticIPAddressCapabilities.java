@@ -28,6 +28,7 @@ import org.dasein.cloud.aws.RegionsAndZones;
 import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.network.IPAddressCapabilities;
 import org.dasein.cloud.network.IPVersion;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
@@ -104,5 +105,10 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
             return AWSCloud.PLATFORM_VPC.equals(services.isRegionEC2VPC(getContext().getRegionId()));
         }
         return false;
+    }
+
+    @Override
+    public NamingConstraints getIpAddressNamingConstraints() {
+        return null; // none of it makes sense
     }
 }

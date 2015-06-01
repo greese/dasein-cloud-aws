@@ -85,7 +85,7 @@ public class ELBMethod extends EC2Method {
             return new ServiceAction[] { LoadBalancerSupport.SET_LB_SSL_CERTIFICATE };
         }
         else if ( action.equals( CREATE_LOAD_BALANCER_LISTENERS ) ) {
-            return new ServiceAction[] { LoadBalancerSupport.CLEATE_LOAD_BALANCER_LISTENERS };
+            return new ServiceAction[] { LoadBalancerSupport.CREATE_LOAD_BALANCER_LISTENERS };
         }
         else if ( action.equals(DELETE_LOAD_BALANCER_LISTENERS) ) {
             return new ServiceAction[] { LoadBalancerSupport.DELETE_LOAD_BALANCER_LISTENERS };

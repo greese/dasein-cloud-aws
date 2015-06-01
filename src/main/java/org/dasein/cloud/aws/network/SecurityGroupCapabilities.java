@@ -23,6 +23,7 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.RegionsAndZones;
 import org.dasein.cloud.network.*;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -163,5 +164,10 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
     @Override
     public boolean supportsFirewallDeletion() throws CloudException, InternalException {
         return true;
+    }
+
+    @Override
+    public @Nonnull NamingConstraints getFirewallNamingConstraints() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(0, 255);
     }
 }
