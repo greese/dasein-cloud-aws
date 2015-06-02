@@ -168,6 +168,11 @@ public class ElasticLoadBalancerCapabilities extends AbstractCapabilities<AWSClo
     }
 
     @Override
+    public boolean supportsSslCertificateStore() throws CloudException, InternalException {
+        return true;
+    }
+
+    @Override
     public @Nonnull NamingConstraints getLoadBalancerNamingConstraints() {
         return NamingConstraints.getAlphaOnly(1, 32).constrainedBy('-');
     }
