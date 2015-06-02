@@ -27,6 +27,7 @@ import org.dasein.cloud.aws.storage.S3Method.S3Response;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.storage.AbstractBlobStoreSupport;
 import org.dasein.cloud.storage.Blob;
+import org.dasein.cloud.storage.BlobStoreCapabilities;
 import org.dasein.cloud.storage.BlobStoreSupport;
 import org.dasein.cloud.storage.FileTransfer;
 import org.dasein.cloud.util.APITrace;
@@ -59,9 +60,6 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
-    static public final  int                                       MAX_BUCKETS         = 100;
-    static public final  int                                       MAX_OBJECTS         = -1;
-    static public final  Storage<org.dasein.util.uom.storage.Byte> MAX_OBJECT_SIZE     = new Storage<org.dasein.util.uom.storage.Byte>(5000000000L, Storage.BYTE);
     static private final Logger                                    logger              = AWSCloud.getLogger(S3.class);
     static private final String                                    HMAC_SHA1_ALGORITHM = "HmacSHA1";
 
@@ -73,19 +71,15 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
         super(provider);
     }
 
-    @Override
-    public boolean allowsNestedBuckets() throws CloudException, InternalException {
-        return false;
-    }
+    private transient volatile S3Capabilities capabilities;
 
+    @Nonnull
     @Override
-    public boolean allowsRootObjects() throws CloudException, InternalException {
-        return false;
-    }
-
-    @Override
-    public boolean allowsPublicSharing() throws CloudException, InternalException {
-        return true;
+    public BlobStoreCapabilities getCapabilities() throws CloudException, InternalException {
+        if( capabilities == null ) {
+            capabilities = new S3Capabilities(getProvider());
+        }
+        return capabilities;
     }
 
     @Override
@@ -646,11 +640,6 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
         }
     }
 
-    @Override
-    public int getMaxBuckets() throws CloudException, InternalException {
-        return MAX_BUCKETS;
-    }
-
     private @Nonnull String findFreeName( @Nonnull String bucket ) throws InternalException, CloudException {
         ProviderContext ctx = getProvider().getContext();
 
@@ -772,26 +761,6 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
             logger.error(e.getSummary());
             throw new CloudException(e);
         }
-    }
-
-    @Override
-    public Storage<org.dasein.util.uom.storage.Byte> getMaxObjectSize() {
-        return MAX_OBJECT_SIZE;
-    }
-
-    @Override
-    public int getMaxObjectsPerBucket() throws CloudException, InternalException {
-        return MAX_OBJECTS;
-    }
-
-    @Override
-    public @Nonnull String getProviderTermForBucket( @Nonnull Locale locale ) {
-        return "bucket";
-    }
-
-    @Override
-    public @Nonnull String getProviderTermForObject( @Nonnull Locale locale ) {
-        return "object";
     }
 
     @Override
@@ -1550,16 +1519,6 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
         finally {
             APITrace.end();
         }
-    }
-
-    @Override
-    public @Nonnull NamingConstraints getBucketNameRules() throws CloudException, InternalException {
-        return NamingConstraints.getAlphaNumeric(1, 255).lowerCaseOnly().limitedToLatin1().constrainedBy(new char[]{'-', '.'});
-    }
-
-    @Override
-    public @Nonnull NamingConstraints getObjectNameRules() throws CloudException, InternalException {
-        return NamingConstraints.getAlphaNumeric(1, 255).lowerCaseOnly().limitedToLatin1().constrainedBy(new char[]{'-', '.', ',', '#', '+'});
     }
 
     @Override
