@@ -23,8 +23,8 @@ import org.dasein.cloud.AbstractCapabilities;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.platform.AbstractRelationalDatabaseCapabilities;
 import org.dasein.cloud.platform.RelationalDatabaseCapabilities;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
@@ -37,7 +37,7 @@ import java.util.Locale;
  * @version 2014.08 initial version
  * @since 2014.08
  */
-public class RDSCapabilities extends AbstractRelationalDatabaseCapabilities<AWSCloud> {
+public class RDSCapabilities extends AbstractCapabilities<AWSCloud> implements RelationalDatabaseCapabilities {
 
     public RDSCapabilities( @Nonnull AWSCloud provider ) {
         super(provider);
@@ -116,6 +116,11 @@ public class RDSCapabilities extends AbstractRelationalDatabaseCapabilities<AWSC
     @Override
     public boolean supportsBackupConfigurations() throws CloudException, InternalException {
         return false;
+    }
+
+    @Override
+    public @Nonnull NamingConstraints getRelationalDatabaseNamingConstraints() {
+        return NamingConstraints.getAlphaNumeric(1, 63).constrainedBy('-');
     }
 
 }
