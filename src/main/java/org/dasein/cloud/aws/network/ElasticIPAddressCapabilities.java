@@ -107,8 +107,4 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
         return false;
     }
 
-    @Override
-    public NamingConstraints getIpAddressNamingConstraints() {
-        return null; // none of it makes sense
-    }
 }
