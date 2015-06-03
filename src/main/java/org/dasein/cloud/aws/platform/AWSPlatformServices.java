@@ -26,34 +26,35 @@ import org.dasein.cloud.platform.MonitoringSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-public class AWSPlatformServices extends AbstractPlatformServices {
-    private AWSCloud cloud;
-    
-    public AWSPlatformServices(AWSCloud cloud) { this.cloud = cloud; }
-    
+public class AWSPlatformServices extends AbstractPlatformServices<AWSCloud> {
+
+    public AWSPlatformServices(AWSCloud provider) {
+        super(provider);
+    }
+
     @Override
     public @Nonnull CloudFront getCDNSupport() {
-        return new CloudFront(cloud);
+        return new CloudFront(getProvider());
     }
     
     @Override
     public @Nonnull SimpleDB getKeyValueDatabaseSupport() {
-        return new SimpleDB(cloud);
+        return new SimpleDB(getProvider());
     }
     
     @Override
     public @Nonnull SNS getPushNotificationSupport() {
-        return new SNS(cloud);
+        return new SNS(getProvider());
     }
     
     @Override
     public @Nonnull RDS getRelationalDatabaseSupport() {
-        return new RDS(cloud);
+        return new RDS(getProvider());
     }
 
     @Override
     public @Nonnull MonitoringSupport getMonitoringSupport() {
-      return new CloudWatch( cloud );
+      return new CloudWatch( getProvider() );
     }
 
 }

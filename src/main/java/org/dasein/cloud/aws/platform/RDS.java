@@ -733,13 +733,6 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
         return products;
     }
 
-
-    @Override
-    @Deprecated
-    public Iterable<DatabaseProduct> getDatabaseProducts(DatabaseEngine engine) throws CloudException, InternalException {
-        return listDatabaseProducts(engine);
-    }
-
     private DayOfWeek getDay(String str) {
         if( str.equalsIgnoreCase("Sun") ) {
             return DayOfWeek.SUNDAY;
@@ -987,46 +980,6 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
         }
     }
 
-    @Deprecated
-    public boolean isSupportsFirewallRules() {
-        try {
-            return capabilities.isSupportsFirewallRules();
-        } catch( CloudException e ) {
-        } catch( InternalException e ) {
-        }
-        return true;
-    }
-
-    @Deprecated
-    public boolean isSupportsHighAvailability() throws CloudException, InternalException {
-        return getCapabilities().isSupportsHighAvailability();
-    }
-
-    @Deprecated
-    public boolean isSupportsLowAvailability() throws CloudException, InternalException {
-        return getCapabilities().isSupportsLowAvailability();
-    }
-    
-    @Deprecated
-    public boolean isSupportsMaintenanceWindows() {
-        try {
-            return getCapabilities().isSupportsMaintenanceWindows();
-        } catch( CloudException e ) {
-        } catch( InternalException e ) {
-        }
-        return true; // legacy
-    }
-
-    @Deprecated
-    public boolean isSupportsSnapshots() {
-        try {
-            return getCapabilities().isSupportsSnapshots();
-        } catch( CloudException e ) {
-        } catch( InternalException e ) {
-        }
-        return true; // legacy
-    }
-    
     public Iterable<String> listAccess(String toProviderDatabaseId) throws CloudException, InternalException {
         PopulatorThread<String> idPopulator, accessPopulator;
         final String dbId = toProviderDatabaseId;

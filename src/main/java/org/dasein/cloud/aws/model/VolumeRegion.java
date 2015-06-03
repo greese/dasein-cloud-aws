@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2009-2015 Dell, Inc.
  * See annotations for authorship information
  *
@@ -17,27 +17,30 @@
  * ====================================================================
  */
 
-package org.dasein.cloud.aws.identity;
+package org.dasein.cloud.aws.model;
 
-import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.identity.AbstractIdentityServices;
+import java.util.List;
 
-public class AWSIdentityServices extends AbstractIdentityServices<AWSCloud> {
+/**
+ * Created by stas on 14/04/2015.
+ */
+public class VolumeRegion {
+    private String            name;
+    private List<VolumePrice> prices;
 
-    public AWSIdentityServices(AWSCloud provider) {
-        super(provider);
+    public String getName() {
+        return name;
     }
 
-    @Override
-    public IAM getIdentityAndAccessSupport() {
-        if( getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus() ) {
-            return new IAM(getProvider());
-        }
-        return null;
+    public void setName(String name) {
+        this.name = name;
     }
 
-    @Override
-    public Keypairs getShellKeySupport() {
-        return new Keypairs(getProvider());
+    public List<VolumePrice> getPrices() {
+        return prices;
+    }
+
+    public void setPrices(List<VolumePrice> prices) {
+        this.prices = prices;
     }
 }

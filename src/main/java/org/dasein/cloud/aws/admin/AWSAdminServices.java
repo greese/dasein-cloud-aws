@@ -22,13 +22,13 @@ package org.dasein.cloud.aws.admin;
 import org.dasein.cloud.admin.AbstractAdminServices;
 import org.dasein.cloud.aws.AWSCloud;
 
-public class AWSAdminServices extends AbstractAdminServices {
-    private AWSCloud cloud;
-    
-    public AWSAdminServices(AWSCloud cloud) { this.cloud = cloud; }
-    
+public class AWSAdminServices extends AbstractAdminServices<AWSCloud> {
+    public AWSAdminServices(AWSCloud provider) {
+        super(provider);
+    }
+
     @Override
     public ReservedInstance getPrepaymentSupport() {
-        return new ReservedInstance(cloud);
+        return new ReservedInstance(getProvider());
     }
 }

@@ -332,28 +332,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
     }
 
-    @SuppressWarnings( "deprecation" ) @Override @Deprecated
-    public @Nonnull String create( @Nonnull String name, @Nonnull String description, @Nullable String addressId, @Nullable String[] zoneIds, @Nullable LbListener[] listeners, @Nullable String[] serverIds, @Nullable String[] subnetIds, @Nullable LbType type ) throws CloudException, InternalException {
-        LoadBalancerCreateOptions options = LoadBalancerCreateOptions.getInstance(name, description);
-
-        if( zoneIds != null && zoneIds.length > 0 ) {
-            options.limitedTo(zoneIds);
-        }
-        if( listeners != null && listeners.length > 0 ) {
-            options.havingListeners(listeners);
-        }
-        if( serverIds != null && serverIds.length > 0 ) {
-            options.withVirtualMachines(serverIds);
-        }
-        if( subnetIds != null && subnetIds.length > 0 ) {
-            options.withProviderSubnetIds(subnetIds);
-        }
-        if( type != null ) {
-            options.asType(type);
-        }
-        return createLoadBalancer(options);
-    }
-
     @Override
     public SSLCertificate createSSLCertificate(@Nonnull SSLCertificateCreateOptions options) throws CloudException, InternalException {
         APITrace.begin(provider, "LB.createSSLCertificate");
@@ -392,11 +370,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         finally {
             APITrace.end();
         }
-    }
-
-    @Override
-    public @Nonnull LoadBalancerAddressType getAddressType() {
-        return LoadBalancerAddressType.DNS;
     }
 
     @Nonnull @Override
@@ -752,61 +725,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         }
     }
 
-    @SuppressWarnings( "deprecation" ) @Override @Deprecated
-    public @Nonnull Iterable<LoadBalancerServer> getLoadBalancerServerHealth( @Nonnull String loadBalancerId ) throws CloudException, InternalException {
-        return getLoadBalancerServerHealth(loadBalancerId, new String[0]);
-    }
-
-    @SuppressWarnings( "deprecation" ) @Override @Deprecated
-    public @Nonnull Iterable<LoadBalancerServer> getLoadBalancerServerHealth( @Nonnull String loadBalancerId, @Nonnull String... serverIdsToCheck ) throws CloudException, InternalException {
-        APITrace.begin(provider, "LB.getLoadBalancerServerHealth");
-        try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No valid context is established for this request");
-            }
-
-            ArrayList<LoadBalancerServer> list = new ArrayList<LoadBalancerServer>();
-            Map<String, String> parameters = getELBParameters(provider.getContext(), ELBMethod.DESCRIBE_INSTANCE_HEALTH);
-            ELBMethod method;
-            NodeList blocks;
-            Document doc;
-
-            parameters.put("LoadBalancerName", loadBalancerId);
-            if( serverIdsToCheck != null && serverIdsToCheck.length > 0 ) {
-                for( int i = 0; i < serverIdsToCheck.length; i++ ) {
-                    parameters.put("Instances.member." + ( i + 1 ) + ".InstanceId", serverIdsToCheck[i]);
-                }
-            }
-            method = new ELBMethod(provider, ctx, parameters);
-            try {
-                doc = method.invoke();
-            } catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            blocks = doc.getElementsByTagName("InstanceStates");
-            for( int i = 0; i < blocks.getLength(); i++ ) {
-                NodeList items = blocks.item(i).getChildNodes();
-
-                for( int j = 0; j < items.getLength(); j++ ) {
-                    Node item = items.item(j);
-
-                    if( item.getNodeName().equals("member") ) {
-                        LoadBalancerServer loadBalancerServer = toLoadBalancerServer(ctx, loadBalancerId, item);
-                        if( loadBalancerServer != null ) {
-                            list.add(loadBalancerServer);
-                        }
-                    }
-                }
-            }
-            return list;
-        } finally {
-            APITrace.end();
-        }
-    }
-
     @Override
     public @Nonnull String[] mapServiceAction( @Nonnull ServiceAction action ) {
         if( action.equals(LoadBalancerSupport.ANY) ) {
@@ -846,11 +764,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             return new String[]{ELBMethod.APPLY_SECURITY_GROUPS_TO_LOAD_BALANCER};
         }
         return new String[0];
-    }
-
-    @SuppressWarnings( "deprecation" ) @Override @Deprecated
-    public void remove( @Nonnull String loadBalancerId ) throws CloudException, InternalException {
-        removeLoadBalancer(loadBalancerId);
     }
 
     @Override
@@ -1731,54 +1644,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             reason = description;
         }
         return LoadBalancerEndpoint.getInstance(LbEndpointType.VM, vmId, state, reason, description);
-    }
-
-    private @Nullable LoadBalancerServer toLoadBalancerServer( @Nonnull ProviderContext ctx, @Nullable String loadBalancerId, @Nullable Node node ) {
-        if( node == null ) {
-            return null;
-        }
-        LoadBalancerServer loadBalancerServer = new LoadBalancerServer();
-        NodeList attrs = node.getChildNodes();
-
-        loadBalancerServer.setProviderOwnerId(ctx.getAccountNumber());
-        loadBalancerServer.setProviderRegionId(ctx.getRegionId());
-        loadBalancerServer.setProviderLoadBalancerId(loadBalancerId);
-
-        for( int i = 0; i < attrs.getLength(); i++ ) {
-            Node attr = attrs.item(i);
-            String name;
-
-            name = attr.getNodeName().toLowerCase();
-            if( name.equals("instanceid") ) {
-                loadBalancerServer.setProviderServerId(attr.getFirstChild().getNodeValue());
-            }
-            else if( name.equals("state") ) {
-                loadBalancerServer.setCurrentState(toServerState(attr.getFirstChild().getNodeValue()));
-            }
-            else if( name.equals("description") ) {
-                String value = attr.getFirstChild().getNodeValue();
-                if( !"N/A".equals(value) ) {
-                    loadBalancerServer.setCurrentStateDescription(value);
-                }
-            }
-            else if( name.equals("reasoncode") ) {
-                String value = attr.getFirstChild().getNodeValue();
-                if( !"N/A".equals(value) ) {
-                    loadBalancerServer.setCurrentStateReason(attr.getFirstChild().getNodeValue());
-                }
-            }
-        }
-
-        return loadBalancerServer;
-    }
-
-    private LoadBalancerServerState toServerState( String txt ) {
-        if( txt.equals("InService") ) {
-            return LoadBalancerServerState.ACTIVE;
-        }
-        else {
-            return LoadBalancerServerState.INACTIVE;
-        }
     }
 
     private @Nullable ResourceStatus toStatus( @Nullable Node node ) {

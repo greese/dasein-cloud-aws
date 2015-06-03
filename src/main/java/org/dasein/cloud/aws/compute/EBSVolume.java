@@ -32,7 +32,9 @@ import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.aws.model.*;
 import org.dasein.cloud.compute.*;
+import org.dasein.cloud.compute.VolumeProduct;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
@@ -247,44 +249,22 @@ public class EBSVolume extends AbstractVolumeSupport<AWSCloud> {
 
     @Override
     public @Nonnull Iterable<VolumeProduct> listVolumeProducts() throws InternalException, CloudException {
-        APITrace.begin(getProvider(), "Volume.listVolumeProducts");
-        try {
-            Cache<VolumeProduct> cache = Cache.getInstance(getProvider(), "volumeProducts", VolumeProduct.class, CacheLevel.REGION);
-            Iterable<VolumeProduct> products = cache.get(getContext());
-
-            if( products == null ) {
-                ArrayList<VolumeProduct> prds = new ArrayList<VolumeProduct>();
-                ProviderContext ctx = getProvider().getContext();
-                float rawPrice = 0.11f;
-
-                if( ctx != null ) {
-                    String regionId = ctx.getRegionId();
-
-                    if( regionId != null ) {
-                        if( regionId.equals("us-east-1") || regionId.equals("us-west-2") ) {
-                            rawPrice = 0.10f;
-                        }
-                        else if( regionId.equals("ap-northeast-1") ) {
-                            rawPrice = 0.12f;
-                        }
-                        else if( regionId.equals("sa-east-1") ) {
-                            rawPrice = 0.19f;
-                        }
-                    }
-                }
-
-                prds.add(VolumeProduct.getInstance( VOLUME_PRODUCT_STANDARD, "Standard", "Standard EBS with no IOPS Guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 0, 0, rawPrice, 0f));
-                prds.add(VolumeProduct.getInstance( VOLUME_PRODUCT_IOPS, "IOPS EBS", "EBS Volume with IOPS guarantees", VolumeType.HDD, getMinimumVolumeSize(), "USD", 100, 4000, 0.125f, 0.1f));
-                prds.add(VolumeProduct.getInstance( VOLUME_PRODUCT_SSD, "SSD EBS", "SSD-based Persistent Volume", VolumeType.SSD, new Storage<Gigabyte>(1, Storage.GIGABYTE), "USD", 3, 3000, 0.1f, 0f));
-
-                cache.put(getContext(), prds);
-                products = prds;
+        VolumeProvider volumeProvider = VolumeProvider.fromFile("/org/dasein/cloud/aws/volproducts.json", "AWS");
+        String regionId = getContext().getRegionId();
+        List<org.dasein.cloud.aws.model.VolumeProduct> products = volumeProvider.getProducts();
+        List<VolumeProduct> volumeProducts = new ArrayList<VolumeProduct>();
+        for ( org.dasein.cloud.aws.model.VolumeProduct product : products ) {
+            VolumePrice price = volumeProvider.findProductPrice(regionId, product.getId());
+            if( price == null ) {
+                continue;
             }
-            return products;
+            VolumeProduct volumeProduct = VolumeProduct.getInstance(product.getId(), product.getName(), product.getDescription(), VolumeType.valueOf(product.getType().toUpperCase()), product.getMinIops(), product.getMaxIops(), price.getMonthly(), price.getIops() );
+            volumeProduct.withMaxIopsRatio(product.getIopsToGb());
+            volumeProduct.withMaxVolumeSize(new Storage<Gigabyte>(product.getMaxSize(), Storage.GIGABYTE));
+            volumeProduct.withMinVolumeSize(new Storage<Gigabyte>(product.getMinSize(), Storage.GIGABYTE));
+            volumeProducts.add(volumeProduct);
         }
-        finally {
-            APITrace.end();
-        }
+        return volumeProducts;
     }
 
     @Override

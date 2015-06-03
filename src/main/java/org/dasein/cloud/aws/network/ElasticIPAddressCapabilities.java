@@ -28,6 +28,7 @@ import org.dasein.cloud.aws.RegionsAndZones;
 import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.network.IPAddressCapabilities;
 import org.dasein.cloud.network.IPVersion;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
@@ -59,6 +60,11 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
 
     @Override
     public @Nonnull Requirement identifyVlanForIPRequirement() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
+
+    @Override
+    public @Nonnull Requirement identifyVMForPortForwarding() throws CloudException, InternalException {
         return Requirement.NONE;
     }
 
@@ -100,4 +106,5 @@ public class ElasticIPAddressCapabilities extends AbstractCapabilities<AWSCloud>
         }
         return false;
     }
+
 }

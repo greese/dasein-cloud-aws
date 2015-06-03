@@ -51,36 +51,26 @@ import java.util.*;
  * @version 2013.07 initial implementation (issue #45)
  * @since 2013.07
  */
-public class Glacier implements OfflineStoreSupport {
+public class Glacier extends AbstractBlobStoreSupport<AWSCloud> implements OfflineStoreSupport {
     static private final Logger logger = AWSCloud.getLogger(Glacier.class);
 
-    static public final int                                       MAX_VAULTS       = 1000;
-    static public final int                                       MAX_ARCHIVES     = -1;
-    static public final Storage<Megabyte>                         MAX_OBJECT_SIZE  = new Storage<Megabyte>(100L, Storage.MEGABYTE);
     public static final String ACTION_ARCHIVE_RETRIEVAL = "ArchiveRetrieval";
     public static final String ACTION_INVENTORY_RETRIEVAL = "InventoryRetrieval";
     public static final String HEADER_JOB_ID = "x-amz-job-id";
     public static final String MARKER = "Marker";
 
-    private AWSCloud provider = null;
-
     public Glacier(AWSCloud provider) {
-        this.provider = provider;
+        super(provider);
     }
 
-    @Override
-    public boolean allowsNestedBuckets() throws CloudException, InternalException {
-        return false;
-    }
+    private transient volatile GlacierCapabilities capabilities;
 
     @Override
-    public boolean allowsRootObjects() throws CloudException, InternalException {
-        return false;
-    }
-
-    @Override
-    public boolean allowsPublicSharing() throws CloudException, InternalException {
-        return true;
+    public @Nonnull BlobStoreCapabilities getCapabilities() throws CloudException, InternalException {
+        if( capabilities == null ) {
+            capabilities = new GlacierCapabilities(getProvider());
+        }
+        return capabilities;
     }
 
     @Override
@@ -90,24 +80,19 @@ public class Glacier implements OfflineStoreSupport {
 
     @Override
     public @Nonnull Blob createBucket(@Nonnull String bucketName, boolean findFreeName) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.createBucket");
+        APITrace.begin(getProvider(), "Blob.createBucket");
         try {
             if( bucketName.contains("/") ) {
                 throw new OperationNotSupportedException("Nested buckets are not supported");
             }
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new InternalException("No context was set for this request");
-            }
-            String regionId = ctx.getRegionId();
+            String regionId = getContext().getRegionId();
 
             if( regionId == null ) {
                 throw new InternalException("No region ID was specified for this request");
             }
 
             GlacierMethod method = GlacierMethod.build(
-                    provider, GlacierAction.CREATE_VAULT).vaultId(bucketName).toMethod();
+                    getProvider(), GlacierAction.CREATE_VAULT).vaultId(bucketName).toMethod();
             method.invoke();
             String url = method.getUrl();
             return Blob.getInstance(regionId, url, bucketName, System.currentTimeMillis());
@@ -124,7 +109,7 @@ public class Glacier implements OfflineStoreSupport {
 
     @Override
     public boolean exists(@Nonnull String bucketName) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.exists");
+        APITrace.begin(getProvider(), "Blob.exists");
         try {
             return getBucket(bucketName) != null;
         }
@@ -135,24 +120,19 @@ public class Glacier implements OfflineStoreSupport {
 
     @Override
     public Blob getBucket(@Nonnull String bucketName) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.getBucket");
+        APITrace.begin(getProvider(), "Blob.getBucket");
         try {
             if( bucketName.contains("/") ) {
                 return null;
             }
-            ProviderContext ctx = provider.getContext();
 
-            if( ctx == null ) {
-                throw new CloudException("No context was set for this request");
-            }
-            String regionId = ctx.getRegionId();
-
+            String regionId = getContext().getRegionId();
             if( regionId == null ) {
                 throw new CloudException("No region was set for this request");
             }
 
             try {
-                GlacierMethod method = GlacierMethod.build(provider, GlacierAction.DESCRIBE_VAULT)
+                GlacierMethod method = GlacierMethod.build(getProvider(), GlacierAction.DESCRIBE_VAULT)
                         .vaultId(bucketName).toMethod();
                 JSONObject jsonObject = method.invokeJson();
                 if (jsonObject == null) {
@@ -190,51 +170,21 @@ public class Glacier implements OfflineStoreSupport {
     }
 
     @Override
-    public int getMaxBuckets() throws CloudException, InternalException {
-        return MAX_VAULTS;
-    }
-
-    @Override
-    public Storage<org.dasein.util.uom.storage.Byte> getMaxObjectSize() {
-        return (Storage<org.dasein.util.uom.storage.Byte>)MAX_OBJECT_SIZE.convertTo(Storage.BYTE);
-    }
-
-    @Override
-    public int getMaxObjectsPerBucket() throws CloudException, InternalException {
-        return MAX_ARCHIVES;
-    }
-
-    @Override
-    public @Nonnull String getProviderTermForBucket(@Nonnull Locale locale) {
-        return "vault";
-    }
-
-    @Override
-    public @Nonnull String getProviderTermForObject(@Nonnull Locale locale) {
-        return "archive";
-    }
-
-    @Override
     public boolean isPublic(@Nullable String bucket, @Nullable String object) throws CloudException, InternalException {
         return false;
     }
     
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.isSubscribed");
+        APITrace.begin(getProvider(), "Blob.isSubscribed");
         try {
-            final ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was specified for this request");
-            }
-            final String regionId = ctx.getRegionId();
+            final String regionId = getContext().getRegionId();
 
             if( regionId == null ) {
                 throw new CloudException("No region ID was specified");
             }
             try {
-                GlacierMethod method = GlacierMethod.build(provider, GlacierAction.LIST_VAULTS).toMethod();
+                GlacierMethod method = GlacierMethod.build(getProvider(), GlacierAction.LIST_VAULTS).toMethod();
                 method.invoke();
                 return true;
             } catch (CloudException e) {
@@ -248,25 +198,21 @@ public class Glacier implements OfflineStoreSupport {
 
     @Override
     public @Nonnull Collection<Blob> list(final @Nullable String bucket) throws CloudException, InternalException {
-        final ProviderContext ctx = provider.getContext();
         PopulatorThread <Blob> populator;
 
-        if( ctx == null ) {
-            throw new CloudException("No context was specified for this request");
-        }
-        final String regionId = ctx.getRegionId();
+        final String regionId = getContext().getRegionId();
 
         if( regionId == null ) {
             throw new CloudException("No region ID was specified");
         }
-    	provider.hold();
+    	getProvider().hold();
     	populator = new PopulatorThread<Blob>(new JiteratorPopulator<Blob>() {
     		public void populate(@Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
                 try {
                     list(regionId, bucket, iterator);
                 }
                 finally {
-                    provider.release();
+                    getProvider().release();
                 }
     		}
     	});
@@ -275,7 +221,7 @@ public class Glacier implements OfflineStoreSupport {
     }
 
     private void list(@Nonnull String regionId, @Nullable String bucket, @Nonnull Jiterator<Blob> iterator) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.list");
+        APITrace.begin(getProvider(), "Blob.list");
         try {
             if( bucket == null ) {
                 loadVaults(regionId, iterator);
@@ -304,7 +250,7 @@ public class Glacier implements OfflineStoreSupport {
                 queryParameters.put("marker", marker);
             }
 
-            GlacierMethod method = GlacierMethod.build(provider, GlacierAction.LIST_VAULTS)
+            GlacierMethod method = GlacierMethod.build(getProvider(), GlacierAction.LIST_VAULTS)
                     .queryParameters(queryParameters).toMethod();
             String baseUrl = method.getUrl();
             JSONObject jsonObject = method.invokeJson();
@@ -438,7 +384,7 @@ public class Glacier implements OfflineStoreSupport {
     }
 
     protected void put(@Nullable String bucket, @Nonnull String object, @Nonnull File file) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.putFile");
+        APITrace.begin(getProvider(), "Blob.putFile");
         try {
             // TODO: upload
         }
@@ -448,7 +394,7 @@ public class Glacier implements OfflineStoreSupport {
     }
 
     protected void put(@Nullable String bucket, @Nonnull String object, @Nonnull String content) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.putString");
+        APITrace.begin(getProvider(), "Blob.putString");
         try {
             // TODO: upload
         }
@@ -459,21 +405,15 @@ public class Glacier implements OfflineStoreSupport {
 
     @Override
     public void removeBucket(@Nonnull String bucket) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.removeBucket");
+        APITrace.begin(getProvider(), "Blob.removeBucket");
         try {
-
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was set for this request");
-            }
-            String regionId = ctx.getRegionId();
+            String regionId = getContext().getRegionId();
 
             if( regionId == null ) {
                 throw new CloudException("No region was set for this request");
             }
 
-            GlacierMethod method = GlacierMethod.build(provider, GlacierAction.DELETE_VAULT)
+            GlacierMethod method = GlacierMethod.build(getProvider(), GlacierAction.DELETE_VAULT)
                     .vaultId(bucket).toMethod();
             method.invoke();
         }
@@ -484,23 +424,18 @@ public class Glacier implements OfflineStoreSupport {
 
     @Override
     public void removeObject(@Nullable String bucket, @Nonnull String name) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.removeObject");
+        APITrace.begin(getProvider(), "Blob.removeObject");
         try {
             if( bucket == null ) {
                 throw new CloudException("No bucket was specified for this request");
             }
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was set for this request");
-            }
-            String regionId = ctx.getRegionId();
+            String regionId = getContext().getRegionId();
 
             if( regionId == null ) {
                 throw new CloudException("No region was set for this request");
             }
 
-            GlacierMethod method = GlacierMethod.build(provider, GlacierAction.DELETE_ARCHIVE)
+            GlacierMethod method = GlacierMethod.build(getProvider(), GlacierAction.DELETE_ARCHIVE)
                     .vaultId(bucket).archiveId(name).toMethod();
             method.invoke();
         }
@@ -521,7 +456,7 @@ public class Glacier implements OfflineStoreSupport {
 
     @Override
     public @Nonnull Blob upload(@Nonnull File source, @Nullable String bucket, @Nonnull String fileName) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.upload");
+        APITrace.begin(getProvider(), "Blob.upload");
         try {
             if( bucket == null ) {
                 throw new OperationNotSupportedException("Root objects are not supported");
@@ -537,38 +472,22 @@ public class Glacier implements OfflineStoreSupport {
         }
     }
 
-    @Override
-    public @Nonnull NamingConstraints getBucketNameRules() throws CloudException, InternalException {
-        return NamingConstraints.getAlphaNumeric(1, 255).lowerCaseOnly().limitedToLatin1().constrainedBy(new char[] { '-', '.' });
-    }
-
-    @Override
-    public @Nonnull NamingConstraints getObjectNameRules() throws CloudException, InternalException {
-        return NamingConstraints.getAlphaNumeric(1, 255).lowerCaseOnly().limitedToLatin1().constrainedBy(new char[] { '-', '.', ',', '#', '+' });
-    }
-
     @Nonnull
     @Override
     public Iterable<OfflineStoreRequest> listRequests(@Nonnull final String bucket) throws CloudException, InternalException {
-        final ProviderContext ctx = provider.getContext();
-        PopulatorThread <OfflineStoreRequest> populator;
-
-        if( ctx == null ) {
-            throw new CloudException("No context was specified for this request");
-        }
-        final String regionId = ctx.getRegionId();
+        final String regionId = getContext().getRegionId();
 
         if( regionId == null ) {
-            throw new CloudException("No region ID was specified");
+            throw new CloudException("No region ID was specified"); // TODO: doesn't look like it's needed though
         }
-        provider.hold();
-        populator = new PopulatorThread<OfflineStoreRequest>(new JiteratorPopulator<OfflineStoreRequest>() {
+        getProvider().hold();
+        PopulatorThread <OfflineStoreRequest> populator = new PopulatorThread<OfflineStoreRequest>(new JiteratorPopulator<OfflineStoreRequest>() {
             public void populate(@Nonnull Jiterator<OfflineStoreRequest> iterator) throws CloudException, InternalException {
                 try {
                     listRequests(bucket, iterator);
                 }
                 finally {
-                    provider.release();
+                    getProvider().release();
                 }
             }
         });
@@ -576,7 +495,7 @@ public class Glacier implements OfflineStoreSupport {
         return populator.getResult();
     }
     private void listRequests(@Nonnull String bucket, @Nonnull Jiterator<OfflineStoreRequest> iterator) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.listRequests");
+        APITrace.begin(getProvider(), "Blob.listRequests");
         try {
 
             boolean needQuery = true;
@@ -592,7 +511,7 @@ public class Glacier implements OfflineStoreSupport {
                     queryParameters.put("marker", marker);
                 }
 
-                GlacierMethod method = GlacierMethod.build(provider, GlacierAction.LIST_JOBS)
+                GlacierMethod method = GlacierMethod.build(getProvider(), GlacierAction.LIST_JOBS)
                         .vaultId(bucket).queryParameters(queryParameters).toMethod();
                 final JSONObject jsonObject = method.invokeJson();
 
@@ -689,10 +608,10 @@ public class Glacier implements OfflineStoreSupport {
     @Nullable
     @Override
     public OfflineStoreRequest getRequest(@Nonnull String bucket, @Nonnull String requestId) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.getRequest");
+        APITrace.begin(getProvider(), "Blob.getRequest");
         try {
 
-            final GlacierMethod method = GlacierMethod.build(provider, GlacierAction.DESCRIBE_JOB)
+            final GlacierMethod method = GlacierMethod.build(getProvider(), GlacierAction.DESCRIBE_JOB)
                     .vaultId(bucket).jobId(requestId).toMethod();
 
             try {
@@ -716,14 +635,14 @@ public class Glacier implements OfflineStoreSupport {
     @Nonnull
     @Override
     public OfflineStoreRequest createListRequest(@Nonnull String bucket) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.createListRequest");
+        APITrace.begin(getProvider(), "Blob.createListRequest");
         try {
             try {
 
                 JSONObject bodyJson = new JSONObject();
                 bodyJson.put("Type", "inventory-retrieval");
 
-                final GlacierMethod method = GlacierMethod.build(provider, GlacierAction.CREATE_JOB)
+                final GlacierMethod method = GlacierMethod.build(getProvider(), GlacierAction.CREATE_JOB)
                         .vaultId(bucket).bodyText(bodyJson.toString()).toMethod();
 
                 Map<String,String> responseHeaders = method.invokeHeaders();
@@ -748,7 +667,7 @@ public class Glacier implements OfflineStoreSupport {
     @Nonnull
     @Override
     public OfflineStoreRequest createDownloadRequest(@Nonnull String bucket, @Nonnull String object) throws CloudException, InternalException {
-        APITrace.begin(provider, "Blob.createDownloadRequest");
+        APITrace.begin(getProvider(), "Blob.createDownloadRequest");
         try {
             // todo
             throw new OperationNotSupportedException("glacier downloads are not yet supported");
@@ -762,20 +681,15 @@ public class Glacier implements OfflineStoreSupport {
     @Override
     public Iterable<Blob> getListRequestResult(@Nonnull String bucket, @Nonnull String requestId)
             throws InternalException, CloudException {
-        final ProviderContext ctx = provider.getContext();
-
-        if( ctx == null ) {
-            throw new CloudException("No context was specified for this request");
-        }
-        final String regionId = ctx.getRegionId();
+        final String regionId = getContext().getRegionId();
 
         if( regionId == null ) {
             throw new CloudException("No region ID was specified");
         }
-        APITrace.begin(provider, "Blob.getListRequestResult");
+        APITrace.begin(getProvider(), "Blob.getListRequestResult");
         try {
 
-            final GlacierMethod method = GlacierMethod.build(provider, GlacierAction.GET_JOB_OUTPUT)
+            final GlacierMethod method = GlacierMethod.build(getProvider(), GlacierAction.GET_JOB_OUTPUT)
                     .vaultId(bucket).jobId(requestId).toMethod();
 
             try {
@@ -808,7 +722,7 @@ public class Glacier implements OfflineStoreSupport {
     @Nonnull
     @Override
     public FileTransfer getDownloadRequestResult(@Nonnull String bucket, @Nonnull String requestId, @Nonnull File toFile) throws InternalException, CloudException {
-        APITrace.begin(provider, "Blob.getDownloadRequestResult");
+        APITrace.begin(getProvider(), "Blob.getDownloadRequestResult");
         try {
             throw new OperationNotSupportedException("glacier downloads are not yet supported");
         }
@@ -858,4 +772,8 @@ public class Glacier implements OfflineStoreSupport {
 		// NO-OP
 		
 	}
+
+    @Override protected void get(@Nullable String bucket, @Nonnull String object, @Nonnull File toFile, @Nullable FileTransfer transfer) throws InternalException, CloudException {
+        throw new OperationNotSupportedException("Glacier downloads must be performed using createDownloadRequest()");
+    }
 }

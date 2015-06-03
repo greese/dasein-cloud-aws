@@ -104,10 +104,9 @@ public class EBSVolumeCapabilities extends AbstractCapabilities<AWSCloud> implem
         return minVolSize;
     }
 
-    @Nonnull
     @Override
-    public NamingConstraints getVolumeNamingConstraints() throws CloudException, InternalException {
-        return null;
+    public @Nonnull NamingConstraints getVolumeNamingConstraints() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(0, 255);
     }
 
     @Nonnull
@@ -116,12 +115,16 @@ public class EBSVolumeCapabilities extends AbstractCapabilities<AWSCloud> implem
         return "volume";
     }
 
-    @Nonnull
     @Override
-    public Requirement getVolumeProductRequirement() throws InternalException, CloudException {
+    public @Nonnull Requirement getVolumeProductRequirement() throws InternalException, CloudException {
         return ((getProvider().getEC2Provider().isEucalyptus() || getProvider().getEC2Provider().isOpenStack())
                 ? Requirement.NONE
                 : Requirement.OPTIONAL);
+    }
+
+    @Override
+    public @Nonnull Requirement getDeviceIdOnAttachRequirement() throws InternalException, CloudException {
+        return Requirement.NONE;
     }
 
     @Override

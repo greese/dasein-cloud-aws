@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2009-2015 Dell, Inc.
  * See annotations for authorship information
  *
@@ -17,27 +17,38 @@
  * ====================================================================
  */
 
-package org.dasein.cloud.aws.identity;
+package org.dasein.cloud.aws.model;
 
-import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.identity.AbstractIdentityServices;
+/**
+ * Created by stas on 14/04/2015.
+ */
+public class VolumePrice {
+    private String id;
+    private float monthly;
+    private float iops;
 
-public class AWSIdentityServices extends AbstractIdentityServices<AWSCloud> {
-
-    public AWSIdentityServices(AWSCloud provider) {
-        super(provider);
+    public float getIops() {
+        return iops;
     }
 
-    @Override
-    public IAM getIdentityAndAccessSupport() {
-        if( getProvider().getEC2Provider().isAWS() || getProvider().getEC2Provider().isEnStratus() ) {
-            return new IAM(getProvider());
-        }
-        return null;
+    public void setIops(float iops) {
+        this.iops = iops;
     }
 
-    @Override
-    public Keypairs getShellKeySupport() {
-        return new Keypairs(getProvider());
+    public String getId() {
+        return id;
     }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public float getMonthly() {
+        return monthly;
+    }
+
+    public void setMonthly(float monthly) {
+        this.monthly = monthly;
+    }
+
 }
