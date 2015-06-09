@@ -22,6 +22,7 @@ package org.dasein.cloud.aws.network;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
@@ -46,7 +47,6 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import javax.annotation.Nonnull;
-import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
 import java.text.SimpleDateFormat;
@@ -230,10 +230,10 @@ public class Route53Method {
                     wire.debug("");
                 }
             }
-    		if( status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_ACCEPTED || status == HttpServletResponse.SC_CREATED ) {
+    		if( status == HttpStatus.SC_OK || status == HttpStatus.SC_ACCEPTED || status == HttpStatus.SC_CREATED ) {
                 return parseResponse(xml, false);
     		}
-    		else if( status == HttpServletResponse.SC_FORBIDDEN ) {
+    		else if( status == HttpStatus.SC_FORBIDDEN ) {
     		    String msg = "API Access Denied (403)";
     		    
                 try {
@@ -288,11 +288,11 @@ public class Route53Method {
     		    throw new CloudException(msg);
     		}
     		else {
-    			if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE || status == HttpServletResponse.SC_INTERNAL_SERVER_ERROR ) {
+    			if( status == HttpStatus.SC_SERVICE_UNAVAILABLE || status == HttpStatus.SC_INTERNAL_SERVER_ERROR ) {
     				if( attempts >= 5 ) {
     					String msg;
     					
-    					if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE ) {
+    					if( status == HttpStatus.SC_SERVICE_UNAVAILABLE ) {
     						msg = "Cloud service is currently unavailable.";
     					}
     					else {

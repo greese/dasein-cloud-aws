@@ -19,6 +19,7 @@
 
 package org.dasein.cloud.aws.network;
 
+import org.apache.http.HttpStatus;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
@@ -41,7 +42,6 @@ import org.w3c.dom.NodeList;
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.servlet.http.HttpServletResponse;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.TreeSet;
@@ -606,7 +606,7 @@ public class Route53 implements DNSSupport {
                 method.invoke();
             }
             catch( EC2Exception e ) {
-                if( e.getStatus() == HttpServletResponse.SC_UNAUTHORIZED || e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                if( e.getStatus() == HttpStatus.SC_UNAUTHORIZED || e.getStatus() == HttpStatus.SC_FORBIDDEN ) {
                     return false;
                 }
                 String code = e.getCode();
