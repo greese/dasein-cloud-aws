@@ -734,7 +734,7 @@ public class EC2Method {
             }
             catch( IOException e ) {
                 logger.error("I/O error from server communications: " + e.getMessage());
-                throw new InternalException(e);
+                throw new InternalException("There was a temporary communication issue with the cloud, please try your request again", e);
             }
             int status = response.getStatusLine().getStatusCode();
             if( status == HttpServletResponse.SC_OK ) {
