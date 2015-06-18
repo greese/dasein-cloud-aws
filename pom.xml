@@ -259,9 +259,9 @@
                             <value>${test.machineImage}</value>
                         </property>
                     </systemProperties>
-                    <excludes>
-                        <exclude>**/TestSuite.java</exclude>
-                    </excludes>
+                    <includes>
+                        <include>**/TestSuite.java</include>
+                    </includes>
                 </configuration>
             </plugin>
             <plugin>
