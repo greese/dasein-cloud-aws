@@ -168,7 +168,7 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
     @Override
     public @Nonnull Requirement identifyVlanRequirement() throws CloudException, InternalException {
         // Optional as per 2013.07
-        return (getProvider().getEC2Provider().isEucalyptus() ? Requirement.NONE : Requirement.OPTIONAL);
+        return (getProvider().getEC2Provider().isEucalyptus() ? Requirement.NONE : Requirement.REQUIRED);
     }
 
     @Override
