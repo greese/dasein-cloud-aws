@@ -109,21 +109,11 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                     if( vm == null || VmState.TERMINATED.equals(vm.getCurrentState()) ) {
                         break;
                     }
-                    
-                    if( VmState.RUNNING.equals(vm.getCurrentState()) || VmState.STOPPED.equals(vm.getCurrentState()) ) {
+
+                    if( getCapabilities().canImage(vm.getCurrentState()) ) {
                         break;
                     }
                     
-                    if( !vm.isPersistent() ) {
-                    	if( vm.getPlatform().isWindows() ) {
-                           	String bucket = getProvider(). getStorageServices().getOnlineStorageSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
-                            if( bucket == null ) {
-                                throw new CloudException("There is no bucket");
-                            }
-                            return captureWindows(getProvider(). getContext(), options, bucket, task);
-                        }
-                    }
-
                 }
                 catch( Throwable ignore ) {
                     // ignore
@@ -134,6 +124,18 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             if( vm == null ) {
                 throw new CloudException("No such virtual machine: " + options.getVirtualMachineId());
             }
+
+            // instance-store windows machines need an s3 bucket
+            if( !vm.isPersistent() ) {
+                if( vm.getPlatform().isWindows() ) {
+                    String bucket = getProvider(). getStorageServices().getOnlineStorageSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
+                    if( bucket == null ) {
+                        throw new CloudException("There is no bucket");
+                    }
+                    return captureWindows(getProvider(). getContext(), options, bucket, task);
+                }
+            }
+
             String lastMessage = null;
             int attempts = 5;
 
