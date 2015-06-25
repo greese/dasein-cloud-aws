@@ -109,21 +109,11 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                     if( vm == null || VmState.TERMINATED.equals(vm.getCurrentState()) ) {
                         break;
                     }
-                    
-                    if( VmState.RUNNING.equals(vm.getCurrentState()) || VmState.STOPPED.equals(vm.getCurrentState()) ) {
+
+                    if( getCapabilities().canImage(vm.getCurrentState()) ) {
                         break;
                     }
                     
-                    if( !vm.isPersistent() ) {
-                    	if( vm.getPlatform().isWindows() ) {
-                           	String bucket = getProvider(). getStorageServices().getOnlineStorageSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
-                            if( bucket == null ) {
-                                throw new CloudException("There is no bucket");
-                            }
-                            return captureWindows(getProvider(). getContext(), options, bucket, task);
-                        }
-                    }
-
                 }
                 catch( Throwable ignore ) {
                     // ignore
@@ -134,6 +124,18 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             if( vm == null ) {
                 throw new CloudException("No such virtual machine: " + options.getVirtualMachineId());
             }
+
+            // instance-store windows machines need an s3 bucket
+            if( !vm.isPersistent() ) {
+                if( vm.getPlatform().isWindows() ) {
+                    String bucket = getProvider(). getStorageServices().getOnlineStorageSupport().createBucket("dsnwin" + (System.currentTimeMillis() % 10000), true).getBucketName();
+                    if( bucket == null ) {
+                        throw new CloudException("There is no bucket");
+                    }
+                    return captureWindows(getProvider(). getContext(), options, bucket, task);
+                }
+            }
+
             String lastMessage = null;
             int attempts = 5;
 
@@ -330,7 +332,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             final String sourceRegionId = ctx.getRegionId();
             final String targetRegionId = options.getTargetRegionId();
 
-            final ProviderContext targetContext = ctx.copy( targetRegionId );
+            final ProviderContext targetContext = ctx.copy(targetRegionId);
             targetProvider = ( AWSCloud ) targetContext.connect();
             if ( targetProvider.testContext() == null ) {
                 throw new CloudException( "Could not connect with the same account to the copy target region: " +
@@ -339,7 +341,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
             // Invoke the EC2 method
             Map<String,String> parameters = targetProvider.getStandardParameters(
-                    targetProvider.getContext(), EC2Method.COPY_IMAGE );
+                    targetProvider.getContext(), EC2Method.COPY_IMAGE);
 
             parameters.put( "SourceRegion", sourceRegionId );
             parameters.put( "SourceImageId", options.getProviderImageId() );
@@ -1640,6 +1642,9 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                 platform = Platform.UNKNOWN;
 		    }
 		}
+        if( Platform.UNKNOWN.equals(platform) && description != null ) {
+            platform = Platform.guess(description);
+        }
 		if( location != null ) {
 			String[] parts = location.split("/");
 			
