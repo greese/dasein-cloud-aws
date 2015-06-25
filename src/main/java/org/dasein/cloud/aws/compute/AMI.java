@@ -330,7 +330,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
             final String sourceRegionId = ctx.getRegionId();
             final String targetRegionId = options.getTargetRegionId();
 
-            final ProviderContext targetContext = ctx.copy( targetRegionId );
+            final ProviderContext targetContext = ctx.copy(targetRegionId);
             targetProvider = ( AWSCloud ) targetContext.connect();
             if ( targetProvider.testContext() == null ) {
                 throw new CloudException( "Could not connect with the same account to the copy target region: " +
@@ -339,7 +339,7 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
 
             // Invoke the EC2 method
             Map<String,String> parameters = targetProvider.getStandardParameters(
-                    targetProvider.getContext(), EC2Method.COPY_IMAGE );
+                    targetProvider.getContext(), EC2Method.COPY_IMAGE);
 
             parameters.put( "SourceRegion", sourceRegionId );
             parameters.put( "SourceImageId", options.getProviderImageId() );
@@ -1640,6 +1640,9 @@ public class AMI extends AbstractImageSupport<AWSCloud> {
                 platform = Platform.UNKNOWN;
 		    }
 		}
+        if( Platform.UNKNOWN.equals(platform) && description != null ) {
+            platform = Platform.guess(description);
+        }
 		if( location != null ) {
 			String[] parts = location.split("/");
 			
