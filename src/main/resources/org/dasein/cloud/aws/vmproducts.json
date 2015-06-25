@@ -114,25 +114,25 @@
         "ramSizeInMb": 660,
         "generation": "previous",
         "vt": ["paravirtual"],
-        "rdt": ["ebs", "instance"]
+        "rdt": ["ebs"]
       },
       {
-        "architectures": ["I64"],
+        "architectures": ["I32", "I64"],
         "id": "t2.micro",
         "name": "Burstable Instance (t2.micro)",
-        "description": "Burstable Instance (t2.micro)",
+        "description": "Variable ECUs, 1 vCPUs, 2.5 GHz, Intel Xeon Family, 1 GiB memory, EBS only",
         "cpuCount": 1,
         "rootVolumeSizeInGb": 1,
-        "ramSizeInMb": 1073,
+        "ramSizeInMb": 1074,
         "generation": "current",
         "vt": ["hvm"],
         "rdt": ["ebs"]
       },
       {
-        "architectures": ["I64"],
+        "architectures": ["I32", "I64"],
         "id": "t2.small",
         "name": "Burstable Instance (t2.small)",
-        "description": "Burstable Instance (t2.small)",
+        "description": "Variable ECUs, 1 vCPUs, 2.5 GHz, Intel Xeon Family, 2 GiB memory, EBS only",
         "cpuCount": 1,
         "rootVolumeSizeInGb": 1,
         "ramSizeInMb": 2147,
@@ -141,13 +141,25 @@
         "rdt": ["ebs"]
       },
       {
-        "architectures": ["I64"],
+        "architectures": ["I32", "I64"],
         "id": "t2.medium",
         "name": "Burstable Instance (t2.medium)",
-        "description": "Burstable Instance (t2.medium)",
+        "description": "Variable ECUs, 2 vCPUs, 2.5 GHz, Intel Xeon Family, 4 GiB memory, EBS only",
         "cpuCount": 2,
         "rootVolumeSizeInGb": 1,
-        "ramSizeInMb": 4294,
+        "ramSizeInMb": 4295,
+        "generation": "current",
+        "vt": ["hvm"],
+        "rdt": ["ebs"]
+      },
+      {
+        "architectures": ["I64"],
+        "id": "t2.large",
+        "name": "Burstable Instance (t2.large)",
+        "description": "Variable ECUs, 2 vCPUs, 2.4 GHz, Intel Xeon Family, 8 GiB memory, EBS only",
+        "cpuCount": 2,
+        "rootVolumeSizeInGb": 1,
+        "ramSizeInMb": 8590,
         "generation": "current",
         "vt": ["hvm"],
         "rdt": ["ebs"]
@@ -302,7 +314,7 @@
         "description": "Compute Optimized Large (c3.large)",
         "cpuCount": 2,
         "rootVolumeSizeInGb": 32,
-        "ramSizeInMb": 4026,
+        "ramSizeInMb": 4027,
         "generation": "current",
         "vt": ["hvm", "paravirtual"],
         "rdt": ["ebs", "instance"]

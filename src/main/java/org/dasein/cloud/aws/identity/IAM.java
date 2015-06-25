@@ -22,7 +22,6 @@ package org.dasein.cloud.aws.identity;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.admin.PrepaymentSupport;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
@@ -41,14 +40,7 @@ import org.dasein.cloud.compute.MachineImageSupport;
 import org.dasein.cloud.compute.SnapshotSupport;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.compute.VolumeSupport;
-import org.dasein.cloud.identity.AccessKey;
-import org.dasein.cloud.identity.CloudGroup;
-import org.dasein.cloud.identity.CloudPermission;
-import org.dasein.cloud.identity.CloudPolicy;
-import org.dasein.cloud.identity.CloudUser;
-import org.dasein.cloud.identity.IdentityAndAccessSupport;
-import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.identity.ShellKeySupport;
+import org.dasein.cloud.identity.*;
 import org.dasein.cloud.network.DNSSupport;
 import org.dasein.cloud.network.FirewallSupport;
 import org.dasein.cloud.network.IpAddressSupport;
@@ -71,10 +63,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Implementation of the AWS IAM APIs based on the Dasein Cloud identity and access support.
@@ -82,30 +71,33 @@ import java.util.Map;
  * @since 2012.02
  * @version 2012.02
  */
-public class IAM implements IdentityAndAccessSupport {
+public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
     static private final Logger logger = AWSCloud.getLogger(IAM.class);
-    
-    private AWSCloud provider;
 
-    public IAM(@Nonnull AWSCloud cloud) {
-        provider = cloud;
+    protected IAM(AWSCloud provider) {
+        super(provider);
     }
-    
+
+    private transient volatile IAMCapabilities capabilities;
+
+    @Nonnull
+    @Override
+    public IdentityAndAccessCapabilities getCapabilities() throws CloudException, InternalException {
+        if( capabilities == null ) {
+            capabilities = new IAMCapabilities(getProvider());
+        }
+        return capabilities;
+    }
+
     @Override
     public void addUserToGroups(@Nonnull String providerUserId, @Nonnull String... providerGroupIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.addUserToGroups");
+        APITrace.begin(getProvider(), "IAM.addUserToGroups");
         try {
-            ProviderContext ctx = provider.getContext();
-    
-            if( ctx == null ) {
-                logger.error("No context was established for the attempt at addUserToGroups()");
-                throw new InternalException("No context was established for this call.");
-            }
             if( logger.isInfoEnabled() ) {
                 logger.info("Adding " + providerUserId + " to " + providerGroupIds.length + " groups...");
             }
             for( String groupId : providerGroupIds ) {
-                addUserToGroup(ctx, providerUserId, groupId);
+                addUserToGroup(providerUserId, groupId);
             }
             if( logger.isInfoEnabled() ) {
                 logger.info("User " + providerUserId + " successfully added to all groups.");
@@ -118,18 +110,17 @@ public class IAM implements IdentityAndAccessSupport {
 
     /**
      * Executes the function of adding a user to a specific group as AWS does not support bulk adding of a user to a group.
-     * @param ctx the current cloud context
      * @param providerUserId the user to be added
      * @param providerGroupId the group to which the user will be added
      * @throws CloudException an error occurred in the cloud provider adding this user to the specified group
      * @throws InternalException an error occurred within Dasein Cloud adding the user to the group
      */
-    private void addUserToGroup(@Nonnull ProviderContext ctx, @Nonnull String providerUserId, @Nonnull String providerGroupId) throws CloudException, InternalException {
+    private void addUserToGroup(@Nonnull String providerUserId, @Nonnull String providerGroupId) throws CloudException, InternalException {
         if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".addUserToGroup(" + ctx + "," + providerUserId + "," + providerGroupId + ")");
+            logger.trace("ENTER: " + IAM.class.getName() + ".addUserToGroup(" + providerUserId + "," + providerGroupId + ")");
         }
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.ADD_USER_TO_GROUP, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.ADD_USER_TO_GROUP, IAMMethod.VERSION);
             EC2Method method;
 
             CloudUser user = getUser(providerUserId);
@@ -148,7 +139,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Adding " + providerUserId + " to " + providerGroupId + "...");
@@ -172,16 +163,9 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull CloudGroup createGroup(@Nonnull String groupName, @Nullable String path, boolean asAdminGroup) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.createGroup");
+        APITrace.begin(getProvider(), "IAM.createGroup");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for the attempt at createGroup()");
-                throw new InternalException("No context was established for this call.");
-            }
-
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.CREATE_GROUP, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.CREATE_GROUP, IAMMethod.VERSION);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -197,7 +181,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Creating group " + groupName + " in " + path + "...");
@@ -205,7 +189,7 @@ public class IAM implements IdentityAndAccessSupport {
                 doc = method.invoke();
                 blocks = doc.getElementsByTagName("Group");
                 for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudGroup cloudGroup = toGroup(ctx, blocks.item(i));
+                    CloudGroup cloudGroup = toGroup(blocks.item(i));
                     
                     if( logger.isDebugEnabled() ) {
                         logger.debug("cloudGroup=" + cloudGroup);
@@ -216,7 +200,7 @@ public class IAM implements IdentityAndAccessSupport {
                         }
                         if( asAdminGroup ) {
                             logger.info("Setting up admin group rights for new group " + cloudGroup);
-                            saveGroupPolicy(cloudGroup.getProviderGroupId(), "AdminGroup", CloudPermission.ALLOW, null, null);
+                            modifyGroupPolicy(cloudGroup.getProviderGroupId(), "AdminGroup", CloudPermission.ALLOW, null, null);
                         }
                         return cloudGroup;
                     }                    
@@ -236,16 +220,9 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull CloudUser createUser(@Nonnull String userName, @Nullable String path, @Nullable String... autoJoinGroupIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.createUser");
+        APITrace.begin(getProvider(), "IAM.createUser");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for the attempt at createUser()");
-                throw new InternalException("No context was established for this call.");
-            }
-
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.CREATE_USER, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.CREATE_USER, IAMMethod.VERSION);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -260,7 +237,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Creating user " + userName + " in " + path + "...");
@@ -268,7 +245,7 @@ public class IAM implements IdentityAndAccessSupport {
                 doc = method.invoke();
                 blocks = doc.getElementsByTagName("User");
                 for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudUser cloudUser = toUser(ctx, blocks.item(i));
+                    CloudUser cloudUser = toUser(blocks.item(i));
 
                     if( logger.isDebugEnabled() ) {
                         logger.debug("cloudUser=" + cloudUser);
@@ -295,22 +272,15 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull  AccessKey enableAPIAccess(@Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "enableAPIAccess");
+        APITrace.begin(getProvider(), "enableAPIAccess");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudUser user = getUser(providerUserId);
 
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
             
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.CREATE_ACCESS_KEY, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.CREATE_ACCESS_KEY, IAMMethod.VERSION);
             IAMMethod method;
             NodeList blocks;
             Document doc;
@@ -319,7 +289,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Creating access keys for " + providerUserId);
@@ -327,7 +297,7 @@ public class IAM implements IdentityAndAccessSupport {
                 doc = method.invoke();
                 blocks = doc.getElementsByTagName("AccessKey");
                 for( int i=0; i<blocks.getLength(); i++ ) {
-                    AccessKey key = toAccessKey(ctx, blocks.item(i));
+                    AccessKey key = toAccessKey(blocks.item(i));
 
                     if( logger.isDebugEnabled() ) {
                         logger.debug("key=" + key);
@@ -354,22 +324,15 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public void enableConsoleAccess(@Nonnull String providerUserId, @Nonnull byte[] password) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.enableConsoleAccess");
+        APITrace.begin(getProvider(), "IAM.enableConsoleAccess");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudUser user = getUser(providerUserId);
 
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
             
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.CREATE_LOGIN_PROFILE, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.CREATE_LOGIN_PROFILE, IAMMethod.VERSION);
             IAMMethod method;
             NodeList blocks;
             Document doc;
@@ -384,7 +347,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=[omitted due to password sensitivity]");
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Creating console access for " + providerUserId);
@@ -408,7 +371,7 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nullable CloudGroup getGroup(@Nonnull String providerGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.getGroup");
+        APITrace.begin(getProvider(), "IAM.getGroup");
         try {
             for( CloudGroup group : listGroups(null) ) {
                 if( providerGroupId.equals(group.getProviderGroupId()) ) {
@@ -427,7 +390,7 @@ public class IAM implements IdentityAndAccessSupport {
             logger.trace("ENTER: " + IAM.class.getName() + ".getGroupPolicy(" + group + "," + policyName + ")");
         }
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.GET_GROUP_POLICY, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.GET_GROUP_POLICY, IAMMethod.VERSION);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -437,7 +400,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 doc = method.invoke();
                 blocks = doc.getElementsByTagName("GetGroupPolicyResult");
@@ -488,7 +451,7 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nullable CloudUser getUser(@Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.getUser");
+        APITrace.begin(getProvider(), "IAM.getUser");
         try {
             for( CloudUser user : this.listUsersInPath(null) ) {
                 if( providerUserId.equals(user.getProviderUserId()) ) {
@@ -507,14 +470,7 @@ public class IAM implements IdentityAndAccessSupport {
             logger.trace("ENTER: " + IAM.class.getName() + ".getUserByName(" + userName + ")");
         }
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.LIST_USERS, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.LIST_USERS, IAMMethod.VERSION);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -523,12 +479,12 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 doc = method.invoke();
                 blocks = doc.getElementsByTagName("member");
                 for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudUser cloudUser = toUser(ctx, blocks.item(i));
+                    CloudUser cloudUser = toUser(blocks.item(i));
 
                     if( cloudUser != null ) {
                         if( logger.isDebugEnabled() ) {
@@ -559,7 +515,7 @@ public class IAM implements IdentityAndAccessSupport {
             logger.trace("ENTER: " + IAM.class.getName() + ".getUserPolicy(" + user + "," + policyName + ")");
         }
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.GET_USER_POLICY, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.GET_USER_POLICY, IAMMethod.VERSION);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -569,7 +525,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 doc = method.invoke();
                 blocks = doc.getElementsByTagName("GetUserPolicyResult");
@@ -620,9 +576,9 @@ public class IAM implements IdentityAndAccessSupport {
     
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.isSubscribed");
+        APITrace.begin(getProvider(), "IAM.isSubscribed");
         try {
-            ComputeServices svc = provider.getComputeServices();
+            ComputeServices svc = getProvider().getComputeServices();
 
             if( svc == null ) {
                 return false;
@@ -638,16 +594,9 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull Iterable<CloudGroup> listGroups(@Nullable String pathBase) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.listGroups");
+        APITrace.begin(getProvider(), "IAM.listGroups");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.LIST_GROUPS, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.LIST_GROUPS, IAMMethod.VERSION);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -658,14 +607,14 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 ArrayList<CloudGroup> groups = new ArrayList<CloudGroup>();
 
                 doc = method.invoke();
                 blocks = doc.getElementsByTagName("member");
                 for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudGroup cloudGroup = toGroup(ctx, blocks.item(i));
+                    CloudGroup cloudGroup = toGroup(blocks.item(i));
 
                     if( cloudGroup != null ) {
                         groups.add(cloudGroup);
@@ -688,22 +637,15 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull Iterable<CloudGroup> listGroupsForUser(@Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.listGroupsForUser");
+        APITrace.begin(getProvider(), "IAM.listGroupsForUser");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudUser user = getUser(providerUserId);
 
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
             
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.LIST_GROUPS_FOR_USER, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.LIST_GROUPS_FOR_USER, IAMMethod.VERSION);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -712,14 +654,14 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 ArrayList<CloudGroup> groups = new ArrayList<CloudGroup>();
 
                 doc = method.invoke();
                 blocks = doc.getElementsByTagName("member");
                 for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudGroup cloudGroup = toGroup(ctx, blocks.item(i));
+                    CloudGroup cloudGroup = toGroup(blocks.item(i));
 
                     if( cloudGroup != null ) {
                         groups.add(cloudGroup);
@@ -742,21 +684,14 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull Iterable<CloudPolicy> listPoliciesForGroup(@Nonnull String providerGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.listPoliciesForGroup");
+        APITrace.begin(getProvider(), "IAM.listPoliciesForGroup");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudGroup group = getGroup(providerGroupId);
 
             if( group == null ) {
                 throw new CloudException("No such group: " + providerGroupId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.LIST_GROUP_POLICIES, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.LIST_GROUP_POLICIES, IAMMethod.VERSION);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -765,7 +700,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 ArrayList<String> names = new ArrayList<String>();
 
@@ -804,21 +739,14 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull Iterable<CloudPolicy> listPoliciesForUser(@Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.listPoliciesForUser");
+        APITrace.begin(getProvider(), "IAM.listPoliciesForUser");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudUser user = getUser(providerUserId);
 
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.LIST_USER_POLICIES, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.LIST_USER_POLICIES, IAMMethod.VERSION);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -827,7 +755,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 ArrayList<String> names = new ArrayList<String>();
 
@@ -866,21 +794,14 @@ public class IAM implements IdentityAndAccessSupport {
     
     @Override
     public @Nonnull Iterable<CloudUser> listUsersInGroup(@Nonnull String inProviderGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.listUsersInGroup");
+        APITrace.begin(getProvider(), "IAM.listUsersInGroup");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudGroup group = getGroup(inProviderGroupId);
 
             if( group == null ) {
                 throw new CloudException("No such group: " + inProviderGroupId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.GET_GROUP, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.GET_GROUP, IAMMethod.VERSION);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -889,14 +810,14 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 ArrayList<CloudUser> users = new ArrayList<CloudUser>();
                 
                 doc = method.invoke();
                 blocks = doc.getElementsByTagName("member");
                 for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudUser user = toUser(ctx, blocks.item(i));
+                    CloudUser user = toUser(blocks.item(i));
 
                     if( user != null ) {
                         users.add(user);
@@ -919,16 +840,9 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull Iterable<CloudUser> listUsersInPath(@Nullable String pathBase) throws CloudException, InternalException {
-        APITrace.begin(provider, "listUsersInPath");
+        APITrace.begin(getProvider(), "listUsersInPath");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.LIST_USERS, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.LIST_USERS, IAMMethod.VERSION);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -939,14 +853,14 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
-                ArrayList<CloudUser> users = new ArrayList<CloudUser>();
+                List<CloudUser> users = new ArrayList<CloudUser>();
 
                 doc = method.invoke();
                 blocks = doc.getElementsByTagName("member");
                 for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudUser cloudUser = toUser(ctx, blocks.item(i));
+                    CloudUser cloudUser = toUser(blocks.item(i));
 
                     if( cloudUser != null ) {
                         users.add(cloudUser);
@@ -1068,20 +982,14 @@ public class IAM implements IdentityAndAccessSupport {
     
     @Override
     public void removeAccessKey(@Nonnull String sharedKeyPart, @Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeAccessKey");
+        APITrace.begin(getProvider(), "IAM.removeAccessKey");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudUser user = getUser(providerUserId);
 
             if( user == null ) {
                 return;
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_ACCESS_KEY, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.DELETE_ACCESS_KEY, IAMMethod.VERSION);
             IAMMethod method;
 
             parameters.put("AccessKeyId", sharedKeyPart);
@@ -1090,7 +998,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Removing access key for " + sharedKeyPart);
@@ -1109,27 +1017,21 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public void removeConsoleAccess(@Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeConsoleAccess");
+        APITrace.begin(getProvider(), "IAM.removeConsoleAccess");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudUser user = getUser(providerUserId);
 
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_LOGIN_PROFILE, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.DELETE_LOGIN_PROFILE, IAMMethod.VERSION);
             IAMMethod method;
 
             parameters.put("UserName", user.getUserName());
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Removing console access for " + providerUserId);
@@ -1148,27 +1050,21 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public void removeGroup(@Nonnull String providerGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeGroup");
+        APITrace.begin(getProvider(), "IAM.removeGroup");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudGroup group = getGroup(providerGroupId);
             
             if( group == null ) {
                 throw new CloudException("No such group: " + providerGroupId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_GROUP, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.DELETE_GROUP, IAMMethod.VERSION);
             IAMMethod method;
 
             parameters.put("GroupName", group.getName());
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Removing group " + providerGroupId);
@@ -1187,21 +1083,15 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public void removeGroupPolicy(@Nonnull String providerGroupId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeGroupPolicy");
+        APITrace.begin(getProvider(), "IAM.removeGroupPolicy");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudGroup group = getGroup(providerGroupId);
 
             if( group == null ) {
                 throw new CloudException("No such group: " + providerGroupId);
             }
 
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_GROUP_POLICY, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.DELETE_GROUP_POLICY, IAMMethod.VERSION);
             EC2Method method;
 
             parameters.put("GroupName", group.getName());
@@ -1210,7 +1100,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Removing policy for group " + providerGroupId);
@@ -1230,27 +1120,21 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public void removeUser(@Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeUser");
+        APITrace.begin(getProvider(), "IAM.removeUser");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudUser user = getUser(providerUserId);
             
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_USER, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.DELETE_USER, IAMMethod.VERSION);
             IAMMethod method;
 
             parameters.put("UserName", user.getUserName());
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Removing user " + providerUserId);
@@ -1269,21 +1153,15 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public void removeUserPolicy(@Nonnull String providerUserId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeUserPolicy");
+        APITrace.begin(getProvider(), "IAM.removeUserPolicy");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudUser user = getUser(providerUserId);
 
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
 
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_USER_POLICY, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.DELETE_USER_POLICY, IAMMethod.VERSION);
             EC2Method method;
 
             parameters.put("UserName", user.getUserName());
@@ -1292,7 +1170,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Removing policy for user " + providerUserId);
@@ -1312,15 +1190,8 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public void removeUserFromGroup(@Nonnull String providerUserId, @Nonnull String providerGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeUserFromGroup");
+        APITrace.begin(getProvider(), "IAM.removeUserFromGroup");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudUser user = getUser(providerUserId);
 
             if( user == null ) {
@@ -1333,7 +1204,7 @@ public class IAM implements IdentityAndAccessSupport {
                 throw new CloudException("No such group: " + providerGroupId);
             }
 
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.REMOVE_USER_FROM_GROUP, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.REMOVE_USER_FROM_GROUP, IAMMethod.VERSION);
             IAMMethod method;
 
             parameters.put("UserName", user.getUserName());
@@ -1341,7 +1212,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Removing user " + providerUserId + " from " + providerGroupId);
@@ -1359,23 +1230,16 @@ public class IAM implements IdentityAndAccessSupport {
     }
 
     @Override
-    public void saveGroup(@Nonnull String providerGroupId, @Nullable String newGroupName, @Nullable String newPath) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.saveGroup");
+    public void modifyGroup(@Nonnull String providerGroupId, @Nullable String newGroupName, @Nullable String newPath) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.saveGroup");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudGroup group = getGroup(providerGroupId);
 
             if( group == null ) {
                 throw new CloudException("No such group: " + providerGroupId);
             }
 
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.UPDATE_GROUP, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.UPDATE_GROUP, IAMMethod.VERSION);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -1390,7 +1254,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Updating group " + providerGroupId + " with " + newPath + " - " + newGroupName + "...");
@@ -1413,27 +1277,21 @@ public class IAM implements IdentityAndAccessSupport {
     }
 
     @Override
-    public @Nonnull String[] saveGroupPolicy(@Nonnull String providerGroupId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.saveGroupPolicy");
+    public @Nonnull String[] modifyGroupPolicy(@Nonnull String providerGroupId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.saveGroupPolicy");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudGroup group = getGroup(providerGroupId);
 
             if( group == null ) {
                 throw new CloudException("No such group: " + providerGroupId);
             }
 
-            String[] actions = (action == null ? new String[] { "*" } : action.map(provider));
+            String[] actions = (action == null ? new String[] { "*" } : action.map(getProvider()));
             String[] ids = new String[actions.length];
             int i = 0;
 
             for( String actionId : actions ) {
-                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.PUT_GROUP_POLICY, IAMMethod.VERSION);
+                Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.PUT_GROUP_POLICY, IAMMethod.VERSION);
                 String policyName = name + "+" + (actionId.equals("*") ? "ANY" : actionId.replaceAll(":", "_"));
 
                 EC2Method method;
@@ -1455,7 +1313,7 @@ public class IAM implements IdentityAndAccessSupport {
                 if( logger.isDebugEnabled() ) {
                     logger.debug("parameters=" + parameters);
                 }
-                method = new IAMMethod(provider, parameters);
+                method = new IAMMethod(getProvider(), parameters);
                 try {
                     if( logger.isInfoEnabled() ) {
                         logger.info("Updating policy for group " + providerGroupId);
@@ -1476,27 +1334,21 @@ public class IAM implements IdentityAndAccessSupport {
     }
 
     @Override
-    public String[] saveUserPolicy(@Nonnull String providerUserId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.saveUserPolicy");
+    public String[] modifyUserPolicy(@Nonnull String providerUserId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.saveUserPolicy");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudUser user = getUser(providerUserId);
 
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
 
-            String[] actions = (action == null ? new String[] { "*" } : action.map(provider));
+            String[] actions = (action == null ? new String[] { "*" } : action.map(getProvider()));
             String[] ids = new String[actions.length];
             int i = 0;
 
             for( String actionId : actions ) {
-                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.PUT_USER_POLICY, IAMMethod.VERSION);
+                Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.PUT_USER_POLICY, IAMMethod.VERSION);
                 String policyName = name + "+" + (actionId.equals("*") ? "ANY" : actionId.replaceAll(":", "_"));
                 EC2Method method;
 
@@ -1517,7 +1369,7 @@ public class IAM implements IdentityAndAccessSupport {
                 if( logger.isDebugEnabled() ) {
                     logger.debug("parameters=" + parameters);
                 }
-                method = new IAMMethod(provider, parameters);
+                method = new IAMMethod(getProvider(), parameters);
                 try {
                     if( logger.isInfoEnabled() ) {
                         logger.info("Updating policy for user " + providerUserId);
@@ -1538,22 +1390,16 @@ public class IAM implements IdentityAndAccessSupport {
     }
 
     @Override
-    public void saveUser(@Nonnull String providerUserId, @Nullable String newUserName, @Nullable String newPath) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.saveUser");
+    public void modifyUser(@Nonnull String providerUserId, @Nullable String newUserName, @Nullable String newPath) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.saveUser");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for the request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudUser user = getUser(providerUserId);
 
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
 
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.UPDATE_USER, IAMMethod.VERSION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), IAMMethod.UPDATE_USER, IAMMethod.VERSION);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -1568,7 +1414,7 @@ public class IAM implements IdentityAndAccessSupport {
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
+            method = new IAMMethod(getProvider(), parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Updating user " + providerUserId + " with " + newPath + " - " + newUserName + "...");
@@ -1590,29 +1436,14 @@ public class IAM implements IdentityAndAccessSupport {
         }
     }
 
-    @Override
-    public boolean supportsAccessControls() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public boolean supportsConsoleAccess() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public boolean supportsAPIAccess() throws CloudException, InternalException {
-        return true;
-    }
-    
-    private @Nullable AccessKey toAccessKey(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException, InternalException {
+    private @Nullable AccessKey toAccessKey(@Nullable Node node) throws CloudException, InternalException {
         if( node == null ) {
             return null;
         }
         NodeList attributes = node.getChildNodes();
         AccessKey key = new AccessKey();
 
-        key.setProviderOwnerId(ctx.getAccountNumber());
+        key.setProviderOwnerId(getContext().getAccountNumber());
 
         String userName = null;
         
@@ -1661,7 +1492,7 @@ public class IAM implements IdentityAndAccessSupport {
         return key;
     }
 
-    private @Nullable CloudGroup toGroup(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException, InternalException {
+    private @Nullable CloudGroup toGroup(@Nullable Node node) throws CloudException, InternalException {
         if( node == null ) {
             return null;
         }
@@ -1669,7 +1500,7 @@ public class IAM implements IdentityAndAccessSupport {
         CloudGroup group = new CloudGroup();
 
         group.setPath("/");
-        group.setProviderOwnerId(ctx.getAccountNumber());
+        group.setProviderOwnerId(getContext().getAccountNumber());
         for( int i=0; i<attributes.getLength(); i++ ) {
             Node attribute = attributes.item(i);
             String attrName = attribute.getNodeName();
@@ -1853,7 +1684,7 @@ public class IAM implements IdentityAndAccessSupport {
         return policyList.toArray(new CloudPolicy[policyList.size()]);
     }
     
-    private @Nullable CloudUser toUser(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException, InternalException {
+    private @Nullable CloudUser toUser(@Nullable Node node) throws CloudException, InternalException {
         if( node == null ) {
             return null;
         }
@@ -1861,7 +1692,7 @@ public class IAM implements IdentityAndAccessSupport {
         CloudUser user = new CloudUser();
 
         user.setPath("/");
-        user.setProviderOwnerId(ctx.getAccountNumber());
+        user.setProviderOwnerId(getContext().getAccountNumber());
         for( int i=0; i<attributes.getLength(); i++ ) {
             Node attribute = attributes.item(i);
             String attrName = attribute.getNodeName();

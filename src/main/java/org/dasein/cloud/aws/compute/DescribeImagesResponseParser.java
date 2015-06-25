@@ -256,7 +256,7 @@ public class DescribeImagesResponseParser implements XmlStreamParser<MachineImag
             } // switch
         } // for
 
-        if( platform == null && location != null ) {
+        if( platform == null ) {
             platform = Platform.guess(location);
         }
 

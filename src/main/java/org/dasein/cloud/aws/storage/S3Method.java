@@ -23,6 +23,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
@@ -46,7 +47,6 @@ import org.xml.sax.SAXException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
 import java.security.MessageDigest;
@@ -490,7 +490,7 @@ public class S3Method {
                 }
             }
             try {
-                if( status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_CREATED || status == HttpServletResponse.SC_ACCEPTED ) {
+                if( status == HttpStatus.SC_OK || status == HttpStatus.SC_CREATED || status == HttpStatus.SC_ACCEPTED ) {
                     Header clen = httpResponse.getFirstHeader("Content-Length");
                     long len = -1L;
                     
@@ -533,21 +533,21 @@ public class S3Method {
                         return response;
                     }
                 }
-                else if( status == HttpServletResponse.SC_NO_CONTENT ) {
+                else if( status == HttpStatus.SC_NO_CONTENT ) {
                     return response;
                 }
-                if( status == HttpServletResponse.SC_FORBIDDEN ) {
+                if( status == HttpStatus.SC_FORBIDDEN ) {
                     throw new S3Exception(status, "", "AccessForbidden", "Access was denied : " + (url != null ? url.toString() : "" ));
                 }
-                else if( status == HttpServletResponse.SC_NOT_FOUND ) {
+                else if( status == HttpStatus.SC_NOT_FOUND ) {
                     throw new S3Exception(status, null, null, "Object not found.");
                 }
                 else {
-                    if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE || status == HttpServletResponse.SC_INTERNAL_SERVER_ERROR ) {
+                    if( status == HttpStatus.SC_SERVICE_UNAVAILABLE || status == HttpStatus.SC_INTERNAL_SERVER_ERROR ) {
                         if( attempts >= 5 ) {
                             String msg;
                             
-                            if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE ) {
+                            if( status == HttpStatus.SC_SERVICE_UNAVAILABLE ) {
                                 msg = "Cloud service is currently unavailable.";
                             }
                             else {
@@ -626,7 +626,7 @@ public class S3Method {
                         }
                     }
                     catch( IOException e ) {
-                        if( status == HttpServletResponse.SC_FORBIDDEN ) {
+                        if( status == HttpStatus.SC_FORBIDDEN ) {
                             throw new S3Exception(status, "", "AccessForbidden", "Access was denied without explanation.");
                         }                              
                         throw new CloudException(e);

@@ -22,6 +22,7 @@ package org.dasein.cloud.aws.compute;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
@@ -46,7 +47,6 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import javax.annotation.Nonnull;
-import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
 import java.util.ArrayList;
@@ -734,10 +734,10 @@ public class EC2Method {
             }
             catch( IOException e ) {
                 logger.error("I/O error from server communications: " + e.getMessage());
-                throw new InternalException(e);
+                throw new InternalException("There was a temporary communication issue with the cloud, please try your request again", e);
             }
             int status = response.getStatusLine().getStatusCode();
-            if( status == HttpServletResponse.SC_OK ) {
+            if( status == HttpStatus.SC_OK ) {
                 try {
                     HttpEntity entity = response.getEntity();
 
@@ -767,7 +767,7 @@ public class EC2Method {
                     throw new CloudException(CloudErrorType.COMMUNICATION, status, null, e.getMessage());
                 }
             }
-            else if( status == HttpServletResponse.SC_FORBIDDEN ) {
+            else if( status == HttpStatus.SC_FORBIDDEN ) {
                 String msg = "API Access Denied (403)";
 
                 try {
@@ -854,11 +854,11 @@ public class EC2Method {
                 if( logger.isDebugEnabled() ) {
                     logger.debug("Received " + status + " from " + parameters.get(AWSCloud.P_ACTION));
                 }
-                if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE || status == HttpServletResponse.SC_INTERNAL_SERVER_ERROR ) {
+                if( status == HttpStatus.SC_SERVICE_UNAVAILABLE || status == HttpStatus.SC_INTERNAL_SERVER_ERROR ) {
                     if( attempts >= 5 ) {
                         String msg;
 
-                        if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE ) {
+                        if( status == HttpStatus.SC_SERVICE_UNAVAILABLE ) {
                             msg = "Cloud service is currently unavailable.";
                         }
                         else {

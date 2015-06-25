@@ -22,6 +22,7 @@ package org.dasein.cloud.aws.platform;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpRequestBase;
@@ -41,7 +42,6 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import javax.annotation.Nonnull;
-import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
 import java.text.SimpleDateFormat;
@@ -171,7 +171,7 @@ public class CloudFrontMethod {
             else {
                 response.etag = null;
             }
-            if( status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_CREATED || status == HttpServletResponse.SC_ACCEPTED ) {
+            if( status == HttpStatus.SC_OK || status == HttpStatus.SC_CREATED || status == HttpStatus.SC_ACCEPTED ) {
                 try {
                     HttpEntity entity = httpResponse.getEntity();
 
@@ -200,15 +200,15 @@ public class CloudFrontMethod {
                     throw new CloudException(e);
                 }
             }
-            else if( status == HttpServletResponse.SC_NO_CONTENT ) {
+            else if( status == HttpStatus.SC_NO_CONTENT ) {
                 return null;
             }
             else {
-                if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE || status == HttpServletResponse.SC_INTERNAL_SERVER_ERROR ) {
+                if( status == HttpStatus.SC_SERVICE_UNAVAILABLE || status == HttpStatus.SC_INTERNAL_SERVER_ERROR ) {
                     if( attempts >= 5 ) {
                         String msg;
 
-                        if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE ) {
+                        if( status == HttpStatus.SC_SERVICE_UNAVAILABLE ) {
                             msg = "Cloud service is currently unavailable.";
                         }
                         else {

@@ -20,6 +20,7 @@
 package org.dasein.cloud.aws.storage;
 
 import org.apache.http.Header;
+import org.apache.http.HttpStatus;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
@@ -49,7 +50,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import javax.servlet.http.HttpServletResponse;
 import javax.xml.bind.DatatypeConverter;
 import java.io.*;
 import java.net.URLEncoder;
@@ -194,10 +194,10 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
                 return true;
             }
             catch( S3Exception e ) {
-                if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
+                if( e.getStatus() != HttpStatus.SC_NOT_FOUND ) {
                     String code = e.getCode();
 
-                    if( e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    if( e.getStatus() == HttpStatus.SC_FORBIDDEN ) {
                         return true;
                     }
                     if( code == null || !code.equals("NoSuchBucket") ) {
@@ -558,10 +558,10 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
                 return false;
             }
             catch( S3Exception e ) {
-                if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
+                if( e.getStatus() != HttpStatus.SC_NOT_FOUND ) {
                     String code = e.getCode();
 
-                    if( e.getStatus() == HttpServletResponse.SC_FORBIDDEN ) {
+                    if( e.getStatus() == HttpStatus.SC_FORBIDDEN ) {
                         return true;
                     }
                     if( code == null || !code.equals("NoSuchBucket") ) {
@@ -624,7 +624,7 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
                 return null;
             }
             catch( S3Exception e ) {
-                if( e.getStatus() != HttpServletResponse.SC_NOT_FOUND ) {
+                if( e.getStatus() != HttpStatus.SC_NOT_FOUND ) {
                     String code = e.getCode();
 
                     if( code == null || ( !code.equals("NoSuchBucket") && !code.equals("NoSuchKey") ) ) {
