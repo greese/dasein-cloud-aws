@@ -44,10 +44,10 @@ import java.util.Map;
 /**
  * Implementation of AWS Redshift support based on the Dasein Cloud Data Warehouse API. Key mappings are:
  * <ul>
- *     <li>Cluster -> Data Cluster</li>
- *     <li>Cluster Security Group -> Data Cluster Firewall</li>
- *     <li>Cluster Snapshot -> Data Cluster Snapshot</li>
- *     <li>Cluster Type -> Data Cluster Product</li>
+ *     <li>Cluster -&gt; Data Cluster</li>
+ *     <li>Cluster Security Group -&gt; Data Cluster Firewall</li>
+ *     <li>Cluster Snapshot -&gt; Data Cluster Snapshot</li>
+ *     <li>Cluster Type -&gt; Data Cluster Product</li>
  * </ul>
  * @since 2014.03
  * @version 2014.03 initial version (issue #83)
