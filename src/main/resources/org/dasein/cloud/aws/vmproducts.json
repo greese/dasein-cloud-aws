@@ -114,10 +114,10 @@
         "ramSizeInMb": 660,
         "generation": "previous",
         "vt": ["paravirtual"],
-        "rdt": ["ebs", "instance"]
+        "rdt": ["ebs"]
       },
       {
-        "architectures": ["I64"],
+        "architectures": ["I32", "I64"],
         "id": "t2.micro",
         "name": "Burstable Instance (t2.micro)",
         "description": "Variable ECUs, 1 vCPUs, 2.5 GHz, Intel Xeon Family, 1 GiB memory, EBS only",
@@ -129,7 +129,7 @@
         "rdt": ["ebs"]
       },
       {
-        "architectures": ["I64"],
+        "architectures": ["I32", "I64"],
         "id": "t2.small",
         "name": "Burstable Instance (t2.small)",
         "description": "Variable ECUs, 1 vCPUs, 2.5 GHz, Intel Xeon Family, 2 GiB memory, EBS only",
@@ -141,7 +141,7 @@
         "rdt": ["ebs"]
       },
       {
-        "architectures": ["I64"],
+        "architectures": ["I32", "I64"],
         "id": "t2.medium",
         "name": "Burstable Instance (t2.medium)",
         "description": "Variable ECUs, 2 vCPUs, 2.5 GHz, Intel Xeon Family, 4 GiB memory, EBS only",
