@@ -20,33 +20,37 @@
 package org.dasein.cloud.aws.compute;
 
 import org.dasein.cloud.CloudErrorType;
+import org.dasein.cloud.CloudException;
 
 @SuppressWarnings("serial")
-public class EC2Exception extends Exception {
+public class EC2Exception extends CloudException {
 	private String         code      = null;
-	private CloudErrorType errorType = null;
 	private String         requestId = null;
 	private int            status    = 0;
-	
-	public EC2Exception(int status, String requestId, String code, String message) {
-		super(message);
+
+    public EC2Exception(int status, String requestId, String code, String message) {
+        this(CloudErrorType.GENERAL, status, requestId, code, message);
+    }
+
+	public EC2Exception(CloudErrorType errorType, int status, String requestId, String code, String message) {
+		super(errorType, 0, null, message);
 		this.requestId = requestId;
 		this.code = code;
 		this.status = status;
 		if( code.equals("Throttling") ) {
-		    errorType = CloudErrorType.THROTTLING;
+			setErrorType(CloudErrorType.THROTTLING);
 		}
 		else if( code.equals("TooManyBuckets") ) {
-		    errorType = CloudErrorType.QUOTA;
+			setErrorType(CloudErrorType.QUOTA);
+		}
+		else if (message.contains("The request signature we calculated does not match the signature you provided.") ||
+			     message.contains("AWS was not able to validate the provided access credentials")) {
+			setErrorType(CloudErrorType.AUTHENTICATION);
 		}
 	}
-	   
+
 	public String getCode() {
 		return code;
-	}
-	
-	public CloudErrorType getErrorType() {
-	    return (errorType == null ? CloudErrorType.GENERAL : errorType);
 	}
 	
 	public String getRequestId() {

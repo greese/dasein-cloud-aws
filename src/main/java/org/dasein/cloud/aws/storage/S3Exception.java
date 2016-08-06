@@ -19,19 +19,26 @@
 
 package org.dasein.cloud.aws.storage;
 
-public class S3Exception extends Exception {
+import org.dasein.cloud.CloudErrorType;
+import org.dasein.cloud.CloudException;
+
+public class S3Exception extends CloudException {
 	private static final long serialVersionUID = -1187862739180492610L;
 	
 	private String code      = null;
 	private String requestId = null;
 	private int    status    = 0;
-	
+
 	public S3Exception(int status, String requestId, String code, String message) {
-		super(message);
-		this.requestId = requestId;
-		this.code = code;
-		this.status = status;
+		this(CloudErrorType.GENERAL, status, requestId, code, message);
 	}
+
+    public S3Exception(CloudErrorType errorType, int status, String requestId, String code, String message) {
+        super(errorType, 0, null, message);
+        this.requestId = requestId;
+        this.code = code;
+        this.status = status;
+    }
 	
 	public String getCode() {
 		return code;
