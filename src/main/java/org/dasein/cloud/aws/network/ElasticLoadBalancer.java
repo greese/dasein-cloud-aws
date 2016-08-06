@@ -1403,6 +1403,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
         boolean withHealthCheck = false;
         long created = 0L;
         LbType type = null;
+        String vlanId = null;
         ArrayList<String> subnetList = new ArrayList<String>();
         String vlanId = null;
 
